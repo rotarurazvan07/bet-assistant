@@ -3,11 +3,13 @@ Bet assistant, 2022
 """
 import time
 
+import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.service import Service
 
+FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 
 CHROME_PATH = "ADD YOUR CHROME PATH"
@@ -60,8 +62,28 @@ def get_all_matches_html(url, driver):
     return html
 
 
+def get_matches_from_html(html):
+    matches = []
+
+    # For every fixture, extract the referenced URL in order to extract information on teams
+    matches_urls = [a['href'] for a in html.find_all('a', class_="tnmscn", itemprop="url")]
+
+    for match_url in matches_urls:
+        # Get Fixture html source
+        try:
+            r = requests.get(match_url) if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url)
+        except requests.exceptions.RequestException:
+            print("Request error")
+            continue
+
+        match_html = BeautifulSoup(r.text, 'html.parser')
+
+    return matches
+
+
 if __name__ == "__main__":
     browser_driver = init_driver(CHROME_PATH, CHROMEDRIVER_PATH)
     if browser_driver is None:
         quit()
     matches_html = get_all_matches_html(FOREBET_ALL_PREDICTIONS_URL, browser_driver)
+    matches_list = get_matches_from_html(matches_html)
