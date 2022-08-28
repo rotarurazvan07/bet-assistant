@@ -14,6 +14,23 @@ CHROME_PATH = "ADD YOUR CHROME PATH"
 CHROMEDRIVER_PATH = "ADD YOUR CHROMEDRIVER PATH"
 
 
+class Team:
+    def __init__(self, name, league_points, form):
+        self.name = name
+        self.league_points = league_points
+        self.form = form
+
+
+class Match:
+    def __init__(self, home_team, away_team, match_datetime,
+                 forebet_prediction, forebet_score):
+        self.home_team = home_team
+        self.away_team = away_team
+        self.match_datetime = match_datetime
+        self.forebet_prediction = forebet_prediction
+        self.forebet_score = forebet_score
+
+
 def init_driver(chrome_path, chromedriver_path):
     options = webdriver.ChromeOptions()
     options.binary_location = chrome_path
