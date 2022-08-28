@@ -1,6 +1,7 @@
 """
 Bet assistant, 2022
 """
+from datetime import datetime, timedelta
 import time
 
 import requests
@@ -14,6 +15,8 @@ FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 
 CHROME_PATH = "ADD YOUR CHROME PATH"
 CHROMEDRIVER_PATH = "ADD YOUR CHROMEDRIVER PATH"
+
+current_time = datetime.now()
 
 
 class Team:
@@ -77,6 +80,39 @@ def get_matches_from_html(html):
             continue
 
         match_html = BeautifulSoup(r.text, 'html.parser')
+
+        try:
+            # We only look for matches in leagues
+            if "Standings" in r.text:
+                match_datetime = datetime.strptime(
+                    match_html.find('div', class_="date_bah").get_text().strip().rsplit(' ', 1)[0],
+                    "%d/%m/%Y %H:%M") + timedelta(hours=1)
+                # Skip finished matches
+                if match_datetime > current_time:
+                    # Get teams names
+                    home_team_name = match_html.find('span', itemprop="homeTeam").get_text().strip()
+                    away_team_name = match_html.find('span', itemprop="awayTeam").get_text().strip()
+
+                    # Get league points
+                    home_index = 0 if home_team_name in str(
+                        match_html.find_all('tr', style=" background-color: #FFD463;font-weight: bold;")[0]) \
+                        else 1
+                    league_standings = match_html.find_all('tr', style=" background-color: #FFD463;font-weight: bold;")
+                    home_team_points = int(league_standings[home_index].get_text().split('\n')[3])
+                    away_team_points = int(league_standings[not home_index].get_text().split('\n')[3])
+
+                    # Get teams form
+                    home_team_form = match_html.find_all('div', class_="prformcont")[0].get_text()
+                    away_team_form = match_html.find_all('div', class_="prformcont")[1].get_text()
+
+                    # Create Team objects for home and away
+                    home_team = Team(home_team_name, home_team_points, home_team_form)
+                    away_team = Team(away_team_name, away_team_points, away_team_form)
+
+                    print(home_team.name + " vs " + away_team.name)
+        except Exception as e:
+            print("error: " + str(e))
+            continue
 
     return matches
 
