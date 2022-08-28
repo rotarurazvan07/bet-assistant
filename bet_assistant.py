@@ -16,6 +16,8 @@ FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 CHROME_PATH = "ADD YOUR CHROME PATH"
 CHROMEDRIVER_PATH = "ADD YOUR CHROMEDRIVER PATH"
 
+MATCH_VALUE_THRESHOLD = 20
+
 current_time = datetime.now()
 
 
@@ -24,6 +26,13 @@ class Team:
         self.name = name
         self.league_points = league_points
         self.form = form
+
+    # Team value is represented by an integer by adding
+    # the league points and the obtained points minus the losses
+    # in the last 6 matches (recent form)
+    def get_team_value(self):
+        form_value = 3 * self.form.count("W") + 1 * self.form.count("D") - 3 * self.form.count("L")
+        return form_value + self.league_points
 
 
 class Match:
@@ -109,7 +118,17 @@ def get_matches_from_html(html):
                     home_team = Team(home_team_name, home_team_points, home_team_form)
                     away_team = Team(away_team_name, away_team_points, away_team_form)
 
-                    print(home_team.name + " vs " + away_team.name)
+                    # Calculate the difference of value between teams
+                    match_value = abs(home_team.get_team_value() - away_team.get_team_value())
+
+                    # Add Match object to list only if higher value than MATCH_VALUE_THRESHOLD
+                    if match_value > MATCH_VALUE_THRESHOLD:
+                        forebet_prediction = ' '.join([child.get_text() for child in
+                                                      match_html.find('div', class_="rcnt tr_0").
+                                                      find('div', class_="fprc").children])
+                        forebet_score = match_html.find_all('div', class_="ex_sc tabonly")[-1].get_text()
+                        matches.append(Match(home_team, away_team, match_datetime, forebet_prediction, forebet_score))
+                        print(home_team.name + " vs " + away_team.name + " with value " + str(match_value))
         except Exception as e:
             print("error: " + str(e))
             continue
