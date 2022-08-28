@@ -1,0 +1,43 @@
+<mxfile host="app.diagrams.net" modified="2022-08-28T18:20:08.282Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.134 Safari/537.36 OPR/89.0.4447.104" etag="w1FJSbyIjdcik3GimSK-" version="20.2.7" type="github">
+  <diagram id="nmrbqPwDm6XbW40RFfyZ" name="BetAssistantFlow">
+    <mxGraphModel dx="952" dy="527" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="5toUX86XIj-MW_JIZ1jv-3" target="5toUX86XIj-MW_JIZ1jv-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-3" value="Start" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="100" y="240" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="5toUX86XIj-MW_JIZ1jv-4" target="5toUX86XIj-MW_JIZ1jv-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-4" value="Open Browser on Forebet all predictions URL" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="210" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="5toUX86XIj-MW_JIZ1jv-6" target="5toUX86XIj-MW_JIZ1jv-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-6" value="Get HTML of all matches" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="5toUX86XIj-MW_JIZ1jv-8" target="5toUX86XIj-MW_JIZ1jv-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-8" value="Save matches details from HTML" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="510" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="5toUX86XIj-MW_JIZ1jv-12" target="5toUX86XIj-MW_JIZ1jv-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-12" value="Iterate over every match and check if it has value" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="510" y="330" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="5toUX86XIj-MW_JIZ1jv-14" value="Save value matches in an Excel spreadsheet" style="whiteSpace=wrap;html=1;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="360" y="330" width="120" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
