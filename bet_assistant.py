@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import time
 
 import requests
+import xlsxwriter
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
@@ -36,13 +37,23 @@ class Team:
 
 
 class Match:
-    def __init__(self, home_team, away_team, match_datetime,
+    def __init__(self, home_team, away_team, match_datetime, match_value,
                  forebet_prediction, forebet_score):
         self.home_team = home_team
         self.away_team = away_team
         self.match_datetime = match_datetime
+        self.match_value = match_value
         self.forebet_prediction = forebet_prediction
         self.forebet_score = forebet_score
+
+    # return match data in list form to be written in the excel file
+    def get_match_data(self):
+        return [self.home_team.name, self.away_team.name, str(self.match_datetime.date()),
+                str(self.match_datetime.time()),
+                self.home_team.league_points, self.away_team.league_points,
+                self.home_team.form, self.away_team.form,
+                self.match_value,
+                self.forebet_prediction, self.forebet_score]
 
 
 def init_driver(chrome_path, chromedriver_path):
@@ -124,16 +135,36 @@ def get_matches_from_html(html):
                     # Add Match object to list only if higher value than MATCH_VALUE_THRESHOLD
                     if match_value > MATCH_VALUE_THRESHOLD:
                         forebet_prediction = ' '.join([child.get_text() for child in
-                                                      match_html.find('div', class_="rcnt tr_0").
-                                                      find('div', class_="fprc").children])
+                                                       match_html.find('div', class_="rcnt tr_0").
+                                                       find('div', class_="fprc").children])
                         forebet_score = match_html.find_all('div', class_="ex_sc tabonly")[-1].get_text()
-                        matches.append(Match(home_team, away_team, match_datetime, forebet_prediction, forebet_score))
-                        print(home_team.name + " vs " + away_team.name + " with value " + str(match_value))
+                        matches.append(Match(home_team, away_team, match_datetime, match_value,
+                                             forebet_prediction, forebet_score))
         except Exception as e:
             print("error: " + str(e))
             continue
 
     return matches
+
+
+def export_matches(matches):
+    # Create an Excel spreadsheet in the directory where the script is called
+    workbook = xlsxwriter.Workbook('Values-' + str(current_time.date()) +
+                                   "_" + str(current_time.time().hour) +
+                                   "-" + str(current_time.time().minute) + '.xlsx')
+    worksheet = workbook.add_worksheet()
+    headers = ["Home", "Away", "Day", "Hour", "Home Points", "Away Points", "Home Form", "Away Form",
+               "Match Value", "1x2 % Prediction", "Forebet Score"]
+    for column, header in enumerate(headers):
+        worksheet.write(0, column, header)
+
+    matches.sort(key=lambda x: x.match_value, reverse=True)
+
+    for match_no, match in enumerate(matches):
+        for column, data in enumerate(match.get_match_data()):
+            worksheet.write(match_no + 1, column, data)
+
+    workbook.close()
 
 
 if __name__ == "__main__":
@@ -142,3 +173,4 @@ if __name__ == "__main__":
         quit()
     matches_html = get_all_matches_html(FOREBET_ALL_PREDICTIONS_URL, browser_driver)
     matches_list = get_matches_from_html(matches_html)
+    export_matches(matches_list)
