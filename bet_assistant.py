@@ -1,6 +1,7 @@
 """
 Bet assistant, 2022
 """
+import threading
 from datetime import datetime, timedelta
 import time
 
@@ -18,6 +19,7 @@ CHROME_PATH = "ADD YOUR CHROME PATH"
 CHROMEDRIVER_PATH = "ADD YOUR CHROMEDRIVER PATH"
 
 MATCH_VALUE_THRESHOLD = 20
+NUM_THREADS = 4
 
 current_time = datetime.now()
 
@@ -86,11 +88,26 @@ def get_all_matches_html(url, driver):
 
 
 def get_matches_from_html(html):
-    matches = []
+    value_matches = []
 
     # For every fixture, extract the referenced URL in order to extract information on teams
     matches_urls = [a['href'] for a in html.find_all('a', class_="tnmscn", itemprop="url")]
 
+    threads = []
+    for i in range(NUM_THREADS):
+        lower_bound = int(i*len(matches_urls)/NUM_THREADS)
+        upper_bound = int((i+1)*len(matches_urls)/NUM_THREADS)
+        match_list = matches_urls[lower_bound:upper_bound]
+        threads.append(threading.Thread(target=find_value_matches, args=(match_list, value_matches)))
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    return value_matches
+
+
+def find_value_matches(matches_urls, value_matches):
     for match_url in matches_urls:
         # Get Fixture html source
         try:
@@ -138,13 +155,11 @@ def get_matches_from_html(html):
                                                        match_html.find('div', class_="rcnt tr_0").
                                                        find('div', class_="fprc").children])
                         forebet_score = match_html.find_all('div', class_="ex_sc tabonly")[-1].get_text()
-                        matches.append(Match(home_team, away_team, match_datetime, match_value,
+                        value_matches.append(Match(home_team, away_team, match_datetime, match_value,
                                              forebet_prediction, forebet_score))
         except Exception as e:
             print("error: " + str(e))
             continue
-
-    return matches
 
 
 def export_matches(matches):
