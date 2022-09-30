@@ -1,14 +1,11 @@
 import os
 import threading
 import time
-from datetime import datetime, timedelta
-
 import requests
 import xlsxwriter
 from bs4 import BeautifulSoup
-
-from utils import init_driver
-import utils
+from datetime import datetime, timedelta
+from src.utils import CURRENT_TIME, init_driver
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
@@ -52,10 +49,8 @@ class Match:
 
 
 class ValueFinder:
-    def __init__(self, chrome_path, chromedriver_path):
-        self.driver = init_driver(chrome_path, chromedriver_path)
-        if self.driver is None:
-            quit()
+    def __init__(self):
+        self.driver = init_driver()
         self.matches_urls = []  # list of urls of matches from forebet
         self.value_matches = []  # list of Match object based on value criteria
         self._scanned_matches = 0
@@ -91,7 +86,8 @@ class ValueFinder:
 
             # Get Fixture html source
             try:
-                r = requests.get(match_url) if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url)
+                r = requests.get(match_url, timeout=1000) \
+                    if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url, timeout=1000)
             except requests.exceptions.RequestException:
                 print("Request error")
                 continue
@@ -105,7 +101,7 @@ class ValueFinder:
                         match_html.find('div', class_="date_bah").get_text().strip().rsplit(' ', 1)[0],
                         "%d/%m/%Y %H:%M") + timedelta(hours=1)
                     # Skip finished matches
-                    if match_datetime > utils.current_time:
+                    if match_datetime > CURRENT_TIME:
                         # Get teams names
                         home_team_name = match_html.find('span', itemprop="homeTeam").get_text().strip()
                         away_team_name = match_html.find('span', itemprop="awayTeam").get_text().strip()
@@ -169,10 +165,13 @@ class ValueFinder:
 
 
 def export_matches(match_list):
+    # If folder doesn't exist, then create it.
+    if not os.path.isdir("output"):
+        os.makedirs("output")
     # Create an Excel spreadsheet in the directory where the script is called
-    workbook = xlsxwriter.Workbook('Values-' + str(utils.current_time.date()) +
-                                   "_" + str(utils.current_time.time().hour) +
-                                   "-" + str(utils.current_time.time().minute) + '.xlsx')
+    workbook = xlsxwriter.Workbook('output/Values-' + str(CURRENT_TIME.date()) +
+                                   "_" + str(CURRENT_TIME.time().hour) +
+                                   "-" + str(CURRENT_TIME.time().minute) + '.xlsx')
     worksheet = workbook.add_worksheet()
     headers = ["Home", "Away", "Day", "Hour", "Home Points", "Away Points", "Home Form", "Away Form",
                "Match Value", "1x2 % Prediction", "Forebet Score"]

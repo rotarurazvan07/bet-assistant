@@ -9,7 +9,7 @@
 
 ### Usage Instructions
 1. Inside your virtual python environment, run pip install -r requirements.txt
-2. Note the paths of Chrome Beta and chromedriver and write them in the bet_assistant.py file
+2. Note the paths of Chrome Beta and chromedriver and write them in the utils.py file
 3. Run python bet_assistant.py
 ### Application flow  <a name="app-flow"></a>
 ![Alt text](docs/BetAssistant.png)
