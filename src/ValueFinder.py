@@ -123,8 +123,18 @@ class ValueFinder:
                         home_team = Team(home_team_name, home_team_points, home_team_form)
                         away_team = Team(away_team_name, away_team_points, away_team_form)
 
-                        # Calculate the difference of value between teams
-                        match_value = abs(home_team.get_team_value() - away_team.get_team_value())
+                        # calculate h2h_bias as points difference between them
+                        h2h_results = match_html.find_all('div', class_="st_row_perc")[0]
+                        h2h_home_wins = int(h2h_results.find('div', class_="st_perc_stat winres").find('div').find_all('span')[1].get_text())
+                        h2h_away_wins = int(h2h_results.find('div', class_="st_perc_stat winres2").find('div').find_all('span')[1].get_text())
+                        h2h_bias = 3 * (h2h_home_wins - h2h_away_wins)
+
+                        # Calculate the difference of value between teams and add bias
+                        # positive bias means home advantage on h2h, negative otherwise
+                        if h2h_bias <= 0:
+                            match_value = abs(home_team.get_team_value() - (-h2h_bias + away_team.get_team_value()))
+                        else:
+                            match_value = abs((h2h_bias + home_team.get_team_value()) - away_team.get_team_value())
 
                         # Add Match object to list only if higher value than MATCH_VALUE_THRESHOLD
                         if match_value > MATCH_VALUE_THRESHOLD:
