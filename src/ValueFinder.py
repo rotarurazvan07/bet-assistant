@@ -116,6 +116,7 @@ class ValueFinder:
                         away_team_points = int(league_standings[not home_index].get_text().split('\n')[3])
 
                         # Get teams form
+                        # TODO - change form to home / away form
                         home_team_form = match_html.find_all('div', class_="prformcont")[0].get_text()
                         away_team_form = match_html.find_all('div', class_="prformcont")[1].get_text()
 
@@ -132,9 +133,9 @@ class ValueFinder:
                         # Calculate the difference of value between teams and add bias
                         # positive bias means home advantage on h2h, negative otherwise
                         if h2h_bias <= 0:
-                            match_value = abs(home_team.get_team_value() - (-h2h_bias + away_team.get_team_value()))
+                            match_value = abs(home_team.get_team_value() - (-(h2h_bias/2) + away_team.get_team_value()))
                         else:
-                            match_value = abs((h2h_bias + home_team.get_team_value()) - away_team.get_team_value())
+                            match_value = abs(((h2h_bias/2) + home_team.get_team_value()) - away_team.get_team_value())
 
                         # Add Match object to list only if higher value than MATCH_VALUE_THRESHOLD
                         if match_value > MATCH_VALUE_THRESHOLD:
