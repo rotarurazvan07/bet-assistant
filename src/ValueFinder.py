@@ -86,8 +86,8 @@ class ValueFinder:
 
             # Get Fixture html source
             try:
-                r = requests.get(match_url, timeout=1000) \
-                    if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url, timeout=1000)
+                r = requests.get(match_url, timeout=1000, headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'}) \
+                    if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url, timeout=1000, headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'})
             except requests.exceptions.RequestException:
                 print("Request error")
                 continue

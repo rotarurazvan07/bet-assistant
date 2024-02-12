@@ -12,6 +12,6 @@ if __name__ == "__main__":
     matches = value_finder.get_values()
     export_matches(matches)
 
-    tipper = Tipper()
-    tips = tipper.get_tips()
-    export_tips(tips)
+    # tipper = Tipper()
+    # tips = tipper.get_tips()
+    # export_tips(tips)
