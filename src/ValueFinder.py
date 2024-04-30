@@ -28,7 +28,7 @@ class ValueFinder:
         self.web_driver.driver.get(url)
         time.sleep(1)
         # Press the "Show more" button at the bottom of the page by running the script it is executing
-        for i in range(11, 30):
+        for i in range(11, 12): #30
             self.web_driver.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
             time.sleep(1)
 

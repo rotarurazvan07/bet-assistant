@@ -1,18 +1,17 @@
 import sys
-import aiohttp
-import asyncio
+import requests
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.service import Service
+from fake_useragent import UserAgent
 
-cookies = {
-    "PHPSESSID": "93c484077209f41a462e39d68f8c1d7a"
-}
+ua = UserAgent()
+
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36'}
 
 CHROME_PATH = "C:/Program Files/Google/Chrome Beta/Application/chrome.exe"
-CHROMEDRIVER_PATH = "chromedriver.exe"
+CHROMEDRIVER_PATH = "D:/ChromeDriver/chromedriver-win64/chromedriver.exe"
 
 
 class WebDriver:
@@ -37,15 +36,11 @@ class WebDriver:
         return driver
 
 
-async def _make_request(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, cookies=cookies, headers=headers) as resp:
-            return await resp.text()
-
-
 def make_request(url):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    response_text = loop.run_until_complete(_make_request(url))
-    loop.close()
-    return response_text
+    # Set up a session
+    session = requests.Session()
+    session.headers.update({'User-Agent': ua.random})
+    # Now, make a request to a website
+    response = session.get(url)
+    response = response.text
+    return response
