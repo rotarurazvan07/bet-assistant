@@ -12,9 +12,7 @@ def export_matches(match_list):
     if not os.path.isdir("output"):
         os.makedirs("output")
     # Create an Excel spreadsheet in the directory where the script is called
-    workbook = xlsxwriter.Workbook('output/Values-' + str(CURRENT_TIME.date()) +
-                                   "_" + str(CURRENT_TIME.time().hour) +
-                                   "-" + str(CURRENT_TIME.time().minute) + '.xlsx')
+    workbook = xlsxwriter.Workbook('data/Values.xlsx')
     worksheet = workbook.add_worksheet()
     headers = ["Home", "Away", "Day", "Hour", "Home Points", "Away Points", "Home Form", "Away Form",
                "Match Value", "1x2 % Prediction", "Forebet Score", "Odds"]

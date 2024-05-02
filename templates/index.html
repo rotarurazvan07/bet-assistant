@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tabbed Tables</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color: #f0f6fc;
+        margin: 0;
+        padding: 0;
+    }
+
+    .tabs {
+        overflow: hidden;
+        background-color: #007bff;
+    }
+
+    .tabs button {
+        background-color: inherit;
+        float: left;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 14px 16px;
+        transition: background-color 0.3s;
+        color: white;
+        font-size: 16px;
+    }
+
+    .tabs button:hover {
+        background-color: #0056b3;
+    }
+
+    .tabs button.active {
+        background-color: #0056b3;
+    }
+
+    .tab {
+        display: none;
+        padding: 20px;
+        border-top: 2px solid #007bff;
+    }
+
+    .tab.active {
+        display: block;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
+
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+
+    th {
+        background-color: #007bff;
+        color: white;
+    }
+
+    tr:nth-child(even) {
+        background-color: #f2f2f2;
+    }
+
+    .container {
+        display: flex;
+    }
+
+    .filters, .sorting {
+        flex: 1; /* Make both divs take up equal width */
+        padding: 10px; /* Add some padding for spacing */
+    }
+
+    .vertical-line {
+        width: 1px;
+        background-color: black;
+        margin: 0 10px; /* Adjust margin for spacing */
+    }
+
+    /* Style for the loading bar */
+    #loadingBar {
+        width: 100%;
+        height: 30px;
+        background-color: #f0f0f0;
+        border-radius: 5px;
+        margin-top: 20px;
+    }
+    #progress {
+        width: 0;
+        height: 100%;
+        background-color: #4caf50;
+        border-radius: 5px;
+        transition: width 0.3s ease;
+    }
+    #loadingText {
+        text-align: center;
+        margin-top: 5px;
+    }
+</style>
+<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+</head>
+<body>
+
+<div class="tabs">
+    <button class="tablinks" onclick="openTab(event, 'valueTab')">Match value</button>
+    <button class="tablinks" onclick="openTab(event, 'tipsTab')">Tips</button>
+</div>
+
+<div id="valueTab" class="tab active">
+    <div class="container">
+        <div class="filters">
+            <div id="datePicker">
+                <label for="startDate">Start Date:</label>
+                <input type="text" id="startDate">
+                <label for="endDate">End Date:</label>
+                <input type="text" id="endDate">
+            </div>
+            <br><br>
+            <div>
+                <input type="checkbox" id="filterCheckbox">
+                <label for="filterCheckbox">Apply filters</label>
+            </div>
+        </div>
+        <div class="vertical-line"></div> <!-- Vertical line -->
+        <div class="sorting">
+            <!-- Sorting elements go here -->
+            <button onclick="sortTable()">Sort</button>
+            <!-- Other sorting elements go here -->
+        </div>
+    </div>
+
+    <div id="loadingBar">
+        <div id="progress"></div>
+    </div>
+    <div id="loadingText"> 0/0 </div>
+
+    <button onclick="generateData()">Generate data</button>
+
+    <br><br>
+
+    <table id="matchValueTable">
+        <thead>
+            <tr>
+                <th>Home</th>
+                <th>Away</th>
+                <th>Day</th>
+                <th>Hour</th>
+                <th>Home Points</th>
+                <th>Away Points</th>
+                <th>Home Form</th>
+                <th>Away Form</th>
+                <th>Match Value</th>
+                <th>1x2 % Prediction</th>
+                <th>Forebet Score</th>
+                <th>Odds</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Table 1 rows will be dynamically added here -->
+        </tbody>
+    </table>
+</div>
+
+<div id="tipsTab" class="tab">
+    <table>
+        <thead>
+            <tr>
+                <th>Column A</th>
+                <th>Column B</th>
+                <th>Column C</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Data A1</td>
+                <td>Data B1</td>
+                <td>Data C1</td>
+            </tr>
+            <tr>
+                <td>Data A2</td>
+                <td>Data B2</td>
+                <td>Data C2</td>
+            </tr>
+            <!-- Add more rows as needed -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+    $( function() {
+        $( "#startDate, #endDate" ).datepicker({
+            dateFormat: "yy-mm-dd",
+            onSelect: function() {
+                filterTable()
+            }
+        });
+    } );
+
+    function openTab(evt, tabName) {
+        var i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        tablinks = document.getElementsByClassName("tablinks");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+
+    function fetchCachedMatchValueData() {
+        fetch('/fetch_cached_match_value_data')
+            .then(response => response.json())
+            .then(data => {
+                populateMatchValueTable(data);
+            });
+    }
+
+    <!-- Generate data button callback -->
+    function generateData() {
+        startValueFinder();
+        fetchDataForMatchValueTable();
+
+        function startValueFinder() {
+            fetch('/start_value_finder')
+        }
+
+        function fetchDataForMatchValueTable() {
+            fetch('/generate_data_for_match_value_table')
+                .then(response => response.json())
+                .then(data => {
+                    if (data !== '1x2') {
+                        populateMatchValueTable(data);
+                        filterTable()
+                        updateProgressBar()
+
+                        setTimeout(fetchDataForMatchValueTable, 1000);
+                    }
+                })
+
+            function updateProgressBar() {
+                fetch('/fetch_progress')
+                    .then(response => response.json())
+                    .then(data => {
+                        var percentage = (data.x / data.y) * 100;
+                        document.getElementById("progress").style.width = percentage + "%";
+                        document.getElementById("loadingText").textContent = data.x + "/" + data.y;
+                    })
+            }
+        }
+    }
+
+    function populateMatchValueTable(data) {
+        var tableBody = document.getElementById('matchValueTable').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = '';
+
+        var thTags = document.querySelectorAll('#matchValueTable th');
+        var keysOrder = Array.from(thTags).map(th => th.textContent.trim());
+
+        data.forEach(rowData => {
+            var row = tableBody.insertRow();
+            keysOrder.forEach(key => {
+                var cell = row.insertCell();
+                cell.textContent = rowData[key];
+            });
+        });
+    }
+
+    function clearFilters() { }
+
+    function filterTable() {
+        var checkbox = document.getElementById("filterCheckbox"); // Get the checkbox element
+        var isChecked = checkbox.checked; // Check if the checkbox is checked
+        if (isChecked) {
+            filterByDate();
+            // Add other filters, need to take care if it is already hidden, skip it
+        } else {
+            $("#matchValueTable tbody tr").each(function() {
+                $(this).show();
+            });
+        }
+
+        function filterByDate() {
+            var startDate = $("#startDate").datepicker("getDate");
+            var endDate = $("#endDate").datepicker("getDate");
+
+            if (startDate === null && endDate === null) {
+                // both are null, start date will be current date and time, end date will be infinity
+                startDate = new Date();
+                endDate = new Date(9999, 1, 1);
+            } else {
+                if (startDate === null && endDate !== null) {
+                    // start date is null, assume it as current date and time
+                    startDate = new Date();
+                } else if (startDate !== null && endDate === null) {
+                    // end date is null, assume infinity
+                    endDate = new Date(9999, 1, 1);
+                } else if (startDate !== null && endDate !== null) {
+                    // if start date is today, set current hours and minutes
+                    if (startDate.getDay() === (new Date()).getDay()) {
+                        startDate.setHours(new Date().getHours())
+                        startDate.setMinutes(new Date().getMinutes())
+                    }
+                }
+            }
+
+            endDate.setHours(23);
+            endDate.setMinutes(59);
+            endDate.setSeconds(59);
+
+            if (startDate > endDate) {
+                alert("Start date must be less than or equal to end date.");
+                return;
+            }
+
+            $("#matchValueTable tbody tr").each(function() {
+                var rowDate = new Date($(this).find("td:eq(2)").text());
+                var rowHour = $(this).find("td:eq(3)").text()
+                var timeComponents = rowHour.split(':');
+                var hours = parseInt(timeComponents[0]);
+                var minutes = parseInt(timeComponents[1]);
+                var seconds = parseInt(timeComponents[2]);
+                rowDate.setHours(hours, minutes, seconds);
+                if ($(this).hidden !== true) {
+                    if (rowDate >= startDate && rowDate <= endDate) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                }
+            });
+        }
+    }
+
+    document.getElementById("filterCheckbox").addEventListener("change", filterTable);
+    document.addEventListener('DOMContentLoaded', function() { fetchCachedMatchValueData(); });
+</script>
+</body>
+</html>
