@@ -17,7 +17,7 @@ def export_matches(match_list):
                                    "-" + str(CURRENT_TIME.time().minute) + '.xlsx')
     worksheet = workbook.add_worksheet()
     headers = ["Home", "Away", "Day", "Hour", "Home Points", "Away Points", "Home Form", "Away Form",
-               "Match Value", "1x2 % Prediction", "Forebet Score"]
+               "Match Value", "1x2 % Prediction", "Forebet Score", "Odds"]
     for column, header in enumerate(headers):
         worksheet.write(0, column, header)
 

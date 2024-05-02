@@ -4,7 +4,7 @@ H2H_WIN_WEIGHT = 3
 class Match:
     # h2h_results is a list that contains results of head to head matches (home vs away) in the form of
     # (home_wins, draws, away_wins)
-    def __init__(self, home_team, away_team, match_datetime, forebet_score, forebet_probability, h2h_results):
+    def __init__(self, home_team, away_team, match_datetime, forebet_score, forebet_probability, h2h_results, odds):
         self.home_team = home_team
         self.away_team = away_team
 
@@ -12,7 +12,7 @@ class Match:
 
         self.match_statistics = self._MatchStatistics(home_team, away_team,
                                                       forebet_score, forebet_probability,
-                                                      h2h_results)
+                                                      h2h_results, odds)
 
     def get_match_value(self):
         return self.match_statistics.match_value
@@ -24,13 +24,15 @@ class Match:
                 self.home_team.league_points, self.away_team.league_points,
                 self.home_team.form, self.away_team.form,
                 self.match_statistics.match_value,
-                self.match_statistics.forebet_probability, self.match_statistics.forebet_score]
+                self.match_statistics.forebet_probability, self.match_statistics.forebet_score,
+                self.match_statistics.odds]
 
     class _MatchStatistics:
-        def __init__(self, home_team, away_team, forebet_score, forebet_probability, h2h_results):
+        def __init__(self, home_team, away_team, forebet_score, forebet_probability, h2h_results, odds):
             self.forebet_score = forebet_score
             self.forebet_probability = forebet_probability
             self.h2h_results = h2h_results
+            self.odds = odds
 
             self.match_value = self._calculate_value(home_team, away_team, h2h_results)
 

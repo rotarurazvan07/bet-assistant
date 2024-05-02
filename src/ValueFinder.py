@@ -28,7 +28,7 @@ class ValueFinder:
         self.web_driver.driver.get(url)
         time.sleep(1)
         # Press the "Show more" button at the bottom of the page by running the script it is executing
-        for i in range(11, 30):
+        for i in range(11, 12):
             self.web_driver.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
             time.sleep(1)
 
@@ -104,6 +104,12 @@ class ValueFinder:
                             home_team = Team(home_team_name, home_team_points, home_team_form)
                             away_team = Team(away_team_name, away_team_points, away_team_form)
 
+                            # Get match odds
+                            try:
+                                odds = float(match_html.find('div', class_="rcnt tr_0").find('span', class_="lscrsp").get_text())
+                            except:
+                                odds = 0
+
                             # calculate h2h_bias as points difference between them
                             try:
                                 h2h_results = match_html.find_all('div', class_="st_row_perc")[0]
@@ -127,7 +133,7 @@ class ValueFinder:
 
                             self.matches.append(Match(home_team, away_team, match_datetime,
                                                       forebet_score, forebet_probability,
-                                                      h2h_results))
+                                                      h2h_results, odds))
                 except Exception as e:
                     print("error: " + str(e))
                     continue
