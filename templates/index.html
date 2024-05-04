@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tabbed Tables</title>
+<title>Bet Assistant</title>
 <style>
     body {
         font-family: Arial, sans-serif;
@@ -110,42 +110,46 @@
 <body>
 
 <div class="tabs">
-    <button class="tablinks" onclick="openTab(event, 'valueTab')">Match value</button>
+    <button class="tablinks active" onclick="openTab(event, 'valueTab')">Match value</button>
     <button class="tablinks" onclick="openTab(event, 'tipsTab')">Tips</button>
 </div>
 
+<div class="container">
+    <div class="filters">
+        <div id="datePicker">
+            <label for="startDate">Start Date:</label>
+            <input type="text" id="startDate">
+            <label for="endDate">End Date:</label>
+            <input type="text" id="endDate">
+        </div>
+        <div id="nameFilter">
+            <label for="textFilter">Team:</label>
+            <input type="text" id="textFilter">
+        </div>
+        <br><br>
+        <div>
+            <input type="checkbox" id="filterCheckbox">
+            <label for="filterCheckbox">Apply filters</label>
+        </div>
+    </div>
+    <div class="vertical-line"></div> <!-- Vertical line -->
+    <div class="sorting">
+        <!-- Sorting elements go here -->
+        <button onclick="sortTable()">Sort</button>
+        <!-- Other sorting elements go here -->
+    </div>
+</div>
+
+<div id="loadingBar">
+    <div id="progress"></div>
+</div>
+<div id="loadingText"> 0/0 </div>
+
+<button onclick="generateData()">Generate data</button>
+
+<br><br>
+
 <div id="valueTab" class="tab active">
-    <div class="container">
-        <div class="filters">
-            <div id="datePicker">
-                <label for="startDate">Start Date:</label>
-                <input type="text" id="startDate">
-                <label for="endDate">End Date:</label>
-                <input type="text" id="endDate">
-            </div>
-            <br><br>
-            <div>
-                <input type="checkbox" id="filterCheckbox">
-                <label for="filterCheckbox">Apply filters</label>
-            </div>
-        </div>
-        <div class="vertical-line"></div> <!-- Vertical line -->
-        <div class="sorting">
-            <!-- Sorting elements go here -->
-            <button onclick="sortTable()">Sort</button>
-            <!-- Other sorting elements go here -->
-        </div>
-    </div>
-
-    <div id="loadingBar">
-        <div id="progress"></div>
-    </div>
-    <div id="loadingText"> 0/0 </div>
-
-    <button onclick="generateData()">Generate data</button>
-
-    <br><br>
-
     <table id="matchValueTable">
         <thead>
             <tr>
@@ -170,26 +174,18 @@
 </div>
 
 <div id="tipsTab" class="tab">
-    <table>
+    <table id="tipsTable">
         <thead>
             <tr>
-                <th>Column A</th>
-                <th>Column B</th>
-                <th>Column C</th>
+                <th>Match</th>
+                <th>Time</th>
+                <th>Tip</th>
+                <th>Confidence (out of 3)</th>
+                <th>Source</th>
+                <th>Odds</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>Data A1</td>
-                <td>Data B1</td>
-                <td>Data C1</td>
-            </tr>
-            <tr>
-                <td>Data A2</td>
-                <td>Data B2</td>
-                <td>Data C2</td>
-            </tr>
-            <!-- Add more rows as needed -->
         </tbody>
     </table>
 </div>
@@ -199,10 +195,20 @@
         $( "#startDate, #endDate" ).datepicker({
             dateFormat: "yy-mm-dd",
             onSelect: function() {
-                filterTable()
+                filterTable();
             }
         });
     } );
+
+    function getCurrentTab() {
+        var buttons = document.getElementsByClassName("tablinks");
+        for (var i = 0; i < buttons.length; i++) {
+            if (buttons[i].classList.contains("active")) {
+                return buttons[i].innerText.trim();
+            }
+        }
+        return null; // No tab is currently active
+    }
 
     function openTab(evt, tabName) {
         var i, tabcontent, tablinks;
@@ -226,30 +232,47 @@
             });
     }
 
-    <!-- Generate data button callback -->
+    function fetchCachedTipsData() {
+        fetch('/fetch_cached_tips_data')
+            .then(response => response.json())
+            .then(data => {
+                populateTipsTable(data);
+            });
+    }
+
     function generateData() {
+        const current_tab = getCurrentTab();
+        console.log(current_tab)
+        if (current_tab === "Match value") {
+            generateMatchValueData();
+        } else if (current_tab === "Tips") {
+            generateTipsData();
+        }
+    }
+
+    function generateMatchValueData() {
         startValueFinder();
         fetchDataForMatchValueTable();
 
         function startValueFinder() {
-            fetch('/start_value_finder')
+            fetch('/start_value_finder').then(response => response.json())
         }
 
         function fetchDataForMatchValueTable() {
             fetch('/generate_data_for_match_value_table')
                 .then(response => response.json())
                 .then(data => {
+                    updateProgressBar()
                     if (data !== '1x2') {
                         populateMatchValueTable(data);
-                        filterTable()
-                        updateProgressBar()
+                        filterMatchValueTable();
 
                         setTimeout(fetchDataForMatchValueTable, 1000);
                     }
                 })
 
             function updateProgressBar() {
-                fetch('/fetch_progress')
+                fetch('/fetch_match_value_progress')
                     .then(response => response.json())
                     .then(data => {
                         var percentage = (data.x / data.y) * 100;
@@ -257,6 +280,39 @@
                         document.getElementById("loadingText").textContent = data.x + "/" + data.y;
                     })
             }
+        }
+    }
+
+    function generateTipsData() {
+        startTipsFinder();
+        fetchDataForTipsTable();
+
+        function startTipsFinder() {
+            fetch('/start_tips_finder').then(response => response.json())
+        }
+
+        function fetchDataForTipsTable() {
+            fetch('/generate_data_for_tips_table')
+                .then(response => response.json())
+                .then(data => {
+                    updateProgressBar()
+                    if (data !== '1x2') {
+                        populateTipsTable(data);
+                        filterTipsTable();
+
+                        setTimeout(fetchDataForTipsTable, 1000);
+                    }
+                })
+        }
+
+        function updateProgressBar() {
+            fetch('/fetch_tips_progress')
+                .then(response => response.json())
+                .then(data => {
+                    var percentage = (data.x / data.y) * 100;
+                    document.getElementById("progress").style.width = percentage + "%";
+                    document.getElementById("loadingText").textContent = data.x + "/" + data.y;
+                })
         }
     }
 
@@ -276,9 +332,33 @@
         });
     }
 
-    function clearFilters() { }
+    function populateTipsTable(data) {
+        var tableBody = document.getElementById('tipsTable').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = '';
+
+        var thTags = document.querySelectorAll('#tipsTable th');
+        var keysOrder = Array.from(thTags).map(th => th.textContent.trim());
+
+        data.forEach(rowData => {
+            var row = tableBody.insertRow();
+            keysOrder.forEach(key => {
+                var cell = row.insertCell();
+                cell.textContent = rowData[key];
+            });
+        });
+    }
 
     function filterTable() {
+        const current_tab = getCurrentTab();
+        console.log(current_tab)
+        if (current_tab === "Match value") {
+            filterMatchValueTable();
+        } else if (current_tab === "Tips") {
+            filterTipsTable();
+        }
+    }
+
+    function filterMatchValueTable() {
         var checkbox = document.getElementById("filterCheckbox"); // Get the checkbox element
         var isChecked = checkbox.checked; // Check if the checkbox is checked
         if (isChecked) {
@@ -342,8 +422,103 @@
         }
     }
 
+    function filterTipsTable() {
+        var checkbox = document.getElementById("filterCheckbox"); // Get the checkbox element
+        var isChecked = checkbox.checked; // Check if the checkbox is checked
+
+
+        if (isChecked) {
+            filterByDate();
+            filterByText();
+            // Add other filters, need to take care if it is already hidden, skip it
+        } else {
+            $("#tipsTable tbody tr").each(function() {
+                $(this).show();
+            });
+        }
+
+        function filterByText() {
+            var textFilter = document.getElementById("textFilter").value.toLowerCase();
+            if (textFilter !== "") {
+                $("#tipsTable tbody tr").each(function() {
+                    if ($(this).is(":hidden") !== true) {
+                        var rowMatchString = $(this).find("td:eq(0)").text();
+                        if (rowMatchString.toLowerCase().includes(textFilter)) {
+                            $(this).show();
+                        } else {
+                            $(this).hide();
+                        }
+                    }
+                });
+            }
+        }
+
+        function filterByDate() {
+            var startDate = $("#startDate").datepicker("getDate");
+            var endDate = $("#endDate").datepicker("getDate");
+
+            if (startDate === null && endDate === null) {
+                // both are null, start date will be current date and time, end date will be infinity
+                startDate = new Date();
+                endDate = new Date(9999, 1, 1);
+            } else {
+                if (startDate === null && endDate !== null) {
+                    // start date is null, assume it as current date and time
+                    startDate = new Date();
+                } else if (startDate !== null && endDate === null) {
+                    // end date is null, assume infinity
+                    endDate = new Date(9999, 1, 1);
+                } else if (startDate !== null && endDate !== null) {
+                    // if start date is today, set current hours and minutes
+                    if (startDate.getDay() === (new Date()).getDay()) {
+                        startDate.setHours(new Date().getHours())
+                        startDate.setMinutes(new Date().getMinutes())
+                    }
+                }
+            }
+
+            endDate.setHours(23);
+            endDate.setMinutes(59);
+            endDate.setSeconds(59);
+
+            if (startDate > endDate) {
+                alert("Start date must be less than or equal to end date.");
+                return;
+            }
+
+            $("#tipsTable tbody tr").each(function() {
+                var rowDateString = $(this).find("td:eq(1)").text();
+
+                var dateParts = rowDateString.split(" - ");
+                var datePart = dateParts[0];
+                var timePart = dateParts[1];
+
+                var dateComponents = datePart.split("-");
+                var year = parseInt(dateComponents[0]);
+                var month = parseInt(dateComponents[1]) - 1;
+                var day = parseInt(dateComponents[2]);
+
+                var timeComponents = timePart.split(":");
+                var hours = parseInt(timeComponents[0]);
+                var minutes = parseInt(timeComponents[1]);
+
+                var rowDate = new Date(year, month, day, hours, minutes);
+
+                if (rowDate >= startDate && rowDate <= endDate) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    }
+
+    document.getElementById("textFilter").addEventListener("input", filterTable);
     document.getElementById("filterCheckbox").addEventListener("change", filterTable);
-    document.addEventListener('DOMContentLoaded', function() { fetchCachedMatchValueData(); });
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchCachedMatchValueData();
+        fetchCachedTipsData();
+    });
 </script>
 </body>
 </html>

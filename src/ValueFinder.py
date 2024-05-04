@@ -27,7 +27,7 @@ class ValueFinder:
         web_driver.driver.get(url)
         time.sleep(1)
         # Press the "Show more" button at the bottom of the page by running the script it is executing
-        for i in range(11, 12):
+        for i in range(11, 30):
             web_driver.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
             time.sleep(1)
 
@@ -40,7 +40,6 @@ class ValueFinder:
         self.matches = []
         self._scanned_matches = 0
         self._matches_to_scan = 0
-        self.execution = 1
         matches_urls = self._get_matches_from_html(FOREBET_ALL_PREDICTIONS_URL)
         self._matches_to_scan = len(matches_urls)
 

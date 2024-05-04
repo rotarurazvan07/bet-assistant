@@ -1,221 +1,251 @@
-# import os
-# import threading
-# import time
-# from datetime import datetime, timedelta
-#
-# import requests
-# import xlsxwriter
-# from bs4 import BeautifulSoup
-# from src.utils import CURRENT_TIME, init_driver
-# from selenium.webdriver.common.by import By
-# from selenium.webdriver.support.ui import WebDriverWait
-# from selenium.webdriver.support import expected_conditions as EC
-#
-# WHO_SCORED_URL = "https://www.whoscored.com"
-# FREE_SUPER_TIPS_URL = "https://www.freesupertips.com"
-# INFOGOL_TODAY_URL = "https://www.infogol.net/en/matches/today"
-# INFOGOL_TOMORROW_URL = "https://www.infogol.net/en/matches/fixtures/tomorrow"
-# FOREBET_TOP_VALUES_URL = "https://www.forebet.com/en/top-football-tips-and-predictions"
-# FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
-# FOREBET_URL = "https://www.forebet.com"
-#
-# class Tip:
-#     def __init__(self, match_name, tip, confidence, source="", odds=0):
-#         self.match_name = match_name
-#         self.tip = tip
-#         self.confidence = confidence
-#         self.odds = odds
-#         self.source = source
-#
-#     def get_tip_data(self):
-#         return [self.match_name, self.tip, self.confidence, self.source, self.odds]
-#
-#
-# class Tipper:
-#     def get_tips(self):
-#         tippers = [self.BttsTipper(), self.WhoScoredTipper(), self.FreeSuperTipper(), self.InfogolTipper(), self.ForebetTipper()]
-#         return [item for sublist in [tip.get_tips() for tip in tippers] for item in sublist]
-#
-#     class WhoScoredTipper():
-#         def __init__(self):
-#             self.driver = None
-#             self.tip_strengths = ["Likely", "Very Likely", "Extremely Likely"]
-#
-#         def _get_matches_urls(self):
-#             self.driver.get(WHO_SCORED_URL)
-#             time.sleep(2)
-#             html = BeautifulSoup(self.driver.page_source, 'html.parser')
-#             return [a['href'] for a in html.find_all('a', class_="match-link rc preview")]
-#
-#         def get_tips(self):
-#             tips = []
-#             self.driver = init_driver()
-#             for match_url in self._get_matches_urls():
-#                 self.driver.get(WHO_SCORED_URL + match_url)
-#                 match_html = BeautifulSoup(self.driver.page_source, 'html.parser')
-#                 fixture = match_url.split("-")
-#                 match_name = fixture[-2] + " vs " + fixture[-1]
-#                 side_box = match_html.find('table', class_="grid teamcharacter")
-#                 try:
-#                     for tip_html in side_box.findAll('tr'):
-#                         tip = tip_html.get_text().strip()
-#                         tip_strength = self.tip_strengths.index(tip_html.find('span')['title'].strip()) + 1
-#                         tips.append(Tip(match_name, tip, tip_strength, "WhoScored"))
-#                 except AttributeError:
-#                     continue
-#             self.driver.close()
-#             return tips
-#
-#     class FreeSuperTipper():
-#         def _get_matches_urls(self):
-#             page_html = requests.get(FREE_SUPER_TIPS_URL, timeout=1000).text
-#             html = BeautifulSoup(page_html, 'html.parser')
-#             html = html.find('main', class_="Main Main--sidebar")
-#             return [a['href'] for a in html.findAll("a", class_="Link-module__link "
-#                                                                 "EventShortcutCarouselCard"
-#                                                                 "-module__eventShortcutCarouselCard global-module__card "
-#                                                                 "EventShortcutCarouselCard-module__edges")]
-#
-#         def get_tips(self):
-#             tips = []
-#             for match_url in self._get_matches_urls():
-#                 print(FREE_SUPER_TIPS_URL + match_url)
-#                 r = requests.get(FREE_SUPER_TIPS_URL + match_url, timeout=1000)
-#                 match_html = BeautifulSoup(r.text, 'html.parser')
-#                 match = match_html.find('div', class_="PageIntro").get_text().rsplit(' ', 1)[0]
-#                 for tip_html in match_html.findAll('div', class_="IndividualTipPrediction"):
-#                     tip = tip_html.find("h4").get_text()
-#                     tip_strength = len(tip_html.findAll('span', class_="Icon-module__icon Icon-module__small "
-#                                                                        "Icon-module__icon-filled-star "
-#                                                                        "Icon-module__tertiary "
-#                                                                        "ConfidenceRating-module__star"))
-#                     tips.append(Tip(match, tip, tip_strength, "FreeSuperTips"))
-#             return tips
-#
-#     class InfogolTipper():
-#         def __init__(self):
-#             self.driver = None
-#
-#         def get_tips(self):
-#             tips = []
-#             for infogol_page in [INFOGOL_TODAY_URL, INFOGOL_TOMORROW_URL]:
-#                 self.driver = init_driver()
-#                 self.driver.get(infogol_page)
-#                 html = BeautifulSoup(self.driver.page_source, 'html.parser')
-#                 self.driver.close()
-#                 html = html.find_all('div', class_="match-header")
-#                 for match in html:
-#                     try:
-#                         fixture = match.findAll("td", class_="match-text ng-binding")
-#                         match_name = fixture[0].get_text() + " vs " + fixture[1].get_text()
-#                         verdict = match.find('div', class_="verdict-tip-rating-container")
-#                         tip = verdict.find('span').get_text()
-#                         tip_strength = 3 * len(verdict.findAll('span', class_="ball-rating-ball ng-scope")) / 5
-#                         tips.append(Tip(match_name, tip, tip_strength, "Infogol"))
-#                     except AttributeError:
-#                         continue
-#             return tips
-#
-#     class ForebetTipper():
-#         def get_tips(self):
-#             tips = []
-#             page_html = requests.get(FOREBET_TOP_VALUES_URL, timeout=1000).text
-#             html = BeautifulSoup(page_html, 'html.parser').find('div', class_="schema")
-#
-#             for match_html in html.find_all('div', class_="rcnt tr_0") + html.find_all('div', class_="rcnt tr_1"):
-#                 match_name = match_html.find('meta')['content']
-#                 tip = match_html.find('span', class_="forepr").get_text()
-#                 tip_strength = 3 * int(match_html.find('span', class_="fpr").get_text()) / 100
-#                 tips.append(Tip(match_name, tip, tip_strength, "Forebet"))
-#             return tips
-#
-#     class BttsTipper():
-#         def __init__(self):
-#             self.driver = None
-#             self.tips = []
-#
-#         def get_tips(self):
-#             self.driver = init_driver()
-#             self.driver.get(FOREBET_ALL_PREDICTIONS_URL)
-#
-#             # Press the "Show more" button at the bottom of the page by running the script it is executing
-#             for i in range(11, 30):
-#                 self.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
-#                 time.sleep(1)
-#             html = BeautifulSoup(self.driver.page_source, 'html.parser')
-#             matches_urls = [a['href'] for a in html.find_all('a', class_="tnmscn", itemprop="url")]
-#             self.driver.close()
-#
-#             threads = []
-#             for i in range(4):
-#                 lower_bound = int(i * len(matches_urls) / 4)
-#                 upper_bound = int((i + 1) * len(matches_urls) / 4)
-#                 match_list = matches_urls[lower_bound:upper_bound]
-#                 threads.append(threading.Thread(target=self._find_value_matches, args=(match_list,)))
-#             for thread in threads:
-#                 thread.start()
-#             for thread in threads:
-#                 thread.join()
-#
-#             return self.tips
-#
-#         def _find_value_matches(self, match_list):
-#             for match_url in match_list:
-#                 if FOREBET_URL not in match_url:
-#                     match_url = FOREBET_URL + match_url
-#
-#                 # Get Fixture html source
-#                 try:
-#                     r = requests.get(match_url, timeout=1000) \
-#                         if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url, timeout=1000)
-#                 except requests.exceptions.RequestException:
-#                     print("Request error")
-#                     continue
-#                 match_html = BeautifulSoup(r.text, 'html.parser')
-#
-#                 match_datetime = datetime.strptime(
-#                     match_html.find('div', class_="date_bah").get_text().strip().rsplit(' ', 1)[0],
-#                     "%d/%m/%Y %H:%M") + timedelta(hours=1)
-#
-#                 # Skip finished matches
-#                 if match_datetime > CURRENT_TIME:
-#                     # Both teams at least 10 games played each
-#                     if int(match_html.find('span', class_="ov_pl_a").get_text()) > 10 and \
-#                             int(match_html.find('span', class_="ov_pl_h").get_text()) > 10:
-#                         percs = match_html.find_all('div', class_="ov_group")[-1]
-#
-#                         home_perc = float(percs.find('div', class_="ov_col_1").find_all('span', class_="ov_left")[1].get_text().strip().strip('%'))
-#                         away_perc = float(percs.find('div', class_="ov_col_2").find_all('span', class_="ov_left")[1].get_text().strip().strip('%'))
-#
-#                         if (home_perc + away_perc) / 2 > 90.0:
-#                             home_team_name = match_html.find('span', itemprop="homeTeam").get_text().strip()
-#                             away_team_name = match_html.find('span', itemprop="awayTeam").get_text().strip()
-#                             print(match_url + " " + str((home_perc + away_perc) / 2))
-#                             self.tips.append(Tip(home_team_name + " vs " + away_team_name, "BTTS", 3 * ((home_perc + away_perc) / 2 / 100)))
-#                         if (home_perc + away_perc) / 2 < 35.0:
-#                             home_team_name = match_html.find('span', itemprop="homeTeam").get_text().strip()
-#                             away_team_name = match_html.find('span', itemprop="awayTeam").get_text().strip()
-#                             print(match_url + " " + str((home_perc + away_perc) / 2))
-#                             self.tips.append(Tip(home_team_name + " vs " + away_team_name, "BTTS NO", 3 * ((home_perc + away_perc) / 2 / 100)))
-#
-#
-# def export_tips(tips_list):
-#     # If folder doesn't exist, then create it.
-#     if not os.path.isdir("output"):
-#         os.makedirs("output")
-#     # Create an Excel spreadsheet in the directory where the script is called
-#     workbook = xlsxwriter.Workbook('output/Tips-' + str(CURRENT_TIME.date()) +
-#                                    "_" + str(CURRENT_TIME.time().hour) +
-#                                    "-" + str(CURRENT_TIME.time().minute) + '.xlsx')
-#     worksheet = workbook.add_worksheet()
-#     headers = ["Match", "Tip", "Confidence (out of 3)", "Source", "Odds"]
-#     for column, header in enumerate(headers):
-#         worksheet.write(0, column, header)
-#
-#     tips_list.sort(key=lambda x: (-x.confidence, x.match_name))
-#
-#     for tip_no, tip in enumerate(tips_list):
-#         for column, data in enumerate(tip.get_tip_data()):
-#             worksheet.write(tip_no + 1, column, data)
-#
-#     workbook.close()
+import re
+import threading
+from datetime import datetime, timedelta
+
+from bs4 import BeautifulSoup
+
+from src.WebDriver import make_request, WebDriver
+from src.utils import fractional_to_decimal_odds
+
+WHO_SCORED_URL = "https://www.whoscored.com"
+FREE_SUPER_TIPS_URL = "https://www.freesupertips.com"
+INFOGOL_TODAY_URL = "https://www.infogol.net/en/matches/today"
+INFOGOL_TOMORROW_URL = "https://www.infogol.net/en/matches/fixtures/tomorrow"
+FOREBET_TOP_VALUES_URL = "https://www.forebet.com/en/top-football-tips-and-predictions"
+FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
+FOREBET_URL = "https://www.forebet.com"
+
+
+class Tip:
+    def __init__(self, match_name, match_time, tip, confidence, source="", odds=0):
+        self.match_name = match_name
+        self.match_time = match_time
+        self.tip = tip
+        self.confidence = confidence
+        self.odds = odds
+        self.source = source
+
+    def get_tip_data(self):
+        return [self.match_name, self.match_time, self.tip, self.confidence, self.source, self.odds]
+
+
+class Tipper:
+    def __init__(self):
+        self.tips = []
+        self.execution = 0
+        self._searched_tips = 0
+        self._tips_to_search = 0
+
+    def get_tips(self):
+        self.tips = []
+        self._searched_tips = 0
+
+        tippers = [self.WhoScoredTipper(self), self.ForebetTipper(self), self.FreeSuperTipper(self)]
+        self._tips_to_search = len(tippers)
+
+        threads = []
+        for i in range(len(tippers)):
+            threads.append(threading.Thread(target=self._get_tips_helper, args=(tippers[i],)))
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.execution = 0
+
+    def _get_tips_helper(self, tipper_obj):
+        tipper_obj.get_tips()
+        self._searched_tips += 1
+
+    class WhoScoredTipper:
+        def __init__(self, tipper):
+            self.web_driver = WebDriver()
+            self.tipper = tipper
+            self._tip_strengths = ["Likely", "Very Likely", "Extremely Likely"]
+
+        def _get_matches_urls(self):
+            request_result = make_request(WHO_SCORED_URL + "/Previews")
+            if request_result is not None:
+                html = BeautifulSoup(request_result, 'html.parser')
+                matches_table_anchor = html.find("table", class_="grid")
+                matches_urls = [a['href'] for a in matches_table_anchor.find_all('a') if "Matches" in a['href']]
+                return matches_urls
+
+        def get_tips(self):
+            for match_url in self._get_matches_urls():
+                self.web_driver.driver.get(WHO_SCORED_URL + match_url)
+                request_result = self.web_driver.driver.page_source
+                if request_result is not None:
+                    match_html = BeautifulSoup(request_result, 'html.parser')
+
+                    home_team = match_html.find('div', class_='teams-score-info').find("span", class_=re.compile(
+                        r'home team')).get_text()
+                    away_team = match_html.find('div', class_='teams-score-info').find("span", class_=re.compile(
+                        r'away team')).get_text()
+                    match_name = home_team + " - " + away_team
+
+                    match_time = match_html.find('dt', text='Date:').find_next_sibling('dd').text + " - " + \
+                                 match_html.find('dt', text='Kick off:').find_next_sibling('dd').text
+
+                    match_time = (datetime.strptime(match_time, "%a, %d-%b-%y - %H:%M") + timedelta(hours=2)).strftime("%Y-%m-%d - %H:%M")
+
+                    side_box = match_html.find('table', class_="grid teamcharacter")
+                    try:
+                        for tip_html in side_box.findAll('tr'):
+                            tip = tip_html.get_text().strip()
+                            tip_strength = self._tip_strengths.index(tip_html.find('span')['title'].strip()) + 1
+                            self.tipper.tips.append(Tip(match_name, match_time, tip, tip_strength, "WhoScored"))
+                    except AttributeError:
+                        continue
+            self.web_driver.driver.close()
+
+    class FreeSuperTipper:
+        def __init__(self, tipper):
+            self.tipper = tipper
+
+        def _get_matches_urls(self):
+            today_html = make_request("https://www.freesupertips.com/predictions/")
+            tomorrow_html = make_request("https://www.freesupertips.com/predictions/tomorrows-football-predictions/")
+            upcoming_html = make_request("https://www.freesupertips.com/predictions/upcoming/")
+
+            matches_urls = self._get_urls_from_page(today_html) + \
+                           self._get_urls_from_page(tomorrow_html) + \
+                           self._get_urls_from_page(upcoming_html)
+
+            return matches_urls
+
+        def _get_urls_from_page(self, page_html):
+            soup = BeautifulSoup(page_html, 'html.parser')
+            match_table_anchor = soup.find('main', class_="Main Main--sidebar")
+            return [a['href'] for a in match_table_anchor.find_all("a", class_="Prediction")]
+
+        def get_tips(self):
+            for match_url in self._get_matches_urls():
+                request_result = make_request(FREE_SUPER_TIPS_URL + match_url)
+                if request_result is not None:
+                    match_html = BeautifulSoup(request_result, 'html.parser')
+                    match = match_html.find_all('div', class_="TeamForm__inner")
+                    match = match[0].get_text() + " - " + match[1].get_text()
+
+                    hour_element = match_html.find('ul', class_='GameBullets').find('li').get_text()
+                    date_element = match_html.find('ul', class_='GameBullets').find('li').find_next_sibling('li').get_text()
+
+                    hour_element = datetime.strptime(hour_element, "%H:%M")
+                    hour_element = hour_element + timedelta(hours=3)
+                    hour_element = hour_element.strftime("%H:%M")
+
+                    current_date = datetime.now()
+                    date_element = date_element.replace("Today", current_date.strftime("%Y-%m-%d"))
+                    date_element = date_element.replace("Tomorrow", (current_date + timedelta(days=1)).strftime("%Y-%m-%d"))
+                    if date_element.isnumeric():
+                        if int(date_element) > current_date.day:
+                            current_date = current_date.replace(day=int(date_element))
+                        else:
+                            current_date = current_date.replace(day=int(date_element), month=current_date.month+1)
+                        date_element = str(current_date.strftime("%Y-%m-%d"))
+
+                    match_time = date_element + " - " + hour_element
+                    for tip_html in match_html.findAll('div', class_="IndividualTipPrediction"):
+                        tip = tip_html.find("h4").get_text()
+                        odds = tip_html.find('div', class_='BetExpand__odds').find('span').get_text()
+                        odds = fractional_to_decimal_odds(odds)
+                        tip_strength = len(tip_html.findAll('span', class_="Icon-module__icon Icon-module__small "
+                                                                           "Icon-module__icon-filled-star "
+                                                                           "Icon-module__tertiary "
+                                                                           "ConfidenceRating-module__star"))
+                        self.tipper.tips.append(Tip(match, match_time, tip, tip_strength, "FreeSuperTips", odds))
+
+    class ForebetTipper:
+        def __init__(self, tipper):
+            self.tipper = tipper
+
+        def get_tips(self):
+            request_result = make_request(FOREBET_TOP_VALUES_URL)
+            if request_result is not None:
+                html = BeautifulSoup(request_result, 'html.parser').find('div', class_="schema")
+
+                for match_html in html.find_all('div', class_="rcnt tr_0") + html.find_all('div', class_="rcnt tr_1"):
+                    match_name = match_html.find('meta')['content']
+                    match_date = match_html.find('span', class_="date_bah").get_text()
+                    match_date = (datetime.strptime(match_date, "%d/%m/%Y %H:%M") + timedelta(hours=1)).strftime("%Y-%m-%d - %H:%M")
+                    tip = match_html.find('span', class_="forepr").get_text()
+                    # Get match odds
+                    try:
+                        odds = float(match_html.find('span', class_="lscrsp").get_text())
+                    except:
+                        odds = 0
+
+                    tip_strength = 3 * int(match_html.find('span', class_="fpr").get_text()) / 100
+                    self.tipper.tips.append(Tip(match_name, match_date, tip, tip_strength, "Forebet", odds))
+
+    # class BttsTipper():
+    #     def __init__(self):
+    #         self.driver = None
+    #         self.tips = []
+    #
+    #     def get_tips(self):
+    #         self.driver = init_driver()
+    #         self.driver.get(FOREBET_ALL_PREDICTIONS_URL)
+    #
+    #         # Press the "Show more" button at the bottom of the page by running the script it is executing
+    #         for i in range(11, 30):
+    #             self.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
+    #             time.sleep(1)
+    #         html = BeautifulSoup(self.driver.page_source, 'html.parser')
+    #         matches_urls = [a['href'] for a in html.find_all('a', class_="tnmscn", itemprop="url")]
+    #         self.driver.close()
+    #
+    #         threads = []
+    #         for i in range(4):
+    #             lower_bound = int(i * len(matches_urls) / 4)
+    #             upper_bound = int((i + 1) * len(matches_urls) / 4)
+    #             match_list = matches_urls[lower_bound:upper_bound]
+    #             threads.append(threading.Thread(target=self._find_value_matches, args=(match_list,)))
+    #         for thread in threads:
+    #             thread.start()
+    #         for thread in threads:
+    #             thread.join()
+    #
+    #         return self.tips
+    #
+    #     def _find_value_matches(self, match_list):
+    #         for match_url in match_list:
+    #             if FOREBET_URL not in match_url:
+    #                 match_url = FOREBET_URL + match_url
+    #
+    #             # Get Fixture html source
+    #             try:
+    #                 r = requests.get(match_url, timeout=1000) \
+    #                     if FOREBET_URL in match_url else requests.get(FOREBET_URL + match_url, timeout=1000)
+    #             except requests.exceptions.RequestException:
+    #                 print("Request error")
+    #                 continue
+    #             match_html = BeautifulSoup(r.text, 'html.parser')
+    #
+    #             match_datetime = datetime.strptime(
+    #                 match_html.find('div', class_="date_bah").get_text().strip().rsplit(' ', 1)[0],
+    #                 "%d/%m/%Y %H:%M") + timedelta(hours=1)
+    #
+    #             # Skip finished matches
+    #             if match_datetime > CURRENT_TIME:
+    #                 # Both teams at least 10 games played each
+    #                 if int(match_html.find('span', class_="ov_pl_a").get_text()) > 10 and \
+    #                         int(match_html.find('span', class_="ov_pl_h").get_text()) > 10:
+    #                     percs = match_html.find_all('div', class_="ov_group")[-1]
+    #
+    #                     home_perc = float(percs.find('div', class_="ov_col_1").find_all('span', class_="ov_left")[
+    #                                           1].get_text().strip().strip('%'))
+    #                     away_perc = float(percs.find('div', class_="ov_col_2").find_all('span', class_="ov_left")[
+    #                                           1].get_text().strip().strip('%'))
+    #
+    #                     if (home_perc + away_perc) / 2 > 90.0:
+    #                         home_team_name = match_html.find('span', itemprop="homeTeam").get_text().strip()
+    #                         away_team_name = match_html.find('span', itemprop="awayTeam").get_text().strip()
+    #                         print(match_url + " " + str((home_perc + away_perc) / 2))
+    #                         self.tips.append(Tip(home_team_name + " vs " + away_team_name, "BTTS",
+    #                                              3 * ((home_perc + away_perc) / 2 / 100)))
+    #                     if (home_perc + away_perc) / 2 < 35.0:
+    #                         home_team_name = match_html.find('span', itemprop="homeTeam").get_text().strip()
+    #                         away_team_name = match_html.find('span', itemprop="awayTeam").get_text().strip()
+    #                         print(match_url + " " + str((home_perc + away_perc) / 2))
+    #                         self.tips.append(Tip(home_team_name + " vs " + away_team_name, "BTTS NO",
+    #                                              3 * ((home_perc + away_perc) / 2 / 100)))
