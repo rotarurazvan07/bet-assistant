@@ -1,5 +1,6 @@
 import re
 import threading
+import time
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
@@ -17,7 +18,7 @@ FOREBET_URL = "https://www.forebet.com"
 
 
 class Tip:
-    def __init__(self, match_name, match_time, tip, confidence, source="", odds=0):
+    def __init__(self, match_name, match_time, tip, confidence, source="", odds="N/A"):
         self.match_name = match_name
         self.match_time = match_time
         self.tip = tip
@@ -25,22 +26,19 @@ class Tip:
         self.odds = odds
         self.source = source
 
-    def get_tip_data(self):
-        return [self.match_name, self.match_time, self.tip, self.confidence, self.source, self.odds]
-
 
 class Tipper:
-    def __init__(self):
-        self.tips = []
+    def __init__(self, db_manager):
         self.execution = 0
         self._searched_tips = 0
         self._tips_to_search = 0
+        self.db_manager = db_manager
 
     def get_tips(self):
-        self.tips = []
         self._searched_tips = 0
 
-        tippers = [self.WhoScoredTipper(self), self.ForebetTipper(self), self.FreeSuperTipper(self), self.WinDrawWinTipper(self)]
+        tippers = [self.WhoScoredTipper(self), self.FreeSuperTipper(self), self.ForebetTipper(self),
+                   self.WinDrawWinTipper(self), self.FootyStatsTipper(self), self.PickWiseTipper(self)]
         self._tips_to_search = len(tippers)
 
         threads = []
@@ -73,6 +71,7 @@ class Tipper:
         def get_tips(self):
             for match_url in self._get_matches_urls():
                 self.web_driver.driver.get(WHO_SCORED_URL + match_url)
+                time.sleep(0.1)
                 request_result = self.web_driver.driver.page_source
                 if request_result is not None:
                     match_html = BeautifulSoup(request_result, 'html.parser')
@@ -86,16 +85,19 @@ class Tipper:
                     match_time = match_html.find('dt', text='Date:').find_next_sibling('dd').text + " - " + \
                                  match_html.find('dt', text='Kick off:').find_next_sibling('dd').text
 
-                    match_time = (datetime.strptime(match_time, "%a, %d-%b-%y - %H:%M") + timedelta(hours=2)).strftime("%Y-%m-%d - %H:%M")
+                    match_time = (datetime.strptime(match_time, "%a, %d-%b-%y - %H:%M") + timedelta(
+                        hours=2)).strftime("%Y-%m-%d - %H:%M")
 
                     side_box = match_html.find('table', class_="grid teamcharacter")
                     try:
                         for tip_html in side_box.findAll('tr'):
                             tip = tip_html.get_text().strip()
                             tip_strength = self._tip_strengths.index(tip_html.find('span')['title'].strip()) + 1
-                            self.tipper.tips.append(Tip(match_name, match_time, tip, tip_strength, "WhoScored"))
+                            self.tipper.db_manager.add_or_update_match(
+                                Tip(match_name, match_time, tip, tip_strength, "WhoScored"))
                     except AttributeError:
                         continue
+
             self.web_driver.driver.close()
 
     class FreeSuperTipper:
@@ -127,7 +129,8 @@ class Tipper:
                     match = match[0].get_text() + " - " + match[1].get_text()
 
                     hour_element = match_html.find('ul', class_='GameBullets').find('li').get_text()
-                    date_element = match_html.find('ul', class_='GameBullets').find('li').find_next_sibling('li').get_text()
+                    date_element = match_html.find('ul', class_='GameBullets').find('li').find_next_sibling(
+                        'li').get_text()
 
                     hour_element = datetime.strptime(hour_element, "%H:%M")
                     hour_element = hour_element + timedelta(hours=3)
@@ -135,15 +138,21 @@ class Tipper:
 
                     current_date = datetime.now()
                     date_element = date_element.replace("Today", current_date.strftime("%Y-%m-%d"))
-                    date_element = date_element.replace("Tomorrow", (current_date + timedelta(days=1)).strftime("%Y-%m-%d"))
+                    date_element = date_element.replace("Tomorrow",
+                                                        (current_date + timedelta(days=1)).strftime("%Y-%m-%d"))
+
                     if date_element.isnumeric():
                         if int(date_element) > current_date.day:
                             current_date = current_date.replace(day=int(date_element))
                         else:
-                            current_date = current_date.replace(day=int(date_element), month=current_date.month+1)
+                            current_date = current_date.replace(day=int(date_element), month=current_date.month + 1)
                         date_element = str(current_date.strftime("%Y-%m-%d"))
 
                     match_time = date_element + " - " + hour_element
+
+                    if "Expired" in match_time:
+                        continue
+
                     for tip_html in match_html.findAll('div', class_="IndividualTipPrediction"):
                         tip = tip_html.find("h4").get_text()
                         odds = tip_html.find('div', class_='BetExpand__odds').find('span').get_text()
@@ -152,7 +161,8 @@ class Tipper:
                                                                            "Icon-module__icon-filled-star "
                                                                            "Icon-module__tertiary "
                                                                            "ConfidenceRating-module__star"))
-                        self.tipper.tips.append(Tip(match, match_time, tip, tip_strength, "FreeSuperTips", odds))
+                        self.tipper.db_manager.add_or_update_match(
+                            Tip(match, match_time, tip, tip_strength, "FreeSuperTips", odds))
 
     class ForebetTipper:
         def __init__(self, tipper):
@@ -166,30 +176,33 @@ class Tipper:
                 for match_html in html.find_all('div', class_="rcnt tr_0") + html.find_all('div', class_="rcnt tr_1"):
                     match_name = match_html.find('meta')['content']
                     match_date = match_html.find('span', class_="date_bah").get_text()
-                    match_date = (datetime.strptime(match_date, "%d/%m/%Y %H:%M") + timedelta(hours=1)).strftime("%Y-%m-%d - %H:%M")
+                    match_date = (datetime.strptime(match_date, "%d/%m/%Y %H:%M") + timedelta(hours=1)).strftime(
+                        "%Y-%m-%d - %H:%M")
                     tip = match_html.find('span', class_="forepr").get_text()
+                    if tip == "1": tip = "Home Win"
+                    if tip == "X": tip = "Draw"
+                    if tip == "2": tip = "Away Win"
                     # Get match odds
                     try:
                         odds = float(match_html.find('span', class_="lscrsp").get_text())
                     except:
-                        odds = 0
+                        odds = "N/A"
 
-                    tip_strength = 3 * int(match_html.find('span', class_="fpr").get_text()) / 100
-                    self.tipper.tips.append(Tip(match_name, match_date, tip, tip_strength, "Forebet", odds))
+                    tip_strength = (int(match_html.find('span', class_="fpr").get_text()) / 100) * 2 + 1
+
+                    self.tipper.db_manager.add_or_update_match(
+                        Tip(match_name, match_date, tip, tip_strength, "Forebet", odds))
 
     class WinDrawWinTipper:
         def __init__(self, tipper):
             self.tipper = tipper
             self._tip_strengths = ["Small", "Medium", "Large"]
 
-        # TODO - some entries are doubled
-        # TODO - needs checking
         def get_tips(self):
             current_date = datetime.now().date()
             for i in range(9):
                 web_driver = WebDriver()
                 formatted_date = (current_date + timedelta(days=i)).strftime("%Y%m%d")
-                print(formatted_date)
                 web_driver.driver.get(f'https://www.windrawwin.com/predictions/future/{formatted_date}/')
                 request_result = web_driver.driver.page_source
                 if request_result is not None:
@@ -202,9 +215,87 @@ class Tipper:
                         match_name = match.find("div", class_=re.compile(r'wttd wtfixt wtlh')).find('a').get_text()
                         match_date = (current_date + timedelta(days=i)).strftime("%Y-%m-%d - 23:59")
                         tip = match.find("div", class_="wttd wtsc").get_text()
+                        compare_numbers = lambda text: 0 if int(text.split('-')[0]) > int(text.split('-')[1]) else (
+                            1 if int(text.split('-')[0]) == int(text.split('-')[1]) else 2)
+                        try:
+                            tip_odds_anchors = match.find('div', class_='wtmo').find_all("div",
+                                                                                         class_=re.compile(
+                                                                                             r'wttd wtocell'))
+                            odds = tip_odds_anchors[compare_numbers(tip)].get_text()
+                        except AttributeError:
+                            odds = "N/A"
+                        tip = match.find("div", class_="wttd wtprd").get_text() + " " + tip
                         tip_strength = self._tip_strengths.index(match.find('div', class_="wttd wtstk").get_text()) + 1
-                        odds = 0
-                        self.tipper.tips.append(Tip(match_name, match_date, tip, tip_strength, "WinDrawWin", odds))
+                        self.tipper.db_manager.add_or_update_match(
+                            Tip(match_name, match_date, tip, tip_strength, "WinDrawWin", odds))
+
                 web_driver.driver.close()
 
-    # TODO -
+    class FootyStatsTipper:
+        def __init__(self, tipper):
+            self.tipper = tipper
+
+        def get_tips(self):
+            request_result = make_request("https://footystats.org/predictions/mathematical")
+            if request_result is not None:
+                html = BeautifulSoup(request_result, 'html.parser')
+
+                for match_html in html.find_all('li', class_="fixture-item"):
+                    match_name = match_html.find('div', class_="match-name").find("a").get_text()
+                    match_date = match_html.find('div', class_="match-time").get_text()
+                    match_date = datetime.strptime(match_date, "%A %B %d").replace(year=2024).strftime(
+                        "%Y-%m-%d - 23:59")
+                    tip_anchor = match_html.find("ul", class_="bet-items").find("li").contents[0].strip()
+                    tip = tip_anchor.split('%')[1].strip()
+
+                    tip_strength = (int(tip_anchor.split('%')[0].strip()) / 100) * 2 + 1
+                    try:
+                        odds = float(
+                            match_html.find("ul", class_="bet-items").find_all("li")[1].get_text().replace('Real Odds',
+                                                                                                           ''))
+                    except:
+                        odds = "N/A"
+
+                    self.tipper.db_manager.add_or_update_match(
+                        Tip(match_name, match_date, tip, tip_strength, "FootyStats", odds))
+
+    class PickWiseTipper:
+        def __init__(self, tipper):
+            self.tipper = tipper
+
+        def _get_matches_urls(self):
+            predictions_html = make_request("https://www.pickswise.com/soccer/predictions/")
+            predictions_html = BeautifulSoup(predictions_html, 'html.parser')
+            predictions_html = predictions_html.find("div", class_=re.compile(r'SportPredictions')).find_all("a")
+            return [a['href'] for a in predictions_html]
+
+        def get_tips(self):
+            for match_url in self._get_matches_urls():
+                request_result = make_request("https://www.pickswise.com" + match_url)
+                if request_result is not None:
+                    match_html = BeautifulSoup(request_result, 'html.parser')
+
+                    match_name = match_html.find("div", class_="PredictionHeaderInfo_titleWrapper__NW7Pn").get_text()
+                    match_name = match_name.split("Prediction")[0].strip()
+
+                    match_time = match_html.find("div",
+                                                 class_="TimeDate_timeDate__HSSoH TimeDate_timeDateCenter__Iok0U PredictionHeaderTeam_date__TYuIg").get_text()
+                    if "Today" in match_time:
+                        match_time = datetime.today()
+                        # TODO - get hour also
+                        #  date is bad
+                    else:
+                        match_time = datetime.today()
+
+                    match_time = match_time.strftime("%Y-%m-%d - %H:%M")
+
+                    tip = match_html.find("div", class_="SelectionInfo_outcome__1i6jL").get_text()
+                    tip_strength = str(match_html.find("div", attrs={'data-testid': "ConfidenceRating"}).contents)
+                    tip_strength = tip_strength.count("icon-filled-star") / 2
+                    try:
+                        odds = match_html.find("div", class_="DataButton_oddsAndLine__9LKbR").get_text()
+                        odds = str(round(1 + (abs(int(odds)) / 100), 2))
+                    except:
+                        odds = "N/A"
+                    self.tipper.db_manager.add_or_update_match(
+                        Tip(match_name, match_time, tip, tip_strength, "PickWise", odds))

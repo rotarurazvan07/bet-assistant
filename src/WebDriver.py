@@ -24,6 +24,8 @@ class WebDriver:
     def init_driver(self):
         options = webdriver.ChromeOptions()
         options.binary_location = self.chrome_path
+        options.add_argument('--ignore-certificate-errors')
+        options.add_experimental_option('excludeSwitches', ['enable-logging'])
         # options.add_argument('--headless')
         # options.add_argument('--disable-gpu')  # Last I checked this was necessary.
         options.add_experimental_option("detach", True)
