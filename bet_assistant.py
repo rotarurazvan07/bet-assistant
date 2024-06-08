@@ -1,6 +1,7 @@
 """
 Bet assistant, 2022
 """
+import asyncio
 from datetime import datetime
 
 from flask import Flask, render_template, jsonify, request
@@ -45,7 +46,20 @@ def generate_data():
     return jsonify(response)
 
 
+@app.route('/analyse_data')
+def analyse_data():
+    try:
+        db_manager.analyse_data()
+        response = {"status": "success"}
+    except Exception as e:
+        response = {"status": "error", "message": str(e)}
+
+    return jsonify(response)
+
+
 if __name__ == "__main__":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     db_manager = DatabaseManager()
     tipper = Tipper(db_manager)
+    # db_manager.analyse_data()
     app.run(debug=True, host='192.168.0.129', port=5000)

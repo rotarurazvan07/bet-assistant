@@ -38,7 +38,9 @@ class Tipper:
         self._searched_tips = 0
 
         tippers = [self.WhoScoredTipper(self), self.FreeSuperTipper(self), self.ForebetTipper(self),
-                   self.WinDrawWinTipper(self), self.FootyStatsTipper(self), self.PickWiseTipper(self)]
+                   self.WinDrawWinTipper(self), self.FootyStatsTipper(self), self.PickWiseTipper(self),
+                   self.FreeTipsTipper(self),
+                   self.OLBGTipper(self)]
         self._tips_to_search = len(tippers)
 
         threads = []
@@ -98,7 +100,7 @@ class Tipper:
                     except AttributeError:
                         continue
 
-            self.web_driver.driver.close()
+            self.web_driver.driver.quit()
 
     class FreeSuperTipper:
         def __init__(self, tipper):
@@ -193,6 +195,44 @@ class Tipper:
                     self.tipper.db_manager.add_or_update_match(
                         Tip(match_name, match_date, tip, tip_strength, "Forebet", odds))
 
+    class OLBGTipper:
+        def __init__(self, tipper):
+            self.tipper = tipper
+
+        def get_tips(self):
+            web_driver = WebDriver()
+            web_driver.driver.get("https://www.olbg.com/betting-tips/Football/1")
+            last_height = web_driver.driver.execute_script("return document.body.scrollHeight")
+
+            while True:
+                web_driver.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(2)
+                new_height = web_driver.driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    break
+                last_height = new_height
+
+            time.sleep(0.1)
+            if web_driver.driver.page_source is not None:
+                html = BeautifulSoup(web_driver.driver.page_source, 'html.parser')
+                web_driver.driver.quit()
+
+                # TODO - doesnt load everything, skip tournament tab
+                for match_html in html.find_all("div", class_="tip t-grd-1"):
+                    match_name = match_html.find("div", class_="rw evt").find("a", class_="h-rst-lnk").get_text()
+                    match_date = match_html.find("div", class_="rw evt").find("time").get('datetime')
+                    match_date = (
+                                datetime.strptime(match_date[:19], '%Y-%m-%dT%H:%M:%S') + timedelta(hours=1)).strftime(
+                        "%Y-%m-%d - %H:%M")
+
+                    tip = match_html.find("div", class_="rw slct").find("a", class_="h-rst-lnk").get_text()
+                    tip_strength = match_html.find("div", class_="chart sm").find("div", class_="data").get_text()
+                    tip_strength = int(tip_strength.replace("%", '').replace(" ", ''))
+                    tip_strength = tip_strength * 2 / 100 + 1
+                    odds = match_html.find("span", class_="odd ui-odds").get("data-decimal")
+                    self.tipper.db_manager.add_or_update_match(
+                        Tip(match_name, match_date, tip, tip_strength, "OLBG", odds))
+
     class WinDrawWinTipper:
         def __init__(self, tipper):
             self.tipper = tipper
@@ -229,7 +269,64 @@ class Tipper:
                         self.tipper.db_manager.add_or_update_match(
                             Tip(match_name, match_date, tip, tip_strength, "WinDrawWin", odds))
 
-                web_driver.driver.close()
+                web_driver.driver.quit()
+
+    class FreeTipsTipper:
+        def __init__(self, tipper):
+            self.tipper = tipper
+            self.web_driver = WebDriver()
+
+        def _get_matches_urls(self):
+            self.web_driver.driver.get("https://www.freetips.com/football/fixtures/")
+            time.sleep(0.1)
+
+            matches_urls = []
+
+            page_html = BeautifulSoup(self.web_driver.driver.page_source, 'html.parser')
+            matches_urls += [a.find('a')['href'] for a in page_html.find_all("div", class_="eventNameDC Newsurls")]
+            self.web_driver.driver.quit()
+            time.sleep(0.4)
+            self.web_driver = WebDriver()
+            self.web_driver.driver.get(matches_urls[0])
+            time.sleep(0.1)
+            page_html = BeautifulSoup(self.web_driver.driver.page_source, 'html.parser')
+            upcoming_matches = page_html.find_all("div", class_="news-stream-wrap")[1:]
+            for upc_match in upcoming_matches:
+                for event in upc_match.find_all('div', class_="news-stream-item"):
+                    if "Soccer" in str(event):
+                        matches_urls.append(event.find("a").get('href'))
+
+            self.web_driver.driver.quit()
+            return matches_urls
+
+        def get_tips(self):
+            for match_url in self._get_matches_urls():
+                self.web_driver = WebDriver()
+                time.sleep(0.5)
+                self.web_driver.driver.get(match_url)
+                time.sleep(0.1)
+                if self.web_driver.driver.page_source is not None:
+                    html = BeautifulSoup(self.web_driver.driver.page_source, 'html.parser')
+
+                    match_name = html.find("div", class_="betTop").find('h4').get_text().replace('\n', '')
+                    match_date = html.find("div", class_="betTop").find('div', class_="betTiming").get('data-datezone')
+
+                    match_date = (datetime.strptime(match_date, '%Y-%m-%dT%H:%M:%S.%fZ') + timedelta(hours=3)).strftime(
+                        "%Y-%m-%d - %H:%M")
+
+                    for tip_html in html.find_all("div", class_="verdictBoxItem"):
+                        tip = tip_html.find("div", class_="hedTextOneVBD").get_text() + " " + tip_html.find("div",
+                                                                                                            class_="hedTextOneVBD marketName").get_text()
+                        tip_strength = int(
+                            re.search(r'(\d+)\s+Unit', tip_html.find("div", class_="hedTextTwoVBD").get_text()).group(
+                                1))
+                        tip_strength = tip_strength * 2 / 5 + 1
+                        odds = str(
+                            re.search(r'@(\d+\.\d+)', tip_html.find("div", class_="hedTextTwoVBD").get_text()).group(1))
+
+                        self.tipper.db_manager.add_or_update_match(
+                            Tip(match_name, match_date, tip, tip_strength, "FreeTips", odds))
+                self.web_driver.driver.quit()
 
     class FootyStatsTipper:
         def __init__(self, tipper):
@@ -266,8 +363,12 @@ class Tipper:
         def _get_matches_urls(self):
             predictions_html = make_request("https://www.pickswise.com/soccer/predictions/")
             predictions_html = BeautifulSoup(predictions_html, 'html.parser')
-            predictions_html = predictions_html.find("div", class_=re.compile(r'SportPredictions')).find_all("a")
-            return [a['href'] for a in predictions_html]
+            # TODO -try if exists, sometimes there are no predictions
+            try:
+                predictions_html = predictions_html.find("div", class_=re.compile(r'SportPredictions')).find_all("a")
+                return [a['href'] for a in predictions_html]
+            except:
+                return []
 
         def get_tips(self):
             for match_url in self._get_matches_urls():
@@ -292,6 +393,7 @@ class Tipper:
                     tip = match_html.find("div", class_="SelectionInfo_outcome__1i6jL").get_text()
                     tip_strength = str(match_html.find("div", attrs={'data-testid': "ConfidenceRating"}).contents)
                     tip_strength = tip_strength.count("icon-filled-star") / 2
+                    # TODO - fix here
                     try:
                         odds = match_html.find("div", class_="DataButton_oddsAndLine__9LKbR").get_text()
                         odds = str(round(1 + (abs(int(odds)) / 100), 2))

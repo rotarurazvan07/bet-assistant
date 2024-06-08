@@ -23,6 +23,9 @@
         .day-column, .time-column {
             width: 5%;
         }
+        .analysis-column {
+            width: 5%;
+        }
         .confidence-column {
             width: 65%;
         }
@@ -74,6 +77,7 @@
                 <th class="match-column">Match</th>
                 <th class="day-column">Day</th>
                 <th class="time-column">Time</th>
+                <th class="time-column">Analysis</th>
                 <th class="confidence-column">Tips (Tip | Odds | Source | Confidence)</th>
             </tr>
         </thead>
@@ -108,6 +112,7 @@
                             <td class="match-column">${match.match}</td>
                             <td class="day-column">${match.match_day}</td>
                             <td class="time-column">${match.match_time}</td>
+                            <td class="analysis-column">${match.analysis}</td>
                             <td class="confidence-column">
                             <table>
                                 <tbody>
@@ -147,6 +152,28 @@
             return `rgb(${r}, ${g}, ${b})`;
         }
 
+        function analyseMatchData() {
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.style.display = 'block'; // Show spinner
+
+            fetch('/analyse_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        fetchAndPopulateMatchData();
+                    } else {
+                        console.error('Error analysing data:', data.message);
+                    }
+                })
+                .finally(() => {
+                    spinner.style.display = 'none'; // Hide spinner
+                })
+                .catch(error => {
+                    console.error('Error analysing data:', error);
+                    spinner.style.display = 'none'; // Hide spinner even if there's an error
+                });
+        }
+
         // Function to generate data and show/hide the loading spinner
         function generateData() {
             const spinner = document.getElementById('loadingSpinner');
@@ -156,7 +183,9 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
+                        // launch the analyse, then repopulate table
                         fetchAndPopulateMatchData(); // Repopulate the table
+                        //analyseMatchData();
                     } else {
                         console.error('Error generating data:', data.message);
                     }
