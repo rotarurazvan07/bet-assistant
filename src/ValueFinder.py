@@ -1,4 +1,3 @@
-import os
 import threading
 import time
 from datetime import datetime, timedelta
@@ -8,43 +7,49 @@ from bs4 import BeautifulSoup
 from src.Match import Match
 from src.Team import Team
 from src.WebDriver import WebDriver, make_request
-from src.utils import CURRENT_TIME, log
+from src.utils import CURRENT_TIME
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 
-MATCH_VALUE_THRESHOLD = 20
 NUM_THREADS = 4
 
 
 class ValueFinder:
     def __init__(self):
-        self.web_driver = WebDriver()
-        self.matches_urls = self._get_matches_from_html(FOREBET_ALL_PREDICTIONS_URL)
         self.matches = []
         self._scanned_matches = 0
+        self._matches_to_scan = 0
+        self.execution = 0
 
     def _get_matches_from_html(self, url):
-        self.web_driver.driver.get(url)
+        web_driver = WebDriver()
+        web_driver.driver.get(url)
         time.sleep(1)
         # Press the "Show more" button at the bottom of the page by running the script it is executing
-        for i in range(11, 12):
-            self.web_driver.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
+        for i in range(11, 30):
+            web_driver.driver.execute_script("ltodrows(\"1x2\"," + str(i) + ",\"\");")
             time.sleep(1)
 
-        html = BeautifulSoup(self.web_driver.driver.page_source, 'html.parser')
-        self.web_driver.driver.close()
+        html = BeautifulSoup(web_driver.driver.page_source, 'html.parser')
+        web_driver.driver.close()
 
         return [a['href'] for a in html.find_all('a', class_="tnmscn", itemprop="url")]
 
     def find_value_matches(self):
-        info_thread = threading.Thread(target=self._log_progress)
+        self.matches = []
+        self._scanned_matches = 0
+        self._matches_to_scan = 0
+        matches_urls = self._get_matches_from_html(FOREBET_ALL_PREDICTIONS_URL)
+        self._matches_to_scan = len(matches_urls)
+
+        info_thread = threading.Thread(target=self._log_progress, args=(matches_urls,))
         info_thread.start()
 
         threads = []
         for i in range(NUM_THREADS):
-            matches_urls_slice = self.matches_urls[int(i*len(self.matches_urls)/NUM_THREADS):
-                                                   int((i+1)*len(self.matches_urls)/NUM_THREADS)]
+            matches_urls_slice = matches_urls[int(i * len(matches_urls) / NUM_THREADS):
+                                              int((i + 1) * len(matches_urls) / NUM_THREADS)]
             threads.append(threading.Thread(target=self._find_value_matches_job, args=(matches_urls_slice,)))
         for thread in threads:
             thread.start()
@@ -54,12 +59,13 @@ class ValueFinder:
         info_thread.do_run = False
         info_thread.join()
 
+        self.execution = 0
         return self.matches
 
-    def _log_progress(self):
+    def _log_progress(self, matches_urls):
         while getattr(threading.current_thread(), "do_run", True):
-            os.system('cls')
-            print("Scanning match " + str(self._scanned_matches) + " out of " + str(len(self.matches_urls)))
+            # os.system('cls')
+            print("Scanning match " + str(self._scanned_matches) + " out of " + str(len(matches_urls)))
             print("Saved " + str(len(self.matches)) + " matches")
             time.sleep(1)
 
@@ -78,7 +84,9 @@ class ValueFinder:
                 try:
                     # We only look for matches in leagues
                     if "Standings of both teams" in page_html:
-                        match_datetime = match_html.find('time', itemprop='startDate').find('div', class_='date_bah').text.replace(' GMT', '')
+                        match_datetime = match_html.find('time', itemprop='startDate').find('div',
+                                                                                            class_='date_bah').text.replace(
+                            ' GMT', '')
                         match_datetime = datetime.strptime(match_datetime, "%d/%m/%Y %H:%M") + timedelta(hours=1)
                         # Skip finished matches
                         if match_datetime > CURRENT_TIME:
@@ -106,7 +114,8 @@ class ValueFinder:
 
                             # Get match odds
                             try:
-                                odds = float(match_html.find('div', class_="rcnt tr_0").find('span', class_="lscrsp").get_text())
+                                odds = float(
+                                    match_html.find('div', class_="rcnt tr_0").find('span', class_="lscrsp").get_text())
                             except:
                                 odds = 0
 
