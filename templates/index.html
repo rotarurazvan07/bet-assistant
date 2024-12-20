@@ -61,7 +61,6 @@
     </style>
 </head>
 <body>
-    <div><button onclick="generateData()">Generate Data</button></div>
     <br></br>
     <div>
         <label for="startDate">Start Date:</label>
@@ -170,31 +169,6 @@
                 })
                 .catch(error => {
                     console.error('Error analysing data:', error);
-                    spinner.style.display = 'none'; // Hide spinner even if there's an error
-                });
-        }
-
-        // Function to generate data and show/hide the loading spinner
-        function generateData() {
-            const spinner = document.getElementById('loadingSpinner');
-            spinner.style.display = 'block'; // Show spinner
-
-            fetch('/generate_data')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        // launch the analyse, then repopulate table
-                        fetchAndPopulateMatchData(); // Repopulate the table
-                        //analyseMatchData();
-                    } else {
-                        console.error('Error generating data:', data.message);
-                    }
-                })
-                .finally(() => {
-                    spinner.style.display = 'none'; // Hide spinner
-                })
-                .catch(error => {
-                    console.error('Error generating data:', error);
                     spinner.style.display = 'none'; // Hide spinner even if there's an error
                 });
         }

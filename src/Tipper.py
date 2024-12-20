@@ -37,10 +37,16 @@ class Tipper:
     def get_tips(self):
         self._searched_tips = 0
 
-        tippers = [self.WhoScoredTipper(self), self.FreeSuperTipper(self), self.ForebetTipper(self),
-                   self.WinDrawWinTipper(self), self.FootyStatsTipper(self), self.PickWiseTipper(self),
+        tippers = [
+                   self.WhoScoredTipper(self),
+                   self.FreeSuperTipper(self),
+                   self.ForebetTipper(self),
+                   self.WinDrawWinTipper(self),
+                   self.FootyStatsTipper(self),
+                   self.PickWiseTipper(self),
                    self.FreeTipsTipper(self),
-                   self.OLBGTipper(self)]
+                   self.OLBGTipper(self)
+                   ]
         self._tips_to_search = len(tippers)
 
         threads = []
@@ -63,7 +69,9 @@ class Tipper:
             self._tip_strengths = ["Likely", "Very Likely", "Extremely Likely"]
 
         def _get_matches_urls(self):
-            request_result = make_request(WHO_SCORED_URL + "/Previews")
+            self.web_driver.driver.get(WHO_SCORED_URL + "/Previews")
+            time.sleep(5)
+            request_result = self.web_driver.driver.page_source
             if request_result is not None:
                 html = BeautifulSoup(request_result, 'html.parser')
                 matches_table_anchor = html.find("table", class_="grid")
@@ -168,10 +176,13 @@ class Tipper:
 
     class ForebetTipper:
         def __init__(self, tipper):
+            self.web_driver = WebDriver()
             self.tipper = tipper
 
         def get_tips(self):
-            request_result = make_request(FOREBET_TOP_VALUES_URL)
+            self.web_driver.driver.get(FOREBET_TOP_VALUES_URL)
+            time.sleep(0.5)
+            request_result = self.web_driver.driver.page_source
             if request_result is not None:
                 html = BeautifulSoup(request_result, 'html.parser').find('div', class_="schema")
 
@@ -194,6 +205,7 @@ class Tipper:
 
                     self.tipper.db_manager.add_or_update_match(
                         Tip(match_name, match_date, tip, tip_strength, "Forebet", odds))
+            self.web_driver.driver.quit()
 
     class OLBGTipper:
         def __init__(self, tipper):
@@ -287,7 +299,11 @@ class Tipper:
             self.web_driver.driver.quit()
             time.sleep(0.4)
             self.web_driver = WebDriver()
-            self.web_driver.driver.get(matches_urls[0])
+            try:
+                self.web_driver.driver.get(matches_urls[0])
+            except IndexError:
+                self.web_driver.driver.quit()
+                return []
             time.sleep(0.1)
             page_html = BeautifulSoup(self.web_driver.driver.page_source, 'html.parser')
             upcoming_matches = page_html.find_all("div", class_="news-stream-wrap")[1:]
