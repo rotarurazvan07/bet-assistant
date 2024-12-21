@@ -50,6 +50,7 @@ async def _make_request(url):
 
 
 def make_request(url):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     response_text = loop.run_until_complete(_make_request(url))

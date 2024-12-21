@@ -5,7 +5,7 @@ from datetime import datetime
 
 from flask import Flask, render_template, jsonify, request
 
-from src.DatabaseManager import DatabaseManager
+from bet_framework.DatabaseManager import DatabaseManager
 
 app = Flask(__name__)
 

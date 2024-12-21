@@ -2,7 +2,7 @@ import inspect
 import os
 from datetime import datetime
 
-# import xlsxwriter
+import xlsxwriter
 
 CURRENT_TIME = datetime.now()
 

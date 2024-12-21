@@ -4,17 +4,18 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
-from src.Match import Match
-from src.Team import Team
-from src.WebDriver import WebDriver, make_request
-from src.utils import CURRENT_TIME
+from Match import Match
+from Team import Team
+from bet_framework.WebDriver import WebDriver, make_request
+
+from bet_framework.utils import CURRENT_TIME
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 
 NUM_THREADS = 4
 
-
+# TODO - rework like tips
 class ValueFinder:
     def __init__(self):
         self.matches = []
