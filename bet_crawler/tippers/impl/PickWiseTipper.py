@@ -3,9 +3,11 @@ from datetime import datetime
 
 from bs4 import BeautifulSoup
 
+from bet_framework.WebDriver import make_request
 from core.BaseTipper import BaseTipper
 from core.Tip import Tip
-from bet_framework.WebDriver import make_request
+
+
 class PickWiseTipper(BaseTipper):
     def __init__(self, add_tip_callback):
         super().__init__(add_tip_callback)
@@ -50,4 +52,4 @@ class PickWiseTipper(BaseTipper):
                 except:
                     odds = "N/A"
 
-                self.add_tip_callback(Tip(match_name, match_time, tip, tip_strength, "PickWise", odds))
+                self.add_tip_callback(Tip(tip, tip_strength, "PickWise", odds),match_name, match_time)

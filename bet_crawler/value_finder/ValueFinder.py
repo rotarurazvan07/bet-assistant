@@ -1,24 +1,25 @@
+import os
 import threading
 import time
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
-from Match import Match
+from Match import Match, MatchStatistics
 from Team import Team
-from bet_framework.WebDriver import WebDriver, make_request
-
+from bet_framework.WebDriver import WebDriver
 from bet_framework.utils import CURRENT_TIME
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 
-NUM_THREADS = 4
+NUM_THREADS = 6
 
 # TODO - rework like tips
 class ValueFinder:
-    def __init__(self):
+    def __init__(self, db_manager):
         self.matches = []
+        self.db_manager = db_manager
         self._scanned_matches = 0
         self._matches_to_scan = 0
         self.execution = 0
@@ -65,18 +66,19 @@ class ValueFinder:
 
     def _log_progress(self, matches_urls):
         while getattr(threading.current_thread(), "do_run", True):
-            # os.system('cls')
+            os.system('cls')
             print("Scanning match " + str(self._scanned_matches) + " out of " + str(len(matches_urls)))
-            print("Saved " + str(len(self.matches)) + " matches")
             time.sleep(1)
 
     def _find_value_matches_job(self, matches_urls):
+        web_driver = WebDriver()
         for match_url in matches_urls:
             self._scanned_matches += 1
 
             # Get Fixture html source
             match_url = match_url if FOREBET_URL in match_url else FOREBET_URL + match_url
-            request_result = make_request(match_url)
+            web_driver.driver.get(match_url)
+            request_result = web_driver.driver.page_source
 
             if request_result is not None:
                 page_html = request_result
@@ -139,11 +141,17 @@ class ValueFinder:
                             forebet_probability = ' '.join([child.get_text() for child in
                                                             match_html.find('div', class_="rcnt tr_0").
                                                            find('div', class_="fprc").children])
-                            forebet_score = match_html.find_all('div', class_="ex_sc tabonly")[-1].get_text()
+                            forebet_probability = tuple(map(int, forebet_probability.split()))
 
-                            self.matches.append(Match(home_team, away_team, match_datetime,
-                                                      forebet_score, forebet_probability,
-                                                      h2h_results, odds))
+                            forebet_score = match_html.find('div', class_="rcnt tr_0").find("div", class_="ex_sc tabonly").get_text()
+                            forebet_score = tuple(map(int, forebet_score.split('-')))
+
+                            self.db_manager.add_value_match(Match(home_team, away_team, match_datetime,
+                                                                  MatchStatistics( forebet_score,
+                                                                                   forebet_probability,
+                                                                                   h2h_results, odds)))
+
                 except Exception as e:
                     print("error: " + str(e))
                     continue
+        web_driver.driver.quit()

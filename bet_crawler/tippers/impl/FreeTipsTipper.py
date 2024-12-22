@@ -3,9 +3,10 @@ import time
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
+
+from bet_framework.WebDriver import WebDriver
 from core.BaseTipper import BaseTipper
 from core.Tip import Tip
-from bet_framework.WebDriver import WebDriver
 
 FREETIPS_URL = "https://www.freetips.com/football/fixtures/"
 class FreeTipsTipper(BaseTipper):
@@ -65,6 +66,6 @@ class FreeTipsTipper(BaseTipper):
                     odds = str(
                         re.search(r'@(\d+\.\d+)', tip_html.find("div", class_="hedTextTwoVBD").get_text()).group(1))
 
-                    self.add_tip_callback(Tip(match_name, match_date, tip, tip_strength, "FreeTips", odds))
+                    self.add_tip_callback(Tip(tip, tip_strength, "FreeTips", odds), match_name, match_date)
 
             self.web_driver.driver.quit()

@@ -3,9 +3,11 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
+from bet_framework.WebDriver import WebDriver
 from core.BaseTipper import BaseTipper
 from core.Tip import Tip
-from bet_framework.WebDriver import WebDriver
+
+
 class OLBGTipper(BaseTipper):
     def __init__(self, add_tip_callback):
         super().__init__(add_tip_callback)
@@ -41,4 +43,4 @@ class OLBGTipper(BaseTipper):
                 tip_strength = int(tip_strength.replace("%", '').replace(" ", ''))
                 tip_strength = tip_strength * 2 / 100 + 1
                 odds = match_html.find("span", class_="odd ui-odds").get("data-decimal")
-                self.add_tip_callback(Tip(match_name, match_date, tip, tip_strength, "OLBG", odds))
+                self.add_tip_callback(Tip(tip, tip_strength, "OLBG", odds), match_name, match_date)

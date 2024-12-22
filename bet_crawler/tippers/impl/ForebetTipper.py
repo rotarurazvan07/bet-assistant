@@ -3,9 +3,9 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
-from core.Tip import Tip
-from core.BaseTipper import BaseTipper
 from bet_framework.WebDriver import WebDriver
+from core.BaseTipper import BaseTipper
+from core.Tip import Tip
 
 FOREBET_TOP_VALUES_URL = "https://www.forebet.com/en/top-football-tips-and-predictions"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
@@ -42,4 +42,4 @@ class ForebetTipper(BaseTipper):
 
                 tip_strength = (int(match_html.find('span', class_="fpr").get_text()) / 100) * 2 + 1
 
-                self.add_tip_callback(Tip(match_name, match_date, tip, tip_strength, "Forebet", odds))
+                self.add_tip_callback(Tip(tip, tip_strength, "Forebet", odds),match_name, match_date)

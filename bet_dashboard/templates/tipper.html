@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Tips</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>Match Tips</h1>
+    <form class="filter-form" method="GET" action="/tipper">
+        <label for="start_date">Start Date:</label>
+        <input type="date" id="start_date" name="start_date" value="{{ request.args.get('start_date') }}">
+
+        <label for="end_date">End Date:</label>
+        <input type="date" id="end_date" name="end_date" value="{{ request.args.get('end_date') }}">
+
+        <button type="submit">Filter</button>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Match</th>
+                <th>Date</th>
+                <th>Analysis</th>
+                <th>Tip</th>
+                <th>Confidence</th>
+                <th>Source</th>
+                <th>Odds</th>
+            </tr>
+        </thead>
+            <tbody>
+                {% for match_tips in match_tips_list %}
+                    <tr>
+                        <td rowspan="{{ match_tips.tips|length }}">{{ match_tips.match_name }}</td>
+                        <td rowspan="{{ match_tips.tips|length }}">{{ match_tips.match_datetime.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td rowspan="{{ match_tips.tips|length }}">{{ match_tips.analysis }}</td>
+                        {% for tip in match_tips.tips %}
+                            {% if loop.index > 1 %} <!-- For subsequent tips, start a new row -->
+                                <tr>
+                            {% endif %}
+                            <td>{{ tip.tip }}</td>
+                            <td>{{ tip.confidence | round(2) }}</td>
+                            <td>{{ tip.source }}</td>
+                            <td>{{ tip.odds }}</td>
+                            </tr>
+                        {% endfor %}
+                {% endfor %}
+            </tbody>
+    </table>
+</body>
+</html>

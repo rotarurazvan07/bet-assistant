@@ -1,10 +1,11 @@
 from datetime import datetime, timedelta
-from core.BaseTipper import BaseTipper
-from core.Tip import Tip
+
 from bs4 import BeautifulSoup
 
 from bet_framework.WebDriver import make_request
 from bet_framework.utils import fractional_to_decimal_odds
+from core.BaseTipper import BaseTipper
+from core.Tip import Tip
 
 FREE_SUPER_TIPS_URL = "https://www.freesupertips.com"
 
@@ -70,4 +71,4 @@ class FreeSuperTipper(BaseTipper):
                                                                        "Icon-module__tertiary "
                                                                        "ConfidenceRating-module__star"))
 
-                    self.add_tip_callback(Tip(match, match_time, tip, tip_strength, "FreeSuperTips", odds))
+                    self.add_tip_callback(Tip( tip, tip_strength, "FreeSuperTips", odds), match, match_time,)

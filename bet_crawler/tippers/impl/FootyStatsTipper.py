@@ -33,4 +33,4 @@ class FootyStatsTipper(BaseTipper):
                 except:
                     odds = "N/A"
 
-                self.add_tip_callback(Tip(match_name, match_date, tip, tip_strength, "FootyStats", odds))
+                self.add_tip_callback(Tip(tip, tip_strength, "FootyStats", odds),match_name,match_date)

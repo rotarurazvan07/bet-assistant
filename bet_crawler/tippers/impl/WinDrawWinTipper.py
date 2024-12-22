@@ -3,9 +3,11 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
+from bet_framework.WebDriver import WebDriver
 from core.BaseTipper import BaseTipper
 from core.Tip import Tip
-from bet_framework.WebDriver import WebDriver
+
+
 class WinDrawWinTipper(BaseTipper):
     def __init__(self, add_tip_callback):
         super().__init__(add_tip_callback)
@@ -39,6 +41,6 @@ class WinDrawWinTipper(BaseTipper):
                         odds = "N/A"
                     tip = match.find("div", class_="wttd wtprd").get_text() + " " + tip
                     tip_strength = self._tip_strengths.index(match.find('div', class_="wttd wtstk").get_text()) + 1
-                    self.add_tip_callback(Tip(match_name, match_date, tip, tip_strength, "WinDrawWin", odds))
+                    self.add_tip_callback(Tip(tip, tip_strength, "WinDrawWin", odds),match_name, match_date)
 
             web_driver.driver.quit()
