@@ -1,4 +1,5 @@
 import inspect
+import math
 import re
 from datetime import datetime
 
@@ -9,6 +10,19 @@ CURRENT_TIME = datetime.now()
 HOME = "home"
 DRAW = "draw"
 AWAY = "away"
+# X2 & -1-3
+def get_value_bet(score):
+    value_bet = ""
+    if score.home >= score.away:
+        value_bet += "1X & "
+    else:
+        value_bet += "X2 & "
+    total_goals = score.home + score.away
+    if total_goals >= 3.5:
+        value_bet += "2+"
+    else:
+        value_bet += str(max(0, int(math.floor(total_goals - 2 + 0.5)))) + "-" + str(max(4, int(math.floor(total_goals + 2 + 0.5))))
+    return value_bet
 
 def get_fav_dc(match):
     # check which side is predicted:
@@ -26,7 +40,7 @@ def analyze_betting_predictions(predictions, threshold=66):
     total_predictions = len(predictions)
     if total_predictions < 3:
         return ["No predictions available for analysis."]
-
+    # TODO - improve it, make more dynamic, not just 2.5 but variations, etc
     # Count statistics
     over_2_5 = sum(1 for sc in predictions if sc.home + sc.away > 2.5) / total_predictions * 100
     btts = sum(1 for sc in predictions if sc.home > 0 and sc.away > 0) / total_predictions * 100
@@ -101,15 +115,20 @@ def soundex(name):
 acronyms = {
     " utd": "",
     " united": "",
-    "qpr": "queens park rangers",
     "al ": "",
     "cd ": "",
     "nk ": "",
     "ns ": "",
     " town": "",
     " city": "",
-    "borussia ": ""
+    "borussia ": "",
 }
+
+team_shorts = {
+    "sporting cp": "sporting lisbon cp",
+    "qpr": "queens park rangers",
+}
+
 def is_match(match1, match2):
     match1 = normalize_match_name(match1)
     match2 = normalize_match_name(match2)
@@ -128,6 +147,12 @@ def is_match(match1, match2):
         if k in away1 and k in away2:
             away1 = away1.replace(k, v)
             away2 = away2.replace(k, v)
+
+    for k, v in team_shorts.items():
+        home1 = home1.replace(k, v)
+        home2 = home2.replace(k, v)
+        away1 = away1.replace(k, v)
+        away2 = away2.replace(k, v)
 
     home_match_score = hybrid_match(home1, home2)
     away_match_score = hybrid_match(away1, away2)

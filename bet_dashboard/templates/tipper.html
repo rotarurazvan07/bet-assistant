@@ -34,63 +34,163 @@
                 <th>Scores</th>
             </tr>
         </thead>
-            <tbody>
-                {% for match in matches %}
-                    <tr>
-                        <td rowspan="{{ match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length }}">
-                            {{ match.home_team.name }} vs {{ match.away_team.name }}
-                        </td>
-                        <td rowspan="{{ match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length }}">
-                            {{ match.datetime.strftime('%Y-%m-%d %H:%M') }}
-                        </td>
-                        <td rowspan="{{ match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length }}">
-                            {{ analysis[loop.index - 1] | replace('\n', '<br>') | safe}}
-                        </td>
-                        {% set max_length = match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length %}
-                        {% for i in range(max_length) %}
-                            {% if i > 0 %}
-                                <tr>
+        <tbody>
+            {% for match in matches %}
+                <tr>
+                    <td rowspan="{{ match['statistics']['tips']|length if match['statistics']['tips']|length > match['statistics']['scores']|length else match['statistics']['scores']|length }}">
+                        <!-- Add a clickable element -->
+                    <a href="#" class="match-name" onclick="openPopup(event, {{ match }})">
+                        {{ match['home_team']['name'] }} vs {{ match['away_team']['name'] }}
+                    </a>
+
+                    </td>
+                    <td rowspan="{{ match['statistics']['tips']|length if match['statistics']['tips']|length > match['statistics']['scores']|length else match['statistics']['scores']|length }}">
+                        {{ match['datetime'] }}
+                    </td>
+                    <td class="scores" rowspan="{{ match['statistics']['tips']|length if match['statistics']['tips']|length > match['statistics']['scores']|length else match['statistics']['scores']|length }}">
+                        {{ analysis[loop.index - 1] | replace('\n', '<br>') | safe}}
+                    </td>
+                    {% set max_length = match['statistics']['tips']|length if match['statistics']['tips']|length > match['statistics']['scores']|length else match['statistics']['scores']|length %}
+                    {% for i in range(max_length) %}
+                        {% if i > 0 %}
+                            <tr>
+                        {% endif %}
+                        <td class="tip">
+                            {% if i < match['statistics']['tips']|length %}
+                                {{ match['statistics']['tips'][i]['tip'] }}
+                            {% else %}
+                                <!-- Empty cell if no more tips -->
                             {% endif %}
-                            <td>
-                                {% if i < match.statistics.tips|length %}
-                                    {{ match.statistics.tips[i].tip }}
-                                {% else %}
-                                    <!-- Empty cell if no more tips -->
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if i < match.statistics.tips|length %}
-                                    {{ match.statistics.tips[i].confidence | round(2) }}
-                                {% else %}
-                                    <!-- Empty cell if no more tips -->
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if i < match.statistics.tips|length %}
-                                    {{ match.statistics.tips[i].source }}
-                                {% else %}
-                                    <!-- Empty cell if no more tips -->
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if i < match.statistics.tips|length %}
-                                    {{ match.statistics.tips[i].odds }}
-                                {% else %}
-                                    <!-- Empty cell if no more tips -->
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if i < match.statistics.scores|length %}
-                                    {{ match.statistics.scores[i].home }} - {{ match.statistics.scores[i].away }}
-                                {% else %}
-                                    <!-- Empty cell if no more scores -->
-                                {% endif %}
-                            </td>
-                            </tr>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-            </tbody>
+                        </td>
+                        <td class="tip">
+                            {% if i < match['statistics']['tips']|length %}
+                                {{ match['statistics']['tips'][i]['confidence'] | round(2) }}
+                            {% else %}
+                                <!-- Empty cell if no more tips -->
+                            {% endif %}
+                        </td>
+                        <td class="tip">
+                            {% if i < match['statistics']['tips']|length %}
+                                {{ match['statistics']['tips'][i]['source'] }}
+                            {% else %}
+                                <!-- Empty cell if no more tips -->
+                            {% endif %}
+                        </td>
+                        <td class="tip">
+                            {% if i < match['statistics']['tips']|length %}
+                                {{ match['statistics']['tips'][i]['odds'] }}
+                            {% else %}
+                                <!-- Empty cell if no more tips -->
+                            {% endif %}
+                        </td>
+                        <td class="scores">
+                            {% if i < match['statistics']['scores']|length %}
+                                {{ match['statistics']['scores'][i]['home'] | int }} - {{ match['statistics']['scores'][i]['away'] | int }}
+                            {% else %}
+                                <!-- Empty cell if no more scores -->
+                            {% endif %}
+                        </td>
+                        </tr>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+        <div id="popup" class="popup" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
+            <div class="popup-content" style="background-color: white; padding: 20px; border-radius: 5px; width: 50%; max-height: 80%; overflow-y: auto;">
+                <span class="close-btn" style="cursor: pointer; float: right; font-size: 20px;" onclick="closePopup()">&times;</span>
+                <div id="popup-details"></div>
+            </div>
+        </div>
+
     </table>
+
+<script>
+    function openPopup(event, match) {
+        event.preventDefault();  // Prevents the default anchor tag behavior (scrolling up)
+
+        // Call your original showPopup function
+        showPopup(match);
+    }
+
+    function showPopup(match) {
+        // Get the popup container and details section
+        const popup = document.getElementById('popup');
+        const popupDetails = document.getElementById('popup-details');
+
+        // Populate the popup content with match statistics in a "VS" table format
+        popupDetails.innerHTML = `
+            <h2>${match.home_team.name} <span style="color: #007bff;">VS</span> ${match.away_team.name}</h2>
+            <table style="width: 100%; border-collapse: collapse; text-align: center;">
+                <thead>
+                    <tr>
+                        <th style="padding: 10px; background-color: #f4f4f4; font-weight: bold;">Average Statistic</th>
+                        <th style="padding: 10px; background-color: #f4f4f4; font-weight: bold;">${match.home_team.name}</th>
+                        <th style="padding: 10px; background-color: #f4f4f4; font-weight: bold;">${match.away_team.name}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Scored</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_scored}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_scored}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Conceded</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_conceded}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_conceded}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Shots on target</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_shots_on_target}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_shots_on_target}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Possession</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_possession}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_possession}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Corners</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_corners}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_corners}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Offsides</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_offsides}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_offsides}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">GK Saves</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_gk_saves}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_gk_saves}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Yellow Cards</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_yellow_cards}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_yellow_cards}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Fouls</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_fouls}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_fouls}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #ddd;">Tackles</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.home_team.statistics.avg_tackles}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">${match.away_team.statistics.avg_tackles}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+
+        // Show the popup
+        popup.style.display = 'flex';
+    }
+
+    function closePopup() {
+        // Hide the popup
+        document.getElementById('popup').style.display = 'none';
+    }
+</script>
 </body>
 </html>

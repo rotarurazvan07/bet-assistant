@@ -33,6 +33,7 @@
                 <th>Match Value</th>
                 <th>Score</th>
                 <th>Probability</th>
+                <th>Bet Tip</th>
                 <th>Fav Odds</th>
             </tr>
         </thead>
@@ -44,7 +45,8 @@
                     <td>{{ match.datetime.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>{{ match.value }}</td>
                     <td>{{ match.statistics.scores.home | round(1) }} - {{ match.statistics.scores.away | round(1) }}</td>
-                    <td>{{ match.statistics.probabilities.home }}% {{ match.statistics.probabilities.draw }}% {{ match.statistics.probabilities.away }}%</td>
+                    <td>{{ match.statistics.probabilities.home | round(1)}}% {{ match.statistics.probabilities.draw | round(1)}}% {{ match.statistics.probabilities.away | round(1)}}%</td>
+                    <th>{{ analysis[loop.index - 1] }}</th>
                     <td>{{ match.statistics.odds }}</td>
                 </tr>
             {% endfor %}

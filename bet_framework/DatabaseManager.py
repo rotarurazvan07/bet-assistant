@@ -2,7 +2,7 @@ from pymongo import MongoClient
 
 from bet_crawler.core.Match import Match
 from bet_crawler.core.MatchStatistics import MatchStatistics, Score, Probability, H2H
-from bet_crawler.core.Team import Team
+from bet_crawler.core.Team import Team, TeamStatistics
 from bet_crawler.core.Tip import Tip
 from bet_framework.utils import log, is_match
 
@@ -16,8 +16,8 @@ class DatabaseManager:
     def fetch_matches(self):
         matches = []
         for match_data in self.matches_collection.find():
-            matches.append(Match(Team(**match_data["home_team"]),
-                                 Team(**match_data["away_team"]),
+            matches.append(Match(Team(match_data["home_team"]["name"], match_data["home_team"]["league_points"], match_data["home_team"]["form"], TeamStatistics(**match_data["home_team"]["statistics"]) if match_data["home_team"]["statistics"] else None),
+                                 Team(match_data["away_team"]["name"], match_data["away_team"]["league_points"], match_data["away_team"]["form"], TeamStatistics(**match_data["away_team"]["statistics"]) if match_data["away_team"]["statistics"] else None),
                                  match_data["datetime"],
                                  MatchStatistics(
                                      [Score(**score) for score in match_data["statistics"]["scores"]],

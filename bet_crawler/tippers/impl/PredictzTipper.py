@@ -14,7 +14,7 @@ class PredictzTipper(BaseTipper):
         super().__init__(add_tip_callback)
 
     def _get_matches_urls(self):
-        request_result = self.web_scraper.load_page(PREDICTZ_URL)
+        request_result = self.web_scraper.load_page(PREDICTZ_URL, time_delay=1)
         if request_result is not None:
             html = BeautifulSoup(request_result, 'html.parser')
             matches_urls = [a['href'] for a in html.find("div",class_="calbox").find_all('a')]

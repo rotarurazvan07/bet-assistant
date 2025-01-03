@@ -5,6 +5,7 @@ from urllib.parse import quote
 import aiohttp
 import undetected_chromedriver as uc
 from selenium import webdriver
+from selenium.common import TimeoutException
 
 from bet_framework.utils import log
 
@@ -78,16 +79,22 @@ class WebScraper:
                 if not self._drivers:
                     self._drivers[driver_index] = self.init_driver(undetected=False)
 
-                self._drivers[driver_index].get(url)
-                time.sleep(time_delay)
+                try:
+                    self._drivers[driver_index].get(url)
+                    time.sleep(time_delay)
+                except TimeoutException:
+                    pass
                 html = self.get_current_page(driver_index)
                 self._update_cookies(self._drivers[driver_index].get_cookies())
                 # retry with undetected
                 if any([keyword in html for keyword in self.request_failed_keywords]):
                     self.destroy_driver(driver_index)
                     self._drivers[driver_index] = self.init_driver(undetected=True)
-                    self._drivers[driver_index].get(url)
-                    time.sleep(time_delay)
+                    try:
+                        self._drivers[driver_index].get(url)
+                        time.sleep(time_delay)
+                    except TimeoutException:
+                        pass
                     html = self.get_current_page(driver_index)
                     self._update_cookies(self._drivers[driver_index].get_cookies())
                 return html
@@ -98,9 +105,11 @@ class WebScraper:
 
                 if not self._drivers:
                     self._drivers[driver_index] = self.init_driver(undetected=False)
-
-                self._drivers[driver_index].get(url)
-                time.sleep(time_delay)
+                try:
+                    self._drivers[driver_index].get(url)
+                    time.sleep(time_delay)
+                except TimeoutException:
+                    pass
                 html = self.get_current_page(driver_index)
                 self._update_cookies(self._drivers[driver_index].get_cookies())
                 # retry with undetected
@@ -108,8 +117,11 @@ class WebScraper:
                     # replace with undetected
                     self.destroy_driver(driver_index)
                     self._drivers[driver_index] = self.init_driver(undetected=True)
-                    self._drivers[driver_index].get(url)
-                    time.sleep(time_delay)
+                    try:
+                        self._drivers[driver_index].get(url)
+                        time.sleep(time_delay)
+                    except TimeoutException:
+                        pass
                     html = self.get_current_page(driver_index)
                     self._update_cookies(self._drivers[driver_index].get_cookies())
             # at the end, it will remain undetected unless destroy_driver is called

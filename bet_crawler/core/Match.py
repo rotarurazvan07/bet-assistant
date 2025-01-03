@@ -16,8 +16,8 @@ class Match:
 
     def to_dict(self):
         return {
-            "home_team": self.home_team.__dict__,
-            "away_team": self.away_team.__dict__,
+            "home_team": self.home_team.to_dict(),
+            "away_team": self.away_team.to_dict(),
             "datetime": self.datetime,
             "statistics": self.statistics.to_dict(),
             "value": self.value

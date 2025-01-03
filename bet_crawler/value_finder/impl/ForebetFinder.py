@@ -2,13 +2,14 @@ import re
 import threading
 import time
 from datetime import datetime
+from re import match
 
 from bs4 import BeautifulSoup
 
 from bet_crawler.core.BaseValueFinder import BaseValueFinder
 from bet_crawler.core.Match import Match
 from bet_crawler.core.MatchStatistics import MatchStatistics, Score, Probability, H2H
-from bet_crawler.core.Team import Team
+from bet_crawler.core.Team import Team, TeamStatistics
 from bet_crawler.core.Tip import Tip
 from bet_framework.utils import CURRENT_TIME
 
@@ -74,10 +75,10 @@ class ForebetFinder(BaseValueFinder):
 
             if request_result is not None:
                 page_html = request_result
-                match_html = BeautifulSoup(page_html, 'html.parser')
-                if "Cup" in match_html.find("a", class_="leagpred_btn").get_text():
-                    continue # cup match
                 try:
+                    match_html = BeautifulSoup(page_html, 'html.parser')
+                    if "Cup" in match_html.find("a", class_="leagpred_btn").get_text():
+                        continue  # cup match
                     # We only look for matches in leagues
                     if "Standings of both teams" in page_html:
                         match_datetime = match_html.find('time', itemprop='startDate').find('div',
@@ -120,9 +121,48 @@ class ForebetFinder(BaseValueFinder):
                             home_team_form = match_html.find_all('div', class_="prformcont")[0].get_text()
                             away_team_form = match_html.find_all('div', class_="prformcont")[1].get_text()
 
+                            avg_corners_html = match_html.find('table', class_="os_bg os_others_table").find("tbody").find_all("tr")[1].find_all("td")
+                            avg_offsides_html = match_html.find('table', class_="os_bg os_others_table").find("tbody").find_all("tr")[4].find_all("td")
+                            avg_gk_saves_html = match_html.find('table', class_="os_bg os_others_table").find("tbody").find_all("tr")[6].find_all("td")
+                            avg_yellow_card_html = match_html.find('table', class_="os_bg os_others_table __aggresssion").find("tbody").find_all("tr")[1].find_all("td")
+                            avg_fouls_html = match_html.find('table', class_="os_bg os_others_table __aggresssion").find("tbody").find_all("tr")[2].find_all("td")
+                            avg_tackles_html = match_html.find('table', class_="os_bg os_others_table __aggresssion").find("tbody").find_all("tr")[3].find_all("td")
+                            avg_scored_html = match_html.find_all("span", {'data-stat': 'scr_avg'})
+                            avg_conceded_html = match_html.find_all("span", {'data-stat': 'cnd_avg'})
+                            shots_total_avg_html = match_html.find_all("span", {'data-stat': 'shots_total_avg'})
+                            shot_on_target_html = match_html.find_all("span", {'data-stat': 'shots_on_target'})
+                            avg_possession_html = match_html.find_all("span", {'data-stat': 'ball_poss'})
+
+                            home_team_statistics = TeamStatistics(
+                                avg_corners=float(avg_corners_html[0].get_text()) if avg_corners_html else 0,
+                                avg_offsides=float(avg_offsides_html[0].get_text()) if avg_offsides_html else 0,
+                                avg_gk_saves=float(avg_gk_saves_html[0].get_text()) if avg_gk_saves_html else 0,
+                                avg_yellow_cards=float(avg_yellow_card_html[0].get_text()) if avg_yellow_card_html else 0,
+                                avg_fouls=float(avg_fouls_html[0].get_text()) if avg_fouls_html else 0,
+                                avg_tackles=float(avg_tackles_html[0].get_text()) if avg_tackles_html else 0,
+                                avg_scored=float(avg_scored_html[0].get_text()) if avg_scored_html else 0,
+                                avg_conceded=float(avg_conceded_html[0].get_text()) if avg_conceded_html else 0,
+                                avg_shots_on_target=round(float(shots_total_avg_html[0].get_text()) * float(shot_on_target_html[0].get_text().replace("%",'')) / 100
+                                                    if shots_total_avg_html and shot_on_target_html else 0, 2),
+                                avg_possession=avg_possession_html[0].get_text() if avg_possession_html else "0"
+                            )
+                            away_team_statistics = TeamStatistics(
+                                avg_corners=float(avg_corners_html[-1].get_text()) if avg_corners_html else 0,
+                                avg_offsides=float(avg_offsides_html[-1].get_text()) if avg_offsides_html else 0,
+                                avg_gk_saves=float(avg_gk_saves_html[-1].get_text()) if avg_gk_saves_html else 0,
+                                avg_yellow_cards=float(avg_yellow_card_html[-1].get_text()) if avg_yellow_card_html else 0,
+                                avg_fouls=float(avg_fouls_html[-1].get_text()) if avg_fouls_html else 0,
+                                avg_tackles=float(avg_tackles_html[-1].get_text()) if avg_tackles_html else 0,
+                                avg_scored=float(avg_scored_html[-1].get_text()) if avg_scored_html else 0,
+                                avg_conceded=float(avg_conceded_html[-1].get_text()) if avg_conceded_html else 0,
+                                avg_shots_on_target=round(float(shots_total_avg_html[-1].get_text()) * float(shot_on_target_html[-1].get_text().replace("%", '')) / 100
+                                                    if shots_total_avg_html and shot_on_target_html else 0, 2),
+                                avg_possession=avg_possession_html[-1].get_text() if avg_possession_html else "0"
+                            )
+
                             # Create Team objects for home and away
-                            home_team = Team(home_team_name, home_team_points, home_team_form)
-                            away_team = Team(away_team_name, away_team_points, away_team_form)
+                            home_team = Team(home_team_name, home_team_points, home_team_form, home_team_statistics)
+                            away_team = Team(away_team_name, away_team_points, away_team_form, away_team_statistics)
 
                             # TODO - try getting external odds
                             try:
@@ -157,21 +197,66 @@ class ForebetFinder(BaseValueFinder):
                             forebet_score = tuple(map(int, forebet_score.split('-')))
                             forebet_score = Score(FOREBET_NAME, forebet_score[0], forebet_score[1])
 
-                            tip = Tip(
+                            tips = []
+                            tips.append(Tip(
                                 "Home Win" if forebet_score.home > forebet_score.away else
                                 "Draw" if forebet_score.home == forebet_score.away else
                                 "Away Win",
-                                (int(max(forebet_probability.home, forebet_probability.draw, forebet_probability.away)) / 100) * 2 + 1,
+                                ((int(max(forebet_probability.home, forebet_probability.draw, forebet_probability.away))  - 33) / 67) * 2 + 1,
                                 FOREBET_NAME,
                                 odds
-                            )
-
+                            ))
+                            try:
+                                tips.append(Tip(
+                                    match_html.find("div", id="uo_table").find("span", class_="forepr forepr-tx").get_text() + " 2.5 goals",
+                                    ((int(match_html.find("div", id="uo_table").find("span", class_="fpr").get_text()) - 50) / 50) * 2 + 1,
+                                    FOREBET_NAME,
+                                    0
+                                ))
+                            except AttributeError:
+                                pass
+                            try:
+                                tips.append(Tip(
+                                    "BTTS " + match_html.find("div", id="bts_table").find("span", class_="forepr").get_text(),
+                                    ((int(match_html.find("div", id="bts_table").find("span", class_="fpr").get_text()) - 50) / 50) * 2 + 1,
+                                    FOREBET_NAME,
+                                    0
+                                ))
+                            except AttributeError:
+                                pass
+                            try:
+                                tips.append(Tip(
+                                    match_html.find("div", id="gscr_table").find_all("div", class_="playerPred")[4].get_text() + " to score",
+                                    (int(match_html.find("div", id="gscr_table").find_all("div", class_="playerPred")[0].get_text().replace("%",'')) / 100) * 2 + 1,
+                                    FOREBET_NAME,
+                                    0
+                                ))
+                            except AttributeError and IndexError:
+                                pass
+                            try:
+                                tips.append(Tip(
+                                    match_html.find("div", id="corner_table").find("span", class_="forepr forepr-tx").get_text() + " 9.5 corners",
+                                    ((int(match_html.find("div", id="corner_table").find("span", class_="fpr").get_text()) - 50) / 50) * 2 + 1,
+                                    FOREBET_NAME,
+                                    0
+                                ))
+                            except AttributeError:
+                                pass
+                            try:
+                                tips.append(Tip(
+                                    match_html.find("div", id="card_table").find("span", class_="forepr").get_text() + " 4.5 cards",
+                                    ((int(match_html.find("div", id="card_table").find("span", class_="fpr").get_text()) - 50) / 50) * 2 + 1,
+                                    FOREBET_NAME,
+                                    0
+                                ))
+                            except AttributeError:
+                                pass
                             match_statistics_to_add = MatchStatistics(
                                 scores = [forebet_score],
                                 probabilities = [forebet_probability],
                                 h2h = h2h_results,
                                 odds = odds,
-                                tips = [tip]
+                                tips = tips
                             )
 
                             match_to_add = Match(
@@ -184,6 +269,6 @@ class ForebetFinder(BaseValueFinder):
                             self.add_value_match_callback(match_to_add)
 
                 except Exception as e:
-                    print("error: " + str(e))
+                    print(f"error on {match_url}: " + str(e))
                     continue
         self.web_scraper.destroy_driver(driver_index)

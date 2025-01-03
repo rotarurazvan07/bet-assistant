@@ -8,7 +8,7 @@ from flask import Flask, render_template, request
 
 from bet_crawler.core.MatchStatistics import Score, Probability
 from bet_framework.DatabaseManager import DatabaseManager
-from bet_framework.utils import get_fav_dc, analyze_betting_predictions
+from bet_framework.utils import get_fav_dc, analyze_betting_predictions, get_value_bet
 
 app = Flask(__name__)
 
@@ -20,6 +20,8 @@ def index():
 
 @app.route('/tipper', methods=["GET", "POST"])
 def tipper():
+    # TODO - add corner FOR/AGAINST, booking and offside average stats from forebet to the game. column split in 2
+    # TODO - click on team to make a popup with above stats + players etc
     # Get start and end dates from the request, if provided
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
@@ -65,7 +67,8 @@ def tipper():
     for match in filtered_match_list:
         prediction = '\n'.join(analyze_betting_predictions(match.statistics.scores))
         analysis.append(prediction)
-
+        match.datetime = match.datetime.strftime('%Y-%m-%d %H:%M')
+    filtered_match_list = [match.to_dict() for match in filtered_match_list]
     # Render the template with filtered match_tips_list
     return render_template('tipper.html', matches=filtered_match_list, analysis=analysis)
 
@@ -110,11 +113,15 @@ def value_finder():
 
     # sort by value
     filtered_value_matches_list.sort(key=lambda x:x.value, reverse=True)
+    # get match analysis
+    analysis = []
+    for match in filtered_value_matches_list:
+        analysis.append(get_value_bet(match.statistics.scores))
 
-    return render_template('value_finder.html', matches=filtered_value_matches_list)
+    return render_template('value_finder.html', matches=filtered_value_matches_list, analysis=analysis)
 
 
 if __name__ == "__main__":
     db_manager = DatabaseManager()
 
-    app.run(debug=False, port=5000)
+    app.run(debug=False, host='192.168.0.157', port=5000)

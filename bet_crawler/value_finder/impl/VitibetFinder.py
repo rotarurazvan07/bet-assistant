@@ -147,8 +147,8 @@ class VitibetFinder(BaseValueFinder):
                         VITIBET_NAME
                     )
                     match_to_add=Match(
-                        home_team=Team(home_team_name, home_team_league_points, home_team_form),
-                        away_team=Team(away_team_name, away_team_league_points, away_team_form),
+                        home_team=Team(home_team_name, home_team_league_points, home_team_form, None),
+                        away_team=Team(away_team_name, away_team_league_points, away_team_form, None),
                         datetime=match_date,
                         statistics=MatchStatistics(
                             scores=[score],

@@ -10,10 +10,10 @@ if __name__ == "__main__":
     settings_manager.load_settings("config/config.yaml")
     db_manager = DatabaseManager()
 
-    #db_manager.reset_matches_db()
+    db_manager.reset_matches_db()
 
-    #value_finder = ValueFinder(db_manager)
-    #value_finder.get_value_matches()
+    value_finder = ValueFinder(db_manager)
+    value_finder.get_value_matches()
 
     tipper = Tipper(db_manager)
     tipper.get_tips()
