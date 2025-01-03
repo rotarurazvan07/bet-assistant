@@ -1,5 +1,8 @@
 beautifulsoup4~=4.11.1
-selenium~=4.6.0
+selenium~=4.6.1
 Flask~=2.2.5
-pymongo~=4.10.1
 RapidFuzz~=3.11.0
+aiohttp~=3.11.11
+undetected-chromedriver~=3.5.5
+pymongo~=4.10.1
+PyYAML~=6.0.2

@@ -15,6 +15,12 @@
         <label for="end_date">End Date:</label>
         <input type="date" id="end_date" name="end_date" value="{{ request.args.get('end_date') }}">
 
+        <label for="value_threshold">Match Value Threshold</label>
+        <input type="number" min=0 id="value_threshold" name="value_threshold" value="{{ request.args.get('value_threshold') }}">
+
+        <label for="dc_prob">Minimum favorite dc probability</label>
+        <input type="number" min=0 max=100 id="dc_prob" name="dc_prob" value="{{ request.args.get('dc_prob') }}">
+
         <button type="submit">Filter</button>
     </form>
 
@@ -25,8 +31,9 @@
                 <th>Away Team</th>
                 <th>Date</th>
                 <th>Match Value</th>
-                <th>Forebet Score</th>
+                <th>Score</th>
                 <th>Probability</th>
+                <th>Fav Odds</th>
             </tr>
         </thead>
         <tbody>
@@ -34,10 +41,11 @@
                 <tr>
                     <td>{{ match.home_team.name }}</td>
                     <td>{{ match.away_team.name }}</td>
-                    <td>{{ match.match_datetime.strftime('%Y-%m-%d %H:%M') }}</td>
-                    <td>{{ match.match_value }}</td>
-                    <td>{{ match.match_statistics.forebet_score }}</td>
-                    <td>{{ match.match_statistics.forebet_probability }}</td>
+                    <td>{{ match.datetime.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{{ match.value }}</td>
+                    <td>{{ match.statistics.scores.home | round(1) }} - {{ match.statistics.scores.away | round(1) }}</td>
+                    <td>{{ match.statistics.probabilities.home }}% {{ match.statistics.probabilities.draw }}% {{ match.statistics.probabilities.away }}%</td>
+                    <td>{{ match.statistics.odds }}</td>
                 </tr>
             {% endfor %}
         </tbody>

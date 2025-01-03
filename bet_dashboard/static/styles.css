@@ -55,6 +55,26 @@ input[type="date"] {
     border-radius: 5px;
 }
 
+/* Style for number input fields inside filter form */
+.filter-form input[type="number"] {
+    padding: 8px 12px;  /* Smaller padding for a more compact box */
+    font-size: 18px;    /* Larger font size */
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #fff;
+    color: #333;
+    width: 120px; /* Adjust width to make it smaller */
+    box-sizing: border-box;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Focus state for number input inside filter form */
+.filter-form input[type="number"]:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.3); /* Soft glow effect */
+}
+
 /* Tables */
 table {
     width: 90%;

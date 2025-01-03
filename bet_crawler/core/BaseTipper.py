@@ -1,10 +1,14 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
-class BaseTipper(ABC):
+from bet_crawler.core.BaseCrawler import BaseCrawler
+
+
+class BaseTipper(BaseCrawler):
     def __init__(self, add_tip_callback):
          """
          Initialize common attributes for all Tippers.
          """
+         super().__init__()
          self.add_tip_callback = add_tip_callback
 
     @abstractmethod

@@ -1,32 +1,34 @@
 import threading
 
-from impl.FootyStatsTipper import FootyStatsTipper
-from impl.ForebetTipper import ForebetTipper
-from impl.FreeSuperTipper import FreeSuperTipper
-from impl.FreeTipsTipper import FreeTipsTipper
-from impl.OLBGTipper import OLBGTipper
-from impl.PickWiseTipper import PickWiseTipper
-from impl.WhoScoredTipper import WhoScoredTipper
-from impl.WinDrawWinTipper import WinDrawWinTipper
+from bet_crawler.tippers.impl.FootballBettingTipsTipper import FootballBettingTipsTipper
+from bet_crawler.tippers.impl.FootyStatsTipper import FootyStatsTipper
+from bet_crawler.tippers.impl.FreeSuperTipper import FreeSuperTipper
+from bet_crawler.tippers.impl.FreeTipsTipper import FreeTipsTipper
+from bet_crawler.tippers.impl.OLBGTipper import OLBGTipper
+from bet_crawler.tippers.impl.PickWiseTipper import PickWiseTipper
+from bet_crawler.tippers.impl.PredictzTipper import PredictzTipper
+from bet_crawler.tippers.impl.WhoScoredTipper import WhoScoredTipper
+from bet_crawler.tippers.impl.WinDrawWinTipper import WinDrawWinTipper
 
 
 class Tipper:
     def __init__(self, db_manager):
         self.db_manager = db_manager
 
-    def _add_tip_callback(self, tip, match_name, match_time):
-        self.db_manager.add_or_update_tip(tip, match_name, match_time)
+    def _update_match_callback(self, match_name, match_date, tip=None, score=None, probability=None):
+        self.db_manager.update_match(match_name, match_date, tip, score, probability)
 
     def get_tips(self):
         tippers = [
-            WhoScoredTipper(self._add_tip_callback),
-            ForebetTipper(self._add_tip_callback),
-            FreeSuperTipper(self._add_tip_callback),
-            WinDrawWinTipper(self._add_tip_callback),
-            PickWiseTipper(self._add_tip_callback),
-            FootyStatsTipper(self._add_tip_callback),
-            FreeTipsTipper(self._add_tip_callback),
-            OLBGTipper(self._add_tip_callback)
+            WhoScoredTipper(self._update_match_callback),
+            FreeSuperTipper(self._update_match_callback),
+            WinDrawWinTipper(self._update_match_callback),
+            PickWiseTipper(self._update_match_callback),
+            FootyStatsTipper(self._update_match_callback),
+            FreeTipsTipper(self._update_match_callback),
+            OLBGTipper(self._update_match_callback),
+            PredictzTipper(self._update_match_callback),
+            FootballBettingTipsTipper(self._update_match_callback)
         ]
 
         threads = []

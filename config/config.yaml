@@ -1,0 +1,14 @@
+---
+webdriver:
+  retry_count: 3
+  request_failed_keywords:
+    - 404 Not Found
+    - Attention Required! | Cloudflare
+    - Enable JavaScript and cookies to continue
+  request_retry_keywords:
+    - Just a moment
+    - 502 Bad Gateway
+  custom_cookies:
+  custom_headers:
+    User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36
+

@@ -2,26 +2,27 @@ from datetime import datetime
 
 from bs4 import BeautifulSoup
 
-from bet_framework.WebDriver import make_request
-from core.BaseTipper import BaseTipper
-from core.Tip import Tip
+from bet_crawler.core.BaseTipper import BaseTipper
+from bet_crawler.core.Tip import Tip
 
 FOOTYSTATS_URL = "https://footystats.org/predictions/mathematical"
+FOOTYSTATS_NAME = "footystats"
 
 class FootyStatsTipper(BaseTipper):
     def __init__(self, add_tip_callback):
         super().__init__(add_tip_callback)
 
     def get_tips(self):
-        request_result = make_request(FOOTYSTATS_URL)
+        request_result = self.web_scraper.load_page(FOOTYSTATS_URL, mode="request")
         if request_result is not None:
             html = BeautifulSoup(request_result, 'html.parser')
 
             for match_html in html.find_all('li', class_="fixture-item"):
                 match_name = match_html.find('div', class_="match-name").find("a").get_text()
                 match_date = match_html.find('div', class_="match-time").get_text()
-                match_date = datetime.strptime(match_date, "%A %B %d").replace(year=2024).strftime(
-                    "%Y-%m-%d - 23:59")
+                match_date = datetime.strptime(match_date, "%A %B %d")
+                match_date = match_date.replace(year=datetime.now().year)
+
                 tip_anchor = match_html.find("ul", class_="bet-items").find("li").contents[0].strip()
                 tip = tip_anchor.split('%')[1].strip()
 
@@ -31,6 +32,6 @@ class FootyStatsTipper(BaseTipper):
                         match_html.find("ul", class_="bet-items").find_all("li")[1].get_text().replace('Real Odds',
                                                                                                        ''))
                 except:
-                    odds = "N/A"
+                    odds = 0
 
-                self.add_tip_callback(Tip(tip, tip_strength, "FootyStats", odds),match_name,match_date)
+                self.add_tip_callback(match_name, match_date, tip=Tip(tip, tip_strength, FOOTYSTATS_NAME, odds))

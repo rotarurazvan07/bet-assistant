@@ -15,6 +15,9 @@
         <label for="end_date">End Date:</label>
         <input type="date" id="end_date" name="end_date" value="{{ request.args.get('end_date') }}">
 
+        <label for="min_confidence">Minimum Confidence:</label>
+        <input type="number" step=0.1 min=0 max=3 id="min_confidence" name="min_confidence" value="{{ request.args.get('min_confidence') }}">
+
         <button type="submit">Filter</button>
     </form>
 
@@ -23,29 +26,69 @@
             <tr>
                 <th>Match</th>
                 <th>Date</th>
-                <th>Analysis</th>
+                <th>Scores analysis</th>
                 <th>Tip</th>
                 <th>Confidence</th>
                 <th>Source</th>
                 <th>Odds</th>
+                <th>Scores</th>
             </tr>
         </thead>
             <tbody>
-                {% for match_tips in match_tips_list %}
+                {% for match in matches %}
                     <tr>
-                        <td rowspan="{{ match_tips.tips|length }}">{{ match_tips.match_name }}</td>
-                        <td rowspan="{{ match_tips.tips|length }}">{{ match_tips.match_datetime.strftime('%Y-%m-%d %H:%M') }}</td>
-                        <td rowspan="{{ match_tips.tips|length }}">{{ match_tips.analysis }}</td>
-                        {% for tip in match_tips.tips %}
-                            {% if loop.index > 1 %} <!-- For subsequent tips, start a new row -->
+                        <td rowspan="{{ match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length }}">
+                            {{ match.home_team.name }} vs {{ match.away_team.name }}
+                        </td>
+                        <td rowspan="{{ match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length }}">
+                            {{ match.datetime.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td rowspan="{{ match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length }}">
+                            {{ analysis[loop.index - 1] | replace('\n', '<br>') | safe}}
+                        </td>
+                        {% set max_length = match.statistics.tips|length if match.statistics.tips|length > match.statistics.scores|length else match.statistics.scores|length %}
+                        {% for i in range(max_length) %}
+                            {% if i > 0 %}
                                 <tr>
                             {% endif %}
-                            <td>{{ tip.tip }}</td>
-                            <td>{{ tip.confidence | round(2) }}</td>
-                            <td>{{ tip.source }}</td>
-                            <td>{{ tip.odds }}</td>
+                            <td>
+                                {% if i < match.statistics.tips|length %}
+                                    {{ match.statistics.tips[i].tip }}
+                                {% else %}
+                                    <!-- Empty cell if no more tips -->
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if i < match.statistics.tips|length %}
+                                    {{ match.statistics.tips[i].confidence | round(2) }}
+                                {% else %}
+                                    <!-- Empty cell if no more tips -->
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if i < match.statistics.tips|length %}
+                                    {{ match.statistics.tips[i].source }}
+                                {% else %}
+                                    <!-- Empty cell if no more tips -->
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if i < match.statistics.tips|length %}
+                                    {{ match.statistics.tips[i].odds }}
+                                {% else %}
+                                    <!-- Empty cell if no more tips -->
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if i < match.statistics.scores|length %}
+                                    {{ match.statistics.scores[i].home }} - {{ match.statistics.scores[i].away }}
+                                {% else %}
+                                    <!-- Empty cell if no more scores -->
+                                {% endif %}
+                            </td>
                             </tr>
                         {% endfor %}
+                    </tr>
                 {% endfor %}
             </tbody>
     </table>
