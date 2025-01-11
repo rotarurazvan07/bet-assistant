@@ -36,58 +36,64 @@ def get_fav_dc(match):
         # in case of draw, return draw chance + whichever has more chances
         return match.statistics.probabilities.draw + max(match.statistics.probabilities.home, match.statistics.probabilities.away)
 
-def analyze_betting_predictions(predictions, threshold=66):
+
+def analyze_betting_predictions(predictions, threshold, minimum_scores_no):
     total_predictions = len(predictions)
-    if total_predictions < 3:
+    if total_predictions < minimum_scores_no:
         return ["No predictions available for analysis."]
-    # TODO - improve it, make more dynamic, not just 2.5 but variations, etc
-    # Count statistics
-    over_2_5 = sum(1 for sc in predictions if sc.home + sc.away > 2.5) / total_predictions * 100
-    btts = sum(1 for sc in predictions if sc.home > 0 and sc.away > 0) / total_predictions * 100
-    home_wins = sum(1 for sc in predictions if sc.home > sc.away) / total_predictions * 100
-    away_wins = sum(1 for sc in predictions if sc.away > sc.home) / total_predictions * 100
+
+    # Count statistics dynamically
+    goals = [sc.home + sc.away for sc in predictions]
+    most_common_goal = max(set(goals), key=goals.count)
+    most_common_goal_percentage = sum(1 for g in goals if g == most_common_goal) / total_predictions * 100
+
+    home_advantage = sum(1 for sc in predictions if sc.home > sc.away) / total_predictions * 100
+    away_advantage = sum(1 for sc in predictions if sc.away > sc.home) / total_predictions * 100
     draws = sum(1 for sc in predictions if sc.home == sc.away) / total_predictions * 100
 
-    # Handicap analysis
+    both_score = sum(1 for sc in predictions if sc.home > 0 and sc.away > 0) / total_predictions * 100
+    no_btt_score = 100 - both_score
+
+    # Double chance analysis
+    double_chance_home_or_draw = sum(1 for sc in predictions if sc.home >= sc.away) / total_predictions * 100
+    double_chance_away_or_draw = sum(1 for sc in predictions if sc.away >= sc.home) / total_predictions * 100
+
+    # Handicap dynamic check based on max differences
     handicap_home = sum(1 for sc in predictions if sc.home - sc.away >= 2) / total_predictions * 100
     handicap_away = sum(1 for sc in predictions if sc.away - sc.home >= 2) / total_predictions * 100
 
-    # Prepare betting suggestions
+    # Prepare betting suggestions dynamically
     suggestions = []
 
-    # Over/Under 2.5
-    if over_2_5 >= threshold:
-        suggestions.append(f"Bet on Over 2.5 goals ({over_2_5:.2f}% of predictions).")
-    elif 100 - over_2_5 >= threshold:
-        suggestions.append(f"Bet on Under 2.5 goals ({100 - over_2_5:.2f}% of predictions).")
-    else:
-        suggestions.append("Avoid betting on Over/Under 2.5 goals.")
+    if most_common_goal_percentage >= threshold:
+        suggestions.append(
+            f"Most common score total: {most_common_goal} goals ({most_common_goal_percentage:.2f}% of predictions).")
 
-    # Both Teams to Score (BTTS)
-    if btts >= threshold:
-        suggestions.append(f"Bet on Both Teams to Score (BTTS) ({btts:.2f}% of predictions).")
-    elif 100 - btts >= threshold:
-        suggestions.append(f"Bet on No BTTS ({100 - btts:.2f}% of predictions).")
-    else:
-        suggestions.append("Avoid betting on BTTS.")
+    if both_score >= threshold:
+        suggestions.append(f"Bet on Both Teams to Score (BTTS) ({both_score:.2f}% of predictions).")
+    elif no_btt_score >= threshold:
+        suggestions.append(f"Bet on No BTTS ({no_btt_score:.2f}% of predictions).")
 
-    # End result
-    if home_wins >= threshold:
-        suggestions.append(f"Bet on Home team win ({home_wins:.2f}% of predictions).")
-    elif away_wins >= threshold:
-        suggestions.append(f"Bet on Away team win ({away_wins:.2f}% of predictions).")
-    elif draws >= threshold:
-        suggestions.append(f"Bet on Draw ({draws:.2f}% of predictions).")
-    else:
-        suggestions.append("Avoid betting on end result.")
-
-    # Handicap
     if handicap_home >= threshold:
         suggestions.append(f"Bet on Home team handicap -1 ({handicap_home:.2f}% of predictions).")
     elif handicap_away >= threshold:
         suggestions.append(f"Bet on Away team handicap -1 ({handicap_away:.2f}% of predictions).")
     else:
-        suggestions.append("Avoid betting on handicap.")
+        if home_advantage >= threshold:
+            suggestions.append(f"Bet on Home team win ({home_advantage:.2f}% of predictions).")
+        elif away_advantage >= threshold:
+            suggestions.append(f"Bet on Away team win ({away_advantage:.2f}% of predictions).")
+        elif draws >= threshold:
+            suggestions.append(f"Bet on Draw ({draws:.2f}% of predictions).")
+
+        if double_chance_home_or_draw >= threshold and not any(
+                "win" in suggestion for suggestion in suggestions):
+            suggestions.append(
+                f"Bet on Double Chance (Home or Draw) ({double_chance_home_or_draw:.2f}% of predictions).")
+        elif double_chance_away_or_draw >= threshold and not any(
+                "win" in suggestion for suggestion in suggestions):
+            suggestions.append(
+                f"Bet on Double Chance (Away or Draw) ({double_chance_away_or_draw:.2f}% of predictions).")
 
     return suggestions
 

@@ -15,8 +15,17 @@
         <label for="end_date">End Date:</label>
         <input type="date" id="end_date" name="end_date" value="{{ request.args.get('end_date') }}">
 
+        <label for="min_score_tip_percent">Minimum Score % analysis:</label>
+        <input type="number" step=1 min=51 max=100 id="min_score_tip_percent" name="min_score_tip_percent"
+               value="{{ request.args.get('min_score_tip_percent', 51) }}">
+
+        <label for="min_scores_no">Minimum Scores:</label>
+        <input type="number" step=1 min=2 max=100 id="min_scores_no" name="min_scores_no"
+               value="{{ request.args.get('min_scores_no', 2) }}">
+
         <label for="min_confidence">Minimum Confidence:</label>
-        <input type="number" step=0.1 min=0 max=3 id="min_confidence" name="min_confidence" value="{{ request.args.get('min_confidence') }}">
+        <input type="number" step=0.1 min=0 max=3 id="min_confidence" name="min_confidence"
+               value="{{ request.args.get('min_confidence', 0)}}">
 
         <button type="submit">Filter</button>
     </form>
@@ -51,6 +60,24 @@
                         {{ analysis[loop.index - 1] | replace('\n', '<br>') | safe}}
                     </td>
                     {% set max_length = match['statistics']['tips']|length if match['statistics']['tips']|length > match['statistics']['scores']|length else match['statistics']['scores']|length %}
+
+                    <!-- Initialize a namespace to hold the flag -->
+                    {% set ns = namespace(all_scores_equal=True) %}
+
+                    <!-- Check if there are any scores -->
+                    {% if match['statistics']['scores']|length > 0 %}
+                        {% set first_home = match['statistics']['scores'][0]['home'] %}
+                        {% set first_away = match['statistics']['scores'][0]['away'] %}
+                        {% for score in match['statistics']['scores'] %}
+                            <!-- Compare home and away scores -->
+                            {% if score['home'] != first_home or score['away'] != first_away %}
+                                {% set ns.all_scores_equal = False %}
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        {% set ns.all_scores_equal = False %}
+                    {% endif %}
+
                     {% for i in range(max_length) %}
                         {% if i > 0 %}
                             <tr>
@@ -83,11 +110,12 @@
                                 <!-- Empty cell if no more tips -->
                             {% endif %}
                         </td>
-                        <td class="scores">
+                        <!-- Render the table cell with the green background if all scores are equal -->
+                        <td {% if ns.all_scores_equal %}class="green-background" {% else %}class="scores"{% endif %}>
                             {% if i < match['statistics']['scores']|length %}
                                 {{ match['statistics']['scores'][i]['home'] | int }} - {{ match['statistics']['scores'][i]['away'] | int }}
                             {% else %}
-                                <!-- Empty cell if no more scores -->
+                                <!-- Empty cell if no scores -->
                             {% endif %}
                         </td>
                         </tr>

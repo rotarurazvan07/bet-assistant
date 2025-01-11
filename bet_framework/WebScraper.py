@@ -7,6 +7,7 @@ import undetected_chromedriver as uc
 from selenium import webdriver
 from selenium.common import TimeoutException
 
+from bet_framework.SettingsManager import settings_manager
 from bet_framework.utils import log
 
 
@@ -153,17 +154,18 @@ class WebScraper:
         return None
 
     def init_driver(self, undetected):
-        # TODO - add cookies and headers
+        # Add custom cookies to the driver
+        page_load_timeout = settings_manager.settings['webdriver']['page_load_timeout']
         if undetected:
             options = uc.ChromeOptions()
             options.add_argument('--disable-popup-blocking')
             options.add_argument('--incognito')
-            for k,v in self.headers.items():
+            for k, v in self.headers.items():
                 options.add_argument(k + "=" + v)
             driver = uc.Chrome(options=options)
         else:
             options = webdriver.ChromeOptions()
-            options.binary_location = "C:/Users/Administrator/Downloads/chrome-win64/chrome.exe"
+            # options.binary_location = "C:/Users/Administrator/Downloads/chrome-win64/chrome.exe"
             options.add_argument('--ignore-certificate-errors')
             options.add_argument('--enable-javascript')
             options.add_argument('--disable-popup-blocking')
@@ -174,5 +176,12 @@ class WebScraper:
             for k, v in self.headers.items():
                 options.add_argument(k + "=" + v)
             driver = webdriver.Chrome(options=options)
-            driver.set_page_load_timeout(10) # todo - config.yaml
+            driver.set_page_load_timeout(page_load_timeout)  # Apply configurable timeout value
+
+        # Add cookies to the driver
+        if self.cookies:
+            driver.get("data:,")  # Load a blank page to set cookies
+            for name, value in self.cookies.items():
+                driver.add_cookie({"name": name, "value": value})
+
         return driver

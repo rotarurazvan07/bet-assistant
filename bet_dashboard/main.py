@@ -20,12 +20,12 @@ def index():
 
 @app.route('/tipper', methods=["GET", "POST"])
 def tipper():
-    # TODO - add corner FOR/AGAINST, booking and offside average stats from forebet to the game. column split in 2
-    # TODO - click on team to make a popup with above stats + players etc
     # Get start and end dates from the request, if provided
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
-    min_confidence = request.args.get('min_confidence')
+    min_confidence = request.args.get('min_confidence', default=0)
+    min_score_tip_percent = request.args.get('min_score_tip_percent', default=51)
+    min_scores_no = request.args.get('min_scores_no', default=2)
 
     # Convert string dates to datetime objects
     start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date() if start_date_str else None
@@ -41,11 +41,11 @@ def tipper():
             continue
         if end_date and match.datetime.date() > end_date:
             continue
-        if min_confidence:
-            # remove lower than minimum
-            match.statistics.tips = [tip for tip in match.statistics.tips if tip.confidence >= float(min_confidence)]
-            if len(match.statistics.tips) == 0:
-                continue
+        if match.datetime <= datetime.now():
+            continue
+        match.statistics.tips = [tip for tip in match.statistics.tips if tip.confidence >= float(min_confidence)]
+        if len(match.statistics.tips) == 0:
+            continue
 
         # sort by reverse confidence of tips
         match.statistics.tips.sort(key=lambda x:x.confidence, reverse=True)
@@ -64,8 +64,11 @@ def tipper():
 
     # get match analysis
     analysis = []
-    for match in filtered_match_list:
-        prediction = '\n'.join(analyze_betting_predictions(match.statistics.scores))
+    for match in filtered_match_list[:]:  # use slicing to avoid iteration issues while removing items
+        prediction = '\n'.join(analyze_betting_predictions(match.statistics.scores, int(min_score_tip_percent), int(min_scores_no)))
+        if prediction == '' or prediction == 'No predictions available for analysis.':
+            filtered_match_list.remove(match)
+            continue
         analysis.append(prediction)
         match.datetime = match.datetime.strftime('%Y-%m-%d %H:%M')
     filtered_match_list = [match.to_dict() for match in filtered_match_list]
@@ -92,6 +95,8 @@ def value_finder():
         if start_date and match.datetime.date() < start_date:
             continue
         if end_date and match.datetime.date() > end_date:
+            continue
+        if match.datetime <= datetime.now():
             continue
         filtered_value_matches_list.append(match)
 
@@ -124,4 +129,4 @@ def value_finder():
 if __name__ == "__main__":
     db_manager = DatabaseManager()
 
-    app.run(debug=False, host='192.168.0.157', port=5000)
+    app.run(debug=False, host="192.168.100.27", port=5000)

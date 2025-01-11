@@ -1,5 +1,6 @@
 ---
 webdriver:
+  page_load_timeout: 10 # seconds
   retry_count: 3
   request_failed_keywords:
     - 404 Not Found

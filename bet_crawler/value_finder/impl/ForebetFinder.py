@@ -121,6 +121,7 @@ class ForebetFinder(BaseValueFinder):
                             home_team_form = match_html.find_all('div', class_="prformcont")[0].get_text()
                             away_team_form = match_html.find_all('div', class_="prformcont")[1].get_text()
 
+                            # TODO - try all - otherwise it throws error
                             avg_corners_html = match_html.find('table', class_="os_bg os_others_table").find("tbody").find_all("tr")[1].find_all("td")
                             avg_offsides_html = match_html.find('table', class_="os_bg os_others_table").find("tbody").find_all("tr")[4].find_all("td")
                             avg_gk_saves_html = match_html.find('table', class_="os_bg os_others_table").find("tbody").find_all("tr")[6].find_all("td")

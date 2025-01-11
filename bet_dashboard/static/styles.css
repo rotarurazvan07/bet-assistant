@@ -11,6 +11,12 @@ body {
     height: 100vh;
 }
 
+.green-background {
+    background-color: #d4edda; /* Bootstrap-style green background */
+    color: #155724; /* Dark green text for better visibility */
+    font-weight: bold;
+}
+
 h1 {
     text-align: center;
     margin: 20px 0;
