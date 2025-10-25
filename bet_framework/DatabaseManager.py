@@ -68,7 +68,7 @@ class DatabaseManager:
         else:
             found_match = self._find_match(match.home_team.name + " vs " + match.away_team.name, match.datetime)
         if found_match:
-            log(f"Adding {match.home_team.name} vs {match.away_team.name} to match: {found_match["home_team"]["name"]} vs {found_match["away_team"]["name"]}")
+            log(f"Adding {match.home_team.name} vs {match.away_team.name} to match: {found_match['home_team']['name']} vs {found_match['away_team']['name']}")
             for tip in match.statistics.tips:
                 self.update_match(tip=tip, match_id=found_match["_id"])
 
