@@ -91,7 +91,7 @@ class WhoScoredFinder(BaseMatchFinder):
                     confidence = 100
                     odds = None
 
-                    tips.append(Tip(raw_text=result, confidence=confidence, source=WHOSCORED_NAME, odds=None))
+                    tips.append(Tip(raw_text=result, confidence=confidence, source=WHOSCORED_NAME, odds=odds))
 
                     match_predictions = MatchPredictions(scores, probabilities, tips)
 
@@ -103,7 +103,6 @@ class WhoScoredFinder(BaseMatchFinder):
                         datetime=match_datetime,
                         predictions=match_predictions,
                         h2h=h2h_results,
-                        odds=odds
                     )
 
                     self.add_match(match_to_add)

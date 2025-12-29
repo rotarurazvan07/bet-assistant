@@ -1,18 +1,42 @@
+"""
+Modern Betting Matches Dashboard
+Displays and filters betting predictions with detailed match analysis
+
+REQUIREMENTS:
+pip install dash dash-bootstrap-components pandas pymongo
+"""
+
 from io import StringIO
 import dash
+from dash import dcc, html, Input, Output, State, dash_table, callback_context
 import dash_bootstrap_components as dbc
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
-from dash import dcc, html, Input, Output, State, dash_table, callback_context, ALL
+from typing import List, Dict, Any
+import json
+
+# Import your classes (adjust path as needed)
+from bet_framework.core.Match import *
+from bet_framework.core.Tip import Tip
+
+# Use MatchAnalyzer for analysis
 from bet_framework.MatchAnalyzer import MatchAnalyzer
+
 
 class MatchesDashboard:
     """Dashboard for visualizing betting matches."""
 
     def __init__(self, database_manager):
+        """
+        Initialize dashboard.
+
+        Args:
+            database_manager: Your database manager with fetch_matches() method
+        """
         self.db_manager = database_manager
         self.matches = []
-        self.matches_dict = {}
+        self.matches_dict = {}  # Map match IDs to match objects
+        # instantiate analyzer once
         self.analyzer = MatchAnalyzer()
         self.app = dash.Dash(
             __name__,
@@ -23,536 +47,397 @@ class MatchesDashboard:
         self._setup_callbacks()
 
     def refresh_data(self):
+        """Fetch latest matches from database."""
         self.matches = self.db_manager.fetch_matches()
+
         self.matches_dict = {}
         return self._prepare_table_data()
 
-    def _format_tip_cell(self, percentage, odds):
-        """Format a tip cell with percentage and odds."""
-        if odds is not None and odds >= 1:
-            return f"{percentage}%\n{odds:.2f}"
-        return f"{percentage}%"
-
     def _prepare_table_data(self) -> pd.DataFrame:
-        """Prepare table data with stable match IDs based on match properties."""
+        """Convert matches to DataFrame for table display."""
         data = []
         for idx, match in enumerate(self.matches):
-            # Create stable match_id using match properties instead of id()
-            match_key = f"{match.home_team.name}_{match.away_team.name}_{getattr(match, 'datetime', datetime.now()).isoformat()}"
-            match_id = f"match_{idx}_{hash(match_key)}"
+            # Create unique ID (prefer stable DB id if available)
+            raw_id = getattr(match, 'id', None) or getattr(match, 'match_id', None)
+            if raw_id is None:
+                match_id = f"match_{idx}_{id(match)}"
+            else:
+                match_id = f"match_{str(raw_id)}"
+            # store match object keyed by match_id so modal lookup works
             self.matches_dict[match_id] = match
-
+            # Process each match defensively: ensure a single bad match doesn't
+            # break the whole table generation. If something fails, append a
+            # minimal fallback row and continue.
             try:
-                analysis = self.analyzer.analyze_match(match)
-                discrepancy = analysis['discrepancy']['score']
-                suggestions = analysis['suggestions']
-
                 preds = getattr(match, 'predictions', None)
-                scores = preds.scores if preds and getattr(preds, 'scores', None) else []
-                unique_sources = len(set(getattr(s, 'source', '') for s in scores if getattr(s, 'source', None)))
+                tips = []
+                if preds and getattr(preds, 'tips', None):
+                    tips = preds.tips or []
 
-                dt = getattr(match, 'datetime', datetime.now())
+                unique_sources = len({getattr(t, 'source', None) for t in tips if getattr(t, 'source', None)})
+                avg_confidence = 0.0
+                if tips:
+                    confs = [getattr(t, 'confidence', None) for t in tips if getattr(t, 'confidence', None) is not None]
+                    if confs:
+                        avg_confidence = sum(float(c) for c in confs) / len(confs)
 
-                # Get odds
-                odds = getattr(match, 'odds', None)
+                # run analysis once and reuse; analyzer itself is defensive but
+                # protect against unexpected errors here as well
+                try:
+                    analysis = self.analyzer.analyze_match(match) or {}
+                except Exception as e:
+                    print(f"Warning: analyzer failed for match {match_id}: {e}")
+                    analysis = {}
 
+                value = analysis.get('value', {}).get('score', 0.0)
+                discrepancy = analysis.get('discrepancy', {}).get('score', 0.0)
+
+                # Compute averaged probabilities and scores for table-level fields
+                avg_home_prob = avg_draw_prob = avg_away_prob = 0.0
+                avg_home_score = avg_away_score = None
+                try:
+                    probs = preds.probabilities if preds and getattr(preds, 'probabilities', None) else []
+                    if probs:
+                        avg_home_prob = sum(getattr(p, 'home', 0.0) for p in probs) / len(probs)
+                        avg_draw_prob = sum(getattr(p, 'draw', 0.0) for p in probs) / len(probs)
+                        avg_away_prob = sum(getattr(p, 'away', 0.0) for p in probs) / len(probs)
+                except Exception:
+                    avg_home_prob = avg_draw_prob = avg_away_prob = 0.0
+
+                try:
+                    scs = preds.scores if preds and getattr(preds, 'scores', None) else []
+                    if scs:
+                        avg_home_score = sum(getattr(s, 'home', 0) for s in scs) / len(scs)
+                        avg_away_score = sum(getattr(s, 'away', 0) for s in scs) / len(scs)
+                except Exception:
+                    avg_home_score = avg_away_score = None
+
+                # Safe outcome: use score predictions votes to choose 1X vs X2; if tied, fall back to probabilities
+                try:
+                    scs = preds.scores if preds and getattr(preds, 'scores', None) else []
+                    if scs:
+                        home_votes = sum(1 for s in scs if getattr(s, 'home', 0) > getattr(s, 'away', 0))
+                        away_votes = sum(1 for s in scs if getattr(s, 'away', 0) > getattr(s, 'home', 0))
+                        if home_votes > away_votes:
+                            outcome_side = '1X'
+                        elif away_votes > home_votes:
+                            outcome_side = 'X2'
+                        else:
+                            # tie -> prefer probabilities if available
+                            if probs:
+                                outcome_side = '1X' if (avg_home_prob + avg_draw_prob) >= (avg_away_prob + avg_draw_prob) else 'X2'
+                            else:
+                                outcome_side = 'X/12'
+                    else:
+                        # no score predictions: use probabilities if present, else default to 1X
+                        if probs:
+                            outcome_side = '1X' if (avg_home_prob + avg_draw_prob) >= (avg_away_prob + avg_draw_prob) else 'X2'
+                        else:
+                            outcome_side = 'X/12'
+
+                    total_goals = (avg_home_score or 0) + (avg_away_score or 0)
+                    rounded = int(round(total_goals))
+                    lower = max(0, rounded - 2)
+                    upper = lower + 4
+                    safe_outcome = f"{outcome_side}&{lower}-{upper}"
+                except Exception:
+                    safe_outcome = ''
+
+                # Discrepancy %: combine top result probability and draw into one metric (average)
+                try:
+                    discrepancy_pct = round(max(avg_home_prob, avg_away_prob) + avg_draw_prob, 2)
+                except Exception:
+                    discrepancy_pct = 0.0
+
+                dt = getattr(match, 'datetime', None) or datetime.now()
+                if hasattr(dt, 'strftime'):
+                    # Friendly datetime: Mon 24 Dec 18:30
+                    dt_str = dt.strftime('%a %d %b %H:%M')
+                else:
+                    dt_str = str(dt)
+
+                home_name = getattr(getattr(match, 'home_team', None), 'name', 'Unknown')
+                away_name = getattr(getattr(match, 'away_team', None), 'name', 'Unknown')
+
+                quick_items = []
+                try:
+                    # Aggregate tips by normalized text and require at least 2 unique sources
+                    tip_groups = {}
+                    for t in tips:
+                        try:
+                            text = t.to_text() if hasattr(t, 'to_text') else None
+                        except Exception:
+                            text = None
+
+                        if not text:
+                            # fall back to common dict/attr fields
+                            text = getattr(t, 'raw_text', None) or getattr(t, 'tip', None)
+                            if not text:
+                                try:
+                                    text = t.get('raw_text') if isinstance(t, dict) else None
+                                except Exception:
+                                    text = None
+                        if not text:
+                            continue
+                        tip_groups.setdefault(text, []).append(t)
+
+                    for label, group in tip_groups.items():
+                        # count unique sources
+                        sources = set()
+                        confs = []
+                        for tt in group:
+                            src = getattr(tt, 'source', None)
+                            if not src:
+                                try:
+                                    src = tt.get('source') if isinstance(tt, dict) else None
+                                except Exception:
+                                    src = None
+                            if src:
+                                sources.add(src)
+
+                            try:
+                                c = float(getattr(tt, 'confidence', None) if getattr(tt, 'confidence', None) is not None else (tt.get('confidence') if isinstance(tt, dict) else 0))
+                            except Exception:
+                                try:
+                                    c = float(tt.get('confidence', 0)) if isinstance(tt, dict) else 0
+                                except Exception:
+                                    c = 0
+                            confs.append(c)
+
+                        if len(sources) < 2:
+                            continue
+
+                        avg_conf = sum(confs) / len(confs) if confs else 0
+                        if avg_conf >= 75:
+                            quick_items.append(label)
+                except Exception:
+                    pass
+
+                try:
+                    sugs = analysis.get('suggestions', []) if isinstance(analysis, dict) else []
+                    for s in sugs:
+                        # Normalize different shapes (dict-like or object-like)
+                        try:
+                            if isinstance(s, dict):
+                                conf = float(s.get('confidence', 0.0) or 0.0)
+                                ev = s.get('evidence', []) or []
+                                support = int(s.get('evidence_count', len(ev)))
+                                label = s.get('suggestion') or s.get('label') or str(s)
+                            else:
+                                # object-like
+                                conf = float(getattr(s, 'confidence', 0.0) or 0.0)
+                                ev = getattr(s, 'evidence', []) or []
+                                support = int(getattr(s, 'evidence_count', len(ev)))
+                                label = getattr(s, 'suggestion', getattr(s, 'label', str(s)))
+                        except Exception:
+                            # skip malformed suggestion entries
+                            continue
+
+                        # Only include high-confidence suggestions with at least two supporting evidences
+                        if conf >= 75 and support >= 2:
+                            quick_items.append(str(label))
+                except Exception:
+                    pass
+
+                # Deduplicate quick items while preserving order
+                try:
+                    unique_quick = list(dict.fromkeys(quick_items))
+                except Exception:
+                    unique_quick = quick_items
+
+                quick_suggestions = "\n".join(unique_quick)
+
+                # Use date-only prefix for datetime so sorting ignores hours when multi-sorting
+                display_date_prefix = dt.strftime('%Y-%m-%d')
+
+                # For sorting, store only the date (so rows on same day are equal when sorting by date)
                 data.append({
                     'match_id': match_id,
-                    'datetime': dt.strftime('%Y-%m-%d %H:%M'),
-                    'home': match.home_team.name,
-                    'away': match.away_team.name,
-                    'discrepancy': round(discrepancy, 2),
-                    'discrepancy_pct': analysis['discrepancy']['pct'],
-                    'quick_suggestion': analysis['discrepancy']['suggestion'],
+                    'datetime': f"{display_date_prefix}",
+                    'home': home_name,
+                    'away': away_name,
+                    # Round Tips Value to 2 decimals for table display
+                    'value': round(float(value or 0.0), 2),
+                    'discrepancy': discrepancy,
+                    'safe_outcome': safe_outcome,
+                    'discrepancy_pct': discrepancy_pct,
                     'sources': unique_sources,
-                    'result_home': suggestions['result']['home'],
-                    'result_draw': suggestions['result']['draw'],
-                    'result_away': suggestions['result']['away'],
-                    'over': suggestions['over_under_2.5']['over'],
-                    'under': suggestions['over_under_2.5']['under'],
-                    'btts_yes': suggestions['btts']['yes'],
-                    'btts_no': suggestions['btts']['no'],
-                    'timestamp': dt,
-                    # Add odds with formatting
-                    'result_home_display': self._format_tip_cell(suggestions['result']['home'], odds.home if odds else None),
-                    'result_draw_display': self._format_tip_cell(suggestions['result']['draw'], odds.draw if odds else None),
-                    'result_away_display': self._format_tip_cell(suggestions['result']['away'], odds.away if odds else None),
-                    'over_display': self._format_tip_cell(suggestions['over_under_2.5']['over'], odds.over if odds else None),
-                    'under_display': self._format_tip_cell(suggestions['over_under_2.5']['under'], odds.under if odds else None),
-                    'btts_yes_display': self._format_tip_cell(suggestions['btts']['yes'], odds.btts_y if odds else None),
-                    'btts_no_display': self._format_tip_cell(suggestions['btts']['no'], odds.btts_n if odds else None),
+                    'quick_suggestions': quick_suggestions,
+                    'timestamp': dt  # For filtering
                 })
             except Exception as e:
+                # Fallback: include the match with minimal info so UI keeps it
                 print(f"Error processing match {match_id}: {e}")
-                continue
+                dt = getattr(match, 'datetime', None) or datetime.now()
+                dt_str = dt.strftime('%Y-%m-%d %H:%M') if hasattr(dt, 'strftime') else str(dt)
+                home_name = getattr(getattr(match, 'home_team', None), 'name', 'Unknown')
+                away_name = getattr(getattr(match, 'away_team', None), 'name', 'Unknown')
+                data.append({
+                    'match_id': match_id,
+                    'datetime': dt_str,
+                    'home': home_name,
+                    'away': away_name,
+                    'value': round(0.0, 2),
+                    'discrepancy': 0.0,
+                    'safe_outcome': '',
+                    'discrepancy_pct': 0.0,
+                    'sources': 0,
+                    'quick_suggestions': '',
+                    'timestamp': dt
+                })
 
         return pd.DataFrame(data)
 
-    def _apply_common_filters(self, df, search_text=None, date_from=None, date_to=None, min_sources=None):
-        """Apply common filters to dataframe and return filtered result."""
-        if df.empty:
-            return df
-
-        filtered_df = df.copy()
-
-        # Apply search filter
-        if search_text:
-            mask = filtered_df['home'].str.contains(search_text, case=False, na=False) | \
-                   filtered_df['away'].str.contains(search_text, case=False, na=False)
-            filtered_df = filtered_df[mask]
-
-        # Apply date filters - inclusive of both start and end dates
-        if date_from:
-            # Start of the day for date_from
-            filtered_df = filtered_df[filtered_df['timestamp'] >= pd.to_datetime(date_from)]
-
-        if date_to:
-            # End of the day for date_to (add 1 day minus 1 second)
-            end_date = pd.to_datetime(date_to) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-            filtered_df = filtered_df[filtered_df['timestamp'] <= end_date]
-
-        # Apply sources filter
-        if min_sources and min_sources > 1:
-            filtered_df = filtered_df[filtered_df['sources'] >= min_sources]
-
-        return filtered_df
-
-    def _create_bet_builder(self, df, leg_count, min_odds_val, excluded_matches=None):
-        if df.empty:
-            return [dbc.Alert("No matches match criteria.", color="warning")], []
-
-        markets = [
-            ('result_home', '1'), ('result_draw', 'X'), ('result_away', '2'),
-            ('over', 'Over 2.5'), ('under', 'Under 2.5'),
-            ('btts_yes', 'BTTS Yes'), ('btts_no', 'BTTS No')
-        ]
-
-        all_options = []
-        for _, row in df.iterrows():
-            match_name = f"{row['home']} vs {row['away']}"
-
-            if excluded_matches and match_name in excluded_matches:
-                continue
-
-            match_obj = self.matches_dict.get(row['match_id'])
-            odds_obj = getattr(match_obj, 'odds', None)
-            odds_values = {
-                '1': getattr(odds_obj, 'home', 0.0), 'X': getattr(odds_obj, 'draw', 0.0), '2': getattr(odds_obj, 'away', 0.0),
-                'Over 2.5': getattr(odds_obj, 'over', 0.0), 'Under 2.5': getattr(odds_obj, 'under', 0.0),
-                'BTTS Yes': getattr(odds_obj, 'btts_y', 0.0), 'BTTS No': getattr(odds_obj, 'btts_n', 0.0)
-            }
-
-            for prob_col, label in markets:
-                odds = odds_values.get(label, 0.0)
-
-                # --- CHANGE: Remove 'odds > 0' requirement ---
-                # We now allow markets with 0.0 odds as long as confidence is >= 50%
-                if row[prob_col] >= 50:
-                    all_options.append({
-                        'match': match_name,
-                        'market': label,
-                        'prob': float(row[prob_col]),
-                        'odds': float(odds)
-                    })
-
-        if not all_options:
-            return [dbc.Alert("No markets found.", color="info")], []
-
-        builder_df = pd.DataFrame(all_options)
-
-        # 1. APPLY MIN ODDS FILTER (Only for Primaries)
-        # Primaries MUST still have valid odds to meet the min_odds_val requirement
-        primary_candidates = builder_df[builder_df['odds'] >= (min_odds_val or 0)]
-
-        if primary_candidates.empty:
-            return [dbc.Alert("No matches meet the minimum odds.", color="warning")], []
-
-        # 2. THE STABLE SORT
-        primary_candidates = primary_candidates.sort_values(
-            by=['prob', 'odds'],
-            ascending=[False, False]
-        ).reset_index(drop=True)
-
-        # 3. SELECT UNIQUE MATCHES
-        primaries = []
-        seen_matches = set()
-
-        for _, row in primary_candidates.iterrows():
-            if len(primaries) >= (leg_count or 5):
-                break
-            if row['match'] not in seen_matches:
-                primaries.append(row.to_dict())
-                seen_matches.add(row['match'])
-
-        # 4. CONFIDENCE FLOOR
-        confidence_floor = 50
-
-        # 5. GROUPING
-        grouped_selections = []
-        for p_bet in primaries:
-            match_pool = builder_df[builder_df['match'] == p_bet['match']]
-
-            secondaries = match_pool[
-                (match_pool['market'] != p_bet['market']) &
-                (match_pool['prob'] >= confidence_floor)
-            ].sort_values(by='prob', ascending=False).to_dict('records')
-
-            grouped_selections.append({
-                'primary': p_bet,
-                'secondary': secondaries
-            })
-
-        current_odds = [g['primary']['odds'] for g in grouped_selections]
-        slip_items = []
-
-        for i, group in enumerate(grouped_selections):
-            p = group['primary']
-            s_list = group['secondary']
-
-            def create_primary_block(bet_data):
-                conf = bet_data['prob']
-                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
-                # Primary will always have odds due to the filter above, but safety check:
-                odds_val = bet_data['odds']
-                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
-                odds_bg = "bg-primary" if odds_val > 0 else "bg-secondary"
-
-                return html.Div([
-                    dbc.Row([
-                        dbc.Col(html.Span(bet_data['market'], className="fw-bold fs-6 text-dark"), width=8),
-                        dbc.Col(html.Div(odds_display, className=f"badge {odds_bg} fs-6 float-end"), width=4)
-                    ], className="align-items-center mb-1"),
-                    html.Div([
-                        html.Small("Confidence", className="text-muted me-2", style={"fontSize": "0.7rem"}),
-                        html.Small(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}),
-                    ], className="d-flex align-items-center mb-1"),
-                    dbc.Progress(value=conf, color=color, style={"height": "6px"}, className="rounded-pill mb-2"),
-                ], className="bg-light p-2 rounded-2")
-
-            def create_alternative_row(bet_data):
-                conf = bet_data['prob']
-                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
-
-                # Handle 0.0 odds as N/A
-                odds_val = bet_data['odds']
-                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
-                odds_color = "text-primary" if odds_val > 0 else "text-muted"
-
-                return dbc.Row([
-                    # 1. Market (Width 3)
-                    dbc.Col(html.Span(bet_data['market'], className="fw-medium text-dark", style={"fontSize": "0.75rem"}), width=3),
-
-                    # 2. Progress Bar (Width 5) - Increased width slightly to be visible
-                    dbc.Col(
-                        dbc.Progress(value=conf, color=color, style={"height": "5px"}, className="rounded-pill w-100"),
-                        width=5, className="d-flex align-items-center"
-                    ),
-
-                    # 3. Confidence % (Width 2)
-                    dbc.Col(html.Span(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}), width=2, className="ps-1"),
-
-                    # 4. Odds (Width 2)
-                    dbc.Col(html.Span(odds_display, className=f"fw-bold {odds_color}", style={"fontSize": "0.75rem"}), width=2, className="text-end"),
-                ], className="align-items-center g-0 mb-1 pt-1 border-top border-light-subtle")
-
-            selection_card = dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col(html.H5(p['match'], className="fw-bold text-dark mb-0", style={"fontSize": "1.1rem"}), width=10),
-                        dbc.Col(
-                            dbc.Button(
-                                html.I(className="fas fa-times"),
-                                id={'type': 'exclude-btn', 'index': p['match']},
-                                color="link", size="sm", className="p-0 text-muted text-decoration-none"
-                            ), width=2, className="text-end"
-                        )
-                    ], className="mb-2 align-items-center"),
-
-                    create_primary_block(p),
-
-                    html.Div(
-                        [create_alternative_row(alt) for alt in s_list[:2]]
-                        if s_list else None
-                    ),
-                ], className="p-2")
-            ], className="mb-2 shadow-sm border-0 rounded-3", style={"backgroundColor": "#f8f9fa"})
-
-            slip_items.append(selection_card)
-
-        return slip_items, current_odds
-
     def _setup_layout(self):
+        """Setup dashboard layout."""
         self.app.layout = dbc.Container([
-            dcc.Store(id="current-match-id"),
-            dcc.Store(id="max-sources", data=10),
-            dcc.Store(id="excluded-matches-store", data=[]),
-            # Header with gradient
+            # Header with info card
+            dbc.Row([
+                dcc.Store(id="current-match-id"),  # store for currently opened match id in modal
+                dbc.Col([
+                    html.H1([
+                        html.I(className="fas fa-futbol me-3"),
+                        "Betting Matches Dashboard"
+                    ], className="mb-2 mt-4"),
+                    html.P("Analyze and compare betting predictions", className="text-muted mb-2")
+                ], lg=8),
+
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.H6("How calculations are made", className="card-title"),
+                                        html.Ul([
+                                            html.Li([html.B("Tips Value:"), html.Span(" TODO")]),
+                                            html.Li([html.B("Discrepancy:"), html.Span(" TODO")]),
+                                            html.Li([html.B("Discrepancy %:"), html.Span(" TODO")])
+                                        ], style={"fontSize": "13px", "margin": "0"})
+                        ])
+                    ], className="shadow-sm")
+                ], lg=4, className="text-end")
+            ]),
+
+            # Filters Row
+            dbc.Row([
+                # Search box
+                dbc.Col([
+                    html.Label([
+                        html.I(className="fas fa-search me-2"),
+                        "Search"
+                    ], className="fw-bold mb-2"),
+                    dbc.Input(id="search-input", placeholder="Search by team name...", type="text")
+                ], lg=3, md=6, className="mb-3"),
+
+                # Date From
+                dbc.Col([
+                    html.Label([
+                        html.I(className="fas fa-calendar-alt me-2"),
+                        "From Date"
+                    ], className="fw-bold mb-2"),
+                    dcc.DatePickerSingle(
+                        id="date-from",
+                        date=None,
+                        display_format='YYYY-MM-DD',
+                        style={'width': '100%'}
+                    )
+                ], lg=3, md=6, className="mb-3"),
+
+                # Date To
+                dbc.Col([
+                    html.Label([
+                        html.I(className="fas fa-calendar-check me-2"),
+                        "To Date"
+                    ], className="fw-bold mb-2"),
+                    dcc.DatePickerSingle(
+                        id="date-to",
+                        date=None,
+                        display_format='YYYY-MM-DD',
+                        style={'width': '100%'}
+                    )
+                ], lg=3, md=6, className="mb-3"),
+
+                # Refresh Button
+                dbc.Col([
+                    html.Label("\u00A0", className="fw-bold mb-2 d-block"),  # Spacer
+                    dbc.Button(
+                        [html.I(className="fas fa-sync-alt me-2"), "Refresh"],
+                        id="refresh-btn",
+                        color="primary",
+                        className="w-100"
+                    )
+                ], lg=2, md=12, className="mb-3"),
+            ], align="end", className="mb-4 shadow-sm"),
+
+            # Discrepancy % filter slider (0-100)
+            dbc.Row([
+                dbc.Col(html.Label("Discrepancy % Filter (hide below)"), lg=3),
+                dbc.Col(dcc.Slider(id='discrepancy-filter-slider', min=0, max=100, step=1, value=0,
+                                   marks={0: '0', 25: '25', 50: '50', 75: '75', 100: '100'}), lg=8),
+                dbc.Col(html.Div(id='discrepancy-filter-value', children="0", className='fw-bold text-end'), lg=1)
+            ], className="mb-4"),
+
+            # Data Table
             dbc.Row([
                 dbc.Col([
-                    html.Div([
-                        html.H1([
-                            html.I(className="fas fa-futbol me-3"),
-                            "Betting Matches Dashboard"
-                        ], className="text-white mb-2"),
-                        html.P("Analyze and compare betting predictions",
-                               className="text-white-50 mb-0",
-                               style={"fontSize": "1.1rem"}),
-                    ], className="text-center py-4",
-                       style={
-                           "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                           "borderRadius": "15px",
-                           "boxShadow": "0 10px 30px rgba(0,0,0,0.2)"
-                       })
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.Div(id="matches-table-container")
+                        ])
+                    ], className="shadow-sm")
                 ])
-            ], className="mb-4 mt-3"),
+            ]),
 
-            # Filters Card
-            dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        # 1. Search Column (20%)
-                        dbc.Col([
-                            html.Label([
-                                html.I(className="fas fa-search me-2 text-primary"),
-                                "Search Team"
-                            ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                            dbc.InputGroup([
-                                dbc.InputGroupText(
-                                    html.I(className="fas fa-search"),
-                                    style={"background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                                        "color": "white", "border": "none"}
-                                ),
-                                dbc.Input(
-                                    id="search-input",
-                                    type="text",
-                                    placeholder="Team name...",
-                                    style={"borderLeft": "none"}
-                                )
-                            ], className="shadow-sm")
-                        ], style={"width": "20%"}),
-
-                        # 2. From Date (12.5%)
-                        dbc.Col([
-                            html.Label([
-                                html.I(className="fas fa-calendar-alt me-2 text-success"),
-                                "From"
-                            ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                            dcc.DatePickerSingle(
-                                id="date-from",
-                                placeholder="Start",
-                                display_format='YYYY-MM-DD',
-                                className="shadow-sm",
-                                style={'width': '100%'}
-                            )
-                        ], style={"width": "12.5%"}),
-
-                        # 3. To Date (12.5%)
-                        dbc.Col([
-                            html.Label([
-                                html.I(className="fas fa-calendar-check me-2 text-success"),
-                                "To"
-                            ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                            dcc.DatePickerSingle(
-                                id="date-to",
-                                placeholder="End",
-                                display_format='YYYY-MM-DD',
-                                className="shadow-sm",
-                                style={'width': '100%'}
-                            )
-                        ], style={"width": "12.5%"}),
-
-                        # 4. SHARED SLOT: Discrepancy Slider OR Min Sources Slider (40%)
-                        dbc.Col([
-                            # Container A: Discrepancy
-                            html.Div([
-                                html.Label([
-                                    html.I(className="fas fa-filter me-2 text-warning"),
-                                    "Min Discrepancy %"
-                                ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                                dcc.Slider(
-                                    id='discrepancy-filter-slider',
-                                    min=0, max=100, step=5, value=80,
-                                    marks={0: '0%', 25: '25%', 50: '50%', 75: '75%', 100: '100%'},
-                                    tooltip={"placement": "bottom", "always_visible": True}
-                                )
-                            ], id="discrepancy-filter-container", style={"display": "block"}),
-
-                            # Container B: Min Sources
-                            html.Div([
-                                html.Label([
-                                    html.I(className="fas fa-layer-group me-2 text-info"),
-                                    "Min Sources"
-                                ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                                dcc.Slider(
-                                    id='min-sources-slider',
-                                    min=1, max=10, step=1, value=1,
-                                    tooltip={"placement": "bottom", "always_visible": True}
-                                )
-                            ], id="sources-filter-container", style={"display": "none"})
-                        ], style={"width": "40%"}),
-
-                        # 5. Refresh Button (15%)
-                        dbc.Col([
-                            html.Label("\u00A0", className="fw-bold mb-2 d-block"),
-                            dbc.Button(
-                                [html.I(className="fas fa-sync-alt me-2"), "Refresh"],
-                                id="refresh-btn",
-                                className="w-100 shadow-sm",
-                                style={
-                                    "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                                    "border": "none",
-                                    "fontWeight": "600"
-                                }
-                            )
-                        ], style={"width": "15%"}),
-
-                    ], align="center", className="g-2")
-                ])
-            ], className="mb-4 shadow", style={"borderRadius": "15px", "border": "none"}),
-
-            dbc.Card([
-                dbc.CardBody([
-                    dbc.Tabs(
-                        id='main-tabs',
-                        active_tab='tab-disc',
-                        className="nav-fill w-100",
-                        children=[
-                            dbc.Tab(
-                                # Wrap the output in a Div inside the Tab
-                                html.Div(id="discrepancy-table-container", className="mt-3"),
-                                label="⚠️ Discrepancy Analysis",
-                                tab_id='tab-disc',
-                                label_style={"fontSize": "1rem", "fontWeight": "600", "width": "100%"},
-                                active_label_style={"color": "#667eea", "borderBottom": "3px solid #667eea"}
-                            ),
-                            dbc.Tab(
-                                html.Div(id="tips-table-container", className="mt-3"),
-                                label="💡 Betting Tips",
-                                tab_id='tab-tips',
-                                label_style={"fontSize": "1rem", "fontWeight": "600", "width": "100%"},
-                                active_label_style={"color": "#764ba2", "borderBottom": "3px solid #764ba2"}
-                            ),
-                            dbc.Tab(
-                                html.Div([
-                                    # persistent Store for the odds
-                                    dcc.Store(id='builder-current-odds'),
-
-                                    # 1. Settings Bar
-                                    html.Div(id="builder-settings-container", children=[
-                                        dbc.Row([
-                                            dbc.Col(dbc.InputGroup([
-                                                dbc.InputGroupText("Legs"),
-                                                dbc.Input(id="builder-leg-count", type="number", value=5, min=1, max=15),
-                                            ], size="sm"), width="auto"),
-                                            dbc.Col(dbc.InputGroup([
-                                                dbc.InputGroupText("Min Odds"),
-                                                dbc.Input(id="builder-min-odds", type="number", value=1.2, min=1, step=0.1),
-                                            ], size="sm"), width="auto"),
-                                        ], justify="center", className="g-3 my-3")
-                                    ]),
-
-                                    # 2. Main Split View
-                                    dbc.Row([
-                                        # Left side: The List of Matches
-                                        dbc.Col(dbc.Card([
-                                            dbc.CardHeader("🎯 Optimized Bet Slip", className="text-center fw-bold bg-dark text-white"),
-                                            dbc.CardBody(id="builder-output-container", style={ "overflowY": "auto"})
-                                        ], className="border-0 shadow-sm"), md=6),
-
-                                        # Right side: The Simulator UI
-                                        dbc.Col(dbc.Card([
-                                            dbc.CardHeader("🧮 System Bet Simulator", className="text-center fw-bold bg-success text-white"),
-                                            dbc.CardBody([
-                                                html.Label("Total Stake ($)", className="small fw-bold"),
-                                                dbc.Input(id="sys-total-stake", type="number", value=100, min=1, className="mb-3"),
-
-                                                html.Label("Select System Types:", className="small fw-bold"),
-                                                dbc.Checklist(
-                                                    id="sys-type",
-                                                    options=[], # Populated via callback
-                                                    value=[],   # Populated via callback
-                                                    inline=True,
-                                                    switch=True,
-                                                    className="mb-3"
-                                                ),
-                                                html.Hr(),
-                                                html.Div(id="sys-results-output")
-                                            ])
-                                        ], className="border-0 shadow-sm"), md=6)
-                                    ], className="mt-3")
-                                ], className="mt-3"),
-                                label="🎯 Smart Bet Builder",
-                                tab_id='tab-builder',
-                                label_style={"fontSize": "1rem", "fontWeight": "600", "width": "100%"},
-                                active_label_style={"color": "#27ae60", "borderBottom": "3px solid #27ae60"}
-                            )
-                        ]
-                    )
-                ], className="p-3")
-            ], className="shadow", style={"borderRadius": "15px", "border": "none"}),
-
-            # Modal
+            # Modal for match details
             dbc.Modal([
-                dbc.ModalHeader(
-                    dbc.ModalTitle(id="modal-title"),
-                    close_button=True,
-                    style={
-                        "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                        "color": "white"
-                    }
-                ),
+                dbc.ModalHeader(dbc.ModalTitle(id="modal-title"), close_button=True),
                 dbc.ModalBody(id="modal-body", style={"maxHeight": "75vh", "overflowY": "auto"}),
                 dbc.ModalFooter(
-                    dbc.Button(
-                        [html.I(className="fas fa-times me-2"), "Close"],
-                        id="close-modal",
-                        style={
-                            "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                            "border": "none"
-                        }
-                    )
+                    dbc.Button([html.I(className="fas fa-times me-2"), "Close"],
+                              id="close-modal", color="secondary")
                 ),
             ], id="match-modal", size="xl", scrollable=True),
 
+            # Store for data
             dcc.Store(id="matches-data-store"),
 
-        ], fluid=True, className="p-4", style={
-            "background": "linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%)",
-            "minHeight": "100vh"
-        })
+        ], fluid=True, className="p-4", style={"backgroundColor": "#f0f2f5", "minHeight": "100vh"})
 
-    def _create_discrepancy_table(self, df):
+    def _create_table(self, df: pd.DataFrame):
+        """Create interactive data table."""
         if df.empty:
-            return dbc.Alert(
-                [html.I(className="fas fa-info-circle me-2"), "No matches found matching your criteria"],
-                color="info",
-                className="text-center m-4"
-            )
+            return dbc.Alert([
+                html.I(className="fas fa-info-circle me-2"),
+                "No matches found with current filters"
+            ], color="info", className="text-center")
 
-        cols = ['match_id', 'datetime', 'home', 'away', 'discrepancy', 'discrepancy_pct', 'quick_suggestion']
+        # Keep match_id in data but hide it visually with CSS
+        # Include safe_outcome and discrepancy_pct for the table
+        cols = ['match_id', 'datetime', 'home', 'away', 'value', 'quick_suggestions', 'safe_outcome', 'discrepancy', 'discrepancy_pct', 'sources']
+
+        # use intersection in case some columns are missing
+        cols = [c for c in cols if c in df.columns]
         display_df = df[cols].copy()
-        base_url = "https://superbet.ro/cautare?query="
+        # Keep Tips Value as numeric for correct sorting; formatting handled by DataTable
+        # (the DataTable column will use a format specifier to show 2 decimals)
+        # Set row id so DataTable.active_cell may provide row_id across pagination
+        display_df['id'] = display_df['match_id']
 
-        display_df['home'] = display_df['home'].apply(
-            lambda x: f"[{x}]({base_url}{x.replace(' ', '%20')})"
-        )
-        display_df['away'] = display_df['away'].apply(
-            lambda x: f"[{x}]({base_url}{x.replace(' ', '%20')})"
-        )
         return dash_table.DataTable(
-            id={'type': 'match-table', 'index': 'discrepancy'},
+            id='matches-table',
             columns=[
-                {"name": "", "id": "match_id"},
+                {"name": "", "id": "match_id"},  # Empty name, will hide with CSS
                 {"name": "Date & Time", "id": "datetime"},
-                {"name": "Home Team", "id": "home", "presentation": "markdown"},
-                {"name": "Away Team", "id": "away", "presentation": "markdown"},
+                {"name": "Home Team", "id": "home"},
+                {"name": "Away Team", "id": "away"},
+                {"name": "Tips Value", "id": "value", "type": "numeric", "format": {"specifier": ".2f"}},
+                {"name": "Quick Suggestions", "id": "quick_suggestions"},
+                {"name": "Safe Outcome", "id": "safe_outcome"},
                 {"name": "Discrepancy", "id": "discrepancy", "type": "numeric"},
-                {"name": "Disc %", "id": "discrepancy_pct", "type": "numeric"},
-                {"name": "Quick Suggestion", "id": "quick_suggestion"},
+                {"name": "Discrepancy %", "id": "discrepancy_pct", "type": "numeric"},
             ],
             data=display_df.to_dict('records'),
             sort_action='native',
             sort_mode='multi',
+            row_selectable=False,
             style_table={'overflowX': 'auto'},
             style_cell={
                 'textAlign': 'left',
@@ -562,203 +447,85 @@ class MatchesDashboard:
                 'whiteSpace': 'normal',
                 'height': 'auto',
             },
+
+            # Ensure quick suggestions column preserves newlines and wraps
             style_cell_conditional=[
-                {'if': {'column_id': 'match_id'}, 'display': 'none'},
-                {'if': {'column_id': 'datetime'}, 'width': '140px', 'minWidth': '140px', 'maxWidth': '140px'},
-                {'if': {'column_id': 'home'}, 'width': '180px', 'minWidth': '180px', 'maxWidth': '180px'},
-                {'if': {'column_id': 'away'}, 'width': '180px', 'minWidth': '180px', 'maxWidth': '180px'},
-                {'if': {'column_id': 'discrepancy'}, 'width': '100px', 'minWidth': '100px', 'maxWidth': '100px', 'textAlign': 'center'},
-                {'if': {'column_id': 'discrepancy_pct'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px', 'textAlign': 'center'},
-                {'if': {'column_id': 'quick_suggestion'}, 'width': '200px', 'minWidth': '200px', 'maxWidth': '200px'},
+                {
+                    'if': {'column_id': 'match_id'},
+                    'display': 'none'
+                },
+                {
+                    'if': {'column_id': 'quick_suggestions'},
+                    'whiteSpace': 'pre-wrap',
+                    'maxWidth': '320px',
+                    'textOverflow': 'ellipsis'
+                }
             ],
             style_header={
-                'backgroundColor': '#667eea',
+                'backgroundColor': '#1a1a2e',
                 'color': 'white',
                 'fontWeight': 'bold',
                 'textAlign': 'center',
                 'padding': '15px',
-                'border': 'none',
+                'fontSize': '15px'
             },
             style_data={
                 'backgroundColor': 'white',
-                'border': 'none',
-                'borderBottom': '1px solid #e9ecef'
+                'border': '1px solid #e0e0e0'
             },
             style_data_conditional=[
                 {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8f9fa'},
-                {
-                    'if': {'state': 'active'},
-                    'backgroundColor': '#e3f2fd',
-                    'border': '2px solid #667eea'
-                },
-                {
-                    'if': {
-                        'filter_query': '{discrepancy_pct} >= 90',
-                        'column_id': 'discrepancy_pct'
-                    },
-                    'backgroundColor': '#d4edda',
-                    'color': '#073F14',
-                    'fontWeight': 'bold'
-                },
-                {
-                    'if': {
-                        'filter_query': '{discrepancy_pct} >= 80 && {discrepancy_pct} < 90',
-                        'column_id': 'discrepancy_pct'
-                    },
-                    'backgroundColor': '#fff3cd',
-                    'color': '#856404'
-                },
+                # Use same color for discrepancy-related columns so they read as a group
+                # Use same color for discrepancy-related columns so they read as a group
+                {'if': {'column_id': 'discrepancy'}, 'backgroundColor': '#fff8e6'},
+                {'if': {'column_id': 'discrepancy_pct'}, 'backgroundColor': '#fff8e6'},
+                {'if': {'column_id': 'safe_outcome'}, 'backgroundColor': '#fff8e6'},
+                # Make Tips Value and Quick Suggestions share the same highlight/background
+                {'if': {'column_id': 'value'}, 'backgroundColor': "#9da2e7"},
+                {'if': {'column_id': 'quick_suggestions'}, 'backgroundColor': "#9da2e7"},
+                {'if': {'state': 'active'}, 'backgroundColor': '#e3f2fd', 'border': '2px solid #2196F3'},
             ],
             css=[{
                 'selector': 'tr:hover td',
-                'rule': 'background-color: #e3f2fd !important; cursor: pointer; transform: scale(1.01);'
+                'rule': 'background-color: #e3f2fd !important; cursor: pointer;'
             }],
             page_size=25,
             page_action='native',
         )
 
-    def _create_tips_table(self, df):
-        if df.empty:
-            return dbc.Alert(
-                [html.I(className="fas fa-info-circle me-2"), "No matches found matching your criteria"],
-                color="info",
-                className="text-center m-4"
-            )
+    def _create_match_detail(self, match: Match, min_conf: float = 1.0) -> html.Div:
+        """Create detailed match view."""
+        # Calculate statistics safely
+        unique_sources = len(set(tip.source for tip in match.predictions.tips)) if match.predictions.tips else 0
+        avg_confidence = sum(tip.confidence for tip in match.predictions.tips) / len(match.predictions.tips) if match.predictions.tips else 0
 
-        cols = ['match_id', 'datetime', 'home', 'away', 'sources', 'result_home', 'result_home_display', 'result_draw',
-                'result_draw_display', 'result_away', 'result_away_display', 'over', 'over_display',
-                'under', 'under_display', 'btts_yes', 'btts_yes_display', 'btts_no', 'btts_no_display']
-        display_df = df[cols].copy()
+        # Run analysis and extract value, team scores and suggestions
+        analysis = self.analyzer.analyze_match(match)
+        value = analysis.get('value', {}).get('score', 0.0)
+        discrepancy_score = analysis.get('discrepancy', {}).get('score', 0.0)
+        disc_details = analysis.get('discrepancy', {}).get('details', {})
+        home_team_score = disc_details.get('home_team_score', getattr(match.home_team, 'league_points', 0))
+        away_team_score = disc_details.get('away_team_score', getattr(match.away_team, 'league_points', 0))
+        suggestions = analysis.get('suggestions', [])
 
-        return dash_table.DataTable(
-            id={'type': 'match-table', 'index': 'tips'},
-            columns=[
-                {"name": "", "id": "match_id"},
-                {"name": "Date & Time", "id": "datetime"},
-                {"name": "Home Team", "id": "home"},
-                {"name": "Away Team", "id": "away"},
-                {"name": "1", "id": "result_home_display"},
-                {"name": "X", "id": "result_draw_display"},
-                {"name": "2", "id": "result_away_display"},
-                {"name": "O2.5", "id": "over_display"},
-                {"name": "U2.5", "id": "under_display"},
-                {"name": "BTTS Y", "id": "btts_yes_display"},
-                {"name": "BTTS N", "id": "btts_no_display"},
-            ],
-            data=display_df.to_dict('records'),
-            sort_action='native',
-            sort_mode='multi',
-            sort_by=[{'column_id': 'result_home', 'direction': 'desc'}],
-            style_table={'overflowX': 'auto'},
-            style_cell={
-                'textAlign': 'center',
-                'padding': '15px',
-                'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                'fontSize': '14px',
-                'whiteSpace': 'pre-line',
-                'height': 'auto',
-            },
-            style_cell_conditional=[
-                {'if': {'column_id': 'match_id'}, 'display': 'none'},
-                {'if': {'column_id': 'datetime'}, 'width': '120px', 'minWidth': '120px', 'maxWidth': '120px'},
-                {'if': {'column_id': 'home'}, 'textAlign': 'left', 'width': '150px', 'minWidth': '150px', 'maxWidth': '150px'},
-                {'if': {'column_id': 'away'}, 'textAlign': 'left', 'width': '150px', 'minWidth': '150px', 'maxWidth': '150px'},
-                {'if': {'column_id': 'sources'}, 'width': '70px', 'minWidth': '70px', 'maxWidth': '70px'},
-                {'if': {'column_id': 'result_home_display'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px'},
-                {'if': {'column_id': 'result_draw_display'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px'},
-                {'if': {'column_id': 'result_away_display'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px'},
-                {'if': {'column_id': 'over_display'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px'},
-                {'if': {'column_id': 'under_display'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px'},
-                {'if': {'column_id': 'btts_yes_display'}, 'width': '90px', 'minWidth': '90px', 'maxWidth': '90px'},
-                {'if': {'column_id': 'btts_no_display'}, 'width': '90px', 'minWidth': '90px', 'maxWidth': '90px'},
-            ],
-            style_header={
-                'backgroundColor': '#764ba2',
-                'color': 'white',
-                'fontWeight': 'bold',
-                'textAlign': 'center',
-                'padding': '15px',
-                'border': 'none',
-            },
-            style_data={
-                'backgroundColor': 'white',
-                'border': 'none',
-                'borderBottom': '1px solid #e9ecef'
-            },
-            style_data_conditional=[
-                {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8f9fa'},
-                {
-                    'if': {'state': 'active'},
-                    'backgroundColor': '#f3e5f5',
-                    'border': '2px solid #764ba2'
-                },
+        # Compute support counts per suggestion (use details.count when available, fallback to evidence_count)
+        support_counts = []
+        for s in suggestions:
+            ev = s.get('evidence', []) or []
+            if ev:
+                # sum counts if present, otherwise count evidence items
+                cnts = [e.get('details', {}).get('count') for e in ev if isinstance(e.get('details', {}), dict) and e.get('details', {}).get('count') is not None]
+                if cnts:
+                    support_counts.append(sum(cnts))
+                else:
+                    support_counts.append(len(ev))
+            else:
+                support_counts.append(0)
 
-                {
-                    'if': {'column_id': 'btts_yes_display'},
-                    'borderLeft': '3px solid #000000'
-                },
-                {
-                    'if': {'column_id': 'over_display'},
-                    'borderLeft': '3px solid #000000'
-                },
-                {
-                    'if': {'column_id': 'result_home_display'},
-                    'borderLeft': '3px solid #000000'
-                },
-
-                # Highlighting based on percentage values (using hidden columns for filtering)
-                {
-                    'if': {'filter_query': '{result_home} >= 80', 'column_id': 'result_home_display'},
-                    'backgroundColor': "#4ce770", 'color': "#073F14", 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{result_draw} >= 80', 'column_id': 'result_draw_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{result_away} >= 80', 'column_id': 'result_away_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{btts_yes} >= 80', 'column_id': 'btts_yes_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{btts_no} >= 80', 'column_id': 'btts_no_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{over} >= 80', 'column_id': 'over_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{under} >= 80', 'column_id': 'under_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-            ],
-            css=[{
-                'selector': 'tr:hover td',
-                'rule': 'background-color: #f3e5f5 !important; cursor: pointer; transform: scale(1.01);'
-            }],
-            page_size=25,
-            page_action='native',
-        )
-
-    def _create_match_detail(self, match):
-        """Create detailed match modal view."""
-        try:
-            analysis = self.analyzer.analyze_match(match)
-            discrepancy = analysis['discrepancy']['score']
-            suggestions = analysis['suggestions']
-
-            preds = getattr(match, 'predictions', None)
-            scores = preds.scores if preds and getattr(preds, 'scores', None) else []
-            unique_sources = len(set(getattr(s, 'source', '') for s in scores if getattr(s, 'source', None)))
-        except:
-            return html.Div("Error loading match details")
+        max_support = max(2, max(support_counts) if support_counts else 2)
 
         return html.Div([
-            # Header
+            # Match Header
             dbc.Card([
                 dbc.CardBody([
                     html.H3(f"{match.home_team.name} vs {match.away_team.name}", className="text-center mb-2"),
@@ -766,252 +533,756 @@ class MatchesDashboard:
                 ])
             ], className="mb-4 text-white", style={"background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"}),
 
-            # Overview Cards
+            # Match Value & Overview
             dbc.Row([
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
-                            html.Div(html.I(className="fas fa-exclamation-triangle fa-2x mb-2 text-warning"), className="text-center"),
-                            html.H5("Discrepancy", className="text-center text-muted"),
-                            html.H2(f"{discrepancy:.2f}", className="text-center text-warning mb-0")
+                            html.Div([
+                                html.I(className="fas fa-star fa-2x mb-2", style={"color": self._get_value_color(value)}),
+                            ], className="text-center"),
+                            html.H5("Tips Value", className="card-title text-center text-muted"),
+                            html.H2(f"{float(value):.2f}", className="text-center mb-0", style={"color": self._get_value_color(value)})
                         ])
                     ], className="shadow-sm h-100")
-                ], md=6),
+                ], md=4),
 
                 dbc.Col([
                     dbc.Card([
                         dbc.CardBody([
-                            html.Div(html.I(className="fas fa-database fa-2x mb-2 text-primary"), className="text-center"),
-                            html.H5("Sources", className="text-center text-muted"),
+                            html.Div([
+                                html.I(className="fas fa-database fa-2x mb-2 text-primary"),
+                            ], className="text-center"),
+                            html.H5("Unique Sources", className="card-title text-center text-muted"),
                             html.H2(unique_sources, className="text-center text-primary mb-0")
+                        ])
+                    ], className="shadow-sm h-100")
+                ], md=4),
+
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            html.Div([
+                                html.I(className="fas fa-exclamation-triangle fa-2x mb-2 text-warning"),
+                            ], className="text-center"),
+                            html.H5("Discrepancy", className="card-title text-center text-muted"),
+                            html.H2(f"{float(discrepancy_score):.2f}", className="text-center text-warning mb-0")
+                        ])
+                    ], className="shadow-sm h-100")
+                ], md=4),
+            ], className="mb-4"),
+
+            # Teams Comparison
+            dbc.Row([
+                # Home Team
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader([
+                            html.I(className="fas fa-home me-2"),
+                            html.H4(match.home_team.name, className="d-inline")
+                        ], className="bg-success text-white"),
+                        dbc.CardBody([
+                            html.Div([
+                                html.Strong("League Points: "),
+                                html.Span(str(match.home_team.league_points),
+                                         style={"fontSize": "20px", "color": "#2196F3", "fontWeight": "bold"})
+                            ], className="mb-3"),
+                            html.Div([
+                                html.Strong("Form: "),
+                                self._render_form(match.home_team.form)
+                            ], className="mb-3"),
+                            html.Div([
+                                html.Strong("Team Score: "),
+                                html.Span(str(home_team_score),
+                                         style={"fontSize": "20px", "fontWeight": "bold", "color": "#4CAF50"})
+                            ])
+                        ])
+                    ], className="shadow-sm h-100")
+                ], md=6, className="mb-3 mb-md-0"),
+
+                # Away Team
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader([
+                            html.I(className="fas fa-plane me-2"),
+                            html.H4(match.away_team.name, className="d-inline")
+                        ], className="bg-info text-white"),
+                        dbc.CardBody([
+                            html.Div([
+                                html.Strong("League Points: "),
+                                html.Span(str(match.away_team.league_points),
+                                         style={"fontSize": "20px", "color": "#2196F3", "fontWeight": "bold"})
+                            ], className="mb-3"),
+                            html.Div([
+                                html.Strong("Form: "),
+                                self._render_form(match.away_team.form)
+                            ], className="mb-3"),
+                            html.Div([
+                                html.Strong("Team Score: "),
+                                html.Span(str(away_team_score),
+                                         style={"fontSize": "20px", "fontWeight": "bold", "color": "#4CAF50"})
+                            ])
                         ])
                     ], className="shadow-sm h-100")
                 ], md=6),
             ], className="mb-4"),
 
-            # Suggestions
-            html.H4([html.I(className="fas fa-chart-pie me-2"), "Predictions"], className="mb-3"),
+            # Combined probabilities & averaged predicted score (left/right)
+            self._render_probabilities_and_scores(match.predictions.probabilities, match.predictions.scores),
+
+            # Suggestions controls (min sources + min confidence) and container
+            *([
+                dbc.Row([
+                    dbc.Col(html.H4([html.I(className="fas fa-lightbulb me-2"), "Aggregated Suggestions"], className="mb-3"), md=6),
+                    dbc.Col(html.Div(), md=6),
+                ], className="mb-2"),
+
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("Min Sources", className="fw-bold small mb-1"),
+                        dcc.Slider(
+                            id='suggestions-min-sources-slider',
+                            min=2,
+                            max=max_support,
+                            step=1,
+                            value=2,
+                            marks={i: str(i) for i in range(2, max(3, max_support+1))},
+                        )
+                    ], md=6),
+                    dbc.Col([
+                        html.Label("Min Confidence (%)", className="fw-bold small mb-1"),
+                        dcc.Slider(
+                            id='suggestions-min-confidence-slider',
+                            min=0,
+                            max=100,
+                            step=1,
+                            value=75,
+                            marks={0: '0', 25: '25', 50: '50', 75: '75', 100: '100'},
+                        )
+                    ], md=6),
+                ], className="mb-3"),
+
+                # Suggestions container: initial render (compact cards)
+                html.Div(id='modal-suggestions-container', children=[
+                    self._render_suggestions_section(suggestions, min_sources=2, min_conf=75, compact=True)
+                ])
+            ] if suggestions else []),
+
+            # Tips header + filters (min sources + min confidence)
+            dbc.Row([
+                dbc.Col(html.H4([html.I(className="fas fa-lightbulb me-2"), "Betting Tips"], className="mb-3"), md=6),
+                dbc.Col([
+                    html.Label("Min Sources", className="fw-bold small mb-1"),
+                    dcc.Slider(
+                        id='tips-min-sources-slider',
+                        min=1,
+                        max=max(1, unique_sources),
+                        step=1,
+                        value=2,
+                        marks={i: str(i) for i in range(1, max(2, unique_sources+1))},
+                    )
+                ], md=3),
+                dbc.Col([
+                    html.Label("Min Confidence (%)", className="fw-bold small mb-1"),
+                    dcc.Slider(
+                        id='tips-confidence-slider',
+                        min=0,
+                        max=100,
+                        step=1,
+                        value=75,
+                        marks={0: '0', 50: '50', 100: '100'},
+                    )
+                ], md=3),
+            ], className="align-items-center mb-3"),
+
+            # Tips container: populated initially with slider defaults (min_conf=75, min_sources=2)
+            html.Div(id='modal-tips-container', children=[
+                # Initial render should match slider defaults: min_sources=2, min_conf=75
+                self._render_tips_section(match.predictions.tips, min_conf=75, min_sources=2, show_header=False)
+            ]),
+
+            # Statistics Comparison
+            self._render_statistics_comparison(match.home_team, match.away_team),
+
+        ])
+
+    def _render_probabilities_section(self, probabilities: List[Probability]) -> html.Div:
+        """Render probabilities section."""
+        if not probabilities:
+            return html.Div()
+
+        return html.Div([
+            html.H4([html.I(className="fas fa-chart-pie me-2"), "Probabilities"], className="mb-3"),
+            dbc.Card([
+                dbc.CardBody([
+                    *[self._render_probability(prob) for prob in probabilities]
+                ])
+            ], className="mb-4 shadow-sm")
+        ])
+
+    def _render_probabilities_and_scores(self, probabilities: List[Probability], scores: List[Score]) -> html.Div:
+        """Render averaged probabilities (left) and averaged predicted score (right).
+
+        Provides a collapsible per-source detail view when clicked.
+        """
+        # Defensive defaults
+        probs = probabilities or []
+        scores_list = scores or []
+
+        # Average probabilities across sources
+        avg_home = avg_draw = avg_away = 0.0
+        if probs:
+            avg_home = sum(getattr(p, 'home', 0.0) for p in probs) / len(probs)
+            avg_draw = sum(getattr(p, 'draw', 0.0) for p in probs) / len(probs)
+            avg_away = sum(getattr(p, 'away', 0.0) for p in probs) / len(probs)
+
+        # Average predicted score
+        avg_home_score = avg_away_score = None
+        if scores_list:
+            avg_home_score = sum(getattr(s, 'home', 0) for s in scores_list) / len(scores_list)
+            avg_away_score = sum(getattr(s, 'away', 0) for s in scores_list) / len(scores_list)
+
+        # Build per-source details HTML
+        prob_details = []
+        for p in probs:
+            prob_details.append(html.Div([
+                dbc.Badge(p.source, color='dark', className='me-2'),
+                html.Span(f"Home {p.home}%, Draw {p.draw}%, Away {p.away}%")
+            ], className='mb-1'))
+
+        score_details = []
+        for s in scores_list:
+            score_details.append(html.Div([
+                dbc.Badge(s.source, color='dark', className='me-2'),
+                html.Span(f"{int(s.home)} - {int(s.away)}")
+            ], className='mb-1'))
+
+        left = dbc.Card([
+            dbc.CardBody([
+                html.H6("Averaged Probabilities", className='card-title mb-2'),
+                dbc.Progress([
+                    dbc.Progress(value=avg_home, label=f"Home {avg_home:.0f}%", color="success", bar=True),
+                    dbc.Progress(value=avg_draw, label=f"Draw {avg_draw:.0f}%", color="warning", bar=True),
+                    dbc.Progress(value=avg_away, label=f"Away {avg_away:.0f}%", color="info", bar=True),
+                ], style={"height": "28px"}),
+                html.Details([
+                    html.Summary("Show per-source probabilities"),
+                    html.Div(prob_details, style={"marginTop": "8px"})
+                ], className='mt-2')
+            ])
+        ], className='shadow-sm')
+
+        right_children = [
+            html.H6("Averaged Prediction", className='card-title mb-2')
+        ]
+        if avg_home_score is not None and avg_away_score is not None:
+            right_children.append(html.Div(html.Span(f"{avg_home_score:.1f} - {avg_away_score:.1f}", style={"fontSize": "24px", "fontWeight": "bold"})))
+        else:
+            right_children.append(html.Div("N/A"))
+
+        right_children.append(html.Details([
+            html.Summary("Show per-source predicted scores"),
+            html.Div(score_details, style={"marginTop": "8px"})
+        ], className='mt-2'))
+
+        right = dbc.Card([
+            dbc.CardBody(right_children)
+        ], className='shadow-sm')
+
+        return dbc.Row([
+            dbc.Col(left, md=6),
+            dbc.Col(right, md=6)
+        ], className='mb-4')
+
+    def _render_suggestions_section(self, suggestions: List[Dict[str, Any]], min_sources: int = 2, min_conf: float = 10.0, compact: bool = False) -> html.Div:
+        """Render aggregated suggestions from MatchAnalyzer.
+
+        Args:
+            suggestions: list of merged suggestion dicts (with 'evidence' and 'evidence_count')
+            min_sources: minimum evidence_count required to show a suggestion (inclusive)
+            min_conf: minimum confidence (0..100) required to show a suggestion (inclusive)
+            compact: if True, render suggestions as compact square cards similar to tip cards
+        """
+        if not suggestions:
+            return html.Div()
+
+        # Filter suggestions by provided thresholds.
+        # For support count, prefer per-evidence 'details.count' when available (scores), otherwise fallback to evidence_count.
+        def _support_count(sug: Dict[str, Any]) -> int:
+            ev = sug.get('evidence', []) or []
+            if not ev:
+                return sug.get('evidence_count', 0)
+            cnts = []
+            for e in ev:
+                try:
+                    c = int(e.get('details', {}).get('count'))
+                    cnts.append(c)
+                except Exception:
+                    # fallback
+                    pass
+            if cnts:
+                return sum(cnts)
+            return len(ev)
+
+        try:
+            filtered = [s for s in suggestions if _support_count(s) >= int(min_sources) and s.get('confidence', 0.0) >= float(min_conf)]
+        except Exception:
+            filtered = suggestions or []
+
+        if not filtered:
+            # Provide a small debug view so users can inspect analyzer output when filters hide everything
+            try:
+                dbg = json.dumps(suggestions, default=str, indent=2)
+                if len(dbg) > 8000:
+                    dbg = dbg[:8000] + "\n... (truncated)"
+            except Exception:
+                dbg = "(unable to serialize suggestions)"
+
+            return html.Div([
+                html.P("No suggestions meet the selected filters."),
+                html.Details([
+                    html.Summary("Show analyzer suggestions (debug)"),
+                    html.Pre(dbg, style={"whiteSpace": "pre-wrap", "maxHeight": "300px", "overflowY": "auto"})
+                ])
+            ])
+
+        # Sort by evidence_count then confidence
+        sorted_sugs = sorted(filtered, key=lambda s: (s.get('evidence_count', 0), s.get('confidence', 0.0)), reverse=True)
+
+        if compact:
+            # Render compact cards (similar style to tip cards)
+            cols = []
+            for s in sorted_sugs:
+                label = s.get('suggestion')
+                conf = s.get('confidence', 0.0)
+
+                # Confidence color mapping for suggestions (0..100)
+                if conf >= 66:
+                    conf_color = "#4CAF50"
+                elif conf >= 33:
+                    conf_color = "#ff9800"
+                else:
+                    conf_color = "#f44336"
+
+                # Suggestion card: show label as primary info and confidence; no source/evidence
+                card = dbc.Card([
+                    dbc.CardBody([
+                        html.H6(label, className="card-title mb-2 text-info"),
+                        html.Div([
+                            html.Strong("Confidence: "),
+                            html.Span(f"{conf}%", style={"color": conf_color, "fontWeight": "bold"})
+                        ], className="mb-1")
+                    ])
+                ], className="mb-3 h-100 shadow-sm", style={"borderLeft": f"5px solid {conf_color}"})
+
+                cols.append(dbc.Col(card, lg=3, md=4, sm=6))
+
+            return dbc.Row(cols, className="mb-4")
+
+        # Full view: show evidence details
+        items = []
+        for s in sorted_sugs:
+            label = s.get('suggestion')
+            conf = s.get('confidence', 0.0)
+            evidence = s.get('evidence', []) or []
+            evidence_count = s.get('evidence_count', len(evidence))
+
+            # Confidence color mapping for suggestions (0..100)
+            if conf >= 66:
+                conf_color = "#4CAF50"
+            elif conf >= 33:
+                conf_color = "#ff9800"
+            else:
+                conf_color = "#f44336"
+
+            # Build a compact evidence list view
+            evidence_rows = []
+            for ev in evidence:
+                ev_src = ev.get('source')
+                ev_conf = ev.get('confidence')
+                ev_details = ev.get('details', {})
+                evidence_rows.append(html.Div([
+                    dbc.Badge(ev_src or 'unknown', color='dark', className='me-2'),
+                    html.Span(f"{ev_conf}%", style={"fontWeight": "bold", "marginRight": "8px"}),
+                    html.Span(json.dumps(ev_details, default=str))
+                ], style={"marginBottom": "6px"}))
+
+            items.append(
+                dbc.Card([
+                    dbc.CardBody([
+                        dbc.Row([
+                            dbc.Col(html.H6(f"{label}", className="card-title mb-0")),
+                            dbc.Col(html.H5(f"{conf}%", className="text-end", style={"color": conf_color, "fontWeight": "bold"}), width=2)
+                        ], align='center'),
+                        html.Div([html.Strong(f"Evidence ({evidence_count}):")], className='mt-2'),
+                        html.Div(evidence_rows, style={"whiteSpace": "pre-wrap", "marginTop": "6px"})
+                    ])
+                ], className="mb-2")
+            )
+
+        return html.Div([
+            dbc.Card([
+                dbc.CardBody(items)
+            ], className="mb-4 shadow-sm")
+        ])
+
+    def _render_scores_section(self, scores: List[Score]) -> html.Div:
+        """Render predicted scores section."""
+        if not scores:
+            return html.Div()
+
+        return html.Div([
+            html.H4([html.I(className="fas fa-bullseye me-2"), "Predicted Scores"], className="mb-3"),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardBody([
+                            dbc.Badge(score.source, color="primary", className="mb-2"),
+                            html.Div([
+                                html.Span(f"{int(score.home)} - {int(score.away)}",
+                                         style={"fontSize": "24px", "fontWeight": "bold"})
+                            ], className="text-center")
+                        ], className="text-center")
+                    ], className="shadow-sm")
+                ], lg=3, md=4, sm=6, xs=12, className="mb-3") for score in scores
+            ], className="mb-4")
+        ])
+
+    def _render_tips_section(self, tips: List[Tip], min_conf: float = 0.0, min_sources: int = 2, show_header: bool = True) -> html.Div:
+        """Render aggregated tips section.
+
+        Merges tips that normalize to the same text (via Tip.to_text()), averages confidence
+        (0-100), picks minimum odds among sources (if any), and collects all source labels.
+
+        Args:
+            tips: list of Tip objects
+            min_conf: minimum average confidence (0..100) to show an aggregated tip
+            min_sources: minimum unique sources required to show the aggregated tip (default 2)
+            show_header: whether to render the 'Betting Tips' header
+        """
+        if not tips:
+            return html.Div()
+
+        # Group tips by normalized text
+        groups = {}
+        for t in tips:
+            try:
+                key = t.to_text()
+            except Exception:
+                key = getattr(t, 'raw_text', '') or ''
+
+            if not key:
+                continue
+
+            groups.setdefault(key, []).append(t)
+
+        # Build aggregated entries
+        aggregated = []
+        for label, group in groups.items():
+            sources = [getattr(t, 'source', 'unknown') for t in group]
+            unique_sources = len(set(sources))
+            # average confidence (expecting 0..100)
+            confs = [float(getattr(t, 'confidence', 0) or 0) for t in group]
+            avg_conf = sum(confs) / len(confs) if confs else 0.0
+            # minimum odds among available ones
+            odds_list = [float(t.odds) for t in group if getattr(t, 'odds', None) is not None]
+            min_odds = min(odds_list) if odds_list else None
+
+            aggregated.append({
+                'label': label,
+                'avg_confidence': avg_conf,
+                'sources': list(dict.fromkeys(sources)),
+                'unique_sources': unique_sources,
+                'count': len(group),
+                'min_odds': min_odds,
+                'items': group,
+            })
+
+        # Filter by thresholds
+        try:
+            filtered = [a for a in aggregated if a['avg_confidence'] >= float(min_conf) and a['unique_sources'] >= int(min_sources)]
+        except Exception:
+            filtered = aggregated
+
+        if not filtered:
+            return html.Div([html.P("No tips meet the selected filters.")])
+
+        # Sort by number of unique sources then confidence
+        sorted_agg = sorted(filtered, key=lambda a: (a['unique_sources'], a['avg_confidence']), reverse=True)
+
+        children = []
+        if show_header:
+            children.append(html.H4([html.I(className="fas fa-lightbulb me-2"), "Betting Tips"], className="mb-3"))
+
+        cards = []
+        for a in sorted_agg:
+            # Color mapping based on avg_confidence
+            conf = a['avg_confidence']
+            if conf >= 66:
+                conf_color = "#4CAF50"
+            elif conf >= 33:
+                conf_color = "#ff9800"
+            else:
+                conf_color = "#f44336"
+
+            src_badges = [dbc.Badge(s, color='dark', className='me-1') for s in a['sources']]
+            odds_text = f"{a['min_odds']:.2f}" if a['min_odds'] is not None else "N/A"
+
+            card = dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col(html.H6(a['label'], className="card-title mb-0")),
+                        dbc.Col(html.H5(f"{conf:.0f}%", className="text-end", style={"color": conf_color, "fontWeight": "bold"}), width=3)
+                    ], align='center'),
+                    html.Div([html.Strong("Sources: "), html.Span(src_badges)] , className='mt-2'),
+                    html.Div([html.Strong("Odds (min): "), html.Span(odds_text)], className='mt-2')
+                ])
+            ], className='mb-3 h-100 shadow-sm', style={"borderLeft": f"5px solid {conf_color}"})
+
+            cards.append(dbc.Col(card, lg=3, md=4, sm=12))
+
+        children.append(dbc.Row(cards, className='mb-4'))
+        return html.Div(children)
+
+    def _render_form(self, form: str) -> html.Div:
+        """Render team form with colored badges."""
+        if not form:
+            return html.Span("N/A", className="text-muted")
+
+        badges = []
+        for result in form:
+            if result == 'W':
+                color = "success"
+                icon = "✓"
+            elif result == 'D':
+                color = "warning"
+                icon = "−"
+            else:
+                color = "danger"
+                icon = "✗"
+
+            badges.append(
+                dbc.Badge(icon, color=color, className="me-1", pill=True, style={"fontSize": "14px", "padding": "6px 10px"})
+            )
+
+        return html.Div(badges, style={"display": "inline-block"})
+
+    def _render_probability(self, prob: Probability) -> html.Div:
+        """Render probability bar chart."""
+        total = prob.home + prob.draw + prob.away
+        home_pct = (prob.home / total * 100) if total > 0 else 0
+        draw_pct = (prob.draw / total * 100) if total > 0 else 0
+        away_pct = (prob.away / total * 100) if total > 0 else 0
+
+        return html.Div([
+            html.Div([
+                dbc.Badge(prob.source, color="primary", className="me-2"),
+                html.Span("Source", className="text-muted small")
+            ], className="mb-2"),
+            dbc.Progress([
+                dbc.Progress(value=home_pct, label=f"Home {int(prob.home)}%", color="success", bar=True, style={"fontSize": "13px"}),
+                dbc.Progress(value=draw_pct, label=f"Draw {int(prob.draw)}%", color="warning", bar=True, style={"fontSize": "13px"}),
+                dbc.Progress(value=away_pct, label=f"Away {int(prob.away)}%", color="info", bar=True, style={"fontSize": "13px"}),
+            ], className="mb-3", style={"height": "35px"})
+        ])
+
+    def _render_h2h(self, h2h: H2H, home_name: str, away_name: str) -> html.Div:
+        """Render head-to-head statistics."""
+        total = h2h.home + h2h.draw + h2h.away
+        if total == 0:
+            return html.Div()
+
+        return html.Div([
+            html.H4([html.I(className="fas fa-history me-2"), "Head to Head"], className="mb-3"),
             dbc.Card([
                 dbc.CardBody([
                     dbc.Row([
                         dbc.Col([
-                            html.H6("Result", className="text-center mb-3"),
-                            dbc.Progress([
-                                dbc.Progress(value=suggestions['result']['home'], label=f"1: {suggestions['result']['home']}%", color="success", bar=True),
-                                dbc.Progress(value=suggestions['result']['draw'], label=f"X: {suggestions['result']['draw']}%", color="warning", bar=True),
-                                dbc.Progress(value=suggestions['result']['away'], label=f"2: {suggestions['result']['away']}%", color="info", bar=True),
-                            ], style={"height": "35px"})
-                        ], md=12, className="mb-4"),
-                    ]),
-
-                    dbc.Row([
+                            html.Div(home_name, className="text-center fw-bold mb-2 small text-muted"),
+                            html.H2(str(h2h.home), className="text-center text-success mb-0")
+                        ], md=4),
                         dbc.Col([
-                            html.H6("Over/Under 2.5", className="text-center mb-3"),
-                            dbc.Progress([
-                                dbc.Progress(value=suggestions['over_under_2.5']['over'], label=f"Over: {suggestions['over_under_2.5']['over']}%", color="danger", bar=True),
-                                dbc.Progress(value=suggestions['over_under_2.5']['under'], label=f"Under: {suggestions['over_under_2.5']['under']}%", color="primary", bar=True),
-                            ], style={"height": "35px"})
-                        ], md=6),
-
+                            html.Div("Draws", className="text-center fw-bold mb-2 small text-muted"),
+                            html.H2(str(h2h.draw), className="text-center text-warning mb-0")
+                        ], md=4),
                         dbc.Col([
-                            html.H6("BTTS", className="text-center mb-3"),
-                            dbc.Progress([
-                                dbc.Progress(value=suggestions['btts']['yes'], label=f"Yes: {suggestions['btts']['yes']}%", color="success", bar=True),
-                                dbc.Progress(value=suggestions['btts']['no'], label=f"No: {suggestions['btts']['no']}%", color="secondary", bar=True),
-                            ], style={"height": "35px"})
-                        ], md=6),
-                    ]),
+                            html.Div(away_name, className="text-center fw-bold mb-2 small text-muted"),
+                            html.H2(str(h2h.away), className="text-center text-info mb-0")
+                        ], md=4),
+                    ])
+                ])
+            ], className="mb-4 shadow-sm")
+        ])
+
+    def _render_tip(self, tip: Tip) -> dbc.Card:
+        """Render individual tip card."""
+        confidence_color = self._get_confidence_color(tip.confidence)
+
+        # Get tip text from raw_text if available, fallback to tip
+        tip_text = getattr(tip, 'raw_text', None) or getattr(tip, 'tip', 'No tip text')
+
+        # Handle odds safely
+        odds_value = tip.odds if tip.odds is not None and tip.odds > 0 else None
+
+        return dbc.Card([
+            dbc.CardBody([
+                html.H6(tip_text, className="card-title mb-3"),
+                html.Div([
+                    html.I(className="fas fa-chart-line me-2"),
+                    html.Strong("Confidence: "),
+                    html.Span(f"{tip.confidence:.2f}",
+                             style={"color": confidence_color, "fontSize": "18px", "fontWeight": "bold"})
+                ], className="mb-2"),
+                html.Div([
+                    html.I(className="fas fa-coins me-2"),
+                    html.Strong("Odds: "),
+                    html.Span(f"{odds_value:.2f}" if odds_value else "N/A", className="text-muted")
+                ], className="mb-2"),
+                html.Div([
+                    dbc.Badge(tip.source, color="dark", pill=True, className="mt-2")
+                ], className="text-end")
+            ])
+        ], className="mb-3 h-100 shadow-sm", style={"borderLeft": f"5px solid {confidence_color}"})
+
+    def _render_statistics_comparison(self, home_team: Team, away_team: Team) -> html.Div:
+        """Render statistics comparison between teams."""
+        # Check if either team has no statistics
+        if not home_team.statistics or not away_team.statistics:
+            return html.Div()
+
+        stats = [
+            ("Avg Corners", "avg_corners"),
+            ("Avg Offsides", "avg_offsides"),
+            ("Avg GK Saves", "avg_gk_saves"),
+            ("Avg Yellow Cards", "avg_yellow_cards"),
+            ("Avg Fouls", "avg_fouls"),
+            ("Avg Tackles", "avg_tackles"),
+            ("Avg Scored", "avg_scored"),
+            ("Avg Conceded", "avg_conceded"),
+            ("Avg Shots on Target", "avg_shots_on_target"),
+            ("Avg Possession", "avg_possession"),
+        ]
+
+        rows = []
+        has_any_stat = False
+
+        for label, attr in stats:
+            home_val = getattr(home_team.statistics, attr, None)
+            away_val = getattr(away_team.statistics, attr, None)
+
+            # Skip if both values are None or 0
+            if (home_val is None or home_val == 0) and (away_val is None or away_val == 0):
+                continue
+
+            has_any_stat = True
+
+            # Convert to string, handle None
+            home_str = str(home_val) if home_val is not None else "N/A"
+            away_str = str(away_val) if away_val is not None else "N/A"
+
+            # Convert possession to numeric for comparison
+            if attr == "avg_possession":
+                try:
+                    home_num = float(home_val.replace("%", "")) if isinstance(home_val, str) else float(home_val) if home_val else 0
+                    away_num = float(away_val.replace("%", "")) if isinstance(away_val, str) else float(away_val) if away_val else 0
+                except:
+                    home_num = 0
+                    away_num = 0
+            else:
+                home_num = float(home_val) if home_val is not None else 0
+                away_num = float(away_val) if away_val is not None else 0
+
+            # Determine better stat (lower is better for conceded, fouls, cards)
+            if attr in ["avg_conceded", "avg_fouls", "avg_yellow_cards"]:
+                home_better = home_num < away_num and home_num > 0
+            else:
+                home_better = home_num > away_num
+
+            rows.append(
+                html.Tr([
+                    html.Td(home_str, style={
+                        "fontWeight": "bold" if home_better else "normal",
+                        "color": "#4CAF50" if home_better else "inherit",
+                        "fontSize": "15px"
+                    }),
+                    html.Td(label, className="text-center fw-bold text-muted"),
+                    html.Td(away_str, style={
+                        "fontWeight": "bold" if not home_better and away_num > 0 else "normal",
+                        "color": "#4CAF50" if not home_better and away_num > 0 else "inherit",
+                        "fontSize": "15px"
+                    }, className="text-end"),
+                ])
+            )
+
+        # If no statistics to show, return empty div
+        if not has_any_stat:
+            return html.Div()
+
+        # Ensure each cell uses equal width thirds for consistent sizing
+        styled_rows = []
+        for tr in rows:
+            # tr is already an html.Tr built above with three html.Td; set widths
+            # We assume each tr.children is a list of three td elements
+            tds = tr.children
+            new_tds = []
+            for i, td in enumerate(tds):
+                styles = td.get('props', {}).get('style', {}) if hasattr(td, 'get') else {}
+                # merge width style
+                merged = {**styles, 'width': '33%'}
+                # rebuild td with same children and new style
+                new_tds.append(html.Td(td.children, style=merged, className=td.props.get('className', '') if hasattr(td, 'props') else None))
+            styled_rows.append(html.Tr(new_tds))
+
+        return html.Div([
+            html.H4([html.I(className="fas fa-chart-bar me-2"), "Statistics Comparison"], className="mb-3"),
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Table([
+                        html.Thead([
+                            html.Tr([
+                                html.Th(home_team.name, className="text-start bg-success text-white", style={"width": "33%"}),
+                                html.Th("Statistic", className="text-center bg-light", style={"width": "33%"}),
+                                html.Th(away_team.name, className="text-end bg-info text-white", style={"width": "33%"}),
+                            ])
+                        ]),
+                        html.Tbody(styled_rows)
+                    ], bordered=True, hover=True, responsive=True, striped=True)
                 ])
             ], className="shadow-sm")
         ])
 
+    def _get_value_color(self, value: int) -> str:
+        """Get color based on match value."""
+        if value >= 5:
+            return "#f44336"  # Red - high value
+        elif value >= 3.5:
+            return "#ff9800"  # Orange
+        else:
+            return "#4CAF50"  # Green - low value
+
+    def _get_confidence_color(self, confidence: float) -> str:
+        """Get color based on confidence level."""
+        if confidence >= 75:
+            return "#4CAF50"  # Green - high confidence
+        elif confidence >= 50:
+            return "#ff9800"  # Orange
+        else:
+            return "#f44336"  # Red - low confidence
+
     def _setup_callbacks(self):
+        """Setup all dashboard callbacks."""
+
         @self.app.callback(
-            [
-                Output("matches-data-store", "data"),
-                Output("max-sources", "data"),
-            ],
+            Output("matches-data-store", "data"),
             Input("refresh-btn", "n_clicks"),
             prevent_initial_call=False
         )
         def refresh_data(n_clicks):
             df = self.refresh_data()
-            max_sources = int(df['sources'].max()) if not df.empty else 10
-            return df.to_json(date_format='iso', orient='split'), max_sources
+            return df.to_json(date_format='iso', orient='split')
 
         @self.app.callback(
-            Output("min-sources-slider", "max"),
-            Input("max-sources", "data")
-        )
-        def update_sources_slider_max(max_sources):
-            return max(max_sources, 1)
-
-        @self.app.callback(
-            [
-                Output("discrepancy-filter-container", "style"),
-                Output("sources-filter-container", "style"),
-                Output("builder-settings-container", "style"),
-            ],
-            Input("main-tabs", "active_tab")
-        )
-        def toggle_filters(active_tab):
-            if active_tab == "tab-disc":
-                return {"display": "block"}, {"display": "none"}, {"display": "none"}
-            elif active_tab == "tab-tips":
-                return {"display": "none"}, {"display": "block"}, {"display": "none"}
-            else: # tab-builder
-                return {"display": "none"}, {"display": "block"}, {"display": "block"}
-
-        @self.app.callback(
-            [Output("builder-output-container", "children"),
-             Output("builder-current-odds", "data"),
-             Output("sys-type", "options"),
-             Output("sys-type", "value")],
-            [Input("matches-data-store", "data"),
-             Input("search-input", "value"),
-             Input("date-from", "date"),
-             Input("date-to", "date"),
-             Input("min-sources-slider", "value"),
-             Input("builder-leg-count", "value"),
-             Input("builder-min-odds", "value"),
-             Input("main-tabs", "active_tab"),
-             Input("excluded-matches-store", "data")], # NEW INPUT
-            [State("sys-type", "value")]
-        )
-        def update_builder_logic(data_json, search_text, date_from, date_to, min_sources, leg_count, min_odds, active_tab, excluded_matches, current_selected_ks):
-            if not data_json or active_tab != "tab-builder":
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-
-            df = pd.read_json(StringIO(data_json), orient='split')
-            df = self._apply_common_filters(df, search_text, date_from, date_to, min_sources)
-
-            # Pass excluded_matches to the function
-            slip_html, odds_list = self._create_bet_builder(df, leg_count or 5, min_odds or 1.2, excluded_matches)
-
-            n = len(odds_list)
-            new_options = [{'label': f'System {k}/{n}', 'value': k} for k in range(1, n + 1)]
-
-            if current_selected_ks:
-                updated_selection = [k for k in current_selected_ks if k <= n]
-            else:
-                updated_selection = [n] if n > 0 else []
-
-            return slip_html, odds_list, new_options, updated_selection
-
-        @self.app.callback(
-            Output("excluded-matches-store", "data"),
-            Input({'type': 'exclude-btn', 'index': ALL}, 'n_clicks'),
-            State("excluded-matches-store", "data"),
-            prevent_initial_call=True
-        )
-        def exclude_match(n_clicks_list, current_excluded):
-            ctx = callback_context
-            if not ctx.triggered:
-                return dash.no_update
-
-            triggered_prop = ctx.triggered[0]['prop_id']
-
-            if ".n_clicks" not in triggered_prop:
-                return dash.no_update
-
-            import json
-            try:
-                id_str = triggered_prop.split('.n_clicks')[0]
-                triggered_id = json.loads(id_str)
-                match_to_exclude = triggered_id['index']
-            except Exception as e:
-                print(f"Error parsing trigger ID: {e}")
-                return dash.no_update
-
-            triggered_index = -1
-            for i, input_def in enumerate(ctx.inputs_list[0]):
-                if input_def['id']['index'] == match_to_exclude:
-                    triggered_index = i
-                    break
-
-            if triggered_index == -1 or not n_clicks_list[triggered_index]:
-                return dash.no_update
-
-            current_excluded = current_excluded or []
-            if match_to_exclude not in current_excluded:
-                new_excluded = current_excluded.copy()
-                new_excluded.append(match_to_exclude)
-                return new_excluded
-
-            return dash.no_update
-
-        @self.app.callback(
-            Output("sys-results-output", "children"),
-            [Input("sys-total-stake", "value"),
-             Input("sys-type", "value"),
-             Input("builder-current-odds", "data")]
-        )
-        def update_simulator_math(total_stake, k_list, odds_list):
-            if not odds_list or not total_stake or not k_list:
-                return html.Div("Select system types to calculate.", className="text-muted small")
-
-            from itertools import combinations
-            system_details = []
-            total_bets_count = 0
-
-            for k in sorted(k_list):
-                combos = list(combinations(odds_list, k))
-                total_bets_count += len(combos)
-                system_details.append({'k': k, 'num_bets': len(combos), 'combos': combos})
-
-            stake_per_bet = total_stake / total_bets_count
-            total_max_payout = 0
-
-            # 2. Calculate Max Payout (All picks win)
-            total_max_payout = 0
-            for sys in system_details:
-                sys_payout = sum([stake_per_bet * pd.Series(c).prod() for c in sys['combos']])
-                total_max_payout += sys_payout
-
-            # 3. Calculate Min Payout (Only the minimum required picks with the lowest odds win)
-            # Find the smallest 'k' selected by the user
-            min_k_required = min(k_list)
-            # Sort odds from lowest to highest
-            sorted_odds = sorted(odds_list)
-            # Take the lowest 'k' odds
-            lowest_odds_combo = sorted_odds[:min_k_required]
-            # Min payout is that one specific combination (at the stake per bet)
-            min_potential_payout = stake_per_bet * pd.Series(lowest_odds_combo).prod()
-
-            summary_rows = [
-                html.Tr([
-                    html.Td(f"{s['k']}/{len(odds_list)}"),
-                    html.Td(s['num_bets']),
-                    html.Td(f"${(s['num_bets'] * stake_per_bet):.2f}")
-                ]) for s in system_details
-            ]
-
-            return html.Div([
-                dbc.Table([
-                    html.Thead(html.Tr([html.Th("System"), html.Th("Bets"), html.Th("Stake Split")])),
-                    html.Tbody(summary_rows)
-                ], bordered=False, hover=True, size="sm", className="mb-3 small"),
-
-                dbc.Alert([
-                    html.Div([html.Span("Total Bets: "), html.B(total_bets_count)], className="d-flex justify-content-between"),
-                    html.Div([html.Span("Stake/Bet: "), html.B(f"${stake_per_bet:.2f}")], className="d-flex justify-content-between"),
-                    html.Hr(),
-                    # Added Min Payout
-                    html.Div([
-                        html.Span("MIN POTENTIAL PAYOUT: ", className="fw-bold"),
-                        html.B(f"${min_potential_payout:.2f}")
-                    ], className="d-flex justify-content-between align-items-center text-warning mb-1"),
-
-                    # Max Payout
-                    html.Div([
-                        html.Span("MAX POTENTIAL PAYOUT: ", className="fw-bold"),
-                        html.B(f"${total_max_payout:.2f}", style={"fontSize": "1.2rem"})
-                    ], className="d-flex justify-content-between align-items-center text-success"),
-                ], color="light", className="border-0 shadow-sm p-3")
-            ])
-
-        @self.app.callback(
-            Output("discrepancy-table-container", "children"),
+            Output("matches-table-container", "children"),
             [
                 Input("matches-data-store", "data"),
                 Input("search-input", "value"),
@@ -1020,45 +1291,45 @@ class MatchesDashboard:
                 Input("discrepancy-filter-slider", "value"),
             ]
         )
-        def update_discrepancy_table(data_json, search_text, date_from, date_to, disc_filter):
+        def update_table(data_json, search_text, date_from, date_to, discrepancy_filter):
             if not data_json:
-                return dbc.Alert(
-                    [html.I(className="fas fa-info-circle me-2"), "No data available. Click Refresh Data to load matches."],
-                    color="warning",
-                    className="m-4"
-                )
+                return dbc.Alert("No data available. Click Refresh to load matches.", color="warning")
 
             df = pd.read_json(StringIO(data_json), orient='split')
-            df = self._apply_common_filters(df, search_text, date_from, date_to)
 
-            # Apply discrepancy filter
-            if disc_filter and disc_filter > 0:
-                df = df[df['discrepancy_pct'] >= disc_filter]
+            # Apply filters
+            if search_text:
+                mask = df['home'].str.contains(search_text, case=False, na=False) | \
+                       df['away'].str.contains(search_text, case=False, na=False)
+                df = df[mask]
 
-            return self._create_discrepancy_table(df)
+            if date_from:
+                df = df[df['timestamp'] >= pd.to_datetime(date_from)]
+
+            if date_to:
+                df = df[df['timestamp'] <= pd.to_datetime(date_to) + pd.Timedelta(days=1)]
+
+            # Apply discrepancy % filter if provided
+            try:
+                if discrepancy_filter is not None and discrepancy_filter > 0:
+                    # ensure column exists
+                    if 'discrepancy_pct' in df.columns:
+                        df = df[df['discrepancy_pct'] >= float(discrepancy_filter)]
+            except Exception:
+                pass
+
+            return self._create_table(df)
 
         @self.app.callback(
-            Output("tips-table-container", "children"),
-            [
-                Input("matches-data-store", "data"),
-                Input("search-input", "value"),
-                Input("date-from", "date"),
-                Input("date-to", "date"),
-                Input("min-sources-slider", "value"),
-            ]
+            Output('discrepancy-filter-value', 'children'),
+            Input('discrepancy-filter-slider', 'value'),
+            prevent_initial_call=False
         )
-        def update_tips_table(data_json, search_text, date_from, date_to, min_sources):
-            if not data_json:
-                return dbc.Alert(
-                    [html.I(className="fas fa-info-circle me-2"), "No data available. Click Refresh Data to load matches."],
-                    color="warning",
-                    className="m-4"
-                )
-
-            df = pd.read_json(StringIO(data_json), orient='split')
-            df = self._apply_common_filters(df, search_text, date_from, date_to, min_sources)
-
-            return self._create_tips_table(df)
+        def update_discrepancy_value(val):
+            try:
+                return str(int(val))
+            except Exception:
+                return '0'
 
         @self.app.callback(
             [
@@ -1068,60 +1339,104 @@ class MatchesDashboard:
                 Output("current-match-id", "data"),
             ],
             [
-                Input({'type': 'match-table', 'index': dash.dependencies.ALL}, "active_cell"),
+                Input("matches-table", "active_cell"),
                 Input("close-modal", "n_clicks"),
             ],
-            [
-                State("match-modal", "is_open"),
-                State({'type': 'match-table', 'index': dash.dependencies.ALL}, "derived_viewport_data"),
-            ],
+            [State("match-modal", "is_open"), State("matches-table", "derived_virtual_data")],
             prevent_initial_call=True
         )
-        def toggle_modal(active_cells, close_clicks, is_open, derived_viewport_data_list):
+        def toggle_modal(active_cell, close_clicks, is_open, derived_virtual_data):
             ctx = callback_context
             if not ctx.triggered:
-                return dash.no_update
-
-            trigger_id = ctx.triggered[0]["prop_id"]
-
-            # Close modal button clicked
-            if "close-modal" in trigger_id:
                 return False, "", "", None
 
-            # Only handle table cell clicks, not other triggers
-            if not active_cells or not any(cell is not None for cell in active_cells):
-                return dash.no_update
+            trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
+            if trigger_id == "close-modal":
+                return False, "", "", None
+
+            # Use derived_virtual_data which reflects current sorting/filtering/pagination
+            if trigger_id == "matches-table" and active_cell and derived_virtual_data:
+                # Prefer row_id if provided (more robust across pagination)
+                row_id = active_cell.get('row_id') if isinstance(active_cell, dict) else None
+                if row_id:
+                    match_id = row_id
+                    if match_id and match_id in self.matches_dict:
+                        match = self.matches_dict[match_id]
+                        return True, "Match Details", self._create_match_detail(match, min_conf=1.0), match_id
+
+                row_idx = active_cell.get('row') if isinstance(active_cell, dict) else None
+                # Some versions of DataTable may provide row as int; guard against None
+                if row_idx is None:
+                    return is_open, "", "", None
+
+                # Ensure the row index exists in the currently displayed data
+                if derived_virtual_data and 0 <= row_idx < len(derived_virtual_data):
+                    row = derived_virtual_data[row_idx]
+                    match_id = row.get('match_id') or row.get('id')
+                    # Look up the match in our dictionary
+                    if match_id and match_id in self.matches_dict:
+                        match = self.matches_dict[match_id]
+                        # return modal open, title, body and store the current match id
+                        return True, "Match Details", self._create_match_detail(match, min_conf=1.0), match_id
+
+            return is_open, "", "", None
+
+        @self.app.callback(
+            Output("modal-tips-container", "children"),
+            [
+                Input("tips-confidence-slider", "value"),
+                Input("tips-min-sources-slider", "value")
+            ],
+            State("current-match-id", "data"),
+            prevent_initial_call=True
+        )
+        def update_modal_tips(min_conf, min_sources, match_id):
+            # When slider changes, re-render the tips area for the currently open match
+            if not match_id or match_id not in self.matches_dict:
+                return html.Div()
+
+            match = self.matches_dict.get(match_id)
+            tips = []
             try:
-                # Find which table was clicked and get the actual data
-                for idx, cell in enumerate(active_cells):
-                    if cell and derived_viewport_data_list and idx < len(derived_viewport_data_list):
-                        viewport_data = derived_viewport_data_list[idx]
-                        if viewport_data:
-                            row_idx = cell['row']
-                            if 0 <= row_idx < len(viewport_data):
-                                # Get match_id from the viewport data (only current page visible rows)
-                                match_id = viewport_data[row_idx]['match_id']
-                                if match_id in self.matches_dict:
-                                    match = self.matches_dict[match_id]
-                                    return True, "Match Details", self._create_match_detail(match), match_id
-                                else:
-                                    print(f"Warning: match_id {match_id} not found in matches_dict")
-            except Exception as e:
-                print(f"Error opening modal: {e}")
-                import traceback
-                traceback.print_exc()
+                preds = getattr(match, 'predictions', None)
+                tips = preds.tips if preds and getattr(preds, 'tips', None) else []
+            except Exception:
+                tips = []
 
-            return dash.no_update
+            # Ensure a sensible minimum of 2 sources when slider is unset/null
+            return self._render_tips_section(tips, min_conf=(min_conf or 0), min_sources=(min_sources or 2), show_header=False)
+
+        @self.app.callback(
+            Output("modal-suggestions-container", "children"),
+            [
+                Input("suggestions-min-sources-slider", "value"),
+                Input("suggestions-min-confidence-slider", "value")
+            ],
+            State("current-match-id", "data"),
+            prevent_initial_call=True
+        )
+        def update_modal_suggestions(min_sources, min_conf, match_id):
+            if not match_id or match_id not in self.matches_dict:
+                return html.Div()
+
+            match = self.matches_dict.get(match_id)
+            try:
+                analysis = self.analyzer.analyze_match(match) or {}
+                suggestions = analysis.get('suggestions', [])
+            except Exception:
+                suggestions = []
+
+            # min_conf slider supplies values 10..100 (percent)
+            return self._render_suggestions_section(suggestions, min_sources=min_sources or 2, min_conf=min_conf or 10, compact=True)
 
     def run(self, debug=True, port=8050):
-        print(f"Starting dashboard on http://0.0.0.0:{port}")
-        # bind to all interfaces
-        self.app.run(debug=debug, host='0.0.0.0', port=port)
-
+        """Run the dashboard server."""
+        print(f"Starting dashboard on http://localhost:{port}")
+        self.app.run(debug=debug, port=port)
 
 if __name__ == "__main__":
     from bet_framework.DatabaseManager import DatabaseManager
     db_manager = DatabaseManager()
     dashboard = MatchesDashboard(db_manager)
-    dashboard.run(debug=False, port=8050)
+    dashboard.run(debug=True, port=8050)

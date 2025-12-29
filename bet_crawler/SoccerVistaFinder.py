@@ -215,11 +215,8 @@ class SoccerVistaFinder(BaseMatchFinder):
                 html = self.web_scraper.fast_http_request(SOCCERVISTA_URL + link)
                 soup = BeautifulSoup(html, 'html.parser')
                 if html:
-                    try:
-                        league_urls += [link['value'] for link in soup.find('select',id="tournamentPage").find_all("option")]
-                    except AttributeError:
-                        print(f"Can't parse: {link}")
-                        continue
+                    league_urls += [link['value'] for link in soup.find('select',id="tournamentPage").find_all("option")]
+
             league_urls = [
                 url for url in league_urls
                 if not any(excluded in url for excluded in EXCLUDED)
@@ -293,7 +290,7 @@ class SoccerVistaFinder(BaseMatchFinder):
                         confidence = 100
                         odds = None
 
-                        tips.append(Tip(raw_text=result, confidence=confidence, source=SOCCERVISTA_NAME, odds=None))
+                        tips.append(Tip(raw_text=result, confidence=confidence, source=SOCCERVISTA_NAME, odds=odds))
 
                         match_predictions = MatchPredictions(scores, probabilities, tips)
 
@@ -305,7 +302,6 @@ class SoccerVistaFinder(BaseMatchFinder):
                             datetime=match_datetime,
                             predictions=match_predictions,
                             h2h=h2h_results,
-                            odds=odds
                         )
 
                         self.add_match(match_to_add)

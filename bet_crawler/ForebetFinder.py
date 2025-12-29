@@ -232,7 +232,10 @@ class ForebetFinder(BaseMatchFinder):
                     away_team = Team(away_team_name, away_team_points, away_team_form, away_team_statistics)
 
                     # Get odds
-                    odds=None
+                    try:
+                        odds = float(match_html.find('div', class_="rcnt tr_0").find('span', class_="lscrsp").get_text())
+                    except:
+                        odds = None
 
                     # Get H2H
                     try:
@@ -269,7 +272,7 @@ class ForebetFinder(BaseMatchFinder):
                     # Main prediction tip
                     result = "Home Win" if forebet_score.home > forebet_score.away else "Draw" if forebet_score.home == forebet_score.away else "Away Win"
                     confidence = float(max(forebet_probability.home, forebet_probability.draw, forebet_probability.away))
-                    tips.append(Tip(raw_text=result, confidence=confidence, source=FOREBET_NAME, odds=None))
+                    tips.append(Tip(raw_text=result, confidence=confidence, source=FOREBET_NAME, odds=odds))
 
                     # Over/Under 2.5
                     try:
@@ -331,7 +334,6 @@ class ForebetFinder(BaseMatchFinder):
                         datetime=match_datetime,
                         predictions=match_predictions,
                         h2h=h2h_results,
-                        odds=odds
                     )
 
                     # Successfully added to database (use wrapper to apply
