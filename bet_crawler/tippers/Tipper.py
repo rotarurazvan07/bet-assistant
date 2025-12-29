@@ -21,14 +21,14 @@ class Tipper:
     def get_tips(self):
         tippers = [
             WhoScoredTipper(self._update_match_callback),
-            FreeSuperTipper(self._update_match_callback),
-            WinDrawWinTipper(self._update_match_callback),
-            PickWiseTipper(self._update_match_callback),
-            FootyStatsTipper(self._update_match_callback),
-            FreeTipsTipper(self._update_match_callback),
-            OLBGTipper(self._update_match_callback),
-            PredictzTipper(self._update_match_callback),
-            FootballBettingTipsTipper(self._update_match_callback)
+            # FreeSuperTipper(self._update_match_callback),
+            # WinDrawWinTipper(self._update_match_callback),
+            # PickWiseTipper(self._update_match_callback),
+            # FootyStatsTipper(self._update_match_callback),
+            # FreeTipsTipper(self._update_match_callback),
+            # OLBGTipper(self._update_match_callback),
+            # PredictzTipper(self._update_match_callback),
+            # FootballBettingTipsTipper(self._update_match_callback)
         ]
 
         threads = []

@@ -1,0 +1,10 @@
+# Database configuration for DatabaseManager
+# Loaded into SettingsManager under the key `database`.
+# Example values — override for your environment.
+host: localhost
+port: 27017
+db_name: bet-assistant
+matches_collection: Matches
+# Optional authentication
+# username: myuser
+# password: mypass

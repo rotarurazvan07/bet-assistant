@@ -1,0 +1,92 @@
+acronyms:
+  # Global / English Standard
+  " utd": ""
+  " united": ""
+  "fc ": ""
+  " fc": ""
+  "afc ": ""
+  " afc": ""
+  "sc ": ""
+  " sc": ""
+  " town": ""
+  " city": ""
+
+  # Spanish / Portuguese / Latin American
+  "al ": ""
+  "cd ": ""
+  " cd": ""
+  "cf ": ""
+  " cf": ""
+  "ca ": ""
+  " ca": ""
+  "ud ": ""
+  " ud": ""
+  "sd ": ""
+  " sd": ""
+  "ad ": ""
+  " ad": ""
+  " de ": " "
+  " do ": " "
+
+  # Central & Eastern Europe (Balkans, Czech, Poland, etc.)
+  "nk ": ""
+  " nk": ""
+  "fk ": ""
+  " fk": ""
+  "sk ": ""
+  " sk": ""
+  "ns ": ""
+  " ns": ""
+  "msk ": ""
+  " msk": ""
+  "gks ": ""
+  " gks": ""
+  "ok ": ""
+  " ok": ""
+  " hsc": ""
+  " bsc": ""
+
+  # Germanic / Nordic
+  "borussia ": ""
+  "vfb ": ""
+  "vfl ": ""
+  "sv ": ""
+  " sv": ""
+  "if ": ""
+  " if": ""
+  "bk ": ""
+  " bk": ""
+  "ff ": ""
+  " ff": ""
+
+  # Italian / French
+  "ac ": ""
+  " ac": ""
+  "as ": ""
+  " as": ""
+  "ss ": ""
+  " ss": ""
+  "usc ": ""
+  " us": ""
+
+  # Middle East / North Africa
+  "el ": ""
+  "al-": ""
+
+team_shorts:
+  "man utd": "manchester united"
+  "man city": "manchester city"
+  "psg": "paris saint germain"
+  "sporting cp": "sporting lisbon"
+  "bvb": "borussia dortmund"
+  "spurs": "tottenham hotspur"
+  "qpr": "queens park rangers"
+  "wolves": "wolverhampton wanderers"
+
+weights:
+  token: 0.5
+  substr: 0.1
+  phonetic: 0.1
+  ratio: 0.3
+
+threshold: 65

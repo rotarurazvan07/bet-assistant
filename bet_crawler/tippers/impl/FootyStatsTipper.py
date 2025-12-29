@@ -26,7 +26,12 @@ class FootyStatsTipper(BaseTipper):
                 tip_anchor = match_html.find("ul", class_="bet-items").find("li").contents[0].strip()
                 tip = tip_anchor.split('%')[1].strip()
 
-                tip_strength = (int(tip_anchor.split('%')[0].strip()) / 100) * 2 + 1
+                # FootyStats gives a percent like '75% Tip' — use percent directly as 0..100 confidence
+                try:
+                    percent = int(tip_anchor.split('%')[0].strip())
+                except Exception:
+                    percent = 0
+                tip_strength = int(round(percent))
                 try:
                     odds = float(
                         match_html.find("ul", class_="bet-items").find_all("li")[1].get_text().replace('Real Odds',
