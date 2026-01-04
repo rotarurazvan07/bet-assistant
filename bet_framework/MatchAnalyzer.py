@@ -25,7 +25,7 @@ class MatchAnalyzer:
 
         return {
             'discrepancy': disc,
-            'suggestions': suggs,
+            'suggestions': suggs
         }
 
     def discrepancy(self, match) -> Dict[str, Any]:
@@ -71,7 +71,12 @@ class MatchAnalyzer:
                 suggestion += "X2 & "
 
             avg_goals = sum([(score.home + score.away) for score in preds.scores]) / len(preds.scores)
-            suggestion += str(round(avg_goals) - 2) + "-" + str(round(avg_goals) + 2)
+            if (round(avg_goals) - 2) >= 3:
+                suggestion += "3+"
+            elif (round(avg_goals) - 2) <= 0:
+                suggestion += "0-4"
+            else:
+                suggestion += str(round(avg_goals) - 2) + "-" + str(round(avg_goals) + 2)
         except Exception:
             base = 0.0
             pct = 0.0

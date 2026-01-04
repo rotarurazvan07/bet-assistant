@@ -10,6 +10,8 @@ acronyms:
   " sc": ""
   " town": ""
   " city": ""
+  " club": ""
+  "union ": ""
 
   # Spanish / Portuguese / Latin American
   "al ": ""
@@ -27,6 +29,8 @@ acronyms:
   " ad": ""
   " de ": " "
   " do ": " "
+  "real ": ""
+  "deportivo ": ""
 
   # Central & Eastern Europe (Balkans, Czech, Poland, etc.)
   "nk ": ""
@@ -68,6 +72,8 @@ acronyms:
   " ss": ""
   "usc ": ""
   " us": ""
+  "inter ": ""
+  " calcio": ""
 
   # Middle East / North Africa
   "el ": ""
@@ -75,9 +81,11 @@ acronyms:
 
 team_shorts:
   "man utd": "manchester united"
+  "inter": "inter milano"
   "man city": "manchester city"
   "psg": "paris saint germain"
   "sporting cp": "sporting lisbon"
+  "sporting": "sporting lisbon"
   "bvb": "borussia dortmund"
   "spurs": "tottenham hotspur"
   "qpr": "queens park rangers"

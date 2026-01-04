@@ -59,7 +59,8 @@ class SimilarityEngine:
         name = " ".join(name.split()).lower()
 
         for k, v in self.team_shorts.items():
-            name = name.replace(k, v)
+            if name == k:
+                name = v
 
         for k, v in self.acronyms.items():
             if k in name:

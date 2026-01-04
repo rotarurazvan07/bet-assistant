@@ -8,12 +8,13 @@ class H2H:
 class Match:
     # h2h_results is a list that contains results of head to head matches (home vs away) in the form of
     # (home_wins, draws, away_wins)
-    def __init__(self, home_team, away_team, datetime, h2h, predictions):
+    def __init__(self, home_team, away_team, datetime, h2h, predictions, odds):
         self.home_team = home_team # A Team object
         self.away_team = away_team # A Team object
         self.datetime = datetime # python datetime
         self.predictions = predictions # a MatchPredictions.py object
         self.h2h = h2h
+        self.odds = odds # Odds object
 
     def to_dict(self):
         return {
@@ -22,6 +23,7 @@ class Match:
             "datetime": self.datetime,
             "predictions": self.predictions.to_dict(),
             "h2h": self.h2h.__dict__ if self.h2h else None,
+            "odds": self.odds.__dict__ if self.odds else None,
         }
 
 
@@ -38,6 +40,15 @@ class Score:
         self.home = float(home)
         self.away = float(away)
 
+class Odds:
+    def __init__(self, home, draw, away, over, under, btts_y, btts_n):
+        self.home = home
+        self.draw = draw
+        self.away = away
+        self.over = over
+        self.under = under
+        self.btts_y = btts_y
+        self.btts_n = btts_n
 
 class MatchPredictions:
     def __init__(self, scores, probabilities, tips):
