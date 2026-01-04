@@ -261,7 +261,8 @@ class VitibetFinder(BaseMatchFinder):
                                 probabilities=[probability],
                                 tips=[tip]
                             ),
-                            h2h=None
+                            h2h=None,
+                            odds=None
                         )
 
                         self.add_match(match_to_add)

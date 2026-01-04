@@ -137,14 +137,21 @@ class WinDrawWinFinder(BaseMatchFinder):
                         confidence = 50
                     else:
                         confidence = int(round(((strength_index + 1) / len(TIP_STRENGTHS)) * 100))
+
                     try:
-                        odds = float(soup.find_all(class_='w20p tbtdodds')[0].get_text()) if scores[0].home > scores[0].away else \
-                            float(soup.find_all(class_='w20p tbtdodds')[1].get_text()) if scores[0].home == scores[0].away else \
-                            float(soup.find_all(class_='w20p tbtdodds')[2].get_text())
-                    except:
+                        odds = Odds(
+                            home=float(soup.find_all(class_='w20p tbtdodds')[0].get_text()),
+                            draw=float(soup.find_all(class_='w20p tbtdodds')[1].get_text()),
+                            away=float(soup.find_all(class_='w20p tbtdodds')[2].get_text()),
+                            over=float(soup.find_all(class_='w30p tbtdodds')[2].get_text()),
+                            under=float(soup.find_all(class_='w30p tbtdodds')[3].get_text()),
+                            btts_y=float(soup.find_all(class_='w30p tbtdodds')[0].get_text()),
+                            btts_n=float(soup.find_all(class_='w30p tbtdodds')[1].get_text())
+                        )
+                    except (AttributeError, IndexError) as e:
                         odds = None
 
-                    tips.append(Tip(raw_text=result, confidence=confidence, source=WINDRAWWIN_NAME, odds=odds))
+                    tips.append(Tip(raw_text=result, confidence=confidence, source=WINDRAWWIN_NAME, odds=None))
 
                     match_predictions = MatchPredictions(scores, probabilities, tips)
 
@@ -156,6 +163,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                         datetime=match_datetime,
                         predictions=match_predictions,
                         h2h=h2h_results,
+                        odds=odds
                     )
 
                     # Successfully added to database

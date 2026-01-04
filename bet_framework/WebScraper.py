@@ -434,6 +434,7 @@ class WebScraper:
         Returns:
             HTML content as string
         """
+        print(url)
         page = self._get_thread_browser()
         thread_id = getattr(self._thread_local, 'thread_id', 0)
 
@@ -535,6 +536,7 @@ class WebScraper:
         Returns:
             HTML content as string
         """
+        print(url)
         if not CURL_CFFI_AVAILABLE:
             print("curl_cffi not available, using browser mode")
             return self.load_page(url, required_content=required_content, min_content_length=min_content_length)

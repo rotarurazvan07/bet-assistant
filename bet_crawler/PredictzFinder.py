@@ -117,14 +117,21 @@ class PredictzFinder(BaseMatchFinder):
                             result = "Home Win" if scores[0].home > scores[0].away else "Draw" if scores[0].home == scores[0].away else "Away Win"
                             # No detailed confidence; use high confidence (0-100)
                             confidence = 100
+
                             try:
-                                odds = float(soup.find_all(class_='odds')[0].get_text()) if scores[0].home > scores[0].away else \
-                                    float(soup.find_all(class_='odds')[1].get_text()) if scores[0].home == scores[0].away else \
-                                    float(soup.find_all(class_='odds')[2].get_text())
-                            except:
+                                odds = Odds(
+                                    home=float(soup.find_all(class_='odds')[0].get_text()),
+                                    draw=float(soup.find_all(class_='odds')[1].get_text()),
+                                    away=float(soup.find_all(class_='odds')[2].get_text()),
+                                    over=0.0,
+                                    under=0.0,
+                                    btts_y=0.0,
+                                    btts_n=0.0
+                                )
+                            except (AttributeError, IndexError) as e:
                                 odds = None
 
-                            tips.append(Tip(raw_text=result, confidence=confidence, source=PREDICTZ_NAME, odds=odds))
+                            tips.append(Tip(raw_text=result, confidence=confidence, source=PREDICTZ_NAME, odds=None))
 
                             match_predictions = MatchPredictions(scores, probabilities, tips)
 
@@ -136,6 +143,7 @@ class PredictzFinder(BaseMatchFinder):
                                 datetime=match_datetime,
                                 predictions=match_predictions,
                                 h2h=h2h_results,
+                                odds=odds
                             )
 
                             self.add_match(match_to_add)

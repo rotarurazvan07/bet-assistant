@@ -51,7 +51,8 @@ class DatabaseManager:
                                      [Score(**score) for score in match_data["predictions"]["scores"]],
                                      [Probability(**probability) for probability in match_data["predictions"]["probabilities"]],
                                      [Tip.from_dict(tip) for tip in match_data["predictions"]["tips"]]
-                                 ))),
+                                 ),
+                                 odds=Odds(**match_data["odds"]) if match_data["odds"] else None))
 
         return matches
 
@@ -111,7 +112,13 @@ class DatabaseManager:
                 if found_match["h2h"] is None and match.h2h is not None:
                     self.matches_collection.update_one(
                         {"_id": found_match["_id"]},
-                        {"$set": {"h2h": match.h2h}}
+                        {"$set": {"h2h": match.h2h.__dict__}}
+                    )
+
+                if found_match["odds"] is None and match.odds is not None:
+                    self.matches_collection.update_one(
+                        {"_id": found_match["_id"]},
+                        {"$set": {"odds": match.odds.__dict__}}
                     )
 
                 return found_match["_id"]
