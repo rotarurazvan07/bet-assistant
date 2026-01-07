@@ -7,4 +7,3 @@ fake_useragent
 curl_cffi
 PyYAML
 rapidfuzz
-tinydb
