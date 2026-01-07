@@ -5,3 +5,6 @@ dash_bootstrap_components
 playwright
 fake_useragent
 curl_cffi
+PyYAML
+rapidfuzz
+tinydb

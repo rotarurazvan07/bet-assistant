@@ -1115,12 +1115,13 @@ class MatchesDashboard:
             return dash.no_update
 
     def run(self, debug=True, port=8050):
-        print(f"Starting dashboard on http://localhost:{port}")
-        self.app.run(debug=debug, port=port)
+        print(f"Starting dashboard on http://0.0.0.0:{port}")
+        # bind to all interfaces
+        self.app.run(debug=debug, host='0.0.0.0', port=port)
 
 
 if __name__ == "__main__":
     from bet_framework.DatabaseManager import DatabaseManager
     db_manager = DatabaseManager()
     dashboard = MatchesDashboard(db_manager)
-    dashboard.run(debug=True, port=8050)
+    dashboard.run(debug=False, port=8050)

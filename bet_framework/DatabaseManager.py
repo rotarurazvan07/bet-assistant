@@ -1,4 +1,8 @@
-from pymongo import MongoClient
+from tinydb import TinyDB, Query
+from tinydb.storages import JSONStorage
+from tinydb.middlewares import CachingMiddleware
+from datetime import datetime
+import json
 
 from bet_framework.SimilarityEngine import SimilarityEngine
 
@@ -7,126 +11,209 @@ from .core.Tip import Tip
 from .utils import log
 from .SettingsManager import settings_manager
 
-class DatabaseManager:
-    def __init__(self, client: MongoClient = None):
-        """Initialize DatabaseManager using config from SettingsManager (if present).
 
-        Config keys (in `config/database_config.yaml` or loaded into SettingsManager under
-        the key `database`) include: host, port, db_name, matches_collection, username, password.
-        """
-        # Accept either 'database' or 'database_config' as the config key
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
+
+class DateTimeStorage(JSONStorage):
+    """Custom TinyDB storage that serializes datetime objects."""
+    def __init__(self, path, **kwargs):
+        super().__init__(path, **kwargs)
+
+    def write(self, data):
+        # Serialize with custom encoder
+        self._handle.seek(0)
+        serialized = json.dumps(data, cls=DateTimeEncoder, **self.kwargs)
+        self._handle.write(serialized)
+        self._handle.flush()
+        self._handle.truncate()
+
+
+class DatabaseManager:
+    def __init__(self, db_path: str = None):
         settings_manager.load_settings("config")
         cfg = settings_manager.get_config('database_config')
 
-        host = cfg.get('host', 'localhost')
-        port = cfg.get('port', 27017)
-        db_name = cfg.get('db_name', 'bet-assistant')
-        collection_name = cfg.get('matches_collection', 'Matches')
+        # Allow providing an external db_path for testing/override
+        if db_path is None:
+            db_path = cfg.get('db_path', 'data/matches.json')
 
-        # Allow providing an external client for testing/override
-        if client:
-            self.client = client
-        else:
-            # Support optional username/password
-            username = cfg.get('username')
-            password = cfg.get('password')
-            if username and password:
-                self.client = MongoClient(host=host, port=port, username=username, password=password)
-            else:
-                self.client = MongoClient(host, port)
-
+        self.db = TinyDB(db_path, storage=CachingMiddleware(DateTimeStorage))
+        self.matches_collection = self.db.table('matches')
         self.similarity_engine = SimilarityEngine()
-
-        self.db = self.client[db_name]
-        self.matches_collection = self.db[collection_name]
 
     def fetch_matches(self):
         matches = []
-        for match_data in self.matches_collection.find():
-            matches.append(Match(home_team=Team(match_data["home_team"]["name"], match_data["home_team"]["league_points"], match_data["home_team"]["form"], TeamStatistics(**match_data["home_team"]["statistics"]) if match_data["home_team"]["statistics"] else None),
-                                 away_team=Team(match_data["away_team"]["name"], match_data["away_team"]["league_points"], match_data["away_team"]["form"], TeamStatistics(**match_data["away_team"]["statistics"]) if match_data["away_team"]["statistics"] else None),
-                                 datetime=match_data["datetime"],
-                                 h2h=H2H(**match_data["h2h"]) if match_data["h2h"] else None,
-                                 predictions=MatchPredictions(
-                                     [Score(**score) for score in match_data["predictions"]["scores"]],
-                                     [Probability(**probability) for probability in match_data["predictions"]["probabilities"]],
-                                     [Tip.from_dict(tip) for tip in match_data["predictions"]["tips"]]
-                                 ),
-                                 odds=Odds(**match_data["odds"]) if match_data["odds"] else None))
+        for match_data in self.matches_collection.all():
+            # Convert datetime strings back to datetime objects
+            datetime_obj = match_data["datetime"]
+            if isinstance(datetime_obj, str):
+                datetime_obj = datetime.fromisoformat(datetime_obj)
+
+            matches.append(Match(
+                home_team=Team(
+                    match_data["home_team"]["name"],
+                    match_data["home_team"]["league_points"],
+                    match_data["home_team"]["form"],
+                    TeamStatistics(**match_data["home_team"]["statistics"])
+                        if match_data["home_team"]["statistics"] else None
+                ),
+                away_team=Team(
+                    match_data["away_team"]["name"],
+                    match_data["away_team"]["league_points"],
+                    match_data["away_team"]["form"],
+                    TeamStatistics(**match_data["away_team"]["statistics"])
+                        if match_data["away_team"]["statistics"] else None
+                ),
+                datetime=datetime_obj,
+                h2h=H2H(**match_data["h2h"]) if match_data["h2h"] else None,
+                predictions=MatchPredictions(
+                    [Score(**score) for score in match_data["predictions"]["scores"]],
+                    [Probability(**probability) for probability in match_data["predictions"]["probabilities"]],
+                    [Tip.from_dict(tip) for tip in match_data["predictions"]["tips"]]
+                ),
+                odds=Odds(**match_data["odds"]) if match_data["odds"] else None
+            ))
 
         return matches
 
     def _find_match(self, match_name, match_date):
-        for match in self.matches_collection.find():
-            if abs((match_date.date() - match["datetime"].date()).days) <= 1:
-                if self.similarity_engine.is_similar(match["home_team"]["name"] + " vs " + match["away_team"]["name"],  match_name):
+        for match in self.matches_collection.all():
+            match_datetime = match["datetime"]
+            # Handle both datetime objects and ISO string dates
+            if isinstance(match_datetime, str):
+                match_datetime = datetime.fromisoformat(match_datetime)
+            elif not isinstance(match_datetime, datetime):
+                continue
+
+            if abs((match_date.date() - match_datetime.date()).days) <= 1:
+                if self.similarity_engine.is_similar(
+                    match["home_team"]["name"] + " vs " + match["away_team"]["name"],
+                    match_name
+                ):
                     return match
         return None
 
     def update_match(self, match_name=None, match_date=None, tip=None, score=None, probability=None, match_id=None):
         if match_id:
-            match = self.matches_collection.find_one({"_id": match_id})
+            match = self.matches_collection.get(doc_id=match_id)
         else:
             match = self._find_match(match_name, match_date)
+
         if match:
-            # TODO fails on odds change
+            match_doc_id = match.doc_id
+            updated_match = match.copy()
+
+            # Handle tip updates
             if tip:
-                self.matches_collection.update_one(
-                    {"_id": match["_id"]},
-                    {"$addToSet": {"predictions.tips": tip.to_dict()}}
-                )
+                existing_tips = updated_match.get("predictions", {}).get("tips", [])
+                tip_dict = tip.to_dict()
+                if tip_dict not in existing_tips:
+                    existing_tips.append(tip_dict)
+                    if "predictions" not in updated_match:
+                        updated_match["predictions"] = {}
+                    updated_match["predictions"]["tips"] = existing_tips
+
+            # Handle score updates
             if score:
-                self.matches_collection.update_one(
-                    {"_id": match["_id"]},
-                    {"$addToSet": {"predictions.scores": score.__dict__}}
-                )
+                existing_scores = updated_match.get("predictions", {}).get("scores", [])
+                score_dict = score.__dict__
+                if score_dict not in existing_scores:
+                    existing_scores.append(score_dict)
+                    if "predictions" not in updated_match:
+                        updated_match["predictions"] = {}
+                    updated_match["predictions"]["scores"] = existing_scores
+
+            # Handle probability updates
             if probability:
-                self.matches_collection.update_one(
-                    {"_id": match["_id"]},
-                    {"$addToSet": {"predictions.probabilities": probability.__dict__}}
-                )
-            return match["_id"]
+                existing_probs = updated_match.get("predictions", {}).get("probabilities", [])
+                prob_dict = probability.__dict__
+                if prob_dict not in existing_probs:
+                    existing_probs.append(prob_dict)
+                    if "predictions" not in updated_match:
+                        updated_match["predictions"] = {}
+                    updated_match["predictions"]["probabilities"] = existing_probs
+
+            # Update the document
+            self.matches_collection.update(updated_match, doc_ids=[match_doc_id])
+            return match_doc_id
         else:
             log(f"{match_name} was not found on forebet, investigate")
+            return None
 
     def add_match(self, match, match_id=None):
         try:
             if match_id:
-                found_match = self.matches_collection.find_one({"_id": match_id})
+                found_match = self.matches_collection.get(doc_id=match_id)
             else:
-                found_match = self._find_match(match.home_team.name + " vs " + match.away_team.name, match.datetime)
+                found_match = self._find_match(
+                    match.home_team.name + " vs " + match.away_team.name,
+                    match.datetime
+                )
+
             if found_match:
                 log(f"Adding {match.home_team.name} vs {match.away_team.name} to match: {found_match['home_team']['name']} vs {found_match['away_team']['name']}")
+
+                match_doc_id = found_match.doc_id
+                updated_match = found_match.copy()
+
+                # Add tips
                 if match.predictions.tips:
+                    existing_tips = updated_match.get("predictions", {}).get("tips", [])
                     for tip in match.predictions.tips:
-                        self.update_match(tip=tip, match_id=found_match["_id"])
+                        tip_dict = tip.to_dict()
+                        if tip_dict not in existing_tips:
+                            existing_tips.append(tip_dict)
+                    if "predictions" not in updated_match:
+                        updated_match["predictions"] = {}
+                    updated_match["predictions"]["tips"] = existing_tips
 
+                # Add scores
                 if match.predictions.scores:
+                    existing_scores = updated_match.get("predictions", {}).get("scores", [])
                     for score in match.predictions.scores:
-                        self.update_match(score=score, match_id=found_match["_id"])
+                        score_dict = score.__dict__
+                        if score_dict not in existing_scores:
+                            existing_scores.append(score_dict)
+                    if "predictions" not in updated_match:
+                        updated_match["predictions"] = {}
+                    updated_match["predictions"]["scores"] = existing_scores
 
+                # Add probabilities
                 if match.predictions.probabilities:
+                    existing_probs = updated_match.get("predictions", {}).get("probabilities", [])
                     for probability in match.predictions.probabilities:
-                        self.update_match(probability=probability, match_id=found_match["_id"])
+                        prob_dict = probability.__dict__
+                        if prob_dict not in existing_probs:
+                            existing_probs.append(prob_dict)
+                    if "predictions" not in updated_match:
+                        updated_match["predictions"] = {}
+                    updated_match["predictions"]["probabilities"] = existing_probs
 
-                if found_match["h2h"] is None and match.h2h is not None:
-                    self.matches_collection.update_one(
-                        {"_id": found_match["_id"]},
-                        {"$set": {"h2h": match.h2h.__dict__}}
-                    )
+                # Update h2h if missing
+                if found_match.get("h2h") is None and match.h2h is not None:
+                    updated_match["h2h"] = match.h2h.__dict__
 
-                if found_match["odds"] is None and match.odds is not None:
-                    self.matches_collection.update_one(
-                        {"_id": found_match["_id"]},
-                        {"$set": {"odds": match.odds.__dict__}}
-                    )
+                # Update odds if missing
+                if found_match.get("odds") is None and match.odds is not None:
+                    updated_match["odds"] = match.odds.__dict__
 
-                return found_match["_id"]
+                # Write all updates at once
+                self.matches_collection.update(updated_match, doc_ids=[match_doc_id])
+                return match_doc_id
             else:
                 log(f"Creating new match: {match.home_team.name} vs {match.away_team.name} [{str(match.datetime)}]")
-                self.matches_collection.insert_one(match.to_dict())
+                match_dict = match.to_dict()
+                return self.matches_collection.insert(match_dict)
+
         except Exception as e:
             print(f"Caught {e} while adding to db")
+            return None
 
     def reset_matches_db(self):
-        self.matches_collection.delete_many({})
+        self.matches_collection.truncate()
