@@ -30,7 +30,9 @@ acronyms:
   " de ": " "
   " do ": " "
   "real ": ""
+  " real": ""
   "deportivo ": ""
+  " deportivo": ""
 
   # Central & Eastern Europe (Balkans, Czech, Poland, etc.)
   "nk ": ""
@@ -81,6 +83,7 @@ acronyms:
 
 team_shorts:
   "man utd": "manchester united"
+  "psv": "psv eindhoven"
   "inter": "inter milano"
   "man city": "manchester city"
   "psg": "paris saint germain"
