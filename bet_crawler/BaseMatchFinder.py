@@ -32,6 +32,7 @@ class BaseMatchFinder():
         super().__init__()
         self.add_match_callback = add_match_callback
         # Common state used by finders
+        # TODO - useless
         self._scanned_matches = 0
         self._stop_logging = False
         self.web_scraper: Optional[WebScraper] = None

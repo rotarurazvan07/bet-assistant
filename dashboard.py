@@ -1,12 +1,9 @@
 from io import StringIO
 import dash
-from dash import dcc, html, Input, Output, State, dash_table, callback_context
 import dash_bootstrap_components as dbc
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
-from typing import Dict, Any
-from itertools import combinations
-
+from dash import dcc, html, Input, Output, State, dash_table, callback_context, ALL
 from bet_framework.MatchAnalyzer import MatchAnalyzer
 
 class MatchesDashboard:
@@ -120,7 +117,7 @@ class MatchesDashboard:
 
         return filtered_df
 
-    def _create_bet_builder(self, df, leg_count, min_odds_val):
+    def _create_bet_builder(self, df, leg_count, min_odds_val, excluded_matches=None):
         if df.empty:
             return [dbc.Alert("No matches match criteria.", color="warning")], []
 
@@ -132,47 +129,155 @@ class MatchesDashboard:
 
         all_options = []
         for _, row in df.iterrows():
+            match_name = f"{row['home']} vs {row['away']}"
+
+            if excluded_matches and match_name in excluded_matches:
+                continue
+
             match_obj = self.matches_dict.get(row['match_id'])
             odds_obj = getattr(match_obj, 'odds', None)
             odds_values = {
-                '1': getattr(odds_obj, 'home', 1.0), 'X': getattr(odds_obj, 'draw', 1.0), '2': getattr(odds_obj, 'away', 1.0),
-                'Over 2.5': getattr(odds_obj, 'over', 1.0), 'Under 2.5': getattr(odds_obj, 'under', 1.0),
-                'BTTS Yes': getattr(odds_obj, 'btts_y', 1.0), 'BTTS No': getattr(odds_obj, 'btts_n', 1.0)
+                '1': getattr(odds_obj, 'home', 0.0), 'X': getattr(odds_obj, 'draw', 0.0), '2': getattr(odds_obj, 'away', 0.0),
+                'Over 2.5': getattr(odds_obj, 'over', 0.0), 'Under 2.5': getattr(odds_obj, 'under', 0.0),
+                'BTTS Yes': getattr(odds_obj, 'btts_y', 0.0), 'BTTS No': getattr(odds_obj, 'btts_n', 0.0)
             }
 
             for prob_col, label in markets:
-                odds = odds_values.get(label, 1.0)
-                if odds >= (min_odds_val or 0):
+                odds = odds_values.get(label, 0.0)
+
+                # --- CHANGE: Remove 'odds > 0' requirement ---
+                # We now allow markets with 0.0 odds as long as confidence is >= 50%
+                if row[prob_col] >= 50:
                     all_options.append({
-                        'match': f"{row['home']} vs {row['away']}",
+                        'match': match_name,
                         'market': label,
-                        'prob': row[prob_col],
-                        'odds': odds
+                        'prob': float(row[prob_col]),
+                        'odds': float(odds)
                     })
 
         if not all_options:
             return [dbc.Alert("No markets found.", color="info")], []
 
         builder_df = pd.DataFrame(all_options)
-        # Sort: Confidence (Desc) then Odds (Desc)
-        builder_df = builder_df.sort_values(by=['prob', 'odds'], ascending=[False, False]).head(leg_count)
 
-        current_odds = builder_df['odds'].tolist()
+        # 1. APPLY MIN ODDS FILTER (Only for Primaries)
+        # Primaries MUST still have valid odds to meet the min_odds_val requirement
+        primary_candidates = builder_df[builder_df['odds'] >= (min_odds_val or 0)]
 
-        slip_items = [
-            html.Div([
-                html.Small(row['match'], className="text-muted d-block"),
-                html.Div([
-                    html.B(row['market']),
-                    html.Span(f" @{row['odds']:.2f}", className="float-end text-primary fw-bold")
-                ]),
-                html.Div([
-                    html.Span("Confidence: ", className="text-muted", style={"fontSize": "0.75rem"}),
-                    html.B(f"{row['prob']}%", style={"color": "#27ae60", "fontSize": "0.8rem"})
-                ], className="mt-1"),
-                html.Hr(style={"borderTop": "1px dashed #ddd", "margin": "8px 0"})
-            ]) for _, row in builder_df.iterrows()
-        ]
+        if primary_candidates.empty:
+            return [dbc.Alert("No matches meet the minimum odds.", color="warning")], []
+
+        # 2. THE STABLE SORT
+        primary_candidates = primary_candidates.sort_values(
+            by=['prob', 'odds'],
+            ascending=[False, False]
+        ).reset_index(drop=True)
+
+        # 3. SELECT UNIQUE MATCHES
+        primaries = []
+        seen_matches = set()
+
+        for _, row in primary_candidates.iterrows():
+            if len(primaries) >= (leg_count or 5):
+                break
+            if row['match'] not in seen_matches:
+                primaries.append(row.to_dict())
+                seen_matches.add(row['match'])
+
+        # 4. CONFIDENCE FLOOR
+        confidence_floor = 50
+
+        # 5. GROUPING
+        grouped_selections = []
+        for p_bet in primaries:
+            match_pool = builder_df[builder_df['match'] == p_bet['match']]
+
+            secondaries = match_pool[
+                (match_pool['market'] != p_bet['market']) &
+                (match_pool['prob'] >= confidence_floor)
+            ].sort_values(by='prob', ascending=False).to_dict('records')
+
+            grouped_selections.append({
+                'primary': p_bet,
+                'secondary': secondaries
+            })
+
+        current_odds = [g['primary']['odds'] for g in grouped_selections]
+        slip_items = []
+
+        for i, group in enumerate(grouped_selections):
+            p = group['primary']
+            s_list = group['secondary']
+
+            def create_primary_block(bet_data):
+                conf = bet_data['prob']
+                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
+                # Primary will always have odds due to the filter above, but safety check:
+                odds_val = bet_data['odds']
+                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
+                odds_bg = "bg-primary" if odds_val > 0 else "bg-secondary"
+
+                return html.Div([
+                    dbc.Row([
+                        dbc.Col(html.Span(bet_data['market'], className="fw-bold fs-6 text-dark"), width=8),
+                        dbc.Col(html.Div(odds_display, className=f"badge {odds_bg} fs-6 float-end"), width=4)
+                    ], className="align-items-center mb-1"),
+                    html.Div([
+                        html.Small("Confidence", className="text-muted me-2", style={"fontSize": "0.7rem"}),
+                        html.Small(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}),
+                    ], className="d-flex align-items-center mb-1"),
+                    dbc.Progress(value=conf, color=color, style={"height": "6px"}, className="rounded-pill mb-2"),
+                ], className="bg-light p-2 rounded-2")
+
+            def create_alternative_row(bet_data):
+                conf = bet_data['prob']
+                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
+
+                # Handle 0.0 odds as N/A
+                odds_val = bet_data['odds']
+                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
+                odds_color = "text-primary" if odds_val > 0 else "text-muted"
+
+                return dbc.Row([
+                    # 1. Market (Width 3)
+                    dbc.Col(html.Span(bet_data['market'], className="fw-medium text-dark", style={"fontSize": "0.75rem"}), width=3),
+
+                    # 2. Progress Bar (Width 5) - Increased width slightly to be visible
+                    dbc.Col(
+                        dbc.Progress(value=conf, color=color, style={"height": "5px"}, className="rounded-pill w-100"),
+                        width=5, className="d-flex align-items-center"
+                    ),
+
+                    # 3. Confidence % (Width 2)
+                    dbc.Col(html.Span(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}), width=2, className="ps-1"),
+
+                    # 4. Odds (Width 2)
+                    dbc.Col(html.Span(odds_display, className=f"fw-bold {odds_color}", style={"fontSize": "0.75rem"}), width=2, className="text-end"),
+                ], className="align-items-center g-0 mb-1 pt-1 border-top border-light-subtle")
+
+            selection_card = dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col(html.H5(p['match'], className="fw-bold text-dark mb-0", style={"fontSize": "1.1rem"}), width=10),
+                        dbc.Col(
+                            dbc.Button(
+                                html.I(className="fas fa-times"),
+                                id={'type': 'exclude-btn', 'index': p['match']},
+                                color="link", size="sm", className="p-0 text-muted text-decoration-none"
+                            ), width=2, className="text-end"
+                        )
+                    ], className="mb-2 align-items-center"),
+
+                    create_primary_block(p),
+
+                    html.Div(
+                        [create_alternative_row(alt) for alt in s_list[:2]]
+                        if s_list else None
+                    ),
+                ], className="p-2")
+            ], className="mb-2 shadow-sm border-0 rounded-3", style={"backgroundColor": "#f8f9fa"})
+
+            slip_items.append(selection_card)
 
         return slip_items, current_odds
 
@@ -180,7 +285,7 @@ class MatchesDashboard:
         self.app.layout = dbc.Container([
             dcc.Store(id="current-match-id"),
             dcc.Store(id="max-sources", data=10),
-
+            dcc.Store(id="excluded-matches-store", data=[]),
             # Header with gradient
             dbc.Row([
                 dbc.Col([
@@ -426,14 +531,21 @@ class MatchesDashboard:
 
         cols = ['match_id', 'datetime', 'home', 'away', 'discrepancy', 'discrepancy_pct', 'quick_suggestion']
         display_df = df[cols].copy()
+        base_url = "https://superbet.ro/cautare?query="
 
+        display_df['home'] = display_df['home'].apply(
+            lambda x: f"[{x}]({base_url}{x.replace(' ', '%20')})"
+        )
+        display_df['away'] = display_df['away'].apply(
+            lambda x: f"[{x}]({base_url}{x.replace(' ', '%20')})"
+        )
         return dash_table.DataTable(
             id={'type': 'match-table', 'index': 'discrepancy'},
             columns=[
                 {"name": "", "id": "match_id"},
                 {"name": "Date & Time", "id": "datetime"},
-                {"name": "Home Team", "id": "home"},
-                {"name": "Away Team", "id": "away"},
+                {"name": "Home Team", "id": "home", "presentation": "markdown"},
+                {"name": "Away Team", "id": "away", "presentation": "markdown"},
                 {"name": "Discrepancy", "id": "discrepancy", "type": "numeric"},
                 {"name": "Disc %", "id": "discrepancy_pct", "type": "numeric"},
                 {"name": "Quick Suggestion", "id": "quick_suggestion"},
@@ -762,28 +874,71 @@ class MatchesDashboard:
              Input("min-sources-slider", "value"),
              Input("builder-leg-count", "value"),
              Input("builder-min-odds", "value"),
-             Input("main-tabs", "active_tab")],
-            [State("sys-type", "value")] # Memory logic: remember current selections
+             Input("main-tabs", "active_tab"),
+             Input("excluded-matches-store", "data")], # NEW INPUT
+            [State("sys-type", "value")]
         )
-        def update_builder_logic(data_json, search_text, date_from, date_to, min_sources, leg_count, min_odds, active_tab, current_selected_ks):
+        def update_builder_logic(data_json, search_text, date_from, date_to, min_sources, leg_count, min_odds, active_tab, excluded_matches, current_selected_ks):
             if not data_json or active_tab != "tab-builder":
                 return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
             df = pd.read_json(StringIO(data_json), orient='split')
             df = self._apply_common_filters(df, search_text, date_from, date_to, min_sources)
 
-            slip_html, odds_list = self._create_bet_builder(df, leg_count or 5, min_odds or 1.2)
+            # Pass excluded_matches to the function
+            slip_html, odds_list = self._create_bet_builder(df, leg_count or 5, min_odds or 1.2, excluded_matches)
 
             n = len(odds_list)
             new_options = [{'label': f'System {k}/{n}', 'value': k} for k in range(1, n + 1)]
 
-            # Intelligent Checking: Keep old selections only if they still exist in the new leg count
             if current_selected_ks:
                 updated_selection = [k for k in current_selected_ks if k <= n]
             else:
                 updated_selection = [n] if n > 0 else []
 
             return slip_html, odds_list, new_options, updated_selection
+
+        @self.app.callback(
+            Output("excluded-matches-store", "data"),
+            Input({'type': 'exclude-btn', 'index': ALL}, 'n_clicks'),
+            State("excluded-matches-store", "data"),
+            prevent_initial_call=True
+        )
+        def exclude_match(n_clicks_list, current_excluded):
+            ctx = callback_context
+            if not ctx.triggered:
+                return dash.no_update
+
+            triggered_prop = ctx.triggered[0]['prop_id']
+
+            if ".n_clicks" not in triggered_prop:
+                return dash.no_update
+
+            import json
+            try:
+                id_str = triggered_prop.split('.n_clicks')[0]
+                triggered_id = json.loads(id_str)
+                match_to_exclude = triggered_id['index']
+            except Exception as e:
+                print(f"Error parsing trigger ID: {e}")
+                return dash.no_update
+
+            triggered_index = -1
+            for i, input_def in enumerate(ctx.inputs_list[0]):
+                if input_def['id']['index'] == match_to_exclude:
+                    triggered_index = i
+                    break
+
+            if triggered_index == -1 or not n_clicks_list[triggered_index]:
+                return dash.no_update
+
+            current_excluded = current_excluded or []
+            if match_to_exclude not in current_excluded:
+                new_excluded = current_excluded.copy()
+                new_excluded.append(match_to_exclude)
+                return new_excluded
+
+            return dash.no_update
 
         @self.app.callback(
             Output("sys-results-output", "children"),
@@ -807,9 +962,21 @@ class MatchesDashboard:
             stake_per_bet = total_stake / total_bets_count
             total_max_payout = 0
 
+            # 2. Calculate Max Payout (All picks win)
+            total_max_payout = 0
             for sys in system_details:
                 sys_payout = sum([stake_per_bet * pd.Series(c).prod() for c in sys['combos']])
                 total_max_payout += sys_payout
+
+            # 3. Calculate Min Payout (Only the minimum required picks with the lowest odds win)
+            # Find the smallest 'k' selected by the user
+            min_k_required = min(k_list)
+            # Sort odds from lowest to highest
+            sorted_odds = sorted(odds_list)
+            # Take the lowest 'k' odds
+            lowest_odds_combo = sorted_odds[:min_k_required]
+            # Min payout is that one specific combination (at the stake per bet)
+            min_potential_payout = stake_per_bet * pd.Series(lowest_odds_combo).prod()
 
             summary_rows = [
                 html.Tr([
@@ -829,9 +996,17 @@ class MatchesDashboard:
                     html.Div([html.Span("Total Bets: "), html.B(total_bets_count)], className="d-flex justify-content-between"),
                     html.Div([html.Span("Stake/Bet: "), html.B(f"${stake_per_bet:.2f}")], className="d-flex justify-content-between"),
                     html.Hr(),
-                    html.Div([html.Span("MAX POTENTIAL PAYOUT: ", className="fw-bold"),
-                              html.B(f"${total_max_payout:.2f}", style={"fontSize": "1.2rem"})],
-                             className="d-flex justify-content-between align-items-center text-success"),
+                    # Added Min Payout
+                    html.Div([
+                        html.Span("MIN POTENTIAL PAYOUT: ", className="fw-bold"),
+                        html.B(f"${min_potential_payout:.2f}")
+                    ], className="d-flex justify-content-between align-items-center text-warning mb-1"),
+
+                    # Max Payout
+                    html.Div([
+                        html.Span("MAX POTENTIAL PAYOUT: ", className="fw-bold"),
+                        html.B(f"${total_max_payout:.2f}", style={"fontSize": "1.2rem"})
+                    ], className="d-flex justify-content-between align-items-center text-success"),
                 ], color="light", className="border-0 shadow-sm p-3")
             ])
 
