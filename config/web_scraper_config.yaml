@@ -1,0 +1,18 @@
+# New: simplified web_scraper defaults used by BaseMatchFinder.get_web_scraper
+web_scraper:
+  headless: true
+  stealth_mode: true
+  max_retries: 6
+  min_request_delay: 0.5
+  detection_keywords:
+    - "Just a moment"
+  # Optional profiles for different scraping strategies
+  profiles:
+    slow:
+      max_retries: 6
+      min_request_delay: 1.0
+    fast:
+      max_retries: 4
+      min_request_delay: 0.05
+  min_content_length: 1000
+

@@ -1,0 +1,65 @@
+markets:
+
+  match_result:
+    market: MATCH_RESULT
+    period: FULL_TIME
+    patterns:
+      # Away / Home (explicit)
+      - regex: "\\baway\\s+win\\b"
+        selection: AWAY
+
+      - regex: "\\bhome\\s+win\\b"
+        selection: HOME
+
+      # Draw
+      - regex: "\\bdraw\\b|\\bmatch\\s+draw\\b|\\bx\\b"
+        selection: DRAW
+
+
+  over_under_goals:
+    market: OVER_UNDER_GOALS
+    period: FULL_TIME
+    patterns:
+      - regex: "\\bover\\s*(?P<line>\\d+(?:\\.\\d+)?)\\s*goals?\\b"
+        selection: OVER
+      - regex: "\\bunder\\s*(?P<line>\\d+(?:\\.\\d+)?)\\s*goals?\\b"
+        selection: UNDER
+
+
+  btts:
+    market: BTTS
+    period: FULL_TIME
+    patterns:
+      - regex: "\\bbtts\\b\\s*yes\\b|both\\s+teams\\s+to\\s+score\\b.*yes\\b"
+        selection: YES
+      - regex: "\\bbtts\\b\\s*no\\b|both\\s+teams\\s+to\\s+score\\b.*no\\b"
+        selection: NO
+
+  goalscorer:
+    market: GOALSCORER
+    period: ANYTIME
+    patterns:
+      - regex: "(?P<player>[a-zA-ZÀ-ž\\s\\-']+)\\s+to\\s+score"
+        selection: YES
+      - regex: "anytime\\s+goalscorer:\\s*(?P<player>[a-zA-ZÀ-ž\\s\\-']+)"
+        selection: YES
+
+
+  over_under_corners:
+    market: OVER_UNDER_CORNERS
+    period: FULL_TIME
+    patterns:
+      - regex: "\\bover\\s*(?P<line>\\d+(?:\\.\\d+)?)\\s*corners?\\b"
+        selection: OVER
+      - regex: "\\bunder\\s*(?P<line>\\d+(?:\\.\\d+)?)\\s*corners?\\b"
+        selection: UNDER
+
+
+  over_under_cards:
+    market: OVER_UNDER_CARDS
+    period: FULL_TIME
+    patterns:
+      - regex: "\\bover\\s*(?P<line>\\d+(?:\\.\\d+)?)\\s*cards?\\b"
+        selection: OVER
+      - regex: "\\bunder\\s*(?P<line>\\d+(?:\\.\\d+)?)\\s*cards?\\b"
+        selection: UNDER
