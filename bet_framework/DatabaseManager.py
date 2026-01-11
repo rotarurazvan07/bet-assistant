@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 import json
 from typing import Optional
+import pandas as pd
 
 from bet_framework.SimilarityEngine import SimilarityEngine
 
@@ -54,6 +55,18 @@ class DatabaseManager:
                 odds TEXT
             )
         ''')
+
+        # Create indexes for fast read performance
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_datetime ON matches(datetime)
+        ''')
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)
+        ''')
+        self.conn.execute('''
+            CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)
+        ''')
+
         self.conn.commit()
 
     def _serialize_json(self, obj):
@@ -131,24 +144,90 @@ class DatabaseManager:
             odds=odds
         )
 
-    def fetch_matches(self):
-        """Fetch all matches from the database."""
-        cursor = self.conn.execute('SELECT * FROM matches')
-        matches = []
-        for row in cursor:
-            matches.append(self._row_to_match(row))
-        return matches
+    def fetch_matches(self) -> pd.DataFrame:
+        """
+        Optimized method to fetch matches directly as a DataFrame.
+        Skips Match object creation and only deserializes fields needed by BettingAnalyzer.
+
+        This is MUCH faster than fetch_matches() -> Match objects -> DataFrame conversion.
+        """
+        # Only select columns we actually need - skip statistics which are heavy
+        cursor = self.conn.execute('''
+            SELECT
+                home_team_name,
+                home_team_league_points,
+                home_team_form,
+                away_team_name,
+                away_team_league_points,
+                away_team_form,
+                datetime,
+                h2h,
+                predictions_scores,
+                predictions_probabilities,
+                odds
+            FROM matches
+            ORDER BY datetime DESC
+        ''')
+
+        rows = cursor.fetchall()
+
+        if not rows:
+            return pd.DataFrame()
+
+        # Build DataFrame rows with minimal deserialization
+        data = []
+        for row in rows:
+            try:
+                # Basic fields (no deserialization needed)
+                home_name = row['home_team_name']
+                away_name = row['away_team_name']
+                home_lp = row['home_team_league_points'] or 0
+                away_lp = row['away_team_league_points'] or 0
+                home_form = row['home_team_form'] or ''
+                away_form = row['away_team_form'] or ''
+                dt_str = row['datetime']
+                dt = datetime.fromisoformat(dt_str)
+
+                # Deserialize only what we need
+                h2h_data = self._deserialize_json(row['h2h']) if row['h2h'] else None
+                scores_data = self._deserialize_json(row['predictions_scores']) if row['predictions_scores'] else []
+                probs_data = self._deserialize_json(row['predictions_probabilities']) if row['predictions_probabilities'] else []
+                odds_data = self._deserialize_json(row['odds']) if row['odds'] else None
+
+                data.append({
+                    'home_name': home_name,
+                    'away_name': away_name,
+                    'home_league_points': home_lp,
+                    'away_league_points': away_lp,
+                    'home_form': home_form,
+                    'away_form': away_form,
+                    'datetime': dt,
+                    'h2h': h2h_data,
+                    'scores': scores_data,
+                    'probabilities': probs_data,
+                    'odds': odds_data,
+                })
+
+            except Exception as e:
+                print(f"Error processing row: {e}")
+                continue
+
+        return pd.DataFrame(data)
 
     def _find_match(self, match_name, match_date):
         """Find a match by name and date using similarity matching."""
-        cursor = self.conn.execute('SELECT * FROM matches')
-        for row in cursor:
-            row_datetime = datetime.fromisoformat(row['datetime'])
+        # Optimized: Use date filter in SQL first, then iterate only on matching dates
+        date_str = match_date.date().isoformat()
 
-            if abs((match_date.date() - row_datetime.date()).days) <= 1:
-                db_match_name = f"{row['home_team_name']} vs {row['away_team_name']}"
-                if self.similarity_engine.is_similar(db_match_name, match_name):
-                    return dict(row), row['id']
+        cursor = self.conn.execute('''
+            SELECT * FROM matches
+            WHERE date(datetime) BETWEEN date(?, '-1 day') AND date(?, '+1 day')
+        ''', (date_str, date_str))
+
+        for row in cursor:
+            db_match_name = f"{row['home_team_name']} vs {row['away_team_name']}"
+            if self.similarity_engine.is_similar(db_match_name, match_name):
+                return dict(row), row['id']
         return None, None
 
     def update_match(self, match_name=None, match_date=None, tip=None, score=None, probability=None, match_id=None):

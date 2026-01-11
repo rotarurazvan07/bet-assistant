@@ -4,16 +4,14 @@ import dash_bootstrap_components as dbc
 from datetime import datetime
 import pandas as pd
 from dash import dcc, html, Input, Output, State, dash_table, callback_context, ALL
-from bet_framework.MatchAnalyzer import MatchAnalyzer
+from bet_framework.BettingAnalyzer import BettingAnalyzer
 
 class MatchesDashboard:
-    """Dashboard for visualizing betting matches."""
+    """Dashboard for visualizing betting matches - optimized to work with BettingAnalyzer DataFrame."""
 
     def __init__(self, database_manager):
         self.db_manager = database_manager
-        self.matches = []
-        self.matches_dict = {}
-        self.analyzer = MatchAnalyzer()
+        self.analyzer = BettingAnalyzer(database_manager)
         self.app = dash.Dash(
             __name__,
             external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
@@ -22,270 +20,19 @@ class MatchesDashboard:
         self._setup_layout()
         self._setup_callbacks()
 
-    def refresh_data(self):
-        self.matches = self.db_manager.fetch_matches()
-        self.matches_dict = {}
-        return self._prepare_table_data()
-
     def _format_tip_cell(self, percentage, odds):
         """Format a tip cell with percentage and odds."""
         if odds is not None and odds >= 1:
             return f"{percentage}%\n{odds:.2f}"
         return f"{percentage}%"
 
-    def _prepare_table_data(self) -> pd.DataFrame:
-        """Prepare table data with stable match IDs based on match properties."""
-        data = []
-        for idx, match in enumerate(self.matches):
-            # Create stable match_id using match properties instead of id()
-            match_key = f"{match.home_team.name}_{match.away_team.name}_{getattr(match, 'datetime', datetime.now()).isoformat()}"
-            match_id = f"match_{idx}_{hash(match_key)}"
-            self.matches_dict[match_id] = match
-
-            try:
-                analysis = self.analyzer.analyze_match(match)
-                discrepancy = analysis['discrepancy']['score']
-                suggestions = analysis['suggestions']
-
-                preds = getattr(match, 'predictions', None)
-                scores = preds.scores if preds and getattr(preds, 'scores', None) else []
-                unique_sources = len(set(getattr(s, 'source', '') for s in scores if getattr(s, 'source', None)))
-
-                dt = getattr(match, 'datetime', datetime.now())
-
-                # Get odds
-                odds = getattr(match, 'odds', None)
-
-                data.append({
-                    'match_id': match_id,
-                    'datetime': dt.strftime('%Y-%m-%d %H:%M'),
-                    'home': match.home_team.name,
-                    'away': match.away_team.name,
-                    'discrepancy': round(discrepancy, 2),
-                    'discrepancy_pct': analysis['discrepancy']['pct'],
-                    'quick_suggestion': analysis['discrepancy']['suggestion'],
-                    'sources': unique_sources,
-                    'result_home': suggestions['result']['home'],
-                    'result_draw': suggestions['result']['draw'],
-                    'result_away': suggestions['result']['away'],
-                    'over': suggestions['over_under_2.5']['over'],
-                    'under': suggestions['over_under_2.5']['under'],
-                    'btts_yes': suggestions['btts']['yes'],
-                    'btts_no': suggestions['btts']['no'],
-                    'timestamp': dt,
-                    # Add odds with formatting
-                    'result_home_display': self._format_tip_cell(suggestions['result']['home'], odds.home if odds else None),
-                    'result_draw_display': self._format_tip_cell(suggestions['result']['draw'], odds.draw if odds else None),
-                    'result_away_display': self._format_tip_cell(suggestions['result']['away'], odds.away if odds else None),
-                    'over_display': self._format_tip_cell(suggestions['over_under_2.5']['over'], odds.over if odds else None),
-                    'under_display': self._format_tip_cell(suggestions['over_under_2.5']['under'], odds.under if odds else None),
-                    'btts_yes_display': self._format_tip_cell(suggestions['btts']['yes'], odds.btts_y if odds else None),
-                    'btts_no_display': self._format_tip_cell(suggestions['btts']['no'], odds.btts_n if odds else None),
-                })
-            except Exception as e:
-                print(f"Error processing match {match_id}: {e}")
-                continue
-
-        return pd.DataFrame(data)
-
-    def _apply_common_filters(self, df, search_text=None, date_from=None, date_to=None, min_sources=None):
-        """Apply common filters to dataframe and return filtered result."""
-        if df.empty:
-            return df
-
-        filtered_df = df.copy()
-
-        # Apply search filter
-        if search_text:
-            mask = filtered_df['home'].str.contains(search_text, case=False, na=False) | \
-                   filtered_df['away'].str.contains(search_text, case=False, na=False)
-            filtered_df = filtered_df[mask]
-
-        # Apply date filters - inclusive of both start and end dates
-        if date_from:
-            # Start of the day for date_from
-            filtered_df = filtered_df[filtered_df['timestamp'] >= pd.to_datetime(date_from)]
-
-        if date_to:
-            # End of the day for date_to (add 1 day minus 1 second)
-            end_date = pd.to_datetime(date_to) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-            filtered_df = filtered_df[filtered_df['timestamp'] <= end_date]
-
-        # Apply sources filter
-        if min_sources and min_sources > 1:
-            filtered_df = filtered_df[filtered_df['sources'] >= min_sources]
-
-        return filtered_df
-
-    def _create_bet_builder(self, df, leg_count, min_odds_val, excluded_matches=None):
-        if df.empty:
-            return [dbc.Alert("No matches match criteria.", color="warning")], []
-
-        markets = [
-            ('result_home', '1'), ('result_draw', 'X'), ('result_away', '2'),
-            ('over', 'Over 2.5'), ('under', 'Under 2.5'),
-            ('btts_yes', 'BTTS Yes'), ('btts_no', 'BTTS No')
-        ]
-
-        all_options = []
-        for _, row in df.iterrows():
-            match_name = f"{row['home']} vs {row['away']}"
-
-            if excluded_matches and match_name in excluded_matches:
-                continue
-
-            match_obj = self.matches_dict.get(row['match_id'])
-            odds_obj = getattr(match_obj, 'odds', None)
-            odds_values = {
-                '1': getattr(odds_obj, 'home', 0.0), 'X': getattr(odds_obj, 'draw', 0.0), '2': getattr(odds_obj, 'away', 0.0),
-                'Over 2.5': getattr(odds_obj, 'over', 0.0), 'Under 2.5': getattr(odds_obj, 'under', 0.0),
-                'BTTS Yes': getattr(odds_obj, 'btts_y', 0.0), 'BTTS No': getattr(odds_obj, 'btts_n', 0.0)
-            }
-
-            for prob_col, label in markets:
-                odds = odds_values.get(label, 0.0)
-
-                # --- CHANGE: Remove 'odds > 0' requirement ---
-                # We now allow markets with 0.0 odds as long as confidence is >= 50%
-                if row[prob_col] >= 50:
-                    all_options.append({
-                        'match': match_name,
-                        'market': label,
-                        'prob': float(row[prob_col]),
-                        'odds': float(odds)
-                    })
-
-        if not all_options:
-            return [dbc.Alert("No markets found.", color="info")], []
-
-        builder_df = pd.DataFrame(all_options)
-
-        # 1. APPLY MIN ODDS FILTER (Only for Primaries)
-        # Primaries MUST still have valid odds to meet the min_odds_val requirement
-        primary_candidates = builder_df[builder_df['odds'] >= (min_odds_val or 0)]
-
-        if primary_candidates.empty:
-            return [dbc.Alert("No matches meet the minimum odds.", color="warning")], []
-
-        # 2. THE STABLE SORT
-        primary_candidates = primary_candidates.sort_values(
-            by=['prob', 'odds'],
-            ascending=[False, False]
-        ).reset_index(drop=True)
-
-        # 3. SELECT UNIQUE MATCHES
-        primaries = []
-        seen_matches = set()
-
-        for _, row in primary_candidates.iterrows():
-            if len(primaries) >= (leg_count or 5):
-                break
-            if row['match'] not in seen_matches:
-                primaries.append(row.to_dict())
-                seen_matches.add(row['match'])
-
-        # 4. CONFIDENCE FLOOR
-        confidence_floor = 50
-
-        # 5. GROUPING
-        grouped_selections = []
-        for p_bet in primaries:
-            match_pool = builder_df[builder_df['match'] == p_bet['match']]
-
-            secondaries = match_pool[
-                (match_pool['market'] != p_bet['market']) &
-                (match_pool['prob'] >= confidence_floor)
-            ].sort_values(by='prob', ascending=False).to_dict('records')
-
-            grouped_selections.append({
-                'primary': p_bet,
-                'secondary': secondaries
-            })
-
-        current_odds = [g['primary']['odds'] for g in grouped_selections]
-        slip_items = []
-
-        for i, group in enumerate(grouped_selections):
-            p = group['primary']
-            s_list = group['secondary']
-
-            def create_primary_block(bet_data):
-                conf = bet_data['prob']
-                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
-                # Primary will always have odds due to the filter above, but safety check:
-                odds_val = bet_data['odds']
-                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
-                odds_bg = "bg-primary" if odds_val > 0 else "bg-secondary"
-
-                return html.Div([
-                    dbc.Row([
-                        dbc.Col(html.Span(bet_data['market'], className="fw-bold fs-6 text-dark"), width=8),
-                        dbc.Col(html.Div(odds_display, className=f"badge {odds_bg} fs-6 float-end"), width=4)
-                    ], className="align-items-center mb-1"),
-                    html.Div([
-                        html.Small("Confidence", className="text-muted me-2", style={"fontSize": "0.7rem"}),
-                        html.Small(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}),
-                    ], className="d-flex align-items-center mb-1"),
-                    dbc.Progress(value=conf, color=color, style={"height": "6px"}, className="rounded-pill mb-2"),
-                ], className="bg-light p-2 rounded-2")
-
-            def create_alternative_row(bet_data):
-                conf = bet_data['prob']
-                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
-
-                # Handle 0.0 odds as N/A
-                odds_val = bet_data['odds']
-                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
-                odds_color = "text-primary" if odds_val > 0 else "text-muted"
-
-                return dbc.Row([
-                    # 1. Market (Width 3)
-                    dbc.Col(html.Span(bet_data['market'], className="fw-medium text-dark", style={"fontSize": "0.75rem"}), width=3),
-
-                    # 2. Progress Bar (Width 5) - Increased width slightly to be visible
-                    dbc.Col(
-                        dbc.Progress(value=conf, color=color, style={"height": "5px"}, className="rounded-pill w-100"),
-                        width=5, className="d-flex align-items-center"
-                    ),
-
-                    # 3. Confidence % (Width 2)
-                    dbc.Col(html.Span(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}), width=2, className="ps-1"),
-
-                    # 4. Odds (Width 2)
-                    dbc.Col(html.Span(odds_display, className=f"fw-bold {odds_color}", style={"fontSize": "0.75rem"}), width=2, className="text-end"),
-                ], className="align-items-center g-0 mb-1 pt-1 border-top border-light-subtle")
-
-            selection_card = dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col(html.H5(p['match'], className="fw-bold text-dark mb-0", style={"fontSize": "1.1rem"}), width=10),
-                        dbc.Col(
-                            dbc.Button(
-                                html.I(className="fas fa-times"),
-                                id={'type': 'exclude-btn', 'index': p['match']},
-                                color="link", size="sm", className="p-0 text-muted text-decoration-none"
-                            ), width=2, className="text-end"
-                        )
-                    ], className="mb-2 align-items-center"),
-
-                    create_primary_block(p),
-
-                    html.Div(
-                        [create_alternative_row(alt) for alt in s_list[:2]]
-                        if s_list else None
-                    ),
-                ], className="p-2")
-            ], className="mb-2 shadow-sm border-0 rounded-3", style={"backgroundColor": "#f8f9fa"})
-
-            slip_items.append(selection_card)
-
-        return slip_items, current_odds
-
     def _setup_layout(self):
         self.app.layout = dbc.Container([
             dcc.Store(id="current-match-id"),
             dcc.Store(id="max-sources", data=10),
             dcc.Store(id="excluded-matches-store", data=[]),
+            dcc.Store(id="matches-data-store"),  # Stores the full DataFrame as JSON
+
             # Header with gradient
             dbc.Row([
                 dbc.Col([
@@ -418,7 +165,6 @@ class MatchesDashboard:
                         className="nav-fill w-100",
                         children=[
                             dbc.Tab(
-                                # Wrap the output in a Div inside the Tab
                                 html.Div(id="discrepancy-table-container", className="mt-3"),
                                 label="⚠️ Discrepancy Analysis",
                                 tab_id='tab-disc',
@@ -434,7 +180,6 @@ class MatchesDashboard:
                             ),
                             dbc.Tab(
                                 html.Div([
-                                    # persistent Store for the odds
                                     dcc.Store(id='builder-current-odds'),
 
                                     # 1. Settings Bar
@@ -456,7 +201,7 @@ class MatchesDashboard:
                                         # Left side: The List of Matches
                                         dbc.Col(dbc.Card([
                                             dbc.CardHeader("🎯 Optimized Bet Slip", className="text-center fw-bold bg-dark text-white"),
-                                            dbc.CardBody(id="builder-output-container", style={ "overflowY": "auto"})
+                                            dbc.CardBody(id="builder-output-container", style={"overflowY": "auto"})
                                         ], className="border-0 shadow-sm"), md=6),
 
                                         # Right side: The Simulator UI
@@ -469,8 +214,8 @@ class MatchesDashboard:
                                                 html.Label("Select System Types:", className="small fw-bold"),
                                                 dbc.Checklist(
                                                     id="sys-type",
-                                                    options=[], # Populated via callback
-                                                    value=[],   # Populated via callback
+                                                    options=[],
+                                                    value=[],
                                                     inline=True,
                                                     switch=True,
                                                     className="mb-3"
@@ -514,14 +259,13 @@ class MatchesDashboard:
                 ),
             ], id="match-modal", size="xl", scrollable=True),
 
-            dcc.Store(id="matches-data-store"),
-
         ], fluid=True, className="p-4", style={
             "background": "linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%)",
             "minHeight": "100vh"
         })
 
     def _create_discrepancy_table(self, df):
+        """Create discrepancy analysis table from DataFrame."""
         if df.empty:
             return dbc.Alert(
                 [html.I(className="fas fa-info-circle me-2"), "No matches found matching your criteria"],
@@ -529,16 +273,18 @@ class MatchesDashboard:
                 className="text-center m-4"
             )
 
-        cols = ['match_id', 'datetime', 'home', 'away', 'discrepancy', 'discrepancy_pct', 'quick_suggestion']
-        display_df = df[cols].copy()
-        base_url = "https://superbet.ro/cautare?query="
+        # Select and prepare columns for display
+        display_df = df[['match_id', 'datetime_str', 'home', 'away', 'discrepancy', 'discrepancy_pct', 'quick_suggestion']].copy()
+        display_df = display_df.rename(columns={'datetime_str': 'datetime'})
 
+        base_url = "https://superbet.ro/cautare?query="
         display_df['home'] = display_df['home'].apply(
             lambda x: f"[{x}]({base_url}{x.replace(' ', '%20')})"
         )
         display_df['away'] = display_df['away'].apply(
             lambda x: f"[{x}]({base_url}{x.replace(' ', '%20')})"
         )
+
         return dash_table.DataTable(
             id={'type': 'match-table', 'index': 'discrepancy'},
             columns=[
@@ -618,6 +364,7 @@ class MatchesDashboard:
         )
 
     def _create_tips_table(self, df):
+        """Create betting tips table from DataFrame."""
         if df.empty:
             return dbc.Alert(
                 [html.I(className="fas fa-info-circle me-2"), "No matches found matching your criteria"],
@@ -625,10 +372,39 @@ class MatchesDashboard:
                 className="text-center m-4"
             )
 
-        cols = ['match_id', 'datetime', 'home', 'away', 'sources', 'result_home', 'result_home_display', 'result_draw',
-                'result_draw_display', 'result_away', 'result_away_display', 'over', 'over_display',
-                'under', 'under_display', 'btts_yes', 'btts_yes_display', 'btts_no', 'btts_no_display']
-        display_df = df[cols].copy()
+        # Prepare display DataFrame with formatted cells
+        display_df = df.copy()
+
+        # Create display columns with odds
+        display_df['result_home_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_home'], row['odds_home']), axis=1
+        )
+        display_df['result_draw_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_draw'], row['odds_draw']), axis=1
+        )
+        display_df['result_away_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_away'], row['odds_away']), axis=1
+        )
+        display_df['over_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_over'], row['odds_over']), axis=1
+        )
+        display_df['under_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_under'], row['odds_under']), axis=1
+        )
+        display_df['btts_yes_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_btts_yes'], row['odds_btts_yes']), axis=1
+        )
+        display_df['btts_no_display'] = display_df.apply(
+            lambda row: self._format_tip_cell(row['prob_btts_no'], row['odds_btts_no']), axis=1
+        )
+
+        cols = ['match_id', 'datetime_str', 'home', 'away', 'sources',
+                'prob_home', 'result_home_display', 'prob_draw', 'result_draw_display',
+                'prob_away', 'result_away_display', 'prob_over', 'over_display',
+                'prob_under', 'under_display', 'prob_btts_yes', 'btts_yes_display',
+                'prob_btts_no', 'btts_no_display']
+
+        display_df = display_df[cols].rename(columns={'datetime_str': 'datetime'})
 
         return dash_table.DataTable(
             id={'type': 'match-table', 'index': 'tips'},
@@ -637,6 +413,7 @@ class MatchesDashboard:
                 {"name": "Date & Time", "id": "datetime"},
                 {"name": "Home Team", "id": "home"},
                 {"name": "Away Team", "id": "away"},
+                {"name": "Sources", "id": "sources"},
                 {"name": "1", "id": "result_home_display"},
                 {"name": "X", "id": "result_draw_display"},
                 {"name": "2", "id": "result_away_display"},
@@ -648,7 +425,7 @@ class MatchesDashboard:
             data=display_df.to_dict('records'),
             sort_action='native',
             sort_mode='multi',
-            sort_by=[{'column_id': 'result_home', 'direction': 'desc'}],
+            sort_by=[{'column_id': 'prob_home', 'direction': 'desc'}],
             style_table={'overflowX': 'auto'},
             style_cell={
                 'textAlign': 'center',
@@ -692,49 +469,25 @@ class MatchesDashboard:
                     'backgroundColor': '#f3e5f5',
                     'border': '2px solid #764ba2'
                 },
+                {'if': {'column_id': 'btts_yes_display'}, 'borderLeft': '3px solid #000000'},
+                {'if': {'column_id': 'over_display'}, 'borderLeft': '3px solid #000000'},
+                {'if': {'column_id': 'result_home_display'}, 'borderLeft': '3px solid #000000'},
 
-                {
-                    'if': {'column_id': 'btts_yes_display'},
-                    'borderLeft': '3px solid #000000'
-                },
-                {
-                    'if': {'column_id': 'over_display'},
-                    'borderLeft': '3px solid #000000'
-                },
-                {
-                    'if': {'column_id': 'result_home_display'},
-                    'borderLeft': '3px solid #000000'
-                },
-
-                # Highlighting based on percentage values (using hidden columns for filtering)
-                {
-                    'if': {'filter_query': '{result_home} >= 80', 'column_id': 'result_home_display'},
-                    'backgroundColor': "#4ce770", 'color': "#073F14", 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{result_draw} >= 80', 'column_id': 'result_draw_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{result_away} >= 80', 'column_id': 'result_away_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{btts_yes} >= 80', 'column_id': 'btts_yes_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{btts_no} >= 80', 'column_id': 'btts_no_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{over} >= 80', 'column_id': 'over_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
-                {
-                    'if': {'filter_query': '{under} >= 80', 'column_id': 'under_display'},
-                    'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'
-                },
+                # Highlighting based on percentage values
+                {'if': {'filter_query': '{prob_home} >= 80', 'column_id': 'result_home_display'},
+                 'backgroundColor': "#4ce770", 'color': "#073F14", 'fontWeight': 'bold'},
+                {'if': {'filter_query': '{prob_draw} >= 80', 'column_id': 'result_draw_display'},
+                 'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'},
+                {'if': {'filter_query': '{prob_away} >= 80', 'column_id': 'result_away_display'},
+                 'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'},
+                {'if': {'filter_query': '{prob_btts_yes} >= 80', 'column_id': 'btts_yes_display'},
+                 'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'},
+                {'if': {'filter_query': '{prob_btts_no} >= 80', 'column_id': 'btts_no_display'},
+                 'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'},
+                {'if': {'filter_query': '{prob_over} >= 80', 'column_id': 'over_display'},
+                 'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'},
+                {'if': {'filter_query': '{prob_under} >= 80', 'column_id': 'under_display'},
+                 'backgroundColor': '#4ce770', 'color': '#073F14', 'fontWeight': 'bold'},
             ],
             css=[{
                 'selector': 'tr:hover td',
@@ -744,25 +497,87 @@ class MatchesDashboard:
             page_action='native',
         )
 
-    def _create_match_detail(self, match):
-        """Create detailed match modal view."""
-        try:
-            analysis = self.analyzer.analyze_match(match)
-            discrepancy = analysis['discrepancy']['score']
-            suggestions = analysis['suggestions']
+    def _create_bet_builder_ui(self, grouped_selections):
+        """Create bet builder UI from grouped selections."""
+        if not grouped_selections:
+            return [dbc.Alert("No matches match criteria.", color="warning")]
 
-            preds = getattr(match, 'predictions', None)
-            scores = preds.scores if preds and getattr(preds, 'scores', None) else []
-            unique_sources = len(set(getattr(s, 'source', '') for s in scores if getattr(s, 'source', None)))
-        except:
-            return html.Div("Error loading match details")
+        slip_items = []
 
+        for group in grouped_selections:
+            p = group['primary']
+            s_list = group['secondary']
+
+            def create_primary_block(bet_data):
+                conf = bet_data['prob']
+                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
+                odds_val = bet_data['odds']
+                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
+                odds_bg = "bg-primary" if odds_val > 0 else "bg-secondary"
+
+                return html.Div([
+                    dbc.Row([
+                        dbc.Col(html.Span(bet_data['market'], className="fw-bold fs-6 text-dark"), width=8),
+                        dbc.Col(html.Div(odds_display, className=f"badge {odds_bg} fs-6 float-end"), width=4)
+                    ], className="align-items-center mb-1"),
+                    html.Div([
+                        html.Small("Confidence", className="text-muted me-2", style={"fontSize": "0.7rem"}),
+                        html.Small(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}),
+                    ], className="d-flex align-items-center mb-1"),
+                    dbc.Progress(value=conf, color=color, style={"height": "6px"}, className="rounded-pill mb-2"),
+                ], className="bg-light p-2 rounded-2")
+
+            def create_alternative_row(bet_data):
+                conf = bet_data['prob']
+                color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
+                odds_val = bet_data['odds']
+                odds_display = f"@{odds_val:.2f}" if odds_val > 0 else "N/A"
+                odds_color = "text-primary" if odds_val > 0 else "text-muted"
+
+                return dbc.Row([
+                    dbc.Col(html.Span(bet_data['market'], className="fw-medium text-dark", style={"fontSize": "0.75rem"}), width=3),
+                    dbc.Col(
+                        dbc.Progress(value=conf, color=color, style={"height": "5px"}, className="rounded-pill w-100"),
+                        width=5, className="d-flex align-items-center"
+                    ),
+                    dbc.Col(html.Span(f"{conf}%", className=f"fw-bold text-{color}", style={"fontSize": "0.7rem"}), width=2, className="ps-1"),
+                    dbc.Col(html.Span(odds_display, className=f"fw-bold {odds_color}", style={"fontSize": "0.75rem"}), width=2, className="text-end"),
+                ], className="align-items-center g-0 mb-1 pt-1 border-top border-light-subtle")
+
+            selection_card = dbc.Card([
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col(html.H5(p['match'], className="fw-bold text-dark mb-0", style={"fontSize": "1.1rem"}), width=10),
+                        dbc.Col(
+                            dbc.Button(
+                                html.I(className="fas fa-times"),
+                                id={'type': 'exclude-btn', 'index': p['match']},
+                                color="link", size="sm", className="p-0 text-muted text-decoration-none"
+                            ), width=2, className="text-end"
+                        )
+                    ], className="mb-2 align-items-center"),
+
+                    create_primary_block(p),
+
+                    html.Div(
+                        [create_alternative_row(alt) for alt in s_list[:2]]
+                        if s_list else None
+                    ),
+                ], className="p-2")
+            ], className="mb-2 shadow-sm border-0 rounded-3", style={"backgroundColor": "#f8f9fa"})
+
+            slip_items.append(selection_card)
+
+        return slip_items
+
+    def _create_match_detail(self, row):
+        """Create detailed match modal view from DataFrame row."""
         return html.Div([
             # Header
             dbc.Card([
                 dbc.CardBody([
-                    html.H3(f"{match.home_team.name} vs {match.away_team.name}", className="text-center mb-2"),
-                    html.H5(match.datetime.strftime('%A, %B %d, %Y at %H:%M'), className="text-center text-white-50"),
+                    html.H3(f"{row['home']} vs {row['away']}", className="text-center mb-2"),
+                    html.H5(row['datetime_str'], className="text-center text-white-50"),
                 ])
             ], className="mb-4 text-white", style={"background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"}),
 
@@ -773,7 +588,7 @@ class MatchesDashboard:
                         dbc.CardBody([
                             html.Div(html.I(className="fas fa-exclamation-triangle fa-2x mb-2 text-warning"), className="text-center"),
                             html.H5("Discrepancy", className="text-center text-muted"),
-                            html.H2(f"{discrepancy:.2f}", className="text-center text-warning mb-0")
+                            html.H2(f"{row['discrepancy']:.2f}", className="text-center text-warning mb-0")
                         ])
                     ], className="shadow-sm h-100")
                 ], md=6),
@@ -783,7 +598,7 @@ class MatchesDashboard:
                         dbc.CardBody([
                             html.Div(html.I(className="fas fa-database fa-2x mb-2 text-primary"), className="text-center"),
                             html.H5("Sources", className="text-center text-muted"),
-                            html.H2(unique_sources, className="text-center text-primary mb-0")
+                            html.H2(int(row['sources']), className="text-center text-primary mb-0")
                         ])
                     ], className="shadow-sm h-100")
                 ], md=6),
@@ -797,9 +612,9 @@ class MatchesDashboard:
                         dbc.Col([
                             html.H6("Result", className="text-center mb-3"),
                             dbc.Progress([
-                                dbc.Progress(value=suggestions['result']['home'], label=f"1: {suggestions['result']['home']}%", color="success", bar=True),
-                                dbc.Progress(value=suggestions['result']['draw'], label=f"X: {suggestions['result']['draw']}%", color="warning", bar=True),
-                                dbc.Progress(value=suggestions['result']['away'], label=f"2: {suggestions['result']['away']}%", color="info", bar=True),
+                                dbc.Progress(value=row['prob_home'], label=f"1: {row['prob_home']}%", color="success", bar=True),
+                                dbc.Progress(value=row['prob_draw'], label=f"X: {row['prob_draw']}%", color="warning", bar=True),
+                                dbc.Progress(value=row['prob_away'], label=f"2: {row['prob_away']}%", color="info", bar=True),
                             ], style={"height": "35px"})
                         ], md=12, className="mb-4"),
                     ]),
@@ -808,16 +623,16 @@ class MatchesDashboard:
                         dbc.Col([
                             html.H6("Over/Under 2.5", className="text-center mb-3"),
                             dbc.Progress([
-                                dbc.Progress(value=suggestions['over_under_2.5']['over'], label=f"Over: {suggestions['over_under_2.5']['over']}%", color="danger", bar=True),
-                                dbc.Progress(value=suggestions['over_under_2.5']['under'], label=f"Under: {suggestions['over_under_2.5']['under']}%", color="primary", bar=True),
+                                dbc.Progress(value=row['prob_over'], label=f"Over: {row['prob_over']}%", color="danger", bar=True),
+                                dbc.Progress(value=row['prob_under'], label=f"Under: {row['prob_under']}%", color="primary", bar=True),
                             ], style={"height": "35px"})
                         ], md=6),
 
                         dbc.Col([
                             html.H6("BTTS", className="text-center mb-3"),
                             dbc.Progress([
-                                dbc.Progress(value=suggestions['btts']['yes'], label=f"Yes: {suggestions['btts']['yes']}%", color="success", bar=True),
-                                dbc.Progress(value=suggestions['btts']['no'], label=f"No: {suggestions['btts']['no']}%", color="secondary", bar=True),
+                                dbc.Progress(value=row['prob_btts_yes'], label=f"Yes: {row['prob_btts_yes']}%", color="success", bar=True),
+                                dbc.Progress(value=row['prob_btts_no'], label=f"No: {row['prob_btts_no']}%", color="secondary", bar=True),
                             ], style={"height": "35px"})
                         ], md=6),
                     ]),
@@ -835,7 +650,8 @@ class MatchesDashboard:
             prevent_initial_call=False
         )
         def refresh_data(n_clicks):
-            df = self.refresh_data()
+            """Refresh data from database - ONLY called on button click or initial load."""
+            df = self.analyzer.refresh_data()
             max_sources = int(df['sources'].max()) if not df.empty else 10
             return df.to_json(date_format='iso', orient='split'), max_sources
 
@@ -859,8 +675,70 @@ class MatchesDashboard:
                 return {"display": "block"}, {"display": "none"}, {"display": "none"}
             elif active_tab == "tab-tips":
                 return {"display": "none"}, {"display": "block"}, {"display": "none"}
-            else: # tab-builder
+            else:  # tab-builder
                 return {"display": "none"}, {"display": "block"}, {"display": "block"}
+
+        @self.app.callback(
+            Output("discrepancy-table-container", "children"),
+            [
+                Input("matches-data-store", "data"),
+                Input("search-input", "value"),
+                Input("date-from", "date"),
+                Input("date-to", "date"),
+                Input("discrepancy-filter-slider", "value"),
+            ]
+        )
+        def update_discrepancy_table(data_json, search_text, date_from, date_to, disc_filter):
+            """Update discrepancy table - works purely from DataFrame, no DB query."""
+            if not data_json:
+                return dbc.Alert(
+                    [html.I(className="fas fa-info-circle me-2"), "No data available. Click Refresh Data to load matches."],
+                    color="warning",
+                    className="m-4"
+                )
+
+            df = pd.read_json(StringIO(data_json), orient='split')
+
+            # Use analyzer's filtering method
+            filtered_df = self.analyzer.get_filtered_matches(
+                search_text=search_text,
+                date_from=date_from,
+                date_to=date_to,
+                min_discrepancy=disc_filter
+            )
+
+            return self._create_discrepancy_table(filtered_df)
+
+        @self.app.callback(
+            Output("tips-table-container", "children"),
+            [
+                Input("matches-data-store", "data"),
+                Input("search-input", "value"),
+                Input("date-from", "date"),
+                Input("date-to", "date"),
+                Input("min-sources-slider", "value"),
+            ]
+        )
+        def update_tips_table(data_json, search_text, date_from, date_to, min_sources):
+            """Update tips table - works purely from DataFrame, no DB query."""
+            if not data_json:
+                return dbc.Alert(
+                    [html.I(className="fas fa-info-circle me-2"), "No data available. Click Refresh Data to load matches."],
+                    color="warning",
+                    className="m-4"
+                )
+
+            df = pd.read_json(StringIO(data_json), orient='split')
+
+            # Use analyzer's filtering method
+            filtered_df = self.analyzer.get_filtered_matches(
+                search_text=search_text,
+                date_from=date_from,
+                date_to=date_to,
+                min_sources=min_sources
+            )
+
+            return self._create_tips_table(filtered_df)
 
         @self.app.callback(
             [Output("builder-output-container", "children"),
@@ -875,18 +753,33 @@ class MatchesDashboard:
              Input("builder-leg-count", "value"),
              Input("builder-min-odds", "value"),
              Input("main-tabs", "active_tab"),
-             Input("excluded-matches-store", "data")], # NEW INPUT
+             Input("excluded-matches-store", "data")],
             [State("sys-type", "value")]
         )
-        def update_builder_logic(data_json, search_text, date_from, date_to, min_sources, leg_count, min_odds, active_tab, excluded_matches, current_selected_ks):
+        def update_builder_logic(data_json, search_text, date_from, date_to, min_sources,
+                                leg_count, min_odds, active_tab, excluded_matches, current_selected_ks):
+            """Update bet builder - works from DataFrame using analyzer's methods."""
             if not data_json or active_tab != "tab-builder":
                 return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
             df = pd.read_json(StringIO(data_json), orient='split')
-            df = self._apply_common_filters(df, search_text, date_from, date_to, min_sources)
 
-            # Pass excluded_matches to the function
-            slip_html, odds_list = self._create_bet_builder(df, leg_count or 5, min_odds or 1.2, excluded_matches)
+            # Use analyzer's bet slip builder
+            grouped_selections = self.analyzer.build_bet_slip(
+                search_text=search_text,
+                date_from=date_from,
+                date_to=date_to,
+                min_sources=min_sources,
+                leg_count=leg_count or 5,
+                min_odds_val=min_odds or 1.2,
+                excluded_matches=excluded_matches
+            )
+
+            if not grouped_selections:
+                return [dbc.Alert("No matches meet criteria.", color="warning")], [], [], []
+
+            slip_html = self._create_bet_builder_ui(grouped_selections)
+            odds_list = [g['primary']['odds'] for g in grouped_selections]
 
             n = len(odds_list)
             new_options = [{'label': f'System {k}/{n}', 'value': k} for k in range(1, n + 1)]
@@ -947,43 +840,19 @@ class MatchesDashboard:
              Input("builder-current-odds", "data")]
         )
         def update_simulator_math(total_stake, k_list, odds_list):
+            """Update system bet simulator - uses analyzer's calculation method."""
             if not odds_list or not total_stake or not k_list:
                 return html.Div("Select system types to calculate.", className="text-muted small")
 
-            from itertools import combinations
-            system_details = []
-            total_bets_count = 0
-
-            for k in sorted(k_list):
-                combos = list(combinations(odds_list, k))
-                total_bets_count += len(combos)
-                system_details.append({'k': k, 'num_bets': len(combos), 'combos': combos})
-
-            stake_per_bet = total_stake / total_bets_count
-            total_max_payout = 0
-
-            # 2. Calculate Max Payout (All picks win)
-            total_max_payout = 0
-            for sys in system_details:
-                sys_payout = sum([stake_per_bet * pd.Series(c).prod() for c in sys['combos']])
-                total_max_payout += sys_payout
-
-            # 3. Calculate Min Payout (Only the minimum required picks with the lowest odds win)
-            # Find the smallest 'k' selected by the user
-            min_k_required = min(k_list)
-            # Sort odds from lowest to highest
-            sorted_odds = sorted(odds_list)
-            # Take the lowest 'k' odds
-            lowest_odds_combo = sorted_odds[:min_k_required]
-            # Min payout is that one specific combination (at the stake per bet)
-            min_potential_payout = stake_per_bet * pd.Series(lowest_odds_combo).prod()
+            # Use analyzer's system bet calculator
+            results = self.analyzer.calculate_system_bet(total_stake, k_list, odds_list)
 
             summary_rows = [
                 html.Tr([
                     html.Td(f"{s['k']}/{len(odds_list)}"),
                     html.Td(s['num_bets']),
-                    html.Td(f"${(s['num_bets'] * stake_per_bet):.2f}")
-                ]) for s in system_details
+                    html.Td(f"${(s['num_bets'] * results['stake_per_bet']):.2f}")
+                ]) for s in results['system_details']
             ]
 
             return html.Div([
@@ -993,72 +862,19 @@ class MatchesDashboard:
                 ], bordered=False, hover=True, size="sm", className="mb-3 small"),
 
                 dbc.Alert([
-                    html.Div([html.Span("Total Bets: "), html.B(total_bets_count)], className="d-flex justify-content-between"),
-                    html.Div([html.Span("Stake/Bet: "), html.B(f"${stake_per_bet:.2f}")], className="d-flex justify-content-between"),
+                    html.Div([html.Span("Total Bets: "), html.B(results['total_bets_count'])], className="d-flex justify-content-between"),
+                    html.Div([html.Span("Stake/Bet: "), html.B(f"${results['stake_per_bet']:.2f}")], className="d-flex justify-content-between"),
                     html.Hr(),
-                    # Added Min Payout
                     html.Div([
                         html.Span("MIN POTENTIAL PAYOUT: ", className="fw-bold"),
-                        html.B(f"${min_potential_payout:.2f}")
+                        html.B(f"${results['min_potential_payout']:.2f}")
                     ], className="d-flex justify-content-between align-items-center text-warning mb-1"),
-
-                    # Max Payout
                     html.Div([
                         html.Span("MAX POTENTIAL PAYOUT: ", className="fw-bold"),
-                        html.B(f"${total_max_payout:.2f}", style={"fontSize": "1.2rem"})
+                        html.B(f"${results['max_potential_payout']:.2f}", style={"fontSize": "1.2rem"})
                     ], className="d-flex justify-content-between align-items-center text-success"),
                 ], color="light", className="border-0 shadow-sm p-3")
             ])
-
-        @self.app.callback(
-            Output("discrepancy-table-container", "children"),
-            [
-                Input("matches-data-store", "data"),
-                Input("search-input", "value"),
-                Input("date-from", "date"),
-                Input("date-to", "date"),
-                Input("discrepancy-filter-slider", "value"),
-            ]
-        )
-        def update_discrepancy_table(data_json, search_text, date_from, date_to, disc_filter):
-            if not data_json:
-                return dbc.Alert(
-                    [html.I(className="fas fa-info-circle me-2"), "No data available. Click Refresh Data to load matches."],
-                    color="warning",
-                    className="m-4"
-                )
-
-            df = pd.read_json(StringIO(data_json), orient='split')
-            df = self._apply_common_filters(df, search_text, date_from, date_to)
-
-            # Apply discrepancy filter
-            if disc_filter and disc_filter > 0:
-                df = df[df['discrepancy_pct'] >= disc_filter]
-
-            return self._create_discrepancy_table(df)
-
-        @self.app.callback(
-            Output("tips-table-container", "children"),
-            [
-                Input("matches-data-store", "data"),
-                Input("search-input", "value"),
-                Input("date-from", "date"),
-                Input("date-to", "date"),
-                Input("min-sources-slider", "value"),
-            ]
-        )
-        def update_tips_table(data_json, search_text, date_from, date_to, min_sources):
-            if not data_json:
-                return dbc.Alert(
-                    [html.I(className="fas fa-info-circle me-2"), "No data available. Click Refresh Data to load matches."],
-                    color="warning",
-                    className="m-4"
-                )
-
-            df = pd.read_json(StringIO(data_json), orient='split')
-            df = self._apply_common_filters(df, search_text, date_from, date_to, min_sources)
-
-            return self._create_tips_table(df)
 
         @self.app.callback(
             [
@@ -1074,10 +890,12 @@ class MatchesDashboard:
             [
                 State("match-modal", "is_open"),
                 State({'type': 'match-table', 'index': dash.dependencies.ALL}, "derived_viewport_data"),
+                State("matches-data-store", "data"),
             ],
             prevent_initial_call=True
         )
-        def toggle_modal(active_cells, close_clicks, is_open, derived_viewport_data_list):
+        def toggle_modal(active_cells, close_clicks, is_open, derived_viewport_data_list, data_json):
+            """Toggle modal - reads from DataFrame instead of matches_dict."""
             ctx = callback_context
             if not ctx.triggered:
                 return dash.no_update
@@ -1088,11 +906,16 @@ class MatchesDashboard:
             if "close-modal" in trigger_id:
                 return False, "", "", None
 
-            # Only handle table cell clicks, not other triggers
+            # Only handle table cell clicks
             if not active_cells or not any(cell is not None for cell in active_cells):
                 return dash.no_update
 
+            if not data_json:
+                return dash.no_update
+
             try:
+                df = pd.read_json(StringIO(data_json), orient='split')
+
                 # Find which table was clicked and get the actual data
                 for idx, cell in enumerate(active_cells):
                     if cell and derived_viewport_data_list and idx < len(derived_viewport_data_list):
@@ -1100,13 +923,13 @@ class MatchesDashboard:
                         if viewport_data:
                             row_idx = cell['row']
                             if 0 <= row_idx < len(viewport_data):
-                                # Get match_id from the viewport data (only current page visible rows)
                                 match_id = viewport_data[row_idx]['match_id']
-                                if match_id in self.matches_dict:
-                                    match = self.matches_dict[match_id]
-                                    return True, "Match Details", self._create_match_detail(match), match_id
-                                else:
-                                    print(f"Warning: match_id {match_id} not found in matches_dict")
+
+                                # Find the row in the DataFrame
+                                match_row = df[df['match_id'] == match_id]
+                                if not match_row.empty:
+                                    row_data = match_row.iloc[0]
+                                    return True, "Match Details", self._create_match_detail(row_data), match_id
             except Exception as e:
                 print(f"Error opening modal: {e}")
                 import traceback
@@ -1116,7 +939,6 @@ class MatchesDashboard:
 
     def run(self, debug=True, port=8050):
         print(f"Starting dashboard on http://0.0.0.0:{port}")
-        # bind to all interfaces
         self.app.run(debug=debug, host='0.0.0.0', port=port)
 
 
