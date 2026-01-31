@@ -1,62 +1,69 @@
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
-
+from typing import Any, Optional, Dict
 
 class SettingsManager:
-    """Central settings manager that can load multiple YAML configs into memory.
 
-    Usage:
-      sm = SettingsManager()
-      sm.load_settings('config')                # loads all .yaml in config/ dir
-      sm.load_settings('config/main.yaml')      # loads main and any referenced yaml files
-      sm.get_config('tip_templates')
-    """
-
-    def __init__(self):
+    def __init__(self, directory: str):
+        self._directory = Path(directory)
         self.settings: Dict[str, Any] = {}
-        self.configs: Dict[str, Any] = {}
+        # print("Settings directory: ", self._directory.resolve())
+        self._load()
 
-    def load_settings(self, path: str) -> None:
-        """Load settings from a path. If path is a directory, load all .yaml files inside.
-
-        If path is a YAML file and it contains keys referencing other YAML files, those
-        referenced files are loaded as well.
-        """
-        p = Path(path)
-        if p.is_dir():
-            for child in sorted(p.glob('*.yaml')):
-                try:
-                    content = yaml.safe_load(child.read_text())
-                    key = child.stem
-                    self.configs[key] = content
-                except Exception as e:
-                    # store error under configs for debugging
-                    self.configs[child.stem] = {'_load_error': str(e)}
-        elif p.is_file():
+    def _load(self) -> None:
+        """Reload all .yaml files from the directory tree into self.settings."""
+        self.settings = {}
+        for yaml_file in sorted(self._directory.rglob("*.yaml")):
             try:
-                main = yaml.safe_load(p.read_text()) or {}
-                # store main settings under 'main'
-                self.settings = main
-                # if main contains file paths, attempt to load them
-                base_dir = p.parent
-                for k, v in main.items():
-                    if isinstance(v, str) and v.lower().endswith(('.yml', '.yaml')):
-                        ref_path = (base_dir / v).resolve()
-                        if ref_path.exists():
-                            try:
-                                content = yaml.safe_load(ref_path.read_text())
-                                self.configs[ref_path.stem] = content
-                            except Exception as e:
-                                self.configs[ref_path.stem] = {'_load_error': str(e)}
+                data = yaml.safe_load(yaml_file.read_text()) or {}
             except Exception as e:
-                self.settings = {'_load_error': str(e)}
+                data = {"_load_error": str(e)}
+
+            node = self.settings
+            for part in yaml_file.relative_to(self._directory.parent).parts[:-1]:
+                node = node.setdefault(part, {})
+            node[yaml_file.stem] = data
+
+    def get(self, *keys: str) -> Optional[Any]:
+        self._load()
+
+        node = self.settings
+        for key in keys:
+            if not isinstance(node, dict):
+                break
+            node = node.get(key)
         else:
-            raise FileNotFoundError(f"Settings path not found: {path}")
+            if node is not None:
+                return node
 
-    def get_config(self, name: str) -> Optional[Dict[str, Any]]:
-        """Return a preloaded config by file stem/name."""
-        return self.configs.get(name, None)
+        def _search(d: dict, target: str) -> Optional[Any]:
+            if target in d:
+                return d[target]
+            for v in d.values():
+                if isinstance(v, dict):
+                    result = _search(v, target)
+                    if result is not None:
+                        return result
+            return None
 
+        return _search(self.settings, keys[-1])
 
-settings_manager = SettingsManager()
+    def write(self, directory: str, name: str, data: Dict[str, Any]) -> bool:
+        try:
+            p = Path(directory) / f"{name}.yaml"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(yaml.dump(data))
+            return True
+        except Exception as e:
+            print(f"[SettingsManager] write failed for {name}: {e}")
+            return False
+
+    def delete(self, directory: str, name: str) -> bool:
+        try:
+            p = Path(directory) / f"{name}.yaml"
+            if p.exists():
+                p.unlink()
+            return True
+        except Exception as e:
+            print(f"[SettingsManager] delete failed for {name}: {e}")
+            return False

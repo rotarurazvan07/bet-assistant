@@ -1,0 +1,7 @@
+dash
+dash_bootstrap_components
+PyYAML
+beautifulsoup4
+pandas
+scrapling[fetchers]
+rapidfuzz

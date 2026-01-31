@@ -2,7 +2,7 @@ beautifulsoup4
 pandas
 dash
 dash_bootstrap_components
-playwright
+scrapling[fetchers]
 fake_useragent
 curl_cffi
 PyYAML

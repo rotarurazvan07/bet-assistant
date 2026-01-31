@@ -1,0 +1,26 @@
+name: Web Scraper Benchmark
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # Run daily at midnight
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pip install -r requirements-scrape.txt
+          scrapling install
+
+      - name: Run Scraper Benchmark
+        run: python test_web_scraper.py
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark_results.json

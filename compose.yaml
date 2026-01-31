@@ -1,0 +1,29 @@
+services:
+  bet-dashboard:
+    image: ghcr.io/rotarurazvan07/bet-assistant:latest
+    container_name: bet-dashboard
+    restart: always
+    environment:
+      - GH_TOKEN=<GH_TOKEN_HERE>
+      - REPO=rotarurazvan07/bet-assistant
+      - ARTIFACT_NAME=all-matches-combined-db
+    command: python -u -m dashboard /app/data/final_matches.db
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=bet-stack"
+
+  bet-updater:
+    image: containrrr/watchtower:1.7.1
+    platform: linux/arm64
+    container_name: bet-updater
+    restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/fir3w4ll/.docker/config.json:/config.json:ro
+    command: --interval 300 --cleanup --scope bet-stack
