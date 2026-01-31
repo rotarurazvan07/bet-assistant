@@ -1,0 +1,48 @@
+name: Build and Publish Multi-Arch Image
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 1. Set up QEMU (Allows building for ARM64 on an AMD64 runner)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # 2. Set up Docker Buildx (Required for multi-platform builds)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 3. Log in to GitHub Container Registry
+      - name: Log in to the Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Build and push for both Raspberry Pi (arm64) and PC (amd64)
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # This line is the magic that fixes your 'platform mismatch' error
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # Provenance can sometimes cause issues with older Docker versions on Pi
+          provenance: false

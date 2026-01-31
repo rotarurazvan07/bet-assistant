@@ -1,0 +1,49 @@
+services:
+  # 1. THE DASHBOARD (Web UI)
+  dash-app:
+    image: ghcr.io/rotarurazvan07/bet-assistant:latest
+    container_name: bet-dashboard
+    restart: always
+    ports:
+      - "8050:8050"
+    volumes:
+      - ./data:/app/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=bet-stack"
+
+  # 2. THE SCRAPER (The Worker)
+  scraper:
+    image: ghcr.io/rotarurazvan07/bet-assistant:latest
+    container_name: bet-scraper
+    command: python -m main
+    restart: "no" # Ofelia will wake it up
+    volumes:
+      - ./data:/app/data
+    labels:
+      - "ofelia.enabled=true"
+      - "ofelia.job-run.nightly-scrape.schedule=0 0 2 * * *" # 2:00:00 AM
+      - "ofelia.job-run.nightly-scrape.container=bet-scraper"
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=bet-stack"
+
+  # 3. THE SCHEDULER (Ofelia)
+  scheduler:
+    image: mcuadros/ofelia:latest
+    container_name: bet-scheduler
+    restart: always
+    depends_on:
+      - scraper
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: daemon --docker
+
+  # 4. THE AUTO-UPDATER (Watchtower)
+  updater:
+    image: containrrr/watchtower
+    container_name: bet-updater
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ~/.docker/config.json:/config.json:ro
+    command: --interval 300 --cleanup --scope bet-stack
