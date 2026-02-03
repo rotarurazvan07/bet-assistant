@@ -230,60 +230,6 @@ class DatabaseManager:
                 return dict(row), row['id']
         return None, None
 
-    def update_match(self, match_name=None, match_date=None, tip=None, score=None, probability=None, match_id=None):
-        """Update a match with new predictions."""
-        if match_id:
-            cursor = self.conn.execute('SELECT * FROM matches WHERE id = ?', (match_id,))
-            row = cursor.fetchone()
-            if row:
-                match_dict = dict(row)
-                match_db_id = row['id']
-            else:
-                match_dict = None
-                match_db_id = None
-        else:
-            match_dict, match_db_id = self._find_match(match_name, match_date)
-
-        if match_dict:
-            # Handle tip updates
-            if tip:
-                existing_tips = self._deserialize_json(match_dict['predictions_tips']) or []
-                tip_dict = tip.to_dict()
-                if tip_dict not in existing_tips:
-                    existing_tips.append(tip_dict)
-                    self.conn.execute(
-                        'UPDATE matches SET predictions_tips = ? WHERE id = ?',
-                        (json.dumps(existing_tips), match_db_id)
-                    )
-
-            # Handle score updates
-            if score:
-                existing_scores = self._deserialize_json(match_dict['predictions_scores']) or []
-                score_dict = score.__dict__
-                if score_dict not in existing_scores:
-                    existing_scores.append(score_dict)
-                    self.conn.execute(
-                        'UPDATE matches SET predictions_scores = ? WHERE id = ?',
-                        (json.dumps(existing_scores), match_db_id)
-                    )
-
-            # Handle probability updates
-            if probability:
-                existing_probs = self._deserialize_json(match_dict['predictions_probabilities']) or []
-                prob_dict = probability.__dict__
-                if prob_dict not in existing_probs:
-                    existing_probs.append(prob_dict)
-                    self.conn.execute(
-                        'UPDATE matches SET predictions_probabilities = ? WHERE id = ?',
-                        (json.dumps(existing_probs), match_db_id)
-                    )
-
-            self.conn.commit()
-            return match_db_id
-        else:
-            log(f"{match_name} was not found on forebet, investigate")
-            return None
-
     def add_match(self, match, match_id=None):
         """Add or update a match in the database."""
         try:

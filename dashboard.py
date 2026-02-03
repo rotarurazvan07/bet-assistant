@@ -31,238 +31,178 @@ class MatchesDashboard:
             dcc.Store(id="current-match-id"),
             dcc.Store(id="max-sources", data=10),
             dcc.Store(id="excluded-matches-store", data=[]),
-            dcc.Store(id="matches-data-store"),  # Stores the full DataFrame as JSON
+            dcc.Store(id="matches-data-store"),
 
-            # Header with gradient
+            # --- 1. Header Section ---
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.H1([
-                            html.I(className="fas fa-futbol me-3"),
-                            "Betting Matches Dashboard"
-                        ], className="text-white mb-2"),
-                        html.P("Analyze and compare betting predictions",
-                               className="text-white-50 mb-0",
-                               style={"fontSize": "1.1rem"}),
-                    ], className="text-center py-4",
-                       style={
-                           "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                           "borderRadius": "15px",
-                           "boxShadow": "0 10px 30px rgba(0,0,0,0.2)"
-                       })
+                        html.Div([
+                            html.H1([
+                                html.I(className="fas fa-chart-line me-3"),
+                                "BetInsight Pro"
+                            ], className="fw-bold text-white mb-1", style={"letterSpacing": "-1px"}),
+                            html.P("Real-time Betting Discrepancy & Predictive Analytics",
+                                className="text-white-50 mb-0", style={"fontSize": "1rem", "fontWeight": "300"}),
+                        ], className="text-start"),
+                        dbc.Button([
+                            html.I(className="fas fa-sync-alt me-2"), "Refresh Data"
+                        ], id="refresh-btn", className="ms-auto shadow-sm fw-bold",
+                        style={"borderRadius": "10px", "background": "rgba(255,255,255,0.2)", "border": "1px solid rgba(255,255,255,0.3)"})
+                    ], className="d-flex align-items-center p-4 shadow-lg",
+                    style={
+                        "background": "linear-gradient(135deg, #4361ee 0%, #3f37c9 100%)",
+                        "borderRadius": "20px",
+                        "marginTop": "20px"
+                    })
                 ])
-            ], className="mb-4 mt-3"),
+            ], className="mb-4"),
 
-            # Filters Card
+            # --- 2. Global Filters Card ---
             dbc.Card([
                 dbc.CardBody([
                     dbc.Row([
-                        # 1. Search Column (20%)
+                        # Search
                         dbc.Col([
-                            html.Label([
-                                html.I(className="fas fa-search me-2 text-primary"),
-                                "Search Team"
-                            ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
+                            html.Small("SEARCH ENGINE", className="fw-bold text-muted mb-2 d-block", style={"fontSize": "0.7rem"}),
                             dbc.InputGroup([
-                                dbc.InputGroupText(
-                                    html.I(className="fas fa-search"),
-                                    style={"background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                                        "color": "white", "border": "none"}
-                                ),
-                                dbc.Input(
-                                    id="search-input",
-                                    type="text",
-                                    placeholder="Team name...",
-                                    style={"borderLeft": "none"}
-                                )
-                            ], className="shadow-sm")
-                        ], style={"width": "20%"}),
+                                dbc.InputGroupText(html.I(className="fas fa-search text-primary")),
+                                dbc.Input(id="search-input", placeholder="Filter by team or league...", className="border-start-0")
+                            ], className="shadow-sm rounded-3")
+                        ], lg=3, md=6),
 
-                        # 2. From Date (12.5%)
+                        # Date Range
                         dbc.Col([
-                            html.Label([
-                                html.I(className="fas fa-calendar-alt me-2 text-success"),
-                                "From"
-                            ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                            dcc.DatePickerSingle(
-                                id="date-from",
-                                placeholder="Start",
-                                display_format='YYYY-MM-DD',
-                                className="shadow-sm",
-                                style={'width': '100%'}
-                            )
-                        ], style={"width": "12.5%"}),
+                            html.Small("TIME HORIZON", className="fw-bold text-muted mb-2 d-block", style={"fontSize": "0.7rem"}),
+                            dbc.InputGroup([
+                                dbc.InputGroupText(html.I(className="fas fa-calendar-alt text-success")),
+                                dbc.Input(id="date-from", type="date", className="border-end-0"),
+                                dbc.Input(id="date-to", type="date"),
+                            ], className="shadow-sm rounded-3")
+                        ], lg=4, md=6),
 
-                        # 3. To Date (12.5%)
+                        # Dynamic Sliders
                         dbc.Col([
-                            html.Label([
-                                html.I(className="fas fa-calendar-check me-2 text-success"),
-                                "To"
-                            ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                            dcc.DatePickerSingle(
-                                id="date-to",
-                                placeholder="End",
-                                display_format='YYYY-MM-DD',
-                                className="shadow-sm",
-                                style={'width': '100%'}
-                            )
-                        ], style={"width": "12.5%"}),
-
-                        # 4. SHARED SLOT: Discrepancy Slider OR Min Sources Slider (40%)
-                        dbc.Col([
-                            # Container A: Discrepancy
                             html.Div([
-                                html.Label([
-                                    html.I(className="fas fa-filter me-2 text-warning"),
-                                    "Min Discrepancy %"
-                                ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                                dcc.Slider(
-                                    id='discrepancy-filter-slider',
-                                    min=0, max=100, step=5, value=80,
-                                    marks={0: '0%', 25: '25%', 50: '50%', 75: '75%', 100: '100%'},
-                                    tooltip={"placement": "bottom", "always_visible": True}
-                                )
-                            ], id="discrepancy-filter-container", style={"display": "block"}),
+                                html.Div([
+                                    html.Small("MIN DISCREPANCY %", className="fw-bold text-muted mb-2 d-block", style={"fontSize": "0.7rem"}),
+                                    dcc.Slider(
+                                        id='discrepancy-filter-slider', min=0, max=100, step=5, value=80,
+                                        marks={0: '0', 25: '25', 50: '50', 75:'75', 100: '100'},
+                                        tooltip={"placement": "bottom", "always_visible": False}
+                                    )
+                                ], id="discrepancy-filter-container"),
+                                html.Div([
+                                    html.Small("MIN SOURCES", className="fw-bold text-muted mb-2 d-block", style={"fontSize": "0.7rem"}),
+                                    dcc.Slider(
+                                        id='min-sources-slider', min=1, max=10, step=1, value=1,
+                                        tooltip={"placement": "bottom", "always_visible": False}
+                                    )
+                                ], id="sources-filter-container", style={"display": "none"})
+                            ], className="px-2")
+                        ], lg=5, md=12)
+                    ], className="g-4 align-items-center")
+                ], className="px-4 py-3")
+            ], className="mb-4 border-0 shadow-sm", style={"borderRadius": "15px"}),
 
-                            # Container B: Min Sources
-                            html.Div([
-                                html.Label([
-                                    html.I(className="fas fa-layer-group me-2 text-info"),
-                                    "Min Sources"
-                                ], className="fw-bold mb-2", style={"fontSize": "0.9rem"}),
-                                dcc.Slider(
-                                    id='min-sources-slider',
-                                    min=1, max=10, step=1, value=1,
-                                    tooltip={"placement": "bottom", "always_visible": True}
-                                )
-                            ], id="sources-filter-container", style={"display": "none"})
-                        ], style={"width": "40%"}),
-
-                        # 5. Refresh Button (15%)
-                        dbc.Col([
-                            html.Label("\u00A0", className="fw-bold mb-2 d-block"),
-                            dbc.Button(
-                                [html.I(className="fas fa-sync-alt me-2"), "Refresh"],
-                                id="refresh-btn",
-                                className="w-100 shadow-sm",
-                                style={
-                                    "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                                    "border": "none",
-                                    "fontWeight": "600"
-                                }
-                            )
-                        ], style={"width": "15%"}),
-
-                    ], align="center", className="g-2")
-                ])
-            ], className="mb-4 shadow", style={"borderRadius": "15px", "border": "none"}),
-
+            # --- 3. Main Content Tabs ---
             dbc.Card([
                 dbc.CardBody([
-                    dbc.Tabs(
-                        id='main-tabs',
-                        active_tab='tab-disc',
-                        className="nav-fill w-100",
-                        children=[
-                            dbc.Tab(
-                                html.Div(id="discrepancy-table-container", className="mt-3"),
-                                label="⚠️ Discrepancy Analysis",
-                                tab_id='tab-disc',
-                                label_style={"fontSize": "1rem", "fontWeight": "600", "width": "100%"},
-                                active_label_style={"color": "#667eea", "borderBottom": "3px solid #667eea"}
-                            ),
-                            dbc.Tab(
-                                html.Div(id="tips-table-container", className="mt-3"),
-                                label="💡 Betting Tips",
-                                tab_id='tab-tips',
-                                label_style={"fontSize": "1rem", "fontWeight": "600", "width": "100%"},
-                                active_label_style={"color": "#764ba2", "borderBottom": "3px solid #764ba2"}
-                            ),
-                            dbc.Tab(
-                                html.Div([
-                                    dcc.Store(id='builder-current-odds'),
+                    dbc.Tabs(id='main-tabs', active_tab='tab-disc', children=[
+                        # Tab 1
+                        dbc.Tab(
+                            html.Div(id="discrepancy-table-container", className="py-4"),
+                            label="Analysis", tab_id='tab-disc', labelClassName="px-4 fw-bold"
+                        ),
+                        # Tab 2
+                        dbc.Tab(
+                            html.Div(id="tips-table-container", className="py-4"),
+                            label="Betting Tips", tab_id='tab-tips', labelClassName="px-4 fw-bold"
+                        ),
+                        # Tab 3: Smart Builder
+                        dbc.Tab([
+                            dcc.Store(id='builder-current-odds'),
+                            # Sub-Settings Bar
+                            html.Div([
+                                dbc.Row([
+                                    dbc.Col(dbc.InputGroup([
+                                        dbc.InputGroupText("Legs"),
+                                        dbc.Input(id="builder-leg-count", type="number", value=5, size="sm"),
+                                    ], className="shadow-sm"), width="auto"),
 
-                                    # 1. Settings Bar
-                                    html.Div(id="builder-settings-container", children=[
-                                        dbc.Row([
-                                            dbc.Col(dbc.InputGroup([
-                                                dbc.InputGroupText("Legs"),
-                                                dbc.Input(id="builder-leg-count", type="number", value=5, min=1, max=15),
-                                            ], size="sm"), width="auto"),
-                                            dbc.Col(dbc.InputGroup([
-                                                dbc.InputGroupText("Min Odds"),
-                                                dbc.Input(id="builder-min-odds", type="number", value=1.2, min=1, step=0.1),
-                                            ], size="sm"), width="auto"),
-                                        ], justify="center", className="g-3 my-3")
-                                    ]),
+                                # 1. Risk Profile Selector
+                                    dbc.Col([
+                                        dbc.InputGroup([
+                                            dbc.InputGroupText(html.I(className="fas fa-shield-alt text-primary")),
+                                            dbc.Select(
+                                                id="builder-risk-level",
+                                                options=[
+                                                    {"label": "🛡️ Low Risk", "value": "low"},
+                                                    {"label": "⚖️ Medium Risk", "value": "med"},
+                                                    {"label": "🔥 High Risk", "value": "high"},
+                                                ],
+                                                value="med",
+                                                size="sm",
+                                                className="fw-bold"
+                                            ),
+                                        ], className="shadow-sm")
+                                    ], width="auto"),
 
-                                    # 2. Main Split View
-                                    dbc.Row([
-                                        # Left side: The List of Matches
-                                        dbc.Col(dbc.Card([
-                                            dbc.CardHeader("🎯 Optimized Bet Slip", className="text-center fw-bold bg-dark text-white"),
-                                            dbc.CardBody(id="builder-output-container", style={"overflowY": "auto"})
-                                        ], className="border-0 shadow-sm"), md=6),
+                                    # 2. Min Odds (Manual)
+                                    dbc.Col([
+                                        dbc.InputGroup([
+                                            dbc.InputGroupText("Min"),
+                                            dbc.Input(
+                                                id="builder-min-odds",
+                                                type="number",
+                                                value=1.2,
+                                                step=0.05,
+                                                size="sm",
+                                                style={"width": "80px"}
+                                            ),
+                                        ], className="shadow-sm")
+                                    ], width="auto"),
 
-                                        # Right side: The Simulator UI
-                                        dbc.Col(dbc.Card([
-                                            dbc.CardHeader("🧮 System Bet Simulator", className="text-center fw-bold bg-success text-white"),
-                                            dbc.CardBody([
-                                                html.Label("Total Stake ($)", className="small fw-bold"),
-                                                dbc.Input(id="sys-total-stake", type="number", value=100, min=1, className="mb-3"),
+                                    # 3. Max Odds (Manual)
+                                    dbc.Col([
+                                        dbc.InputGroup([
+                                            dbc.InputGroupText("Max"),
+                                            dbc.Input(
+                                                id="builder-max-odds",
+                                                type="number",
+                                                value=2.0,
+                                                step=0.05,
+                                                size="sm",
+                                                style={"width": "80px"}
+                                            ),
+                                        ], className="shadow-sm")
+                                    ], width="auto"),
 
-                                                html.Label("Select System Types:", className="small fw-bold"),
-                                                dbc.Checklist(
-                                                    id="sys-type",
-                                                    options=[],
-                                                    value=[],
-                                                    inline=True,
-                                                    switch=True,
-                                                    className="mb-3"
-                                                ),
-                                                html.Hr(),
-                                                html.Div(id="sys-results-output")
-                                            ])
-                                        ], className="border-0 shadow-sm"), md=6)
-                                    ], className="mt-3")
-                                ], className="mt-3"),
-                                label="🎯 Smart Bet Builder",
-                                tab_id='tab-builder',
-                                label_style={"fontSize": "1rem", "fontWeight": "600", "width": "100%"},
-                                active_label_style={"color": "#27ae60", "borderBottom": "3px solid #27ae60"}
-                            )
-                        ]
-                    )
-                ], className="p-3")
-            ], className="shadow", style={"borderRadius": "15px", "border": "none"}),
+                                    dbc.Col(html.Div([
+                                        html.Small("MARKETS:", className="fw-bold me-3 text-secondary"),
+                                        dbc.Checklist(
+                                            options=[
+                                                {"label": "Result", "value": "result"},
+                                                {"label": "O/U 2.5", "value": "over_under_2.5"},
+                                                {"label": "BTTS", "value": "btts"},
+                                            ],
+                                            value=["result", "over_under_2.5", "btts"],
+                                            id="market-type-filter", inline=True, switch=True,
+                                            style={"fontSize": "0.85rem"}
+                                        ),
+                                    ], className="d-flex align-items-center bg-light border rounded-pill px-3 py-1"), width="auto")
+                                ], justify="start", className="g-3 align-items-center")
+                            ], className="p-3 mb-4 bg-white border rounded-3"),
 
-            # Modal
-            dbc.Modal([
-                dbc.ModalHeader(
-                    dbc.ModalTitle(id="modal-title"),
-                    close_button=True,
-                    style={
-                        "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                        "color": "white"
-                    }
-                ),
-                dbc.ModalBody(id="modal-body", style={"maxHeight": "75vh", "overflowY": "auto"}),
-                dbc.ModalFooter(
-                    dbc.Button(
-                        [html.I(className="fas fa-times me-2"), "Close"],
-                        id="close-modal",
-                        style={
-                            "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                            "border": "none"
-                        }
-                    )
-                ),
-            ], id="match-modal", size="xl", scrollable=True),
+                            # Builder Content
+                            html.Div(id="builder-output-container")
+                        ], label="Smart Builder", tab_id='tab-builder', labelClassName="px-4 fw-bold")
+                    ], className="nav-pills custom-tabs")
+                ], className="p-4")
+            ], className="border-0 shadow-lg mb-5", style={"borderRadius": "20px"}),
 
-        ], fluid=True, className="p-4", style={
-            "background": "linear-gradient(to bottom, #f8f9fa 0%, #e9ecef 100%)",
-            "minHeight": "100vh"
-        })
+        ], fluid=True, className="px-lg-5", style={"backgroundColor": "#f8f9fe", "minHeight": "100vh"})
+
 
     def _create_discrepancy_table(self, df):
         """Create discrepancy analysis table from DataFrame."""
@@ -274,7 +214,7 @@ class MatchesDashboard:
             )
 
         # Select and prepare columns for display
-        display_df = df[['match_id', 'datetime_str', 'home', 'away', 'discrepancy', 'discrepancy_pct', 'quick_suggestion']].copy()
+        display_df = df[['match_id', 'datetime_str', 'home', 'away', 'discrepancy', 'discrepancy_pct', 'quick_suggestion','odds_home','odds_draw','odds_away']].copy()
         display_df = display_df.rename(columns={'datetime_str': 'datetime'})
 
         base_url = "https://superbet.ro/cautare?query="
@@ -295,6 +235,9 @@ class MatchesDashboard:
                 {"name": "Discrepancy", "id": "discrepancy", "type": "numeric"},
                 {"name": "Disc %", "id": "discrepancy_pct", "type": "numeric"},
                 {"name": "Quick Suggestion", "id": "quick_suggestion"},
+                {"name": "1", "id": "odds_home"},
+                {"name": "X", "id": "odds_draw"},
+                {"name": "2", "id": "odds_away"},
             ],
             data=display_df.to_dict('records'),
             sort_action='native',
@@ -316,6 +259,9 @@ class MatchesDashboard:
                 {'if': {'column_id': 'discrepancy'}, 'width': '100px', 'minWidth': '100px', 'maxWidth': '100px', 'textAlign': 'center'},
                 {'if': {'column_id': 'discrepancy_pct'}, 'width': '80px', 'minWidth': '80px', 'maxWidth': '80px', 'textAlign': 'center'},
                 {'if': {'column_id': 'quick_suggestion'}, 'width': '200px', 'minWidth': '200px', 'maxWidth': '200px'},
+                {'if': {'column_id': 'odds_home'}, 'width': '100px', 'minWidth': '100px', 'maxWidth': '100px', 'textAlign': 'center'},
+                {'if': {'column_id': 'odds_draw'}, 'width': '100px', 'minWidth': '100px', 'maxWidth': '100px', 'textAlign': 'center'},
+                {'if': {'column_id': 'odds_away'}, 'width': '100px', 'minWidth': '100px', 'maxWidth': '100px', 'textAlign': 'center'},
             ],
             style_header={
                 'backgroundColor': '#667eea',
@@ -413,7 +359,6 @@ class MatchesDashboard:
                 {"name": "Date & Time", "id": "datetime"},
                 {"name": "Home Team", "id": "home"},
                 {"name": "Away Team", "id": "away"},
-                {"name": "Sources", "id": "sources"},
                 {"name": "1", "id": "result_home_display"},
                 {"name": "X", "id": "result_draw_display"},
                 {"name": "2", "id": "result_away_display"},
@@ -502,12 +447,13 @@ class MatchesDashboard:
         if not grouped_selections:
             return [dbc.Alert("No matches match criteria.", color="warning")]
 
-        slip_items = []
+        grid_items = []
 
         for group in grouped_selections:
             p = group['primary']
             s_list = group['secondary']
 
+            # --- Helper: Create the Main Market Block ---
             def create_primary_block(bet_data):
                 conf = bet_data['prob']
                 color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
@@ -527,6 +473,7 @@ class MatchesDashboard:
                     dbc.Progress(value=conf, color=color, style={"height": "6px"}, className="rounded-pill mb-2"),
                 ], className="bg-light p-2 rounded-2")
 
+            # --- Helper: Create Alternative Markets Rows ---
             def create_alternative_row(bet_data):
                 conf = bet_data['prob']
                 color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
@@ -544,6 +491,7 @@ class MatchesDashboard:
                     dbc.Col(html.Span(odds_display, className=f"fw-bold {odds_color}", style={"fontSize": "0.75rem"}), width=2, className="text-end"),
                 ], className="align-items-center g-0 mb-1 pt-1 border-top border-light-subtle")
 
+            # --- Build the Individual Card ---
             selection_card = dbc.Card([
                 dbc.CardBody([
                     dbc.Row([
@@ -560,85 +508,19 @@ class MatchesDashboard:
                     create_primary_block(p),
 
                     html.Div(
-                        [create_alternative_row(alt) for alt in s_list[:2]]
-                        if s_list else None
+                        [create_alternative_row(alt) for alt in s_list[:2]] if s_list else None
                     ),
                 ], className="p-2")
-            ], className="mb-2 shadow-sm border-0 rounded-3", style={"backgroundColor": "#f8f9fa"})
+            ], className="shadow-sm border-0 rounded-3 h-100", style={"backgroundColor": "#f8f9fa"})
 
-            slip_items.append(selection_card)
+            # --- Wrap Card in a Column (lg=6 creates the 2-column effect) ---
+            # xs=12 means full width on mobile
+            # lg=6 means half width (2 columns) on desktop
+            col_item = dbc.Col(selection_card, xs=12, lg=6, className="mb-3")
+            grid_items.append(col_item)
 
-        return slip_items
-
-    def _create_match_detail(self, row):
-        """Create detailed match modal view from DataFrame row."""
-        return html.Div([
-            # Header
-            dbc.Card([
-                dbc.CardBody([
-                    html.H3(f"{row['home']} vs {row['away']}", className="text-center mb-2"),
-                    html.H5(row['datetime_str'], className="text-center text-white-50"),
-                ])
-            ], className="mb-4 text-white", style={"background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"}),
-
-            # Overview Cards
-            dbc.Row([
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.Div(html.I(className="fas fa-exclamation-triangle fa-2x mb-2 text-warning"), className="text-center"),
-                            html.H5("Discrepancy", className="text-center text-muted"),
-                            html.H2(f"{row['discrepancy']:.2f}", className="text-center text-warning mb-0")
-                        ])
-                    ], className="shadow-sm h-100")
-                ], md=6),
-
-                dbc.Col([
-                    dbc.Card([
-                        dbc.CardBody([
-                            html.Div(html.I(className="fas fa-database fa-2x mb-2 text-primary"), className="text-center"),
-                            html.H5("Sources", className="text-center text-muted"),
-                            html.H2(int(row['sources']), className="text-center text-primary mb-0")
-                        ])
-                    ], className="shadow-sm h-100")
-                ], md=6),
-            ], className="mb-4"),
-
-            # Suggestions
-            html.H4([html.I(className="fas fa-chart-pie me-2"), "Predictions"], className="mb-3"),
-            dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            html.H6("Result", className="text-center mb-3"),
-                            dbc.Progress([
-                                dbc.Progress(value=row['prob_home'], label=f"1: {row['prob_home']}%", color="success", bar=True),
-                                dbc.Progress(value=row['prob_draw'], label=f"X: {row['prob_draw']}%", color="warning", bar=True),
-                                dbc.Progress(value=row['prob_away'], label=f"2: {row['prob_away']}%", color="info", bar=True),
-                            ], style={"height": "35px"})
-                        ], md=12, className="mb-4"),
-                    ]),
-
-                    dbc.Row([
-                        dbc.Col([
-                            html.H6("Over/Under 2.5", className="text-center mb-3"),
-                            dbc.Progress([
-                                dbc.Progress(value=row['prob_over'], label=f"Over: {row['prob_over']}%", color="danger", bar=True),
-                                dbc.Progress(value=row['prob_under'], label=f"Under: {row['prob_under']}%", color="primary", bar=True),
-                            ], style={"height": "35px"})
-                        ], md=6),
-
-                        dbc.Col([
-                            html.H6("BTTS", className="text-center mb-3"),
-                            dbc.Progress([
-                                dbc.Progress(value=row['prob_btts_yes'], label=f"Yes: {row['prob_btts_yes']}%", color="success", bar=True),
-                                dbc.Progress(value=row['prob_btts_no'], label=f"No: {row['prob_btts_no']}%", color="secondary", bar=True),
-                            ], style={"height": "35px"})
-                        ], md=6),
-                    ]),
-                ])
-            ], className="shadow-sm")
-        ])
+        # Return a single Row containing the grid items
+        return dbc.Row(grid_items, className="g-2")
 
     def _setup_callbacks(self):
         @self.app.callback(
@@ -666,25 +548,26 @@ class MatchesDashboard:
             [
                 Output("discrepancy-filter-container", "style"),
                 Output("sources-filter-container", "style"),
-                Output("builder-settings-container", "style"),
             ],
             Input("main-tabs", "active_tab")
         )
-        def toggle_filters(active_tab):
+        def toggle_top_card_filters(active_tab):
+            # Tab 'tab-disc' needs the Discrepancy slider
             if active_tab == "tab-disc":
-                return {"display": "block"}, {"display": "none"}, {"display": "none"}
-            elif active_tab == "tab-tips":
-                return {"display": "none"}, {"display": "block"}, {"display": "none"}
-            else:  # tab-builder
-                return {"display": "none"}, {"display": "block"}, {"display": "block"}
+                return {"display": "block"}, {"display": "none"}
+
+            # Both 'tab-tips' and 'tab-builder' rely on the Min Sources slider
+            # So we show the sources container for both
+            else:
+                return {"display": "none"}, {"display": "block"}
 
         @self.app.callback(
             Output("discrepancy-table-container", "children"),
             [
                 Input("matches-data-store", "data"),
                 Input("search-input", "value"),
-                Input("date-from", "date"),
-                Input("date-to", "date"),
+                Input("date-from", "value"),
+                Input("date-to", "value"),
                 Input("discrepancy-filter-slider", "value"),
             ]
         )
@@ -714,8 +597,8 @@ class MatchesDashboard:
             [
                 Input("matches-data-store", "data"),
                 Input("search-input", "value"),
-                Input("date-from", "date"),
-                Input("date-to", "date"),
+                Input("date-from", "value"),
+                Input("date-to", "value"),
                 Input("min-sources-slider", "value"),
             ]
         )
@@ -741,55 +624,75 @@ class MatchesDashboard:
             return self._create_tips_table(filtered_df)
 
         @self.app.callback(
+            [Output("builder-min-odds", "value"),
+            Output("builder-max-odds", "value")],
+            [Input("builder-risk-level", "value")],
+            [State("builder-min-odds", "value"),
+            State("builder-max-odds", "value")]
+        )
+        def update_odds_presets(risk_level, current_min, current_max):
+            # Mapping presets to specific ranges
+            presets = {
+                "low": (1.10, 1.40),
+                "med": (1.45, 1.85),
+                "high": (1.90, 10)
+            }
+
+            if risk_level in presets:
+                return presets[risk_level]
+
+            # If "custom" is selected, keep the current values
+            return current_min, current_max
+
+        @self.app.callback(
             [Output("builder-output-container", "children"),
-             Output("builder-current-odds", "data"),
-             Output("sys-type", "options"),
-             Output("sys-type", "value")],
+            Output("builder-current-odds", "data")],
             [Input("matches-data-store", "data"),
-             Input("search-input", "value"),
-             Input("date-from", "date"),
-             Input("date-to", "date"),
-             Input("min-sources-slider", "value"),
-             Input("builder-leg-count", "value"),
-             Input("builder-min-odds", "value"),
-             Input("main-tabs", "active_tab"),
-             Input("excluded-matches-store", "data")],
-            [State("sys-type", "value")]
+            Input("search-input", "value"),
+            Input("date-from", "value"),
+            Input("date-to", "value"),
+            Input("min-sources-slider", "value"),
+            Input("builder-leg-count", "value"),
+            Input("builder-min-odds", "value"),
+            Input("builder-max-odds", "value"),
+            Input("main-tabs", "active_tab"),
+            Input("excluded-matches-store", "data"),
+            Input("market-type-filter", "value")]
         )
         def update_builder_logic(data_json, search_text, date_from, date_to, min_sources,
-                                leg_count, min_odds, active_tab, excluded_matches, current_selected_ks):
-            """Update bet builder - works from DataFrame using analyzer's methods."""
-            if not data_json or active_tab != "tab-builder":
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                                leg_count, min_odds, max_odds, active_tab, excluded_matches,
+                                included_markets): # <--- New Argument
+            """Update bet builder - reacts to market filters and criteria."""
 
+            if not data_json or active_tab != "tab-builder":
+                return dash.no_update, dash.no_update
+
+            # Load data
             df = pd.read_json(StringIO(data_json), orient='split')
 
-            # Use analyzer's bet slip builder
+            # Use analyzer's updated bet slip builder with market filtering
             grouped_selections = self.analyzer.build_bet_slip(
                 search_text=search_text,
                 date_from=date_from,
                 date_to=date_to,
                 min_sources=min_sources,
                 leg_count=leg_count or 5,
-                min_odds_val=min_odds or 1.2,
-                excluded_matches=excluded_matches
+                min_odds_val=min_odds or 1.1,
+                max_odds_val=max_odds or 10,
+                excluded_matches=excluded_matches,
+                included_market_types=included_markets
             )
 
+            # If no selections found
             if not grouped_selections:
-                return [dbc.Alert("No matches meet criteria.", color="warning")], [], [], []
+                # Returning a single Alert for the container and an empty list for the odds data
+                return [dbc.Alert("No matches meet criteria.", color="warning")], []
 
+            # Generate UI and Odds data
             slip_html = self._create_bet_builder_ui(grouped_selections)
             odds_list = [g['primary']['odds'] for g in grouped_selections]
 
-            n = len(odds_list)
-            new_options = [{'label': f'System {k}/{n}', 'value': k} for k in range(1, n + 1)]
-
-            if current_selected_ks:
-                updated_selection = [k for k in current_selected_ks if k <= n]
-            else:
-                updated_selection = [n] if n > 0 else []
-
-            return slip_html, odds_list, new_options, updated_selection
+            return slip_html, odds_list
 
         @self.app.callback(
             Output("excluded-matches-store", "data"),
@@ -833,110 +736,6 @@ class MatchesDashboard:
 
             return dash.no_update
 
-        @self.app.callback(
-            Output("sys-results-output", "children"),
-            [Input("sys-total-stake", "value"),
-             Input("sys-type", "value"),
-             Input("builder-current-odds", "data")]
-        )
-        def update_simulator_math(total_stake, k_list, odds_list):
-            """Update system bet simulator - uses analyzer's calculation method."""
-            if not odds_list or not total_stake or not k_list:
-                return html.Div("Select system types to calculate.", className="text-muted small")
-
-            # Use analyzer's system bet calculator
-            results = self.analyzer.calculate_system_bet(total_stake, k_list, odds_list)
-
-            summary_rows = [
-                html.Tr([
-                    html.Td(f"{s['k']}/{len(odds_list)}"),
-                    html.Td(s['num_bets']),
-                    html.Td(f"${(s['num_bets'] * results['stake_per_bet']):.2f}")
-                ]) for s in results['system_details']
-            ]
-
-            return html.Div([
-                dbc.Table([
-                    html.Thead(html.Tr([html.Th("System"), html.Th("Bets"), html.Th("Stake Split")])),
-                    html.Tbody(summary_rows)
-                ], bordered=False, hover=True, size="sm", className="mb-3 small"),
-
-                dbc.Alert([
-                    html.Div([html.Span("Total Bets: "), html.B(results['total_bets_count'])], className="d-flex justify-content-between"),
-                    html.Div([html.Span("Stake/Bet: "), html.B(f"${results['stake_per_bet']:.2f}")], className="d-flex justify-content-between"),
-                    html.Hr(),
-                    html.Div([
-                        html.Span("MIN POTENTIAL PAYOUT: ", className="fw-bold"),
-                        html.B(f"${results['min_potential_payout']:.2f}")
-                    ], className="d-flex justify-content-between align-items-center text-warning mb-1"),
-                    html.Div([
-                        html.Span("MAX POTENTIAL PAYOUT: ", className="fw-bold"),
-                        html.B(f"${results['max_potential_payout']:.2f}", style={"fontSize": "1.2rem"})
-                    ], className="d-flex justify-content-between align-items-center text-success"),
-                ], color="light", className="border-0 shadow-sm p-3")
-            ])
-
-        @self.app.callback(
-            [
-                Output("match-modal", "is_open"),
-                Output("modal-title", "children"),
-                Output("modal-body", "children"),
-                Output("current-match-id", "data"),
-            ],
-            [
-                Input({'type': 'match-table', 'index': dash.dependencies.ALL}, "active_cell"),
-                Input("close-modal", "n_clicks"),
-            ],
-            [
-                State("match-modal", "is_open"),
-                State({'type': 'match-table', 'index': dash.dependencies.ALL}, "derived_viewport_data"),
-                State("matches-data-store", "data"),
-            ],
-            prevent_initial_call=True
-        )
-        def toggle_modal(active_cells, close_clicks, is_open, derived_viewport_data_list, data_json):
-            """Toggle modal - reads from DataFrame instead of matches_dict."""
-            ctx = callback_context
-            if not ctx.triggered:
-                return dash.no_update
-
-            trigger_id = ctx.triggered[0]["prop_id"]
-
-            # Close modal button clicked
-            if "close-modal" in trigger_id:
-                return False, "", "", None
-
-            # Only handle table cell clicks
-            if not active_cells or not any(cell is not None for cell in active_cells):
-                return dash.no_update
-
-            if not data_json:
-                return dash.no_update
-
-            try:
-                df = pd.read_json(StringIO(data_json), orient='split')
-
-                # Find which table was clicked and get the actual data
-                for idx, cell in enumerate(active_cells):
-                    if cell and derived_viewport_data_list and idx < len(derived_viewport_data_list):
-                        viewport_data = derived_viewport_data_list[idx]
-                        if viewport_data:
-                            row_idx = cell['row']
-                            if 0 <= row_idx < len(viewport_data):
-                                match_id = viewport_data[row_idx]['match_id']
-
-                                # Find the row in the DataFrame
-                                match_row = df[df['match_id'] == match_id]
-                                if not match_row.empty:
-                                    row_data = match_row.iloc[0]
-                                    return True, "Match Details", self._create_match_detail(row_data), match_id
-            except Exception as e:
-                print(f"Error opening modal: {e}")
-                import traceback
-                traceback.print_exc()
-
-            return dash.no_update
-
     def run(self, debug=True, port=8050):
         print(f"Starting dashboard on http://0.0.0.0:{port}")
         self.app.run(debug=debug, host='0.0.0.0', port=port)
@@ -946,4 +745,4 @@ if __name__ == "__main__":
     from bet_framework.DatabaseManager import DatabaseManager
     db_manager = DatabaseManager()
     dashboard = MatchesDashboard(db_manager)
-    dashboard.run(debug=False, port=8050)
+    dashboard.run(debug=True, port=8050)

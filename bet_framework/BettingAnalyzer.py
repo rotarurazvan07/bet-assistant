@@ -143,70 +143,74 @@ class BettingAnalyzer:
                       date_to: Optional[str] = None,
                       min_sources: Optional[int] = None,
                       leg_count: int = 5,
-                      min_odds_val: float = 1.2,
+                      min_odds_val: float = 1.1,
+                      max_odds_val: float = 10,
                       excluded_matches: Optional[List[str]] = None,
-                      probability_floor = 50) -> List[Dict]:
-        """
-        Build optimized bet slip using the DataFrame directly.
-        """
+                      probability_floor = 50,
+                      included_market_types: Optional[List[str]] = None) -> List[Dict]:
+
         filtered_df = self.get_filtered_matches(search_text, date_from, date_to, min_sources=min_sources)
 
         if filtered_df.empty:
             return []
 
-        # Mapping of (Probability Column, Odds Column, Market Label)
-        markets = [
-            ('prob_home', 'odds_home', '1'),
-            ('prob_draw', 'odds_draw', 'X'),
-            ('prob_away', 'odds_away', '2'),
-            ('prob_over', 'odds_over', 'Over 2.5'),
-            ('prob_under', 'odds_under', 'Under 2.5'),
-            ('prob_btts_yes', 'odds_btts_yes', 'BTTS Yes'),
-            ('prob_btts_no', 'odds_btts_no', 'BTTS No')
-        ]
+        # Define all available markets
+        market_map = {
+            'result': [('prob_home', 'odds_home', '1'), ('prob_draw', 'odds_draw', 'X'), ('prob_away', 'odds_away', '2')],
+            'over_under_2.5': [('prob_over', 'odds_over', 'Over 2.5'), ('prob_under', 'odds_under', 'Under 2.5')],
+            'btts': [('prob_btts_yes', 'odds_btts_yes', 'BTTS Yes'), ('prob_btts_no', 'odds_btts_no', 'BTTS No')]
+        }
 
         all_options = []
 
-        # Iterate over filtered DataFrame rows
+        # 1. BUILD THE FULL POOL (Ignore included_market_types here)
         for _, row in filtered_df.iterrows():
             match_name = f"{row['home']} vs {row['away']}"
-
             if excluded_matches and match_name in excluded_matches:
                 continue
 
-            for prob_col, odds_col, label in markets:
-                prob = float(row[prob_col])
-                odds = float(row[odds_col])
+            # Iterate through EVERY market type in the map
+            for m_type, markets in market_map.items():
+                for prob_col, odds_col, label in markets:
+                    prob = float(row.get(prob_col, 0))
+                    odds = float(row.get(odds_col, 0))
 
-                if prob >= probability_floor:
-                    all_options.append({
-                        'match': match_name,
-                        'market': label,
-                        'prob': prob,
-                        'odds': odds
-                    })
+                    if prob >= probability_floor:
+                        all_options.append({
+                            'match': match_name,
+                            'market': label,
+                            'market_type': m_type, # Store type to filter primaries later
+                            'prob': prob,
+                            'odds': odds
+                        })
 
         if not all_options:
             return []
 
         builder_df = pd.DataFrame(all_options)
 
-        # 1. APPLY MIN ODDS FILTER (Only for Primaries)
-        primary_candidates = builder_df[builder_df['odds'] >= (min_odds_val or 0)]
+        # 2. FILTER PRIMARIES (Apply included_market_types + Odds here)
+        if included_market_types:
+            primary_candidates = builder_df[builder_df['market_type'].isin(included_market_types)]
+        else:
+            primary_candidates = builder_df.copy()
+
+        primary_candidates = primary_candidates[
+            (primary_candidates['odds'] >= (min_odds_val or 0)) &
+            (primary_candidates['odds'] <= (max_odds_val or 10))
+        ]
 
         if primary_candidates.empty:
             return []
 
-        # 2. THE STABLE SORT
+        # Stable Sort for Primaries
         primary_candidates = primary_candidates.sort_values(
-            by=['prob', 'odds'],
-            ascending=[False, False]
+            by=['prob', 'odds'], ascending=[False, False]
         ).reset_index(drop=True)
 
-        # 3. SELECT UNIQUE MATCHES
+        # Select Unique Matches for legs
         primaries = []
         seen_matches = set()
-
         for _, row in primary_candidates.iterrows():
             if len(primaries) >= (leg_count or 5):
                 break
@@ -214,11 +218,14 @@ class BettingAnalyzer:
                 primaries.append(row.to_dict())
                 seen_matches.add(row['match'])
 
-        # 4. GROUPING
+        # 3. GROUPING (Secondaries pull from the FULL builder_df)
         grouped_selections = []
         for p_bet in primaries:
+            # Look in the full pool for this match
             match_pool = builder_df[builder_df['match'] == p_bet['match']]
 
+            # Secondaries: Not the primary bet, must meet prob floor,
+            # BUT ignores included_market_types
             secondaries = match_pool[
                 (match_pool['market'] != p_bet['market']) &
                 (match_pool['prob'] >= probability_floor)
@@ -230,52 +237,6 @@ class BettingAnalyzer:
             })
 
         return grouped_selections
-
-    def calculate_system_bet(self,
-                            total_stake: float,
-                            k_list: List[int],
-                            odds_list: List[float]) -> Dict[str, Any]:
-        """
-        Calculate system bet payouts. (Pure logic, no DataFrame dependency)
-        """
-        from itertools import combinations
-
-        if not odds_list or not total_stake or not k_list:
-            return {
-                'system_details': [],
-                'total_bets_count': 0,
-                'stake_per_bet': 0,
-                'min_potential_payout': 0,
-                'max_potential_payout': 0
-            }
-
-        system_details = []
-        total_bets_count = 0
-
-        for k in sorted(k_list):
-            combos = list(combinations(odds_list, k))
-            total_bets_count += len(combos)
-            system_details.append({'k': k, 'num_bets': len(combos), 'combos': combos})
-
-        stake_per_bet = total_stake / total_bets_count
-
-        total_max_payout = 0
-        for sys in system_details:
-            sys_payout = sum([stake_per_bet * pd.Series(c).prod() for c in sys['combos']])
-            total_max_payout += sys_payout
-
-        min_k_required = min(k_list)
-        sorted_odds = sorted(odds_list)
-        lowest_odds_combo = sorted_odds[:min_k_required]
-        min_potential_payout = stake_per_bet * pd.Series(lowest_odds_combo).prod()
-
-        return {
-            'system_details': system_details,
-            'total_bets_count': total_bets_count,
-            'stake_per_bet': stake_per_bet,
-            'min_potential_payout': min_potential_payout,
-            'max_potential_payout': total_max_payout
-        }
 
     def _calculate_discrepancy_from_raw(self, row) -> Dict[str, Any]:
         """
