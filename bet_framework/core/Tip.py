@@ -78,6 +78,8 @@ class Tip:
     valid: bool = False
 
     def __post_init__(self):
+        self.confidence = float(self.confidence) if self.confidence is not None else None
+        self.odds = float(self.odds) if self.odds is not None else None
         self._categorize()
         self._validate()
 

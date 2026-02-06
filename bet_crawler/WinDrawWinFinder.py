@@ -100,10 +100,10 @@ class WinDrawWinFinder(BaseMatchFinder):
                 html = self.web_scraper.fast_http_request(
                     match_url
                 )
-
-                soup = BeautifulSoup(html, 'html.parser')
-
                 try:
+                    soup = BeautifulSoup(html, 'html.parser')
+
+
                     home_team_name = soup.find('div', class_='tnrow').find_all('span')[0].get_text()
                     away_team_name = soup.find('div', class_='tnrow').find_all('span')[1].get_text()
 

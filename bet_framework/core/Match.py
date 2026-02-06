@@ -8,6 +8,11 @@ class H2H:
     draw: int
     away: int
 
+    def __post_init__(self):
+        self.home = int(self.home) if self.home is not None else None
+        self.draw = int(self.draw) if self.draw is not None else None
+        self.away = int(self.away) if self.away is not None else None
+
 @dataclass
 class Probability:
     source: str
@@ -15,11 +20,22 @@ class Probability:
     draw: float
     away: float
 
+    def __post_init__(self):
+        self.source = str(self.source) if self.source is not None else None
+        self.home = float(str(self.home).replace("%","")) if self.home is not None else None
+        self.draw = float(str(self.draw).replace("%","")) if self.draw is not None else None
+        self.away = float(str(self.away).replace("%","")) if self.away is not None else None
+
 @dataclass
 class Score:
     source: str
     home: float
     away: float
+
+    def __post_init__(self):
+        self.source = str(self.source) if self.source is not None else None
+        self.home = float(self.home) if self.home is not None else None
+        self.away = float(self.away) if self.away is not None else None
 
 @dataclass
 class Odds:
@@ -30,6 +46,15 @@ class Odds:
     under: float
     btts_y: float
     btts_n: float
+
+    def __post_init__(self):
+        self.home = float(self.home) if self.home is not None else None
+        self.draw = float(self.draw) if self.draw is not None else None
+        self.away = float(self.away) if self.away is not None else None
+        self.over = float(self.over) if self.over is not None else None
+        self.under = float(self.under) if self.under is not None else None
+        self.btts_y = float(self.btts_y) if self.btts_y is not None else None
+        self.btts_n = float(self.btts_n) if self.btts_n is not None else None
 
 @dataclass
 class TeamStatistics:
@@ -43,6 +68,18 @@ class TeamStatistics:
     avg_conceded: float
     avg_shots_on_target: float
     avg_possession: float
+
+    def __post_init__(self):
+        self.avg_corners = float(self.avg_corners) if self.avg_corners is not None else None
+        self.avg_offsides = float(self.avg_offsides) if self.avg_offsides is not None else None
+        self.avg_gk_saves = float(self.avg_gk_saves) if self.avg_gk_saves is not None else None
+        self.avg_yellow_cards = float(self.avg_yellow_cards) if self.avg_yellow_cards is not None else None
+        self.avg_fouls = float(self.avg_fouls) if self.avg_fouls is not None else None
+        self.avg_tackles = float(self.avg_tackles) if self.avg_tackles is not None else None
+        self.avg_scored = float(self.avg_scored) if self.avg_scored is not None else None
+        self.avg_conceded = float(self.avg_conceded) if self.avg_conceded is not None else None
+        self.avg_shots_on_target = float(self.avg_shots_on_target) if self.avg_shots_on_target is not None else None
+        self.avg_possession = float(str(self.avg_possession).replace("%","")) if self.avg_possession is not None else None
 
 class Team:
     def __init__(self, name: str, league_points: int, form: List[str], statistics: Optional[TeamStatistics]):

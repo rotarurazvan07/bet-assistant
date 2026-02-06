@@ -11,6 +11,7 @@ REQUIREMENTS:
    playwright install-deps
 """
 
+import gc
 import threading
 import time
 import random
@@ -341,6 +342,8 @@ class WebScraper:
         # Global rate limiting
         self._last_request_time = 0
         self._request_lock = threading.Lock()
+        self._page_load_counter = 0
+        self._counter_lock = threading.Lock()
 
     def _get_thread_browser(self):
         """Get or create browser instance for current thread."""
@@ -411,6 +414,50 @@ class WebScraper:
 
             self._last_request_time = time.time()
 
+    def _restart_browser_if_needed(self, threshold: int = 30) -> bool:
+        """
+        Check if page load count exceeds threshold and restart browser if needed.
+
+        Args:
+            threshold: Restart after this many page loads per thread
+
+        Returns:
+            True if browser was restarted, False otherwise
+        """
+        if not hasattr(self._thread_local, 'page_load_count'):
+            self._thread_local.page_load_count = 0
+
+        self._thread_local.page_load_count += 1
+
+        if self._thread_local.page_load_count >= threshold:
+            thread_id = getattr(self._thread_local, 'thread_id', 0)
+            print(f"Thread {thread_id}: Browser restart at {self._thread_local.page_load_count} page loads (threshold: {threshold})")
+
+            # Close and destroy current browser
+            try:
+                if hasattr(self._thread_local, 'page'):
+                    self._thread_local.page.close()
+                if hasattr(self._thread_local, 'context'):
+                    self._thread_local.context.close()
+                if hasattr(self._thread_local, 'browser'):
+                    self._thread_local.browser.close()
+                if hasattr(self._thread_local, 'playwright'):
+                    self._thread_local.playwright.stop()
+            except Exception as e:
+                print(f"Thread {thread_id}: Error during browser cleanup: {str(e)}")
+
+            # Clear thread-local storage to force recreation
+            for attr in ['page', 'context', 'browser', 'playwright', 'page_load_count']:
+                if hasattr(self._thread_local, attr):
+                    delattr(self._thread_local, attr)
+
+            # Reset counter
+            self._thread_local.page_load_count = 0
+            gc.collect()
+            return True
+
+        return False
+
     def load_page(
         self,
         url: str,
@@ -435,6 +482,7 @@ class WebScraper:
             HTML content as string
         """
         print(url)
+        self._restart_browser_if_needed(threshold=5)
         page = self._get_thread_browser()
         thread_id = getattr(self._thread_local, 'thread_id', 0)
 

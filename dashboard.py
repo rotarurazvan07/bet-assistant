@@ -745,4 +745,4 @@ if __name__ == "__main__":
     from bet_framework.DatabaseManager import DatabaseManager
     db_manager = DatabaseManager()
     dashboard = MatchesDashboard(db_manager)
-    dashboard.run(debug=True, port=8050)
+    dashboard.run(debug=False, port=8050)
