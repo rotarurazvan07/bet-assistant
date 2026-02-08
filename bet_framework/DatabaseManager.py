@@ -9,23 +9,10 @@ from bet_framework.SimilarityEngine import SimilarityEngine
 from .core.Match import *
 from .core.Tip import Tip
 from .utils import log
-from .SettingsManager import settings_manager
 
 
 class DatabaseManager:
     def __init__(self, db_path: str = None):
-        """Initialize DatabaseManager using config from SettingsManager (if present).
-
-        Config keys (in `config/database_config.yaml` or loaded into SettingsManager under
-        the key `database`) include: db_path (defaults to 'data/matches.db').
-        """
-        settings_manager.load_settings("config")
-        cfg = settings_manager.get_config('database_config')
-
-        # Allow providing an external db_path for testing/override
-        if db_path is None:
-            db_path = cfg.get('db_path', 'data/matches.db')
-
         # Enable WAL mode for concurrent reads/writes
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.execute('PRAGMA journal_mode=WAL')
@@ -337,5 +324,10 @@ class DatabaseManager:
         self.conn.commit()
 
     def close(self):
-        """Close the database connection."""
+        self.conn.commit()
+        # 1. Flush the logs into the main file
+        self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        # 2. Transition back to a single-file mode (deletes the -wal file)
+        self.conn.execute("PRAGMA journal_mode=DELETE;")
+        # 3. Clean up the connection
         self.conn.close()

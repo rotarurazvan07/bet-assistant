@@ -1,7 +1,6 @@
-"""
-Bet assistant, 2022
-"""
-# from tippers.Tipper import Tipper
+import argparse
+import sys
+
 from bet_crawler.ScorePredictorFinder import ScorePredictorFinder
 from bet_crawler.SoccerVistaFinder import SoccerVistaFinder
 from bet_crawler.WhoScoredFinder import WhoScoredFinder
@@ -39,10 +38,18 @@ class MatchFinder:
             match_finder.get_matches()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run the Match Finder Scraper")
+    parser.add_argument("db_path", help="Path to the SQLite database file (e.g., matches.db)")
+    args = parser.parse_args()
     settings_manager.load_settings("config")
-    db_manager = DatabaseManager()
+
+    db_manager = DatabaseManager(args.db_path)
 
     db_manager.reset_matches_db()
 
     match_finder = MatchFinder(db_manager)
     match_finder.get_matches()
+
+    db_manager.close()
+
+    print(f"✅ Scrape complete. Database saved to: {args.db_path}")

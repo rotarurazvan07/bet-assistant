@@ -1,3 +1,6 @@
+import argparse
+import sys
+
 from io import StringIO
 import dash
 import dash_bootstrap_components as dbc
@@ -5,6 +8,7 @@ from datetime import datetime
 import pandas as pd
 from dash import dcc, html, Input, Output, State, dash_table, callback_context, ALL
 from bet_framework.BettingAnalyzer import BettingAnalyzer
+from bet_framework.SettingsManager import settings_manager
 
 class MatchesDashboard:
     """Dashboard for visualizing betting matches - optimized to work with BettingAnalyzer DataFrame."""
@@ -743,6 +747,10 @@ class MatchesDashboard:
 
 if __name__ == "__main__":
     from bet_framework.DatabaseManager import DatabaseManager
-    db_manager = DatabaseManager()
+    parser = argparse.ArgumentParser(description="Run the Match Finder Dashboard")
+    parser.add_argument("db_path", help="Path to the SQLite database file (e.g., matches.db)")
+    args = parser.parse_args()
+    settings_manager.load_settings("config")
+    db_manager = DatabaseManager(args.db_path)
     dashboard = MatchesDashboard(db_manager)
     dashboard.run(debug=False, port=8050)
