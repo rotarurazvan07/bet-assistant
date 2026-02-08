@@ -8,19 +8,17 @@ from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-TIP_STRENGTHS = ["Small", "Medium", "Large"]
 NUM_THREADS = os.cpu_count()
 
 class WinDrawWinFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
         super().__init__(add_match_callback)
 
-    def _get_matches_urls(self):
+    def _get_league_urls(self):
         """Get all league URLs to scrape."""
         self.get_web_scraper(profile='fast')
 
@@ -37,7 +35,6 @@ class WinDrawWinFinder(BaseMatchFinder):
             soup = BeautifulSoup(html, 'html.parser')
 
             league_urls = []
-            matches_urls = []
 
             league_trs = rows = (all_trs := soup.find('div', class_='widetable').find_all('tr'))[next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1:]
             for league_tr in league_trs:
@@ -45,26 +42,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                 if href_anc:
                     league_urls.append(href_anc[-1]['href'])
             print(f"Found {len(league_urls)} leagues to scrape")
-
-            for league_url in league_urls:
-                html = self.web_scraper.fast_http_request(
-                    league_url
-                )
-                if not html:
-                    print("Failed to load {league_url}")
-
-                soup = BeautifulSoup(html, 'html.parser')
-
-                try:
-                    matches_divs = soup.find('div', class_='wdwtablest mb30').find_all('div', class_='wttr')
-                except:
-                    continue # No matches in league
-                for match_div in matches_divs:
-                    matches_urls.append(match_div.find('a', class_='wtdesklnk')['href'])
-
-            matches_urls = list(set(matches_urls))
-            print(f"Found {len(matches_urls)} matches to scrape")
-            return matches_urls
+            return league_urls
 
         finally:
             self.web_scraper.destroy_current_thread()
@@ -83,94 +61,69 @@ class WinDrawWinFinder(BaseMatchFinder):
         self._stop_logging = False
 
         # Get all match URLs
-        matches_urls = self._get_matches_urls()
+        league_urls = self._get_league_urls()
 
         # Create shared scraper and run workers using the base helper
         self.get_web_scraper(profile='fast')
-        self.run_workers(matches_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        self.run_workers(league_urls, self._find_matches_job, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_matches} matches")
 
-    def _find_matches_job(self, matches_urls, thread_id):
+    def _find_matches_job(self, league_urls, thread_id):
         """Worker function that processes a slice of matches."""
         try:
-            for match_url in matches_urls:
+            for league_url in league_urls:
                 self._scanned_matches += 1
 
+                current_date = None
                 html = self.web_scraper.fast_http_request(
-                    match_url
+                    league_url
                 )
                 try:
                     soup = BeautifulSoup(html, 'html.parser')
+                    matches_divs = soup.find('div', class_='wdwtablest mb30')
+                    if matches_divs is None:
+                        print(f"SKIPPED [{league_url}]: No matches")
+                        continue
+                    matches_divs = matches_divs.contents[2:]
+                    for match_div in matches_divs:
+                        try:
+                            if match_div.has_attr('class') and 'wttrdt' in match_div['class']:
+                                date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', match_div.get_text()).replace("Today, ", "").replace("Tomorrow, ", "")
+                                current_date = datetime.strptime(date_str, "%A, %B %d, %Y")
+                                continue
 
+                            match_inner_divs = match_div.contents[:-1]
 
-                    home_team_name = soup.find('div', class_='tnrow').find_all('span')[0].get_text()
-                    away_team_name = soup.find('div', class_='tnrow').find_all('span')[1].get_text()
+                            home_team = match_inner_divs[0].find("div").get_text()
+                            away_team = match_inner_divs[1].find("div").get_text()
 
-                    date_str = soup.find(class_='headlinetext').get_text()
-                    match_datetime = datetime.strptime(re.sub(r'(\d+)(st|nd|rd|th)', r'\1', " ".join(date_str.split(',')[-2:])).strip(), "%B %d %Y")
+                            home = float(match_inner_divs[-1].get_text().split("-")[0])
+                            away = float(match_inner_divs[-1].get_text().split("-")[1])
+                            predictions = [Score(WINDRAWWIN_NAME, home, away)]
 
-                    home_stats_div = soup.find_all('div', class_='fstath')
-                    away_stats_div = soup.find_all('div', class_='fstata')
-                    home_team_league_points = 3 * int(home_stats_div[2].get_text()) + int(home_stats_div[3].get_text())
-                    away_team_league_points = 3 * int(away_stats_div[2].get_text()) + int(away_stats_div[3].get_text())
+                            mo_tag = match_div.find('div', class_="wtmo")
+                            ou_tag = match_div.find('div', class_="wtou")
+                            bt_tag = match_div.find('div', class_="wtbt")
+                            odds = Odds(
+                                home=float(mo_tag.contents[1].get_text()) if mo_tag is not None else None,
+                                draw=float(mo_tag.contents[2].get_text()) if mo_tag is not None else None,
+                                away=float(mo_tag.contents[3].get_text()) if mo_tag is not None else None,
+                                over=float(ou_tag.contents[1].get_text()) if ou_tag is not None else None,
+                                under=float(ou_tag.contents[2].get_text()) if ou_tag is not None else None,
+                                btts_y=float(bt_tag.contents[1].get_text()) if bt_tag is not None else None,
+                                btts_n=float(bt_tag.contents[2].get_text()) if bt_tag is not None else None
+                            )
 
-                    home_team_form = soup.find(class_='wtl5contllg').get_text(strip=True)
-                    away_team_form = soup.find(class_='wtl5contrlg').get_text(strip=True)
+                            match_to_add= Match(home_team, away_team, current_date, predictions, odds)
 
-                    home_team = Team(home_team_name, home_team_league_points, home_team_form, None)
-                    away_team = Team(away_team_name, away_team_league_points, away_team_form, None)
+                            self.add_match(match_to_add)
 
-
-                    scores= [Score(WINDRAWWIN_NAME, soup.find(class_='tbtd2 w100p featurescore').get_text()[0], soup.find(class_='tbtd2 w100p featurescore').get_text()[-1])]
-                    probabilities = [Probability(WINDRAWWIN_NAME,
-                                                 soup.find_all(class_='tbtd talc p9 w20p')[0].get_text().replace("%",''),
-                                                 soup.find_all(class_='tbtd talc p9 w20p')[1].get_text().replace("%",''),
-                                                 soup.find_all(class_='tbtd talc p9 w20p')[2].get_text().replace("%",''))]
-                    tips = []
-
-                    result = "Home Win" if scores[0].home > scores[0].away else "Draw" if scores[0].home == scores[0].away else "Away Win"
-                    # Map strength (Small/Medium/Large) to 0-100 confidence
-                    tip_text = soup.find(class_='tbtd2 w100p featuretip').get_text().lower()
-                    strength_index = next((i for i, s in enumerate(TIP_STRENGTHS) if s.lower() in tip_text), None)
-                    if strength_index is None:
-                        confidence = 50
-                    else:
-                        confidence = int(round(((strength_index + 1) / len(TIP_STRENGTHS)) * 100))
-
-                    try:
-                        odds = Odds(
-                            home=float(soup.find_all(class_='w20p tbtdodds')[0].get_text()),
-                            draw=float(soup.find_all(class_='w20p tbtdodds')[1].get_text()),
-                            away=float(soup.find_all(class_='w20p tbtdodds')[2].get_text()),
-                            over=float(soup.find_all(class_='w30p tbtdodds')[2].get_text()),
-                            under=float(soup.find_all(class_='w30p tbtdodds')[3].get_text()),
-                            btts_y=float(soup.find_all(class_='w30p tbtdodds')[0].get_text()),
-                            btts_n=float(soup.find_all(class_='w30p tbtdodds')[1].get_text())
-                        )
-                    except (AttributeError, IndexError) as e:
-                        odds = None
-
-                    tips.append(Tip(raw_text=result, confidence=confidence, source=WINDRAWWIN_NAME, odds=None))
-
-                    match_predictions = MatchPredictions(scores, probabilities, tips)
-
-                    h2h_results = None
-
-                    match_to_add = Match(
-                        home_team=home_team,
-                        away_team=away_team,
-                        datetime=match_datetime,
-                        predictions=match_predictions,
-                        h2h=h2h_results,
-                        odds=odds
-                    )
-
-                    # Successfully added to database
-                    self.add_match(match_to_add)
-
+                        except Exception as e:
+                            print(f"SKIPPED [{league_url}]: Unexpected error during parsing - {str(e)}")
+                            continue
                 except Exception as e:
-                    print(f"SKIPPED [{match_url}]: Unexpected error during parsing - {str(e)}")
+                    print(f"SKIPPED [{league_url}]: Unexpected error during parsing - {str(e)}")
                     continue
         finally:
             # Clean up this thread's browser

@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 FOOTBALLBETTINGTIPS_URL = "https://www.footballbettingtips.org/"

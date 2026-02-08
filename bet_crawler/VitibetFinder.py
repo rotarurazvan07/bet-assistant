@@ -9,7 +9,6 @@ from bs4 import Tag
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 VITIBET_URL = "https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en"
@@ -115,96 +114,14 @@ class VitibetFinder(BaseMatchFinder):
                         print(f"SKIPPED [League {league_url}]: No matches table found")
                         continue
 
-                    date_rows = matches_table.find_all("tr")[2:]
-                    dates = []
-                    for row in date_rows:
-                        first_td = row.find("td")
-                        if first_td:
-                            dates.append(first_td.get_text().strip())
-
-                    if len(dates) == 0:
-                        print(f"SKIPPED [League {league_url}]: No matches found")
-                        continue
-
-                    # Step 2: Process each match in the league
-                    analysis_url_template = league_url.replace("tips", "analyzy") + "&tab=1&zap=%s"
-
-                    for index, date_str in enumerate(dates):
-                        match_url = "https://www.vitibet.com" + analysis_url_template % (index+1)
-                        match_html = self.web_scraper.fast_http_request(
-                            match_url
-                        )
+                    match_tags = matches_table.find_all("tr")[2:]
+                    for match_tag in match_tags:
                         try:
-                            # Check for end of matches
-                            if "? : ?" in match_html or "#N/A : #N/A" in match_html:
-                                break
-
-
-                            match_soup = BeautifulSoup(match_html, 'html.parser')
-
-                            # Extract team names
-                            team_cells = match_soup.find_all("td", class_="bunkamuzstvo")
-                            if len(team_cells) < 2:
-                                print(f"SKIPPED [Match {match_url}]: Missing team cells")
+                            all_tags = match_tag.find_all("td")
+                            if all_tags[5].get_text() == "?" or all_tags[7].get_text() == "?":
                                 continue
 
-                            home_team_name = team_cells[0].get_text().replace("\n", '').strip()
-                            away_team_name = team_cells[1].get_text().replace("\n", '').strip()
-
-                            if not home_team_name or not away_team_name:
-                                print(f"SKIPPED [Match {match_url}]: Empty team name")
-                                continue
-
-                            # Extract team forms
-                            home_team_form = ""
-                            away_team_form = ""
-                            form_tables = match_soup.find_all("table", class_="malypismonasedym")
-
-                            if len(form_tables) >= 2:
-                                for form_table in form_tables[-2:]:
-                                    form_rows = form_table.find_all("tr")[:3]
-                                    for result_row in form_rows:
-                                        cells = result_row.find_all("td")
-                                        if len(cells) >= 4:
-                                            # Home team result
-                                            home_style = cells[1].get("style", "")
-                                            if "color:red" in home_style:
-                                                home_team_form += "L"
-                                            elif "color:green" in home_style:
-                                                home_team_form += "W"
-                                            else:
-                                                home_team_form += "D"
-
-                                            # Away team result
-                                            away_style = cells[3].get("style", "")
-                                            if "color:red" in away_style:
-                                                away_team_form += "L"
-                                            elif "color:green" in away_style:
-                                                away_team_form += "W"
-                                            else:
-                                                away_team_form += "D"
-
-                            # Extract league points
-                            home_team_league_points = 0
-                            away_team_league_points = 0
-
-                            standings_table = match_soup.find("table", class_="tabulkaquick")
-                            if standings_table:
-                                for team_row in standings_table.find_all("tr"):
-                                    row_text = str(team_row)
-                                    points_cells = team_row.find_all("td", class_="cisloporadi")
-
-                                    if points_cells and home_team_name in row_text:
-                                        try:
-                                            home_team_league_points = int(points_cells[-1].get_text().strip())
-                                        except:
-                                            pass
-                                    elif points_cells and away_team_name in row_text:
-                                        try:
-                                            away_team_league_points = int(points_cells[-1].get_text().strip())
-                                        except:
-                                            pass
-
+                            date_str = all_tags[0].get_text()
                             today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                             day, month = map(int, date_str.split('.'))
                             candidate = datetime(today.year, month, day)
@@ -214,60 +131,20 @@ class VitibetFinder(BaseMatchFinder):
                                 candidate = candidate.replace(year=today.year + 1)
                             match_date = candidate
 
-                            # Extract predicted score
-                            score_cell = match_soup.find("td", class_="bunkatip")
-                            if not score_cell:
-                                print(f"SKIPPED [Match {match_url}]: No score prediction found")
-                                continue
+                            home_team = all_tags[2].get_text()
+                            away_team = all_tags[3].get_text()
 
-                            score_text = score_cell.get_text().strip()
-                            try:
-                                score_parts = score_text.split(":")
-                                score = Score(
-                                    VITIBET_NAME,
-                                    int(score_parts[0].strip()),
-                                    int(score_parts[1].strip())
-                                )
-                            except:
-                                print(f"SKIPPED [Match {match_url}]: Failed to parse score '{score_text}'")
-                                continue
+                            home = float(all_tags[5].get_text())
+                            away = float(all_tags[7].get_text())
+                            predictions = [Score(VITIBET_NAME, home, away)]
 
-                            # Extract probabilities
-                            prob_cells = match_soup.find_all("td", class_="indexapravdepodobnost")
-                            if len(prob_cells) < 6:
-                                print(f"SKIPPED [Match {match_url}]: Insufficient probability data")
-                                continue
+                            odds = None
 
-                            try:
-                                probabilities = [int(td.get_text().replace(" %", '').strip()) for td in prob_cells[3:6]]
-                                probability = Probability(VITIBET_NAME, probabilities[0], probabilities[1], probabilities[2])
-                            except:
-                                print(f"SKIPPED [Match {match_url}]: Failed to parse probabilities")
-                                continue
-
-                            # Create tip
-                            result = "Home Win" if score.home > score.away else "Draw" if score.home == score.away else "Away Win"
-                            # Use max probability directly as 0-100 confidence
-                            confidence = float(max(probability.home, probability.draw, probability.away))
-                            tip = Tip(raw_text=result, confidence=confidence, source=VITIBET_NAME, odds=None)
-
-                            # Create match
-                            match_to_add = Match(
-                                home_team=Team(home_team_name, home_team_league_points, home_team_form, None),
-                                away_team=Team(away_team_name, away_team_league_points, away_team_form, None),
-                                datetime=match_date,
-                                predictions=MatchPredictions(
-                                    scores=[score],
-                                    probabilities=[probability],
-                                    tips=[tip]
-                                ),
-                                h2h=None,
-                                odds=None
-                            )
+                            match_to_add= Match(home_team, away_team, match_date, predictions, odds)
 
                             self.add_match(match_to_add)
                         except Exception as e:
-                            print(f"SKIPPED [Match {match_url}]: Error parsing - {str(e)}")
+                            print(f"SKIPPED [League {league_url}]: {str(e)}")
                             continue
                 except Exception as e:
                     print(f"SKIPPED [League {league_url}]: {str(e)}")

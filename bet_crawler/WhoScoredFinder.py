@@ -8,7 +8,6 @@ from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 WHOSCORED_URL = "https://www.whoscored.com/"
@@ -73,9 +72,6 @@ class WhoScoredFinder(BaseMatchFinder):
                     home_team_name = soup.find('div', class_='teams-score-info').find("span", class_=re.compile(r'home team')).get_text()
                     away_team_name = soup.find('div', class_='teams-score-info').find("span", class_=re.compile(r'away team')).get_text()
 
-                    home_team = Team(home_team_name, None, None, None)
-                    away_team = Team(away_team_name, None, None, None)
-
                     match_time = soup.find('dt', text='Date:').find_next_sibling('dd').text + " - " + \
                                     soup.find('dt', text='Kick off:').find_next_sibling('dd').text
 
@@ -83,27 +79,13 @@ class WhoScoredFinder(BaseMatchFinder):
 
                     score = soup.find("div", id="preview-prediction").find_all("span", class_="predicted-score")
                     scores = [Score(WHOSCORED_NAME, score[0].get_text(), score[1].get_text())]
-                    probabilities = None
-                    tips = []
-
-                    result = "Home Win" if scores[0].home > scores[0].away else "Draw" if scores[0].home == scores[0].away else "Away Win"
-                    # No detailed confidence; use high confidence (0-100)
-                    confidence = 100
-                    odds = None
-
-                    tips.append(Tip(raw_text=result, confidence=confidence, source=WHOSCORED_NAME, odds=None))
-
-                    match_predictions = MatchPredictions(scores, probabilities, tips)
-
-                    h2h_results = None
 
                     match_to_add = Match(
-                        home_team=home_team,
-                        away_team=away_team,
+                        home_team=home_team_name,
+                        away_team=away_team_name,
                         datetime=match_datetime,
-                        predictions=match_predictions,
-                        h2h=h2h_results,
-                        odds=odds
+                        predictions=scores,
+                        odds=None
                     )
 
                     self.add_match(match_to_add)

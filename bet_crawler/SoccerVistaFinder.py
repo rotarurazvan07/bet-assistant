@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
@@ -269,10 +268,6 @@ class SoccerVistaFinder(BaseMatchFinder):
                     for match_tr in matches_entries:
                         home_team_name = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
                         away_team_name = match_tr.find_all("td")[3].find_all("span")[0].get_text()
-
-                        home_team = Team(home_team_name, None, None, None)
-                        away_team = Team(away_team_name, None, None, None)
-
                         try:
                             date_str = match_tr.find_all("td")[0].get_text()
                             match_datetime = min(
@@ -280,32 +275,18 @@ class SoccerVistaFinder(BaseMatchFinder):
                                 key=lambda d: abs(d - datetime.now())
                             )
                         except Exception as e:
-                            print(f"{date_str}: invalid date")
+                            print(f"{home_team_name} vs {away_team_name}: Match ongoing")
                             continue
 
                         scores = [Score(SOCCERVISTA_NAME, int(match_tr.find_all("td")[-1].get_text().split(":")[0]),
                                                           int(match_tr.find_all("td")[-1].get_text().split(":")[1]))]
-                        probabilities = None
-                        tips = []
-
-                        result = "Home Win" if scores[0].home > scores[0].away else "Draw" if scores[0].home == scores[0].away else "Away Win"
-                        # No detailed confidence; use high confidence (0-100)
-                        confidence = 100
-                        odds = None
-
-                        tips.append(Tip(raw_text=result, confidence=confidence, source=SOCCERVISTA_NAME, odds=None))
-
-                        match_predictions = MatchPredictions(scores, probabilities, tips)
-
-                        h2h_results = None
 
                         match_to_add = Match(
-                            home_team=home_team,
-                            away_team=away_team,
+                            home_team=home_team_name,
+                            away_team=away_team_name,
                             datetime=match_datetime,
-                            predictions=match_predictions,
-                            h2h=h2h_results,
-                            odds=odds
+                            predictions=scores,
+                            odds=None
                         )
 
                         self.add_match(match_to_add)

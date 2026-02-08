@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 SCOREPREDICTOR_URL = "https://scorepredictor.net/"
@@ -17,7 +16,10 @@ SCOREPREDICTOR_NAME = "ScorePredictor"
 NUM_THREADS = os.cpu_count()
 
 EXCLUDED = [
-    '#'
+    "index.php?section=football&season=ChampionsLeague",
+    "index.php?section=football&season=EuropaLeague",
+    "index.php?section=football&season=ConferenceLeague",
+    "#"
 ]
 
 class ScorePredictorFinder(BaseMatchFinder):
@@ -27,7 +29,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         self._stop_logging = False
         self.web_scraper = None
 
-    def _get_matches_from_html(self):
+    def _get_leagues_urls(self):
         try:
             self.get_web_scraper(profile='fast')
             html = self.web_scraper.fast_http_request(SCOREPREDICTOR_URL + "index.php?section=football")
@@ -48,7 +50,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         self._stop_logging = False
 
         # Get all match URLs
-        leagues_urls = self._get_matches_from_html()
+        leagues_urls = self._get_leagues_urls()
 
         self.get_web_scraper(profile='fast')
 
@@ -76,6 +78,7 @@ class ScorePredictorFinder(BaseMatchFinder):
                     soup = BeautifulSoup(html, 'html.parser')
 
                     if "No matches within next 5 days" in html:
+                        print(f"No matches in {league_url}")
                         continue
 
                     entries = soup.find(class_="table_dark").find_all("tr")[1:]
@@ -94,32 +97,15 @@ class ScorePredictorFinder(BaseMatchFinder):
                         home_team_name = entry.find_all("td")[1].get_text().strip()
                         away_team_name = entry.find_all("td")[4].get_text().strip()
 
-                        home_team = Team(home_team_name, None, None, None)
-                        away_team = Team(away_team_name, None, None, None)
-
                         scores = [Score(SCOREPREDICTOR_NAME, int(entry.find_all("td")[2].get_text()),
                                                              int(entry.find_all("td")[3].get_text()))]
-                        probabilities = None
-                        tips = []
-
-                        result = "Home Win" if scores[0].home > scores[0].away else "Draw" if scores[0].home == scores[0].away else "Away Win"
-                        # No detailed confidence; use high confidence (0-100)
-                        confidence = 100
-                        odds = None
-
-                        tips.append(Tip(raw_text=result, confidence=confidence, source=SCOREPREDICTOR_NAME, odds=None))
-
-                        match_predictions = MatchPredictions(scores, probabilities, tips)
-
-                        h2h_results = None
 
                         match_to_add = Match(
-                            home_team=home_team,
-                            away_team=away_team,
+                            home_team=home_team_name,
+                            away_team=away_team_name,
                             datetime=match_datetime,
-                            predictions=match_predictions,
-                            h2h=h2h_results,
-                            odds=odds
+                            predictions=scores,
+                            odds=None
                         )
 
                         self.add_match(match_to_add)

@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.core.Tip import Tip
 from bet_framework.WebScraper import WebScraper
 
 PREDICTZ_URL = "https://www.predictz.com/"
@@ -40,7 +39,7 @@ class PredictzFinder(BaseMatchFinder):
         self._stop_logging = False
         self.web_scraper = None
 
-    def _get_matches_from_html(self):
+    def _get_league_urls(self):
         try:
             self.get_web_scraper(profile='fast')
             html = self.web_scraper.fast_http_request(PREDICTZ_URL)
@@ -51,7 +50,6 @@ class PredictzFinder(BaseMatchFinder):
             for league_div in league_divs:
                 league_urls += [league.get('value') for league in league_div.find_all('option') \
                                 if league.get('value') not in EXCLUDED]
-
 
             print(str(len(league_urls))+" leagues to scrape")
             return league_urls
@@ -64,7 +62,7 @@ class PredictzFinder(BaseMatchFinder):
         self._stop_logging = False
 
         # Get all match URLs
-        leagues_urls = self._get_matches_from_html()
+        leagues_urls = self._get_league_urls()
 
         self.get_web_scraper(profile='fast')
 
@@ -73,9 +71,9 @@ class PredictzFinder(BaseMatchFinder):
 
         print(f"Finished scanning {self._scanned_leagues} leagues")
 
-    def _log_progress(self, matches_urls):
+    def _log_progress(self, leagues_urls):
         """Log scraping progress."""
-        total = len(matches_urls)
+        total = len(leagues_urls)
         while not self._stop_logging:
             progress = (self._scanned_leagues / total * 100) if total > 0 else 0
             print(f"Progress: {self._scanned_leagues}/{total} ({progress:.1f}%)")
@@ -92,6 +90,7 @@ class PredictzFinder(BaseMatchFinder):
                     soup = BeautifulSoup(html, 'html.parser')
 
                     if "This could be due to games currently in play, tips being formulated, or there might not be any future games for this competition." in html:
+                        print(f"No matches in {league_url}")
                         continue
 
                     entries = soup.find_all(class_="pzcnth")
@@ -106,43 +105,27 @@ class PredictzFinder(BaseMatchFinder):
                             home_team_name = entry.find(class_="fixt").get_text().split(" vs ")[0]
                             away_team_name = entry.find(class_="fixt").get_text().split(" vs ")[1]
 
-                            home_team = Team(home_team_name, None, None, None)
-                            away_team = Team(away_team_name, None, None, None)
-
                             scores = [Score(PREDICTZ_NAME, int(entry.find("td").get_text()[-3:].split("-")[0]),
                                                           int(entry.find("td").get_text()[-3:].split("-")[1]))]
-                            probabilities = None
-                            tips = []
-
-                            result = "Home Win" if scores[0].home > scores[0].away else "Draw" if scores[0].home == scores[0].away else "Away Win"
-                            # No detailed confidence; use high confidence (0-100)
-                            confidence = 100
 
                             try:
                                 odds = Odds(
                                     home=float(soup.find_all(class_='odds')[0].get_text()),
                                     draw=float(soup.find_all(class_='odds')[1].get_text()),
                                     away=float(soup.find_all(class_='odds')[2].get_text()),
-                                    over=0.0,
-                                    under=0.0,
-                                    btts_y=0.0,
-                                    btts_n=0.0
+                                    over=None,
+                                    under=None,
+                                    btts_y=None,
+                                    btts_n=None
                                 )
                             except (AttributeError, IndexError) as e:
                                 odds = None
 
-                            tips.append(Tip(raw_text=result, confidence=confidence, source=PREDICTZ_NAME, odds=None))
-
-                            match_predictions = MatchPredictions(scores, probabilities, tips)
-
-                            h2h_results = None
-
                             match_to_add = Match(
-                                home_team=home_team,
-                                away_team=away_team,
+                                home_team=home_team_name,
+                                away_team=away_team_name,
                                 datetime=match_datetime,
-                                predictions=match_predictions,
-                                h2h=h2h_results,
+                                predictions=scores,
                                 odds=odds
                             )
 

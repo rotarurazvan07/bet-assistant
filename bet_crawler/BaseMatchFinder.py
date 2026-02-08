@@ -31,9 +31,6 @@ class BaseMatchFinder():
     def __init__(self, add_match_callback: Callable):
         super().__init__()
         self.add_match_callback = add_match_callback
-        # Common state used by finders
-        # TODO - useless
-        self._scanned_matches = 0
         self._stop_logging = False
         self.web_scraper: Optional[WebScraper] = None
 
@@ -51,37 +48,17 @@ class BaseMatchFinder():
         False when it was skipped.
         """
         try:
-            # Extract team names if present
-            home_name = None
-            away_name = None
-            try:
-                home_name = match.home_team.name
-            except Exception:
-                pass
-            try:
-                away_name = match.away_team.name
-            except Exception:
-                pass
-
             # Skip by patterns (e.g., youth, reserve teams)
-            if not force and home_name and away_name:
-                reason = self.skip_match_by_patterns(home_name, away_name)
+            if not force:
+                reason = self.skip_match_by_patterns(match.home_team, match.away_team)
                 if reason:
                     # Best-effort log; don't raise if skipped
-                    print(f"SKIPPED by pattern: {home_name} vs {away_name} ({reason})")
+                    print(f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})")
                     return False
 
-            # Validate date (keep only today's matches by default)
-            if not force:
-                try:
-                    match_dt = match.datetime
-                except Exception:
-                    match_dt = None
-                if match_dt is not None and not self.validate_match_date(match_dt):
-                    print(f"SKIPPED by date: {home_name} vs {away_name} ({match_dt})")
+                if match.datetime is not None and not self.validate_match_date(match.datetime):
+                    print(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
                     return False
-
-            # Passed checks - invoke the configured callback
             self.add_match_callback(match)
             return True
         except Exception as e:
@@ -155,7 +132,6 @@ class BaseMatchFinder():
         `_log_progress(items)` if the subclass implements it.
         """
         items = list(items)
-        self._scanned_matches = 0
         self._stop_logging = False
 
         # Optionally create a shared scraper (finder may override afterwards)

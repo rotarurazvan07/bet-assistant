@@ -1,5 +1,6 @@
 import argparse
 import sys
+import time
 
 from bet_crawler.ScorePredictorFinder import ScorePredictorFinder
 from bet_crawler.SoccerVistaFinder import SoccerVistaFinder
@@ -13,25 +14,25 @@ from bet_crawler.VitibetFinder import VitibetFinder
 from bet_crawler.PredictzFinder import PredictzFinder
 from bet_crawler.FootballBettingTipsFinder import FootballBettingTipsFinder
 
+
 class MatchFinder:
     def __init__(self, db_manager):
         self.db_manager = db_manager
+        self.matches_processed = 0
 
     def _add_match_callback(self, match):
+        self.matches_processed += 1
         self.db_manager.add_match(match)
 
     def get_matches(self):
         match_finders = [
-            # More comprehensive websites first - db_manager doesnt update everything
             ForebetFinder(self._add_match_callback),
             VitibetFinder(self._add_match_callback),
             WinDrawWinFinder(self._add_match_callback),
-            # Strictly for tips, below (lacks a lot of data)
             ScorePredictorFinder(self._add_match_callback),
             PredictzFinder(self._add_match_callback),
-            # FootballBettingTipsFinder(self._add_match_callback), # TODO Cloudflare problems
             WhoScoredFinder(self._add_match_callback),
-            SoccerVistaFinder(self._add_match_callback), # TODO - this has a lot more matches
+            SoccerVistaFinder(self._add_match_callback),
         ]
 
         for match_finder in match_finders:
@@ -44,12 +45,13 @@ if __name__ == "__main__":
     settings_manager.load_settings("config")
 
     db_manager = DatabaseManager(args.db_path)
-
     db_manager.reset_matches_db()
 
     match_finder = MatchFinder(db_manager)
-    match_finder.get_matches()
+    start = time.perf_counter()
 
+    match_finder.get_matches()
     db_manager.close()
 
     print(f"✅ Scrape complete. Database saved to: {args.db_path}")
+    print(f"Processed {match_finder.matches_processed} in {time.perf_counter() - start:.4f} seconds")

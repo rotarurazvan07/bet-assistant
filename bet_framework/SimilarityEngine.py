@@ -85,6 +85,7 @@ class SimilarityEngine:
         )
         return final_score
 
+    # todo - make generic, look at book-finder
     def is_similar(self, match1: str, match2: str) -> bool:
         n1 = self._normalize(match1)
         n2 = self._normalize(match2)

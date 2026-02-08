@@ -8,13 +8,6 @@ from datetime import datetime
 import pandas as pd
 import hashlib
 
-# H2H and scoring constants
-H2H_WIN_WEIGHT = 3
-WIN_WEIGHT = 3
-DRAW_WEIGHT = 1
-LOSE_WEIGHT = -3
-LEAGUE_POINTS_WEIGHT = 1
-
 
 class BettingAnalyzer:
     """Analyzes matches, filters data, builds bets - all data manipulation logic."""
@@ -44,7 +37,6 @@ class BettingAnalyzer:
                 match_id = f"match_{idx}_{hashlib.md5(match_key.encode()).hexdigest()}"
 
                 # Run analysis logic using the raw data
-                discrepancy_data = self._calculate_discrepancy_from_raw(row)
                 suggestions_data = self._calculate_suggestions_from_raw(row)
 
                 # Extract timestamps and odds
@@ -63,11 +55,6 @@ class BettingAnalyzer:
                     'home': row['home_name'],
                     'away': row['away_name'],
                     'sources': unique_sources,
-
-                    # Analysis Data
-                    'discrepancy': discrepancy_data['score'],
-                    'discrepancy_pct': discrepancy_data['pct'],
-                    'quick_suggestion': discrepancy_data['suggestion'],
 
                     # Probability Data (from suggestions)
                     'prob_home': suggestions_data['result']['home'],
@@ -103,8 +90,7 @@ class BettingAnalyzer:
                            search_text: Optional[str] = None,
                            date_from: Optional[str] = None,
                            date_to: Optional[str] = None,
-                           min_sources: Optional[int] = None,
-                           min_discrepancy: Optional[float] = None) -> pd.DataFrame:
+                           min_sources: Optional[int] = None) -> pd.DataFrame:
         """
         Internal method to generate a filtered view of the master DataFrame.
         """
@@ -130,10 +116,6 @@ class BettingAnalyzer:
         # Apply sources filter
         if min_sources and min_sources > 1:
             filtered_df = filtered_df[filtered_df['sources'] >= min_sources]
-
-        # Apply discrepancy filter
-        if min_discrepancy and min_discrepancy > 0:
-            filtered_df = filtered_df[filtered_df['discrepancy_pct'] >= min_discrepancy]
 
         return filtered_df
 
@@ -237,80 +219,6 @@ class BettingAnalyzer:
             })
 
         return grouped_selections
-
-    def _calculate_discrepancy_from_raw(self, row) -> Dict[str, Any]:
-        """
-        Calculate team score discrepancy from raw DataFrame row.
-        Optimized version that works with dictionaries instead of Match objects.
-        """
-        try:
-            def _team_score(lp, form):
-                lp = lp or 0
-                form = form or ''
-                if isinstance(form, (list, tuple)):
-                    fcount = ''.join(form)
-                else:
-                    fcount = str(form)
-                form_value = WIN_WEIGHT * fcount.count('W') + DRAW_WEIGHT * fcount.count('D') + LOSE_WEIGHT * fcount.count('L')
-                return float(lp) + float(form_value)
-
-            home_team_score = _team_score(row['home_league_points'], row['home_form'])
-            away_team_score = _team_score(row['away_league_points'], row['away_form'])
-
-            # Apply H2H bias
-            h2h_data = row['h2h']
-            if h2h_data:
-                h2h_home_wins = h2h_data.get('home', 0) or 0
-                h2h_away_wins = h2h_data.get('away', 0) or 0
-                h2h_bias = H2H_WIN_WEIGHT * (h2h_home_wins - h2h_away_wins)
-                if h2h_bias < 0:
-                    away_team_score += abs(h2h_bias)
-                else:
-                    home_team_score += h2h_bias
-
-            base = abs(home_team_score - away_team_score)
-
-            # Calculate Probability Percent
-            probs_data = row['probabilities']
-            if probs_data and len(probs_data) > 0:
-                avg_home_prob = sum([p.get('home', 0) for p in probs_data]) / len(probs_data)
-                avg_draw_prob = sum([p.get('draw', 0) for p in probs_data]) / len(probs_data)
-                avg_away_prob = sum([p.get('away', 0) for p in probs_data]) / len(probs_data)
-                pct = max(avg_home_prob, avg_away_prob) + avg_draw_prob
-
-                # Calculate Suggestion Text
-                suggestion = ""
-                if avg_home_prob >= avg_away_prob:
-                    suggestion += "1X & "
-                else:
-                    suggestion += "X2 & "
-
-                scores_data = row['scores']
-                if scores_data and len(scores_data) > 0:
-                    avg_goals = sum([(s.get('home', 0) + s.get('away', 0)) for s in scores_data]) / len(scores_data)
-                    if (round(avg_goals) - 2) >= 3:
-                        suggestion += "3+"
-                    elif (round(avg_goals) - 2) <= 0:
-                        suggestion += "0-4"
-                    else:
-                        suggestion += str(round(avg_goals) - 2) + "-" + str(round(avg_goals) + 2)
-                else:
-                    suggestion += "N/A"
-            else:
-                pct = 0.0
-                suggestion = ""
-
-        except Exception as e:
-            print(f"Error in discrepancy calculation: {e}")
-            base = 0.0
-            pct = 0.0
-            suggestion = ""
-
-        return {
-            'score': float(round(base, 2)),
-            'pct': float(round(pct, 2)),
-            'suggestion': suggestion
-        }
 
     def _calculate_suggestions_from_raw(self, row) -> Dict[str, Dict[str, float]]:
         """
