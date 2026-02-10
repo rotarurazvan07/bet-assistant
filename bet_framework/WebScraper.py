@@ -152,6 +152,9 @@ class StealthEngine:
             '--disable-web-security',
             '--disable-features=IsolateOrigins,site-per-process',
             '--disable-gpu',
+            '--blink-settings=imagesEnabled=false',
+            '--disable-features=Translate',      # Disable built-in Google Translate
+            '--disable-sync',                    # No Google account syncing
             f'--window-size={profile["screen"]["width"]},{profile["screen"]["height"]}',
         ]
 
@@ -667,6 +670,159 @@ class WebScraper:
                     time.sleep(wait_time)
 
         return ""
+
+    async def async_scrape(
+        self,
+        urls: List[str],
+        load_callback,
+        max_concurrent: int = 5,
+        additional_wait: float = 2.0,
+        wait_for_selector: Optional[str] = None
+    ):
+        """
+        Asynchronously scrapes a list of URLs using a pool of isolated browser contexts.
+
+        Args:
+            urls: List of URLs to scrape.
+            load_callback: Async function (url, html) -> Any. Called on successful load.
+            max_concurrent: Maximum number of browser contexts to have open simultaneously.
+            additional_wait: Time (seconds) to wait after load for hydration/JS.
+            wait_for_selector: specific CSS selector to wait for (e.g., '.price-box').
+        """
+        import asyncio
+        from playwright.async_api import async_playwright
+
+        # Semaphore limits the number of active browser contexts
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        print(f"Starting async scrape for {len(urls)} URLs with {max_concurrent} concurrency...")
+
+        async with async_playwright() as p:
+            # Launch the browser ONCE. We will create multiple isolated contexts inside it.
+            browser = await p.chromium.launch(
+                headless=self.headless,
+                args = [
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-dev-shm-usage',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-web-security',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                    '--disable-gpu',
+                    '--blink-settings=imagesEnabled=false',
+                    '--disable-features=Translate',      # Disable built-in Google Translate
+                    '--disable-sync',                    # No Google account syncing
+                    '--window-size=1920,1080',
+                ]
+            )
+
+            async def process_url(url: str):
+                async with semaphore:
+                    context = None
+                    try:
+                        # 1. SETUP STEALTH CONTEXT
+                        # We use your existing StealthEngine to get a unique profile for this specific task
+                        if self.stealth_engine:
+                            _, profile = self.stealth_engine.get_next_profile()
+                            user_agent = self.stealth_engine.get_user_agent()
+                            headers = self.stealth_engine.get_headers(user_agent)
+                            evasion_script = self.stealth_engine.get_evasion_script(profile)
+
+                            # Map profile settings to Playwright context options
+                            viewport = {'width': profile['screen']['width'], 'height': profile['screen']['height']}
+                            locale = profile['locale']
+                            timezone = profile['timezone']
+                        else:
+                            # Fallbacks if stealth is disabled
+                            user_agent = "Mozilla/5.0"
+                            headers = {}
+                            viewport = {'width': 1920, 'height': 1080}
+                            locale = 'en-US'
+                            timezone = 'UTC'
+                            evasion_script = None
+
+                        # Create the isolated context
+                        context = await browser.new_context(
+                            user_agent=user_agent,
+                            viewport=viewport,
+                            locale=locale,
+                            timezone_id=timezone,
+                            extra_http_headers=headers,
+                            java_script_enabled=True,
+                            device_scale_factor=1.0 + (0.1 * (0.5 - random.random())) # Slight fingerprint noise
+                        )
+
+                        if evasion_script:
+                            await context.add_init_script(evasion_script)
+
+                        page = await context.new_page()
+
+                        # 2. RETRY LOOP
+                        for attempt in range(self.retry_engine.max_retries):
+                            try:
+                                # Global rate limit jitter (non-blocking)
+                                if self.min_request_delay > 0:
+                                    await asyncio.sleep(self.min_request_delay + random.uniform(0, 0.5))
+
+                                print(f"[Async] Scraping {url} (Attempt {attempt+1})")
+
+                                # Navigate
+                                try:
+                                    await page.goto(url, wait_until='domcontentloaded', timeout=self.TIMEOUT)
+                                except Exception as nav_err:
+                                    # Sometimes timeouts happen but content is loaded, so we continue to check
+                                    print(f"[{url}] Nav warning: {nav_err}")
+
+                                # Wait for specific element (Critical for dynamic sites)
+                                if wait_for_selector:
+                                    try:
+                                        await page.wait_for_selector(wait_for_selector, timeout=10000)
+                                    except:
+                                        pass # Continue and let the block checker decide if it failed
+
+                                # Wait for hydration/JS
+                                if additional_wait > 0:
+                                    await asyncio.sleep(additional_wait)
+
+                                # Get Content
+                                html = await page.content()
+
+                                # Check for blocks using your RetryEngine
+                                is_blocked, reason = self.retry_engine.is_blocked(html)
+                                if is_blocked:
+                                    print(f"[{url}] Blocked: {reason}")
+                                    if attempt < self.retry_engine.max_retries - 1:
+                                        # Use retry engine math, but await async sleep instead of time.sleep
+                                        wait_time = self.retry_engine.calculate_wait_time(attempt, 2.0)
+                                        await asyncio.sleep(wait_time)
+                                        continue
+                                    else:
+                                        print(f"[{url}] Failed after max retries.")
+                                        break
+
+                                # SUCCESS: Hand off to callback
+                                if asyncio.iscoroutinefunction(load_callback):
+                                    await load_callback(url, html)
+                                else:
+                                    load_callback(url, html)
+
+                                break # Exit retry loop on success
+
+                            except Exception as e:
+                                # TODO targul cartii triggers this at about 200, i want exception to be retryed.
+                                print(f"[{url}] Error: {e}")
+                                await asyncio.sleep(2)
+
+                    except Exception as fatal_e:
+                        print(f"[{url}] Fatal context error: {fatal_e}")
+                    finally:
+                        # Always clean up the context to free memory
+                        if context:
+                            await context.close()
+
+            # 3. RUN ALL TASKS
+            tasks = [process_url(url) for url in urls]
+            await asyncio.gather(*tasks)
 
     def execute_script(self, script: str, *args) -> Any:
         """Execute JavaScript in browser."""

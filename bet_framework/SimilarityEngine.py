@@ -62,6 +62,7 @@ class SimilarityEngine:
             if name == k:
                 name = v
 
+        # TODO: problem, they overwrite even part of names in teams ! like "medias " , detects "as "
         for k, v in self.acronyms.items():
             if k in name:
                 name = name.replace(k, v)
@@ -93,9 +94,11 @@ class SimilarityEngine:
         parts2 = n2.split(' vs ')
         if len(parts1) < 2 or len(parts2) < 2:
             # fallback to direct ratio
-            return self.hybrid_match(n1, n2) > self.similarity_threshold
+            return self.hybrid_match(n1, n2) > self.similarity_threshold, \
+                   self.hybrid_match(n1, n2)
         home1, away1 = parts1[0], parts1[1]
         home2, away2 = parts2[0], parts2[1]
         home_score = self.hybrid_match(home1, home2)
         away_score = self.hybrid_match(away1, away2)
-        return (home_score + away_score) / 2 > self.similarity_threshold
+        return (home_score + away_score) / 2 > self.similarity_threshold, \
+               (home_score + away_score) / 2

@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 import json
+import threading
 from typing import Optional
 import pandas as pd
 
@@ -8,7 +9,6 @@ from bet_framework.SimilarityEngine import SimilarityEngine
 
 from .core.Match import *
 from .utils import log
-
 
 class DatabaseManager:
     def __init__(self, db_path: str = None):
@@ -18,6 +18,7 @@ class DatabaseManager:
         self.conn.row_factory = sqlite3.Row
 
         self.similarity_engine = SimilarityEngine()
+        self.db_lock = threading.Lock()
         self._create_tables()
 
     def _create_tables(self):
@@ -147,11 +148,18 @@ class DatabaseManager:
             WHERE date(datetime) BETWEEN date(?, '-1 day') AND date(?, '+1 day')
         ''', (date_str, date_str))
 
+        found_match_row = found_match_row_id = None
+        max_score = -1
+
         for row in cursor:
+            # TODO - similirity on both names then compute here, similiraty engine to be generic
             db_match_name = f"{row['home_team_name']} vs {row['away_team_name']}"
-            if self.similarity_engine.is_similar(db_match_name, match_name):
-                return dict(row), row['id']
-        return None, None
+            is_similar, score = self.similarity_engine.is_similar(db_match_name, match_name)
+            if is_similar and score > max_score:
+                max_score = score
+                found_match_row = dict(row)
+                found_match_row_id = row['id']
+        return found_match_row, found_match_row_id
 
     def add_match(self, match, match_id=None):
         """Add or update a match in the database."""
@@ -199,14 +207,15 @@ class DatabaseManager:
                         updates['odds'] = self._serialize_json(updated_odds)
 
                 # Execute all updates at once
-                if updates:
-                    set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
-                    values = list(updates.values()) + [found_match_id]
-                    self.conn.execute(
-                        f'UPDATE matches SET {set_clause} WHERE id = ?',
-                        values
-                    )
-                    self.conn.commit()
+                with self.db_lock:
+                    if updates:
+                        set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+                        values = list(updates.values()) + [found_match_id]
+                        self.conn.execute(
+                            f'UPDATE matches SET {set_clause} WHERE id = ?',
+                            values
+                        )
+                        self.conn.commit()
 
                 return found_match_id
             else:
@@ -217,18 +226,19 @@ class DatabaseManager:
 
                 scores = json.dumps([s.__dict__ for s in match.predictions]) if match.predictions else None
 
-                cursor = self.conn.execute('''
-                    INSERT INTO matches (
-                        home_team_name,
-                        away_team_name,
-                        datetime, predictions_scores, odds
-                    ) VALUES (?, ?, ?, ?, ?)
-                ''', (
-                    match.home_team,
-                    match.away_team,
-                    match.datetime.isoformat(), scores, odds
-                ))
-                self.conn.commit()
+                with self.db_lock:
+                    cursor = self.conn.execute('''
+                        INSERT INTO matches (
+                            home_team_name,
+                            away_team_name,
+                            datetime, predictions_scores, odds
+                        ) VALUES (?, ?, ?, ?, ?)
+                    ''', (
+                        match.home_team,
+                        match.away_team,
+                        match.datetime.isoformat(), scores, odds
+                    ))
+                    self.conn.commit()
                 return cursor.lastrowid
 
         except Exception as e:

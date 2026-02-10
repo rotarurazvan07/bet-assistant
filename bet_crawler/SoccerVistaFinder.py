@@ -1,3 +1,4 @@
+import asyncio
 import os
 import random
 import re
@@ -201,7 +202,7 @@ class SoccerVistaFinder(BaseMatchFinder):
         self._stop_logging = False
         self.web_scraper = None
 
-    def _get_matches_from_html(self):
+    def _get_league_urls(self):
         try:
             self.get_web_scraper(profile='fast')
             html = self.web_scraper.fast_http_request(SOCCERVISTA_URL)
@@ -220,7 +221,7 @@ class SoccerVistaFinder(BaseMatchFinder):
                         print(f"Can't parse: {link}")
                         continue
             league_urls = [
-                url for url in league_urls
+                SOCCERVISTA_URL + url for url in league_urls
                 if not any(excluded in url for excluded in EXCLUDED)
             ]
 
@@ -230,18 +231,57 @@ class SoccerVistaFinder(BaseMatchFinder):
         finally:
             self.web_scraper.destroy_current_thread()
 
+    async def my_data_handler(self, url, html):
+        self._scanned_leagues += 1
+        try:
+            soup = BeautifulSoup(html, 'html.parser')
+            # One-liner to find container, then rows, defaulting to [] if not found
+            container = soup.find('h2', string=lambda t: t and "Upcoming Predictions" in t)
+            matches_entries = container.parent.find("tbody").find_all("tr") if container else []
+            for match_tr in matches_entries:
+                home_team_name = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
+                away_team_name = match_tr.find_all("td")[3].find_all("span")[0].get_text()
+                try:
+                    date_str = match_tr.find_all("td")[0].get_text()
+                    match_datetime = min(
+                        (datetime.strptime(f"{date_str} {y}", "%d %b %Y") for y in [datetime.now().year-1, datetime.now().year, datetime.now().year+1]),
+                        key=lambda d: abs(d - datetime.now())
+                    )
+                except Exception as e:
+                    print(f"{home_team_name} vs {away_team_name}: Match ongoing")
+                    continue
+
+                scores = [Score(SOCCERVISTA_NAME, int(match_tr.find_all("td")[-1].get_text().split(":")[0]),
+                                                    int(match_tr.find_all("td")[-1].get_text().split(":")[1]))]
+
+                match_to_add = Match(
+                    home_team=home_team_name,
+                    away_team=away_team_name,
+                    datetime=match_datetime,
+                    predictions=scores,
+                    odds=None
+                )
+
+                self.add_match(match_to_add)
+
+        except Exception as e:
+            print(f"Caught exception {e} while parsing {url}")
+
     def get_matches(self):
         """Main function to scrape all matches in parallel."""
         self._scanned_leagues = 0
         self._stop_logging = False
 
         # Get all match URLs
-        leagues_urls = self._get_matches_from_html()
-
-        self.get_web_scraper(profile='slow', min_request_delay=0.5, max_retries=6)
-
-        # Run worker jobs using the base helper which starts/stops progress logging
-        self.run_workers(leagues_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        leagues_urls = self._get_league_urls()
+        self.get_web_scraper(profile='slow')
+        asyncio.run(self.web_scraper.async_scrape(
+            urls=leagues_urls,
+            load_callback=self.my_data_handler,
+            max_concurrent=12,
+            additional_wait=1,
+            wait_for_selector=".content-loaded"
+        ))
 
         print(f"Finished scanning {self._scanned_leagues} leagues")
 
@@ -252,46 +292,3 @@ class SoccerVistaFinder(BaseMatchFinder):
             progress = (self._scanned_leagues / total * 100) if total > 0 else 0
             print(f"Progress: {self._scanned_leagues}/{total} ({progress:.1f}%)")
             time.sleep(2)
-
-    def _find_matches_job(self, leagues_urls, thread_id):
-        """Worker function that processes a slice of matches."""
-        try:
-            for league_url in leagues_urls:
-                self._scanned_leagues += 1
-
-                html = self.web_scraper.load_page(SOCCERVISTA_URL + league_url)
-                try:
-                    soup = BeautifulSoup(html, 'html.parser')
-                    # One-liner to find container, then rows, defaulting to [] if not found
-                    container = soup.find('h2', string=lambda t: t and "Upcoming Predictions" in t)
-                    matches_entries = container.parent.find("tbody").find_all("tr") if container else []
-                    for match_tr in matches_entries:
-                        home_team_name = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                        away_team_name = match_tr.find_all("td")[3].find_all("span")[0].get_text()
-                        try:
-                            date_str = match_tr.find_all("td")[0].get_text()
-                            match_datetime = min(
-                                (datetime.strptime(f"{date_str} {y}", "%d %b %Y") for y in [datetime.now().year-1, datetime.now().year, datetime.now().year+1]),
-                                key=lambda d: abs(d - datetime.now())
-                            )
-                        except Exception as e:
-                            print(f"{home_team_name} vs {away_team_name}: Match ongoing")
-                            continue
-
-                        scores = [Score(SOCCERVISTA_NAME, int(match_tr.find_all("td")[-1].get_text().split(":")[0]),
-                                                          int(match_tr.find_all("td")[-1].get_text().split(":")[1]))]
-
-                        match_to_add = Match(
-                            home_team=home_team_name,
-                            away_team=away_team_name,
-                            datetime=match_datetime,
-                            predictions=scores,
-                            odds=None
-                        )
-
-                        self.add_match(match_to_add)
-
-                except Exception as e:
-                    print(f"Caught exception {e} while parsing {league_url}")
-        finally:
-            self.web_scraper.destroy_current_thread()
