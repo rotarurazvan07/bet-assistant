@@ -4,6 +4,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
+from DrissionPage import ChromiumOptions, ChromiumPage
 from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
@@ -14,6 +15,16 @@ WHOSCORED_URL = "https://www.whoscored.com/"
 WHOSCORED_NAME = "whoscored"
 NUM_THREADS = 1
 
+options = ChromiumOptions()
+options.set_argument('--headless=new')
+# 2. Spoof a real User-Agent (Cloudflare blocks the default 'HeadlessChrome' one)
+options.set_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+# 3. Critical arguments for stability and stealth
+options.set_argument('--no-sandbox')  # Required for root/CI environments
+options.set_argument('--disable-gpu') # Reduces resource usage
+options.set_argument('--disable-dev-shm-usage') # Prevents memory crashes in Docker/Linux
+options.set_argument('--window-size=1920,1080') # Mimics a real monitor
 
 class WhoScoredFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
@@ -23,31 +34,28 @@ class WhoScoredFinder(BaseMatchFinder):
         self.web_scraper = None
 
     def _get_matches_from_html(self):
-        try:
-            self.get_web_scraper(profile='fast')
-            html = self.web_scraper.fast_http_request(WHOSCORED_URL + "/previews")
-            soup = BeautifulSoup(html, 'html.parser')
-            matches_urls = []
+        page = ChromiumPage(options)
+        page.get(WHOSCORED_URL + "/previews")
+        page.wait.load_start()
+        soup = BeautifulSoup(page.html, 'html.parser')
+        matches_urls = []
 
-            matches_table_anchor = soup.find("table", class_="grid")
-            matches_urls = [a['href'] for a in matches_table_anchor.find_all('a') if "matches" in a['href']]
-            print(str(len(matches_urls))+" matches to scrape")
-            return matches_urls
-        finally:
-            self.web_scraper.destroy_current_thread()
+        matches_table_anchor = soup.find("table", class_="grid")
+        matches_urls = [(WHOSCORED_URL + a['href']) for a in matches_table_anchor.find_all('a') if "matches" in a['href']]
+        print(str(len(matches_urls))+" matches to scrape")
+        page.quit()
+        return matches_urls
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_matches_from_html()
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_matches = 0
         self._stop_logging = False
 
-        # Get all match URLs
-        matches_urls = self._get_matches_from_html()
-
-        self.get_web_scraper(profile='fast')
-
         # Run worker jobs using the base helper which starts/stops progress logging
-        self.run_workers(matches_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        self.run_workers(urls, self._find_matches_job, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_matches} leagues")
 
@@ -62,12 +70,13 @@ class WhoScoredFinder(BaseMatchFinder):
     def _find_matches_job(self, matches_urls, thread_id):
         """Worker function that processes a slice of matches."""
         try:
+            page = ChromiumPage(options)
             for match_url in matches_urls:
                 self._scanned_matches += 1
-
-                html = self.web_scraper.load_page(WHOSCORED_URL + match_url)
+                page.get(match_url)
+                page.wait.load_start()
                 try:
-                    soup = BeautifulSoup(html, 'html.parser')
+                    soup = BeautifulSoup(page.html, 'html.parser')
 
                     home_team_name = soup.find('div', class_='teams-score-info').find("span", class_=re.compile(r'home team')).get_text()
                     away_team_name = soup.find('div', class_='teams-score-info').find("span", class_=re.compile(r'away team')).get_text()
@@ -93,4 +102,4 @@ class WhoScoredFinder(BaseMatchFinder):
                 except Exception as e:
                     print(f"Caught exception {e} while parsing {match_url}")
         finally:
-            self.web_scraper.destroy_current_thread()
+            page.quit()

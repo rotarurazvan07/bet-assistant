@@ -13,7 +13,7 @@ from bet_framework.WebScraper import WebScraper
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 
 EXCLUDED = [
     "https://www.predictz.com/predictions/england/community-shield/",
@@ -42,7 +42,7 @@ class PredictzFinder(BaseMatchFinder):
     def _get_league_urls(self):
         try:
             self.get_web_scraper(profile='fast')
-            html = self.web_scraper.fast_http_request(PREDICTZ_URL)
+            html = self.web_scraper.load_page(PREDICTZ_URL, additional_wait=10)
             soup = BeautifulSoup(html, 'html.parser')
 
             league_urls = []
@@ -56,18 +56,18 @@ class PredictzFinder(BaseMatchFinder):
         finally:
             self.web_scraper.destroy_current_thread()
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_league_urls()
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_leagues = 0
         self._stop_logging = False
 
-        # Get all match URLs
-        leagues_urls = self._get_league_urls()
-
         self.get_web_scraper(profile='fast')
 
         # Run worker jobs using the base helper which starts/stops progress logging
-        self.run_workers(leagues_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        self.run_workers(urls, self._find_matches_job, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_leagues} leagues")
 
@@ -85,7 +85,7 @@ class PredictzFinder(BaseMatchFinder):
             for league_url in leagues_urls:
                 self._scanned_leagues += 1
 
-                html = self.web_scraper.fast_http_request(league_url)
+                html = self.web_scraper.load_page(league_url)
                 try:
                     soup = BeautifulSoup(html, 'html.parser')
 

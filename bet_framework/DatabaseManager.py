@@ -1,3 +1,5 @@
+import glob
+import os
 import sqlite3
 from datetime import datetime
 import json
@@ -13,6 +15,7 @@ from .utils import log
 class DatabaseManager:
     def __init__(self, db_path: str = None):
         # Enable WAL mode for concurrent reads/writes
+        self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.execute('PRAGMA journal_mode=WAL')
         self.conn.row_factory = sqlite3.Row
@@ -249,6 +252,56 @@ class DatabaseManager:
         """Delete all matches from the database."""
         self.conn.execute('DELETE FROM matches')
         self.conn.commit()
+
+    def merge_databases(self, chunks_dir: str):
+        """
+        Iterates through all .db files in chunks_dir, converts their rows
+        into Match objects, and merges them into the current database
+        using the similarity-aware add_match logic.
+        """
+        # 1. Find all chunk files
+        # We use absolute paths to ensure we don't accidentally try to merge the main DB
+        chunk_files = [
+            os.path.join(chunks_dir, f)
+            for f in os.listdir(chunks_dir)
+            if f.endswith(".db")
+            and f != self.db_path
+        ]
+
+        # Identify current DB to avoid self-merging
+        # We can't use self.conn.path in all versions, so we rely on path comparison
+        log(f"Merging {len(chunk_files)} databases from {chunks_dir}...")
+
+        for chunk_path in chunk_files:
+            log(f"🔄 Processing chunk: {os.path.basename(chunk_path)}")
+
+            try:
+                # 2. Open the chunk as a temporary DatabaseManager
+                # This gives us access to _row_to_match and the connection logic
+                chunk_mgr = DatabaseManager(chunk_path)
+
+                # 3. Fetch all raw rows from the chunk
+                cursor = chunk_mgr.conn.execute("SELECT * FROM matches")
+                chunk_rows = cursor.fetchall()
+
+                for row in chunk_rows:
+                    # 4. Convert row back into a proper Match object
+                    # This handles the JSON deserialization of scores and odds
+                    match_obj = chunk_mgr._row_to_match(row)
+
+                    # 5. Add to the MAIN database (self)
+                    # This triggers the similarity engine check automatically
+                    self.add_match(match_obj)
+
+                # 6. Cleanup chunk connection
+                chunk_mgr.close()
+                log(f"✅ Successfully merged {os.path.basename(chunk_path)}")
+
+            except Exception as e:
+                print(f"⚠️ Failed to merge chunk {chunk_path}: {e}")
+                continue
+
+        log("🏁 All database chunks have been merged.")
 
     def close(self):
         self.conn.commit()

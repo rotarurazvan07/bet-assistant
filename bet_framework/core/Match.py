@@ -15,13 +15,13 @@ class Score:
 
 @dataclass
 class Odds:
-    home: float
-    draw: float
-    away: float
-    over: float
-    under: float
-    btts_y: float
-    btts_n: float
+    home: float | None = None
+    draw: float | None = None
+    away: float | None = None
+    over: float | None = None
+    under: float | None = None
+    btts_y: float | None = None
+    btts_n: float | None = None
 
     def __post_init__(self):
         self.home = float(self.home) if self.home is not None else None

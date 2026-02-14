@@ -5,6 +5,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 
+from DrissionPage import ChromiumOptions, ChromiumPage
 from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
@@ -14,8 +15,18 @@ from bet_framework.WebScraper import WebScraper
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 
+options = ChromiumOptions()
+options.set_argument('--headless=new')
+# 2. Spoof a real User-Agent (Cloudflare blocks the default 'HeadlessChrome' one)
+options.set_user_agent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+# 3. Critical arguments for stability and stealth
+options.set_argument('--no-sandbox')  # Required for root/CI environments
+options.set_argument('--disable-gpu') # Reduces resource usage
+options.set_argument('--disable-dev-shm-usage') # Prevents memory crashes in Docker/Linux
+options.set_argument('--window-size=1920,1080') # Mimics a real monitor
 
 class ForebetFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
@@ -24,47 +35,39 @@ class ForebetFinder(BaseMatchFinder):
         self._stop_logging = False
         self.web_scraper = None
 
-    def _get_matches_from_html(self, url):
-        """Get all match URLs from the main predictions page."""
-        self.get_web_scraper(profile='slow')
+    def _get_matches_from_html(self):
+        page = ChromiumPage(options)
+        page.get(FOREBET_ALL_PREDICTIONS_URL)
+        page.wait.load_start()
+        # Click "Show more" buttons
+        print("Loading more matches...")
+        for i in range(11, 30):
+            try:
+                page.run_js(f'ltodrows("1x2", {i}, "");')
+                time.sleep(2)
+            except Exception as e:
+                print(f"Error loading more matches at index {i}: {e}")
+                break
 
-        try:
-            print("Loading predictions page...")
-            # Wait for the match table to load
-            self.web_scraper.load_page(
-                url,
-                additional_wait=2.0,  # Extra wait after page loads
-                required_content=['All football predictions'],
-            )
+        # Get HTML and parse
+        html_content = page.html
+        soup = BeautifulSoup(html_content, 'html.parser')
 
-            # Click "Show more" buttons
-            print("Loading more matches...")
-            for i in range(11, 30):
-                try:
-                    self.web_scraper.execute_script(f'ltodrows("1x2", {i}, "");')
-                    time.sleep(2)
-                except Exception as e:
-                    print(f"Error loading more matches at index {i}: {e}")
-                    break
+        # Extract match anchors to parse directly
+        all_matches_anchors = soup.find("td", class_="contentmiddle").find_all(class_="rcnt")
 
-            # Get HTML and parse
-            html_content = self.web_scraper.get_current_page()
-            soup = BeautifulSoup(html_content, 'html.parser')
+        print(f"Found {len(all_matches_anchors)} matches to scan")
+        page.quit()
+        return all_matches_anchors
 
-            # Extract match anchors to parse directly
-            all_matches_anchors = soup.find("td", class_="contentmiddle").find_all(class_="rcnt")
+    def get_matches_urls(self):
+        return [FOREBET_URL]
 
-            print(f"Found {len(all_matches_anchors)} matches to scan")
-            return all_matches_anchors
-
-        finally:
-            self.web_scraper.destroy_current_thread()
-
-    def get_matches(self):
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_matches = 0
         self._stop_logging = False
-        matches_anchors = self._get_matches_from_html(FOREBET_ALL_PREDICTIONS_URL)
+        matches_anchors = self._get_matches_from_html()
         self.run_workers(matches_anchors, self._find_matches_job, num_threads=NUM_THREADS)
         print(f"Finished scanning {self._scanned_matches} matches")
 

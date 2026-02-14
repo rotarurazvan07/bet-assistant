@@ -12,7 +12,7 @@ from bet_framework.WebScraper import WebScraper
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 
 class WinDrawWinFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
@@ -24,8 +24,8 @@ class WinDrawWinFinder(BaseMatchFinder):
 
         try:
             print("Loading WinDrawWin leagues page...")
-            html = self.web_scraper.fast_http_request(
-                WINDRAWWIN_URL
+            html = self.web_scraper.load_page(
+                WINDRAWWIN_URL, additional_wait=10
             )
 
             if not html:
@@ -36,7 +36,7 @@ class WinDrawWinFinder(BaseMatchFinder):
 
             league_urls = []
 
-            league_trs = rows = (all_trs := soup.find('div', class_='widetable').find_all('tr'))[next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1:]
+            league_trs = (all_trs := soup.find('div', class_='widetable').find_all('tr'))[next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1:]
             for league_tr in league_trs:
                 href_anc = league_tr.find_all('a')
                 if href_anc:
@@ -55,17 +55,17 @@ class WinDrawWinFinder(BaseMatchFinder):
             print(f"Progress: {self._scanned_matches}/{total} matches ({progress:.1f}%)")
             time.sleep(2)
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_league_urls()
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_matches = 0
         self._stop_logging = False
 
-        # Get all match URLs
-        league_urls = self._get_league_urls()
-
         # Create shared scraper and run workers using the base helper
         self.get_web_scraper(profile='fast')
-        self.run_workers(league_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        self.run_workers(urls, self._find_matches_job, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_matches} matches")
 
@@ -76,7 +76,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                 self._scanned_matches += 1
 
                 current_date = None
-                html = self.web_scraper.fast_http_request(
+                html = self.web_scraper.load_page(
                     league_url
                 )
                 try:
