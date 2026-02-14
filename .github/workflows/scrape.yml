@@ -1,0 +1,124 @@
+name: Matches Scraper
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  prepare-actions:
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
+          pip install -r requirements.txt
+          playwright install chromium
+          sudo apt-get update || true
+          playwright install-deps
+      - name: Generate Matrix
+        id: set-matrix
+        run: |
+          JSON_DATA=$(python main.py --mode "prepare-scrape" --runners "actions")
+          echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
+
+  scrape-actions:
+    needs: prepare-actions
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-actions.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
+          sudo rm -f /etc/apt/sources.list.d/azure-cli.list
+          pip install -r requirements.txt
+          playwright install chromium
+          sudo apt-get update || true
+          playwright install-deps
+      - name: Run Scraper
+        run: python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.db_path }}
+          path: ${{ matrix.db_path }}
+          retention-days: 7
+
+  prepare-local:
+    runs-on: self-hosted
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          if [ ! -d "venv" ]; then
+            python3 -m venv venv
+          fi
+          source venv/bin/activate
+          pip install -r requirements.txt
+          playwright install chromium
+      - name: Generate Matrix
+        id: set-matrix
+        run: |
+          JSON_DATA=$(./venv/bin/python main.py --mode "prepare-scrape" --runners "local")
+          echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
+
+  scrape-local:
+    needs: prepare-local
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare-local.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          if [ ! -d "venv" ]; then
+            python3 -m venv venv
+          fi
+          source venv/bin/activate
+          pip install -r requirements.txt
+          playwright install chromium
+      - name: Run Scraper
+        run: ./venv/bin/python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.db_path }}
+          path: ${{ matrix.db_path }}
+          retention-days: 7
+
+  merge:
+    needs: [scrape-local, scrape-actions]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download all chunks
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*.db"
+          merge-multiple: true
+          path: .
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Merge Databases
+        run: python main.py --mode merge --chunks_dir "." --db_path "final_matches.db"
+      - name: Upload Final Database
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-matches-combined-db
+          path: final_matches.db
+          retention-days: 7

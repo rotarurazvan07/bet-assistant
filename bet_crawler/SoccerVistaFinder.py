@@ -14,7 +14,7 @@ from bet_framework.WebScraper import WebScraper
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 
 EXCLUDED = [
     "premier-league-u18", "efl-cup", "fa-community-shield", "fa-cup",
@@ -259,7 +259,8 @@ class SoccerVistaFinder(BaseMatchFinder):
                     away_team=away_team_name,
                     datetime=match_datetime,
                     predictions=scores,
-                    odds=None
+                    odds=None,
+                    result_url=SOCCERVISTA_URL+match_tr.find("a").get('href')
                 )
 
                 self.add_match(match_to_add)
@@ -267,18 +268,20 @@ class SoccerVistaFinder(BaseMatchFinder):
         except Exception as e:
             print(f"Caught exception {e} while parsing {url}")
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_league_urls()
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_leagues = 0
         self._stop_logging = False
 
         # Get all match URLs
-        leagues_urls = self._get_league_urls()
         self.get_web_scraper(profile='slow')
         asyncio.run(self.web_scraper.async_scrape(
-            urls=leagues_urls,
+            urls=urls,
             load_callback=self.my_data_handler,
-            max_concurrent=12,
+            max_concurrent=1,
             additional_wait=1,
             wait_for_selector=".content-loaded"
         ))

@@ -13,8 +13,7 @@ from bet_framework.WebScraper import WebScraper
 
 SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "ScorePredictor"
-NUM_THREADS = os.cpu_count()
-
+NUM_THREADS = 1
 EXCLUDED = [
     "index.php?section=football&season=ChampionsLeague",
     "index.php?section=football&season=EuropaLeague",
@@ -44,18 +43,18 @@ class ScorePredictorFinder(BaseMatchFinder):
         finally:
             self.web_scraper.destroy_current_thread()
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_leagues_urls()
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_leagues = 0
         self._stop_logging = False
 
-        # Get all match URLs
-        leagues_urls = self._get_leagues_urls()
-
         self.get_web_scraper(profile='fast')
 
         # Run worker jobs using the base helper which starts/stops progress logging
-        self.run_workers(leagues_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        self.run_workers(urls, self._find_matches_job, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_leagues} leagues")
 

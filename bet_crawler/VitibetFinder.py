@@ -13,7 +13,7 @@ from bet_framework.WebScraper import WebScraper
 
 VITIBET_URL = "https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en"
 VITIBET_NAME = "vitibet"
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 EXCLUDED = {
     "/index.php?clanek=tips&sekce=fotbal&liga=champions2&lang=en",
     "/index.php?clanek=tips&sekce=fotbal&liga=champions3&lang=en",
@@ -63,26 +63,26 @@ class VitibetFinder(BaseMatchFinder):
                     if any(ex in href for ex in EXCLUDED):
                         continue
 
-                    league_urls.append(href)
+                    league_urls.append("https://www.vitibet.com" + href)
             print(f"Found {len(league_urls)} leagues to scrape")
             return league_urls
 
         finally:
             self.web_scraper.destroy_current_thread()
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_leagues_urls()
+
+    def get_matches(self, urls):
         """Main function to scrape all leagues in parallel."""
         self._scanned_leagues = 0
         self._stop_logging = False
-
-        # Get all league URLs
-        league_urls = self._get_leagues_urls()
 
         # Create shared scraper (fast profile)
         self.get_web_scraper(profile='fast')
 
         # Run workers using the common helper
-        self.run_workers(league_urls, self._get_matches_helper, num_threads=NUM_THREADS)
+        self.run_workers(urls, self._get_matches_helper, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_leagues} leagues")
 
@@ -101,7 +101,7 @@ class VitibetFinder(BaseMatchFinder):
                 self._scanned_leagues += 1
 
                 # Step 1: Fetch dates of matches for this league
-                full_url = "https://www.vitibet.com/" + league_url
+                full_url = league_url
                 html = self.web_scraper.fast_http_request(
                     full_url
                 )

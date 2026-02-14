@@ -14,7 +14,7 @@ from bet_framework.WebScraper import WebScraper
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-NUM_THREADS = os.cpu_count()
+NUM_THREADS = 1
 
 
 class ForebetFinder(BaseMatchFinder):
@@ -52,7 +52,7 @@ class ForebetFinder(BaseMatchFinder):
             soup = BeautifulSoup(html_content, 'html.parser')
 
             # Extract match anchors to parse directly
-            all_matches_anchors = soup.find("td", class_="contentmiddle").find_all(class_="rcnt")
+            all_matches_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
 
             print(f"Found {len(all_matches_anchors)} matches to scan")
             return all_matches_anchors
@@ -60,7 +60,10 @@ class ForebetFinder(BaseMatchFinder):
         finally:
             self.web_scraper.destroy_current_thread()
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return [FOREBET_URL]
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_matches = 0
         self._stop_logging = False

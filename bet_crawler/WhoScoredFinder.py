@@ -25,29 +25,29 @@ class WhoScoredFinder(BaseMatchFinder):
     def _get_matches_from_html(self):
         try:
             self.get_web_scraper(profile='fast')
-            html = self.web_scraper.fast_http_request(WHOSCORED_URL + "/previews")
+            html = self.web_scraper.load_page(WHOSCORED_URL + "/previews", additional_wait=10)
             soup = BeautifulSoup(html, 'html.parser')
             matches_urls = []
 
             matches_table_anchor = soup.find("table", class_="grid")
-            matches_urls = [a['href'] for a in matches_table_anchor.find_all('a') if "matches" in a['href']]
+            matches_urls = [(WHOSCORED_URL + a['href']) for a in matches_table_anchor.find_all('a') if "matches" in a['href']]
             print(str(len(matches_urls))+" matches to scrape")
             return matches_urls
         finally:
             self.web_scraper.destroy_current_thread()
 
-    def get_matches(self):
+    def get_matches_urls(self):
+        return self._get_matches_from_html()
+
+    def get_matches(self, urls):
         """Main function to scrape all matches in parallel."""
         self._scanned_matches = 0
         self._stop_logging = False
 
-        # Get all match URLs
-        matches_urls = self._get_matches_from_html()
-
         self.get_web_scraper(profile='fast')
 
         # Run worker jobs using the base helper which starts/stops progress logging
-        self.run_workers(matches_urls, self._find_matches_job, num_threads=NUM_THREADS)
+        self.run_workers(urls, self._find_matches_job, num_threads=NUM_THREADS)
 
         print(f"Finished scanning {self._scanned_matches} leagues")
 
@@ -65,7 +65,7 @@ class WhoScoredFinder(BaseMatchFinder):
             for match_url in matches_urls:
                 self._scanned_matches += 1
 
-                html = self.web_scraper.load_page(WHOSCORED_URL + match_url)
+                html = self.web_scraper.load_page(match_url)
                 try:
                     soup = BeautifulSoup(html, 'html.parser')
 
