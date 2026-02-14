@@ -27,7 +27,7 @@ MATCH_FINDERS = [
     WinDrawWinFinder,
     ScorePredictorFinder,
     PredictzFinder,
-    WhoScoredFinder,
+    #WhoScoredFinder,
     SoccerVistaFinder,
 ]
 
