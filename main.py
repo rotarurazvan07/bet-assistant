@@ -8,6 +8,8 @@ import sys
 import time
 import random
 from urllib.parse import urlparse
+
+from bs4 import BeautifulSoup
 from bet_crawler.ScorePredictorFinder import ScorePredictorFinder, SCOREPREDICTOR_NAME
 from bet_crawler.SoccerVistaFinder import SoccerVistaFinder, SOCCERVISTA_NAME
 from bet_crawler.WhoScoredFinder import WhoScoredFinder, WHOSCORED_NAME
@@ -18,8 +20,11 @@ from bet_crawler.VitibetFinder import VitibetFinder, VITIBET_NAME
 from bet_crawler.PredictzFinder import PredictzFinder, PREDICTZ_NAME
 from bet_crawler.FootballBettingTipsFinder import FootballBettingTipsFinder
 
+from bet_framework.BettingAnalyzer import BettingAnalyzer
 from bet_framework.DatabaseManager import DatabaseManager
 from bet_framework.SettingsManager import settings_manager
+from bet_framework.BetSlipManager import BetSlipManager
+from bet_framework.WebScraper import WebScraper
 
 ACTION_RUNNERS = [
     # ForebetFinder,
@@ -57,7 +62,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the Match Finder Scraper")
     parser.add_argument(
         "--mode",
-        choices=["prepare-scrape", "scrape", "merge"],
+        choices=["prepare-scrape", "scrape", "merge", "generate-slips", "validate-slips"],
         required=True,
         help="The phase of the workflow to execute"
     )
@@ -128,3 +133,67 @@ if __name__ == "__main__":
         db_manager.reset_matches_db()
         db_manager.merge_databases(args.chunks_dir)
         db_manager.close()
+    elif args.mode == "generate-slips":
+        db_manager = DatabaseManager(args.db_path)
+        analyzer = BettingAnalyzer(db_manager)
+        analyzer.refresh_data()
+        db_manager.close()
+
+        bet_slip_manager = BetSlipManager(os.path.join(os.path.dirname(args.db_path), "slips.db"))
+        active_matches = bet_slip_manager.get_pending_match_names()
+        low_slip = analyzer.generate_bet_slip_low_risk(exclude_matches=active_matches)
+        med_slip = analyzer.generate_bet_slip_medium_risk(exclude_matches=active_matches)
+        high_slip = analyzer.generate_bet_slip_high_risk(exclude_matches=active_matches)
+        for label, slip in [("Low", low_slip), ("Medium", med_slip), ("High", high_slip)]:
+            if slip:
+                print(slip)
+                bet_slip_manager.insert_slip(label, slip)
+                print(f"Successfully saved {label} risk slip.")
+    elif args.mode == "validate-slips":
+        bet_slip_manager = BetSlipManager(args.db_path)
+        pending_legs = bet_slip_manager.get_legs_to_validate()
+
+        if not pending_legs:
+            print("No pending matches to validate.")
+        else:
+            print(f"Validating {len(pending_legs)} matches...")
+
+            for leg_id, url, market, market_type in pending_legs:
+                scraper = WebScraper()
+                html = scraper.fast_http_request(url)
+                soup = BeautifulSoup(html, 'html.parser')
+
+                def get_final_score(soup):
+                    status_container = soup.find(id="status-container")
+                    if "FT" in status_container.get_text(strip=True):
+                        score_div = soup.find('div', class_='text-base font-bold min-sm:text-xl text-center')
+                        if score_div:
+                            return score_div.get_text(strip=True)
+                    return None
+
+                final_score = get_final_score(soup)
+                outcome = "Pending"
+                if final_score is not None:
+                    home = int(final_score.split(":")[0])
+                    away = int(final_score.split(":")[1])
+                    if market_type == "result":
+                        if market == "1"   and home > away: outcome = "Won"
+                        elif market == "2" and away > home: outcome = "Won"
+                        elif market == "X" and away == home: outcome = "Won"
+                        else: outcome = "Lost"
+                    elif market_type == "btts":
+                        if market == "BTTS Yes"  and (home > 0 and away > 0): outcome = "Won"
+                        elif market == "BTTS No" and (home == 0 or away == 0): outcome = "Won"
+                        else: outcome = "Lost"
+                    elif market_type == "over_under_2.5":
+                        if market == "Over 2.5"    and home + away >= 3: outcome = "Won"
+                        elif market == "Under 2.5" and home + away < 3: outcome = "Won"
+                        else: outcome = "Lost"
+
+                if outcome != "Pending":
+                    bet_slip_manager.update_leg_status(leg_id, outcome)
+                    print(f"Updated Leg {leg_id} to {outcome}")
+                else:
+                    print(f"Match at {url} still in progress or result not found.")
+
+        bet_slip_manager.close()

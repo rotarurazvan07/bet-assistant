@@ -55,6 +55,7 @@ class BettingAnalyzer:
                     'home': row['home_name'],
                     'away': row['away_name'],
                     'sources': unique_sources,
+                    'result_url': row['result_url'],
 
                     # Probability Data (from suggestions)
                     'prob_home': suggestions_data['result']['home'],
@@ -119,6 +120,45 @@ class BettingAnalyzer:
 
         return filtered_df
 
+    def generate_bet_slip_low_risk(self, exclude_matches):
+        slip = self.build_bet_slip(
+            date_from=pd.Timestamp.now().normalize(),
+            date_to=pd.Timestamp.now().normalize() + pd.Timedelta(days=7),
+            min_sources=self.df['sources'].max(),
+            leg_count=2,
+            min_odds_val=1.3,
+            max_odds_val=1.5,
+            excluded_matches=exclude_matches
+        )
+
+        return [bet['primary'] for bet in slip]
+
+    def generate_bet_slip_medium_risk(self, exclude_matches):
+        slip = self.build_bet_slip(
+            date_from=pd.Timestamp.now().normalize(),
+            date_to=pd.Timestamp.now().normalize() + pd.Timedelta(days=7),
+            min_sources=self.df['sources'].max() - 1,
+            leg_count=4,
+            min_odds_val=1.5,
+            max_odds_val=1.8,
+            excluded_matches=exclude_matches
+        )
+
+        return [bet['primary'] for bet in slip]
+
+    def generate_bet_slip_high_risk(self, exclude_matches):
+        slip = self.build_bet_slip(
+            date_from=pd.Timestamp.now().normalize(),
+            date_to=pd.Timestamp.now().normalize() + pd.Timedelta(days=7),
+            min_sources=self.df['sources'].max() - 2,
+            leg_count=8,
+            min_odds_val=1.8,
+            max_odds_val=2.2,
+            excluded_matches=exclude_matches
+        )
+
+        return [bet['primary'] for bet in slip]
+
     def build_bet_slip(self,
                       search_text: Optional[str] = None,
                       date_from: Optional[str] = None,
@@ -163,7 +203,8 @@ class BettingAnalyzer:
                             'market': label,
                             'market_type': m_type, # Store type to filter primaries later
                             'prob': prob,
-                            'odds': odds
+                            'odds': odds,
+                            'result_url': row['result_url']
                         })
 
         if not all_options:
@@ -215,7 +256,8 @@ class BettingAnalyzer:
 
             grouped_selections.append({
                 'primary': p_bet,
-                'secondary': secondaries
+                'secondary': secondaries,
+                'result_url': p_bet['result_url']
             })
 
         return grouped_selections
