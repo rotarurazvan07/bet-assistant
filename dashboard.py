@@ -1,5 +1,7 @@
 import argparse
 from io import StringIO
+import os
+import subprocess
 import sys
 
 import dash
@@ -10,11 +12,14 @@ import pandas as pd
 from bet_framework.BettingAnalyzer import BettingAnalyzer
 from bet_framework.DatabaseManager import DatabaseManager
 from bet_framework.SettingsManager import settings_manager
-
+from bet_framework.BetSlipManager import BetSlipManager
 class BetAssistantDashboard:
     def __init__(self, db_path):
         self.db_manager = DatabaseManager(db_path)
         self.betting_analyzer = BettingAnalyzer(self.db_manager)
+
+        self.slips_path = os.path.join(os.path.dirname(db_path), "slips.db")
+        self.slip_manager = BetSlipManager(self.slips_path)
 
         self.app = dash.Dash(
             __name__,
@@ -163,6 +168,105 @@ class BetAssistantDashboard:
             page_size=25,
             page_action='native',
         )
+
+    def _create_stats_cards(self, stats):
+        """Creates an expanded set of summary cards including absolute values."""
+        # Color logic for financial health
+        balance_color = "success" if stats['net_balance'] >= 0 else "danger"
+        roi_color = "success" if stats['roi_percentage'] >= 0 else "danger"
+
+        return [
+            # Row 1: The Raw Totals (Bet vs Won)
+            dbc.Col(dbc.Card([
+                dbc.CardBody([
+                    html.H6("Total Bet", className="text-muted text-uppercase mb-1", style={"fontSize": "0.7rem"}),
+                    html.H4(f"{stats['total_units_bet']} Units", className="mb-0 fw-bold text-primary")
+                ])
+            ], className="border-0 shadow-sm rounded-3"), lg=2, md=4, xs=6),
+
+            dbc.Col(dbc.Card([
+                dbc.CardBody([
+                    html.H6("Total Won", className="text-muted text-uppercase mb-1", style={"fontSize": "0.7rem"}),
+                    html.H4(f"{stats['total_units_won']} Units", className="mb-0 fw-bold text-success")
+                ])
+            ], className="border-0 shadow-sm rounded-3"), lg=2, md=4, xs=6),
+
+            # Row 2: The Net Performance
+            dbc.Col(dbc.Card([
+                dbc.CardBody([
+                    html.H6("Net Balance", className="text-muted text-uppercase mb-1", style={"fontSize": "0.7rem"}),
+                    html.H3(f"{stats['net_balance'] :+g} U", className=f"mb-0 fw-bold text-{balance_color}")
+                ])
+            ], className="border-0 shadow-sm rounded-3", style={"borderLeft": f"5px solid var(--bs-{balance_color})"}), lg=3, md=4, xs=12),
+
+            # Row 3: The Percentages
+            dbc.Col(dbc.Card([
+                dbc.CardBody([
+                    html.H6("Win Rate", className="text-muted text-uppercase mb-1", style={"fontSize": "0.7rem"}),
+                    html.H4(f"{stats['win_rate']}%", className="mb-0 fw-bold text-info")
+                ])
+            ], className="border-0 shadow-sm rounded-3"), lg=2, md=4, xs=6),
+
+            dbc.Col(dbc.Card([
+                dbc.CardBody([
+                    html.H6("ROI %", className="text-muted text-uppercase mb-1", style={"fontSize": "0.7rem"}),
+                    html.H4(f"{stats['roi_percentage']}%", className=f"mb-0 fw-bold text-{roi_color}")
+                ])
+            ], className="border-0 shadow-sm rounded-3"), lg=2, md=4, xs=6),
+
+            dbc.Col(dbc.Card([
+                dbc.CardBody([
+                    html.H6("Settled", className="text-muted text-uppercase mb-1", style={"fontSize": "0.7rem"}),
+                    html.H4(f"{stats['total_settled']}", className="mb-0 fw-bold")
+                ])
+            ], className="border-0 shadow-sm rounded-3"), lg=1, md=4, xs=6),
+        ]
+
+    def _create_slip_card(self, slip):
+        """Creates a UI card for a single historical bet slip."""
+        # Determine slip header color based on status
+        header_bg = "#f8f9fa" # Pending/Default
+        text_color = "text-dark"
+        badge_color = "secondary"
+
+        if slip['slip_status'] == 'Won':
+            header_bg = "#d1e7dd"
+            text_color = "text-success"
+            badge_color = "success"
+        elif slip['slip_status'] == 'Lost':
+            header_bg = "#f8d7da"
+            text_color = "text-danger"
+            badge_color = "danger"
+
+        # Create leg rows
+        leg_rows = []
+        for leg in slip['legs']:
+            leg_icon = "fa-clock text-secondary" # Pending
+            if leg['status'] == 'Won':
+                leg_icon = "fa-check-circle text-success"
+            elif leg['status'] == 'Lost':
+                leg_icon = "fa-times-circle text-danger"
+
+            leg_rows.append(
+                dbc.Row([
+                    dbc.Col(html.I(className=f"fas {leg_icon}"), width=1, className="text-center"),
+                    dbc.Col(html.Span(leg['match_name'], className="fw-medium", style={"fontSize": "0.85rem"}), width=6),
+                    dbc.Col(html.Span(f"{leg['market']}", style={"fontSize": "0.8rem"}), width=3),
+                    dbc.Col(html.Span(f"@{leg['odds']:.2f}", className="fw-bold text-end", style={"fontSize": "0.85rem"}), width=2, className="text-end")
+                ], className="py-2 border-bottom align-items-center g-0")
+            )
+
+        return dbc.Card([
+            dbc.CardHeader([
+                dbc.Row([
+                    dbc.Col(html.Strong(f"Date: {slip['date_generated']}"), width=4),
+                    dbc.Col(html.Span(f"Risk: {slip['risk_level'].upper()}", className="fw-bold"), width=3),
+                    dbc.Col(html.Span(f"Total Odds: @{slip['total_odds']:.2f}", className="fw-bold"), width=3, className="text-end"),
+                    dbc.Col(dbc.Badge(slip['slip_status'], color=badge_color, className="float-end"), width=2)
+                ], className="align-items-center")
+            ], style={"backgroundColor": header_bg, "color": text_color}, className="border-bottom-0"),
+            dbc.CardBody(leg_rows, className="p-2")
+        ], className="mb-3 shadow-sm border-0")
 
     def _create_bet_builder(self, grouped_selections):
         """Create bet builder UI from grouped selections."""
@@ -397,7 +501,44 @@ class BetAssistantDashboard:
 
                             # Builder Content
                             html.Div(id="builder-output-container")
-                        ], label="Smart Builder", tab_id='tab-builder', labelClassName="px-4 fw-bold")
+                        ], label="Smart Builder", tab_id='tab-builder', labelClassName="px-4 fw-bold"),
+
+                        dbc.Tab([
+                            html.Div([
+                                dbc.Row([
+                                    dbc.Col([
+                                        html.Div([
+                                            dbc.InputGroup([
+                                                dbc.InputGroupText("Filter Risk:"),
+                                                dbc.Select(
+                                                    id="historic-risk-filter",
+                                                    options=[
+                                                        {"label": "📊 All Risks", "value": "all"},
+                                                        {"label": "🛡️ Low", "value": "Low"},
+                                                        {"label": "⚖️ Medium", "value": "Medium"},
+                                                        {"label": "🔥 High", "value": "High"},
+                                                    ],
+                                                    value="all",
+                                                    size="sm"
+                                                ),
+                                            ], className="shadow-sm", style={"width": "250px"}),
+
+                                            # --- NEW REFRESH BUTTON ---
+                                            dbc.Button([
+                                                html.I(className="fas fa-sync-alt me-2"), "Validate Results"
+                                            ], id="btn-force-refresh", color="primary", size="sm", className="ms-3 shadow-sm"),
+                                        ], className="d-flex align-items-center mb-4")
+                                    ]),
+                                    # Loading spinner for visual feedback
+                                    dbc.Col([
+                                        dbc.Spinner(html.Div(id="refresh-status"), size="sm", color="primary")
+                                    ], width="auto")
+                                ]),
+
+                                dbc.Row(id="historic-stats-cards", className="mb-4 g-3"),
+                                html.Div(id="historic-slips-container")
+                            ], className="p-3")
+                        ], label="Historic Slips", tab_id='tab-historic', labelClassName="px-4 fw-bold")
                     ], className="nav-pills custom-tabs")
                 ], className="p-4")
             ], className="border-0 shadow-lg mb-5", style={"borderRadius": "20px"}),
@@ -560,6 +701,52 @@ class BetAssistantDashboard:
                 return new_excluded
 
             return dash.no_update
+
+        @self.app.callback(
+            Output("refresh-status", "children"),
+            Input("btn-force-refresh", "n_clicks"),
+            prevent_initial_call=True
+        )
+        def run_validation_script(n_clicks):
+            if n_clicks:
+                try:
+                    # Execute the exact command requested
+                    # We use the relative path as specified, but ensure we are in the right workdir
+                    result = subprocess.run(
+                        [sys.executable, "-m", "main", "--mode", "validate-slips", "--db_path", f"{self.slips_path}"],
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    return html.Span("✅ Last refresh successful", className="text-success ms-2", style={"fontSize": "0.8rem"})
+                except subprocess.CalledProcessError as e:
+                    print(f"Error running validation: {e.stderr}")
+                    return html.Span("❌ Refresh failed", className="text-danger ms-2", style={"fontSize": "0.8rem"})
+            return ""
+
+        @self.app.callback(
+            [Output("historic-stats-cards", "children"),
+            Output("historic-slips-container", "children")],
+            [Input("main-tabs", "active_tab"),
+            Input("historic-risk-filter", "value"),
+            Input("refresh-status", "children")] # Trigger update when refresh finishes
+        )
+        def update_historic_tab(active_tab, risk_filter, _refresh_trigger):
+            if active_tab != "tab-historic":
+                return dash.no_update, dash.no_update
+
+            # Pass the filter to the manager
+            stats = self.slip_manager.get_historic_stats(risk_filter=risk_filter)
+            slips = self.slip_manager.get_all_slips_with_legs(risk_filter=risk_filter)
+
+            stats_ui = self._create_stats_cards(stats)
+
+            if not slips:
+                slips_ui = [dbc.Alert(f"No {risk_filter} risk slips found.", color="info")]
+            else:
+                slips_ui = [self._create_slip_card(slip) for slip in slips]
+
+            return stats_ui, slips_ui
 
     def run(self, debug=True, port=8050):
         print(f"Starting dashboard on http://0.0.0.0:{port}")

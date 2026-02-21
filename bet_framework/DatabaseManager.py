@@ -14,10 +14,8 @@ from .utils import log
 
 class DatabaseManager:
     def __init__(self, db_path: str = None):
-        # Enable WAL mode for concurrent reads/writes
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
-        self.conn.execute('PRAGMA journal_mode=WAL')
         self.conn.row_factory = sqlite3.Row
 
         self.similarity_engine = SimilarityEngine()
@@ -315,9 +313,4 @@ class DatabaseManager:
 
     def close(self):
         self.conn.commit()
-        # 1. Flush the logs into the main file
-        self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-        # 2. Transition back to a single-file mode (deletes the -wal file)
-        self.conn.execute("PRAGMA journal_mode=DELETE;")
-        # 3. Clean up the connection
         self.conn.close()

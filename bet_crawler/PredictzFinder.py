@@ -110,9 +110,9 @@ class PredictzFinder(BaseMatchFinder):
 
                             try:
                                 odds = Odds(
-                                    home=float(soup.find_all(class_='odds')[0].get_text()),
-                                    draw=float(soup.find_all(class_='odds')[1].get_text()),
-                                    away=float(soup.find_all(class_='odds')[2].get_text()),
+                                    home=entry.find_all(class_='odds')[0].get_text(),
+                                    draw=entry.find_all(class_='odds')[1].get_text(),
+                                    away=entry.find_all(class_='odds')[2].get_text(),
                                     over=None,
                                     under=None,
                                     btts_y=None,
