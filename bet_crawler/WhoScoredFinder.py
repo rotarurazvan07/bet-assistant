@@ -1,5 +1,5 @@
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from bs4 import BeautifulSoup
 
@@ -28,22 +28,31 @@ class WhoScoredFinder(BaseMatchFinder):
         return urls
 
     def get_matches(self, urls):
-        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=MAX_CONCURRENCY)
+        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
 
     def _parse_page(self, url, html):
         try:
+            # 1. Look for the embedded JSON config that WhoScored now uses
+            import json
+            match_json = re.search(r'matchHeaderJson: JSON\.parse\(\'(.*?)\'\),', html)
+            if not match_json:
+                print(f"[{url}] WhoScored: Could not find matchHeaderJson block.")
+                return
+
+            data = json.loads(match_json.group(1))
+            home_team = data.get('HomeTeamName')
+            away_team = data.get('AwayTeamName')
+
+            # StartTimeUtc format: /Date(1772290800000)/
+            ts_str = data.get('StartTimeUtc', '').strip('/Date()')
+            ts = int(ts_str) / 1000
+            match_datetime = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=2)
+
+            # 2. Extract score predictions from DOM
             soup = BeautifulSoup(html, 'html.parser')
-
-            home_team = soup.find('div', class_='teams-score-info').find("span", class_=re.compile(r'home team')).get_text()
-            away_team = soup.find('div', class_='teams-score-info').find("span", class_=re.compile(r'away team')).get_text()
-
-            match_time = (soup.find('dt', text='Date:').find_next_sibling('dd').text + " - " +
-                          soup.find('dt', text='Kick off:').find_next_sibling('dd').text)
-            match_datetime = datetime.strptime(match_time, "%a, %d-%b-%y - %H:%M") + timedelta(hours=2)
-
-            score = soup.find("div", id="preview-prediction").find_all("span", class_="predicted-score")
-            scores = [Score(WHOSCORED_NAME, score[0].get_text(), score[1].get_text())]
-
+            score_container = soup.find("div", id="preview-prediction")
+            score = score_container.find_all("span", class_="predicted-score")
+            scores = [Score(WHOSCORED_NAME, score[0].get_text(strip=True), score[1].get_text(strip=True))]
             self.add_match(Match(home_team, away_team, match_datetime, scores, None))
 
         except Exception as e:

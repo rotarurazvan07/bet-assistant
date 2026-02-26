@@ -34,7 +34,7 @@ class WinDrawWinFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls):
-        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=MAX_CONCURRENCY)
+        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
 
     def _parse_page(self, url, html):
         try:

@@ -34,15 +34,15 @@ class BetSlipManager:
         ''')
         self.conn.commit()
 
-    def get_pending_match_names(self):
+    def get_pending_result_urls(self):
         try:
             """
-            Returns a list of match names that MUST BE EXCLUDED from new slips.
+            Returns a list of URLs that MUST BE EXCLUDED from new slips.
             Rule 1: All settled matches (Won/Lost) are excluded forever.
             Rule 2: Pending matches are excluded ONLY IF their slip is still alive.
             """
             query = '''
-                SELECT DISTINCT match_name
+                SELECT DISTINCT result_url
                 FROM legs
                 WHERE status IN ('Won', 'Lost')
                    OR (
@@ -55,9 +55,9 @@ class BetSlipManager:
                    )
             '''
             self.cursor.execute(query)
-            return [row[0] for row in self.cursor.fetchall()]
+            return [row[0] for row in self.cursor.fetchall() if row[0] is not None]
         except Exception as e:
-            print(f"Error fetching active matches: {e}")
+            print(f"Error fetching active URLs: {e}")
             return []
     def insert_slip(self, risk_level, legs_list):
         """Inserts a parlay slip and all its individual legs."""

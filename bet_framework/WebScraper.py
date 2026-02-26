@@ -20,11 +20,79 @@ from scrapling.fetchers import (
     AsyncStealthySession,
 )
 
-
 class ScrapeMode:
     """Scraping mode constants."""
     FAST = "fast"          # Simple HTTP with TLS impersonation
     STEALTH = "stealth"    # Headless browser, Cloudflare bypass
+
+
+class InteractiveSession:
+    """Wrapper around Scrapling session to provide persistent page and JS execution."""
+    def __init__(self, session):
+        self.session = session
+        self.page = None
+
+    def __enter__(self):
+        self.session.start()
+        # Create a persistent page that we control
+        self.page = self.session.context.new_page()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if self.page:
+                self.page.close()
+        except:
+            pass
+        self.session.close()
+
+    def fetch(self, url, timeout=60000):
+        if not self.page:
+            raise RuntimeError("Session not started. Use 'with WebScraper.browser(...) as session:'")
+
+        self.page.goto(url, wait_until="load", timeout=timeout)
+        # Forebet and others need a moment for background scripts to run
+        self.page.wait_for_timeout(2000)
+
+        class ResponseStub:
+            def __init__(self, content):
+                self.html_content = content
+        return ResponseStub(self.page.content())
+
+    def execute_script(self, script):
+        if not self.page:
+            raise RuntimeError("Call fetch() first")
+
+        clean_script = script.strip()
+        try:
+            if clean_script.startswith("return "):
+                return self.page.evaluate(f"() => {{ {clean_script} }}")
+            return self.page.evaluate(script)
+        except Exception as e:
+            raise e
+
+    def wait_for_selector(self, selector, timeout=30000):
+        if not self.page:
+            raise RuntimeError("Call fetch() first")
+        self.page.wait_for_selector(selector, timeout=timeout)
+
+    def wait_for_function(self, expression, timeout=30000):
+        if not self.page:
+            raise RuntimeError("Call fetch() first")
+        self.page.wait_for_function(expression, timeout=timeout)
+
+    def click(self, selector, timeout=30000):
+        if not self.page:
+            raise RuntimeError("Call fetch() first")
+        self.page.click(selector, timeout=timeout)
+
+    def wait_for_timeout(self, ms):
+        if not self.page:
+            raise RuntimeError("Call fetch() first")
+        self.page.wait_for_timeout(ms)
+
+    def __getattr__(self, name):
+        return getattr(self.session, name)
 
 
 class WebScraper:
@@ -34,13 +102,14 @@ class WebScraper:
     Usage — fast HTTP:
         html = WebScraper.fetch("https://example.com")
 
-    Usage — browser session:
-        with WebScraper.browser(solve_cloudflare=True) as session:
+    Usage — browser session (lean):
+        with WebScraper.browser() as session:
             page = session.fetch("https://example.com")
-            session.execute_script("return document.title")
 
-    Usage — batch scrape with concurrency:
-        WebScraper.scrape(urls, callback=my_handler, mode=ScrapeMode.FAST, max_concurrency=5)
+    Usage — interactive browser (for JS automation):
+        with WebScraper.browser(interactive=True) as session:
+            session.fetch("https://example.com")
+            session.execute_script("window.scrollTo(0, document.body.scrollHeight)")
     """
 
     @staticmethod
@@ -56,16 +125,30 @@ class WebScraper:
             return ""
 
     @staticmethod
-    def browser(headless: bool = True, solve_cloudflare: bool = False):
-        """Get an interactive browser session as a context manager.
+    def browser(headless: bool = True, solve_cloudflare: bool = False, interactive: bool = False):
+        """Get a browser session as a context manager.
 
-        Returns a context manager. The session supports:
-            session.fetch(url)              — navigate and get page
-            session.execute_script(script)  — run JS on current page
+        If interactive=True: returns InteractiveSession supporting execute_script.
+        Otherwise: returns lean Scrapling session.
         """
         if solve_cloudflare:
-            return StealthySession(headless=headless, solve_cloudflare=True)
-        return DynamicSession(headless=headless, disable_resources=False, network_idle=True)
+            session = StealthySession(
+                headless=headless,
+                solve_cloudflare=True,
+                # Cloudflare/DataDome need JS/CSS to run the challenge
+                disable_resources=False,
+                network_idle=True
+            )
+        else:
+            session = DynamicSession(
+                headless=headless,
+                disable_resources=(not interactive),
+                network_idle=interactive
+            )
+
+        if interactive:
+            return InteractiveSession(session)
+        return session
 
     @staticmethod
     def scrape(urls, callback, mode=ScrapeMode.FAST, max_concurrency=1):
@@ -104,7 +187,8 @@ class WebScraper:
                     async def _fetch_one(url):
                         async with sem:
                             try:
-                                page = await session.fetch(url)
+                                # High stealth: allow resources and wait for network idle
+                                page = await session.fetch(url, disable_resources=False, network_idle=True)
                                 callback(url, page.html_content)
                             except Exception as e:
                                 print(f"[scrape/stealth] Error on {url}: {e}")

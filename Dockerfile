@@ -15,8 +15,8 @@ RUN apt-get update && apt-get install -y curl unzip && \
     gh --version
 
 # Copy and install Python requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-dashboard.txt .
+RUN pip install --no-cache-dir -r requirements-dashboard.txt
 
 # Copy your scripts
 COPY . .

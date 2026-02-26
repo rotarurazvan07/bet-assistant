@@ -22,24 +22,47 @@ class ForebetFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
+        # TODO : Can use the Countries list on the left to align with other crawlers
         return [FOREBET_URL]
 
     def get_matches(self, urls=None):
         """Load predictions page, execute JS to expand, then parse."""
-        with WebScraper.browser(solve_cloudflare=True) as session:
+        with WebScraper.browser(solve_cloudflare=True, interactive=True) as session:
             print("Loading predictions page...")
             session.fetch(FOREBET_ALL_PREDICTIONS_URL)
+            session.wait_for_selector("div#body-main")
+            session.wait_for_function("typeof ltodrows === 'function'", timeout=30000)
 
-            print("Loading more matches...")
-            for i in range(11, 30):
+            print("Expanding matches via smart-click...")
+            successful_clicks = 0
+            while successful_clicks < 30:
                 try:
-                    session.execute_script(f'ltodrows("1x2", {i}, "");')
-                    time.sleep(2)
+                    clicked = session.execute_script("""
+                        (function() {
+                            var btn = document.querySelector('div#mrows span, span[onclick*="ltodrows"], .showmore');
+                            if (btn && btn.offsetParent !== null) {
+                                btn.click();
+                                return true;
+                            }
+                            return false;
+                        })()
+                    """)
+
+                    if clicked:
+                        successful_clicks += 1
+                        print(f"Clicked expansion button ({successful_clicks})")
+                        time.sleep(2)
+                    else:
+                        try:
+                            session.wait_for_selector('div#mrows span, span[onclick*="ltodrows"], .showmore', timeout=15000)
+                        except:
+                            print("No more expansion buttons found.")
+                            break
                 except Exception as e:
-                    print(f"Error loading more at index {i}: {e}")
+                    print(f"Expansion loop error: {e}")
                     break
 
-            html = session.execute_script("return document.documentElement.outerHTML")
+            html = session.page.content()
 
         self._parse_page(FOREBET_ALL_PREDICTIONS_URL, html)
 

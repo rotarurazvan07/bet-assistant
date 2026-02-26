@@ -145,8 +145,8 @@ class DatabaseManager:
 
         return pd.DataFrame(data)
 
-    def _find_match(self, match_name, match_date):
-        """Find a match by name and date using similarity matching."""
+    def _find_match(self, home_team, away_team, match_date):
+        """Find a match by components and date using similarity matching."""
         # Optimized: Use date filter in SQL first, then iterate only on matching dates
         date_str = match_date.date().isoformat()
 
@@ -159,13 +159,23 @@ class DatabaseManager:
         max_score = -1
 
         for row in cursor:
-            # TODO - similirity on both names then compute here, similiraty engine to be generic
-            db_match_name = f"{row['home_team_name']} vs {row['away_team_name']}"
-            is_similar, score = self.similarity_engine.is_similar(db_match_name, match_name)
-            if is_similar and score > max_score:
-                max_score = score
+            # Home similarity
+            is_similar_home, score_home = self.similarity_engine.is_similar(row['home_team_name'], home_team)
+            if not is_similar_home:
+                continue
+
+            # Away similarity
+            is_similar_away, score_away = self.similarity_engine.is_similar(row['away_team_name'], away_team)
+            if not is_similar_away:
+                continue
+
+            avg_score = (score_home + score_away) / 2
+
+            if avg_score > max_score:
+                max_score = avg_score
                 found_match_row = dict(row)
                 found_match_row_id = row['id']
+
         return found_match_row, found_match_row_id
 
     def add_match(self, match, match_id=None):
@@ -182,7 +192,8 @@ class DatabaseManager:
                     found_match_id = None
             else:
                 found_match, found_match_id = self._find_match(
-                    match.home_team + " vs " + match.away_team,
+                    match.home_team,
+                    match.away_team,
                     match.datetime
                 )
 
@@ -192,13 +203,16 @@ class DatabaseManager:
                 # Prepare updates
                 updates = {}
 
-                # Add scores
+                # Add scores - check if score already exists by source, not by object
                 if match.predictions:
                     existing_scores = self._deserialize_json(found_match['predictions_scores']) or []
+                    existing_sources = {s.get('source') for s in existing_scores if s.get('source') is not None}
+
                     for score in match.predictions:
-                        score_dict = score.__dict__
-                        if score_dict not in existing_scores:
-                            existing_scores.append(score_dict)
+                        if score.source not in existing_sources:
+                            existing_scores.append(score.__dict__)
+                            existing_sources.add(score.source)
+
                     updates['predictions_scores'] = json.dumps(existing_scores)
 
                 if match.odds is not None:

@@ -62,10 +62,38 @@ class SimilarityEngine:
             if name == k:
                 name = v
 
-        # TODO: problem, they overwrite even part of names in teams ! like "medias " , detects "as "
+        # Clean acronyms using positional logic:
+        # 1. No spaces (e.g., 'fc'): Replaced anywhere as a whole word (\bword\b).
+        # 2. Leading space (e.g., ' utd'): Replaced ONLY as a suffix at the end of the string.
+        # 3. Trailing space (e.g., 'as '): Replaced ONLY as a prefix at the start of the string.
+        # 4. Both spaces (e.g., ' de '): Replaced ONLY when found in the middle of words.
         for k, v in self.acronyms.items():
-            if k in name:
-                name = name.replace(k, v)
+            if not k.strip():
+                continue
+
+            starts_space = k.startswith(' ')
+            ends_space = k.endswith(' ')
+            word = k.strip()
+            pattern = re.escape(word)
+
+            if starts_space and ends_space:
+                pattern = rf"\s+{pattern}\s+"
+                repl = str(v)  # Preserve intended spaces in replacement (e.g., ' de ' -> ' ')
+            elif starts_space:
+                pattern = rf"\s+{pattern}$"
+                repl = ""
+            elif ends_space:
+                pattern = rf"^{pattern}\s+"
+                repl = ""
+            else:
+                # Default: Whole-word boundary. Protects 'medias' from 'as' matches.
+                pattern = rf"\b{pattern}\b"
+                repl = ""
+
+            name = re.sub(pattern, repl, name)
+
+        # Final cleanup of any double spaces or dangling edges
+        name = " ".join(name.split())
 
         return name
 
@@ -86,19 +114,8 @@ class SimilarityEngine:
         )
         return final_score
 
-    # todo - make generic, look at book-finder
-    def is_similar(self, match1: str, match2: str) -> bool:
-        n1 = self._normalize(match1)
-        n2 = self._normalize(match2)
-        parts1 = n1.split(' vs ')
-        parts2 = n2.split(' vs ')
-        if len(parts1) < 2 or len(parts2) < 2:
-            # fallback to direct ratio
-            return self.hybrid_match(n1, n2) > self.similarity_threshold, \
-                   self.hybrid_match(n1, n2)
-        home1, away1 = parts1[0], parts1[1]
-        home2, away2 = parts2[0], parts2[1]
-        home_score = self.hybrid_match(home1, home2)
-        away_score = self.hybrid_match(away1, away2)
-        return (home_score + away_score) / 2 > self.similarity_threshold, \
-               (home_score + away_score) / 2
+    def is_similar(self, s1: str, s2: str) -> bool:
+        n1 = self._normalize(s1)
+        n2 = self._normalize(s2)
+        score = self.hybrid_match(n1, n2)
+        return score > self.similarity_threshold, score

@@ -325,7 +325,7 @@ class BetAssistantDashboard:
                         dbc.Col(
                             dbc.Button(
                                 html.I(className="fas fa-times"),
-                                id={'type': 'exclude-btn', 'index': p['match']},
+                                id={'type': 'exclude-btn', 'index': p['result_url']},
                                 color="link", size="sm", className="p-0 text-muted text-decoration-none"
                             ), width=2, className="text-end"
                         )
@@ -352,7 +352,7 @@ class BetAssistantDashboard:
         self.app.layout = dbc.Container([
             dcc.Store(id="current-match-id"),
             dcc.Store(id="max-sources", data=10),
-            dcc.Store(id="excluded-matches-store", data=[]),
+            dcc.Store(id="excluded-urls-store", data=[]),
             dcc.Store(id="matches-data-store"),
             # --- Header ---
             dbc.Row([
@@ -453,30 +453,15 @@ class BetAssistantDashboard:
                                         ], className="shadow-sm")
                                     ], width="auto"),
 
-                                    # 2. Min Odds (Manual)
+                                    # Target Odds
                                     dbc.Col([
                                         dbc.InputGroup([
-                                            dbc.InputGroupText("Min"),
+                                            dbc.InputGroupText("Target Odds"),
                                             dbc.Input(
-                                                id="builder-min-odds",
+                                                id="builder-target-odds",
                                                 type="number",
-                                                value=1.2,
-                                                step=0.05,
-                                                size="sm",
-                                                style={"width": "80px"}
-                                            ),
-                                        ], className="shadow-sm")
-                                    ], width="auto"),
-
-                                    # 3. Max Odds (Manual)
-                                    dbc.Col([
-                                        dbc.InputGroup([
-                                            dbc.InputGroupText("Max"),
-                                            dbc.Input(
-                                                id="builder-max-odds",
-                                                type="number",
-                                                value=2.0,
-                                                step=0.05,
+                                                value=10.0,
+                                                step=0.5,
                                                 size="sm",
                                                 style={"width": "80px"}
                                             ),
@@ -538,7 +523,48 @@ class BetAssistantDashboard:
                                 dbc.Row(id="historic-stats-cards", className="mb-4 g-3"),
                                 html.Div(id="historic-slips-container")
                             ], className="p-3")
-                        ], label="Historic Slips", tab_id='tab-historic', labelClassName="px-4 fw-bold")
+                        ], label="Historic Slips", tab_id='tab-historic', labelClassName="px-4 fw-bold"),
+
+                        # Tab 4: Configuration
+                        dbc.Tab([
+                            html.Div([
+                                html.H5("Betting Risk Profiles", className="mb-4 fw-bold"),
+                                dbc.Row([
+                                    dbc.Col(dbc.Card([
+                                        dbc.CardHeader("🛡️ Low Risk", className="bg-light fw-bold"),
+                                        dbc.CardBody([
+                                            dbc.Label("Target Total Odds"),
+                                            dbc.Input(id="config-low-odds", type="number", step=0.1),
+                                            html.Br(),
+                                            dbc.Label("Target Leg Count"),
+                                            dbc.Input(id="config-low-legs", type="number", step=1),
+                                        ])
+                                    ], className="shadow-sm border-0"), md=4),
+                                    dbc.Col(dbc.Card([
+                                        dbc.CardHeader("⚖️ Medium Risk", className="bg-light fw-bold"),
+                                        dbc.CardBody([
+                                            dbc.Label("Target Total Odds"),
+                                            dbc.Input(id="config-med-odds", type="number", step=0.1),
+                                            html.Br(),
+                                            dbc.Label("Target Leg Count"),
+                                            dbc.Input(id="config-med-legs", type="number", step=1),
+                                        ])
+                                    ], className="shadow-sm border-0"), md=4),
+                                    dbc.Col(dbc.Card([
+                                        dbc.CardHeader("🔥 High Risk", className="bg-light fw-bold"),
+                                        dbc.CardBody([
+                                            dbc.Label("Target Total Odds"),
+                                            dbc.Input(id="config-high-odds", type="number", step=0.1),
+                                            html.Br(),
+                                            dbc.Label("Target Leg Count"),
+                                            dbc.Input(id="config-high-legs", type="number", step=1),
+                                        ])
+                                    ], className="shadow-sm border-0"), md=4),
+                                ], className="mb-4"),
+                                dbc.Button([html.I(className="fas fa-save me-2"), "Save Configuration"], id="save-config-btn", color="success", className="shadow-sm px-4"),
+                                html.Span(id="save-config-status", className="ms-3 fw-bold")
+                            ], className="p-4")
+                        ], label="Configuration", tab_id='tab-config', labelClassName="px-4 fw-bold")
                     ], className="nav-pills custom-tabs")
                 ], className="p-4")
             ], className="border-0 shadow-lg mb-5", style={"borderRadius": "20px"}),
@@ -590,25 +616,28 @@ class BetAssistantDashboard:
             return self._create_tips_table(filtered_df)
 
         @self.app.callback(
-            [Output("builder-min-odds", "value"),
-            Output("builder-max-odds", "value")],
+            [Output("builder-target-odds", "value"),
+            Output("builder-leg-count", "value")],
             [Input("builder-risk-level", "value")],
-            [State("builder-min-odds", "value"),
-            State("builder-max-odds", "value")]
+            [State("builder-target-odds", "value"),
+            State("builder-leg-count", "value")]
         )
-        def update_odds_presets(risk_level, current_min, current_max):
-            # Mapping presets to specific ranges
+        def update_odds_presets(risk_level, current_odds, current_legs):
+            # Load dynamic presets from settings manager
+            # Wait, clicking the tab might trigger it, but also user selecting a different risk.
+            profiles = settings_manager.get_config('betting_profiles') or {}
+            profs = profiles.get('betting_profiles', {})
+
             presets = {
-                "low": (1.10, 1.40),
-                "med": (1.45, 1.85),
-                "high": (1.90, 10)
+                "low": (profs.get('low', {}).get('target_odds', 1.6), profs.get('low', {}).get('target_legs', 1)),
+                "med": (profs.get('med', {}).get('target_odds', 4.0), profs.get('med', {}).get('target_legs', 3)),
+                "high": (profs.get('high', {}).get('target_odds', 15.0), profs.get('high', {}).get('target_legs', 6))
             }
 
             if risk_level in presets:
                 return presets[risk_level]
 
-            # If "custom" is selected, keep the current values
-            return current_min, current_max
+            return current_odds, current_legs
 
         @self.app.callback(
             [Output("builder-output-container", "children"),
@@ -619,15 +648,14 @@ class BetAssistantDashboard:
             Input("date-to", "value"),
             Input("min-sources-slider", "value"),
             Input("builder-leg-count", "value"),
-            Input("builder-min-odds", "value"),
-            Input("builder-max-odds", "value"),
+            Input("builder-target-odds", "value"),
             Input("main-tabs", "active_tab"),
-            Input("excluded-matches-store", "data"),
+            Input("excluded-urls-store", "data"),
             Input("market-type-filter", "value")]
         )
         def update_builder_logic(data_json, search_text, date_from, date_to, min_sources,
-                                leg_count, min_odds, max_odds, active_tab, excluded_matches,
-                                included_markets): # <--- New Argument
+                                leg_count, target_odds, active_tab, excluded_urls,
+                                included_markets):
             """Update bet builder - reacts to market filters and criteria."""
 
             if not data_json or active_tab != "tab-builder":
@@ -636,16 +664,15 @@ class BetAssistantDashboard:
             # Load data
             df = pd.read_json(StringIO(data_json), orient='split')
 
-            # Use analyzer's updated bet slip builder with market filtering
+            # Use analyzer's updated bet slip builder with dynamic targeting
             grouped_selections = self.betting_analyzer.build_bet_slip(
                 search_text=search_text,
                 date_from=date_from,
                 date_to=date_to,
                 min_sources=min_sources,
-                leg_count=leg_count or 5,
-                min_odds_val=min_odds or 1.1,
-                max_odds_val=max_odds or 10,
-                excluded_matches=excluded_matches,
+                target_odds=target_odds or 2.0,
+                target_legs=leg_count or 2,
+                excluded_urls=excluded_urls,
                 included_market_types=included_markets
             )
 
@@ -661,9 +688,9 @@ class BetAssistantDashboard:
             return slip_html, odds_list
 
         @self.app.callback(
-            Output("excluded-matches-store", "data"),
+            Output("excluded-urls-store", "data"),
             Input({'type': 'exclude-btn', 'index': ALL}, 'n_clicks'),
-            State("excluded-matches-store", "data"),
+            State("excluded-urls-store", "data"),
             prevent_initial_call=True
         )
         def exclude_match(n_clicks_list, current_excluded):
@@ -747,6 +774,43 @@ class BetAssistantDashboard:
                 slips_ui = [self._create_slip_card(slip) for slip in slips]
 
             return stats_ui, slips_ui
+
+        @self.app.callback(
+            [Output("config-low-odds", "value"), Output("config-low-legs", "value"),
+             Output("config-med-odds", "value"), Output("config-med-legs", "value"),
+             Output("config-high-odds", "value"), Output("config-high-legs", "value")],
+            [Input("main-tabs", "active_tab")]
+        )
+        def load_config_tab(_active_tab):
+            profiles = settings_manager.get_config('betting_profiles') or {}
+            profs = profiles.get('betting_profiles', {})
+            return (
+                profs.get('low', {}).get('target_odds', 1.6), profs.get('low', {}).get('target_legs', 1),
+                profs.get('med', {}).get('target_odds', 4.0), profs.get('med', {}).get('target_legs', 3),
+                profs.get('high', {}).get('target_odds', 15.0), profs.get('high', {}).get('target_legs', 6),
+            )
+
+        @self.app.callback(
+            Output("save-config-status", "children"),
+            Output("save-config-status", "className"),
+            Input("save-config-btn", "n_clicks"),
+            State("config-low-odds", "value"), State("config-low-legs", "value"),
+            State("config-med-odds", "value"), State("config-med-legs", "value"),
+            State("config-high-odds", "value"), State("config-high-legs", "value"),
+            prevent_initial_call=True
+        )
+        def save_config(n_clicks, lo_odds, lo_legs, mo_odds, mo_legs, ho_odds, ho_legs):
+            data = {
+                'betting_profiles': {
+                    'low': {'target_odds': float(lo_odds or 2.0), 'target_legs': int(lo_legs or 2)},
+                    'med': {'target_odds': float(mo_odds or 10.0), 'target_legs': int(mo_legs or 4)},
+                    'high': {'target_odds': float(ho_odds or 50.0), 'target_legs': int(ho_legs or 8)}
+                }
+            }
+            success = settings_manager.write_settings('betting_profiles', data)
+            if success:
+                return "✅ Settings saved successfully", "ms-3 fw-bold text-success"
+            return "❌ Failed to save", "ms-3 fw-bold text-danger"
 
     def run(self, debug=True, port=8050):
         print(f"Starting dashboard on http://0.0.0.0:{port}")

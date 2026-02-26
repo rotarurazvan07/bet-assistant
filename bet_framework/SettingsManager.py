@@ -58,5 +58,20 @@ class SettingsManager:
         """Return a preloaded config by file stem/name."""
         return self.configs.get(name, None)
 
+    def write_settings(self, name: str, data: Dict[str, Any], config_dir: str = "config") -> bool:
+        """Write settings to a specific yaml file in the config directory AND update memory."""
+        try:
+            self.configs[name] = data
+
+            p = Path(config_dir) / f"{name}.yaml"
+            p.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(p, 'w') as f:
+                yaml.dump(data, f)
+            return True
+        except Exception as e:
+            print(f"Failed to write settings {name}: {e}")
+            return False
+
 
 settings_manager = SettingsManager()
