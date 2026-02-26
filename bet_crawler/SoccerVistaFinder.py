@@ -1,20 +1,14 @@
-import asyncio
-import os
-import random
-import re
-import threading
-import time
 from datetime import datetime
 
 from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import WebScraper
+from bet_framework.WebScraper import WebScraper, ScrapeMode
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
-NUM_THREADS = 1
+MAX_CONCURRENCY = 1
 
 EXCLUDED = [
     "premier-league-u18", "efl-cup", "fa-community-shield", "fa-cup",
@@ -195,103 +189,65 @@ EXCLUDED = [
     "super-cup", "chibuku-super-cup", "castle-challenge-cup"
 ]
 
+
 class SoccerVistaFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
         super().__init__(add_match_callback)
-        self._scanned_leagues = 0
-        self._stop_logging = False
-        self.web_scraper = None
 
-    def _get_league_urls(self):
-        try:
-            self.get_web_scraper(profile='fast')
-            html = self.web_scraper.fast_http_request(SOCCERVISTA_URL)
+    def get_matches_urls(self):
+        """Get league URLs via fast HTTP."""
+        html = WebScraper.fetch(SOCCERVISTA_URL)
+        soup = BeautifulSoup(html, 'html.parser')
+
+        league_urls = []
+        leagues_tag = soup.find('h3', string=lambda t: t and "Top Leagues" in t).parent
+        all_links = [link['href'] for link in leagues_tag.find_all('a', href=True)][:-2]
+        for link in all_links:
+            html = WebScraper.fetch(SOCCERVISTA_URL + link)
             soup = BeautifulSoup(html, 'html.parser')
+            if html:
+                try:
+                    league_urls += [opt['value'] for opt in soup.find('select', id="tournamentPage").find_all("option")]
+                except AttributeError:
+                    print(f"Can't parse: {link}")
 
-            league_urls = []
-            leagues_tag = soup.find('h3', string=lambda t: t and "Top Leagues" in t).parent
-            all_links = [link['href'] for link in leagues_tag.find_all('a', href=True)][:-2]
-            for link in all_links:
-                html = self.web_scraper.fast_http_request(SOCCERVISTA_URL + link)
-                soup = BeautifulSoup(html, 'html.parser')
-                if html:
-                    try:
-                        league_urls += [link['value'] for link in soup.find('select',id="tournamentPage").find_all("option")]
-                    except AttributeError:
-                        print(f"Can't parse: {link}")
-                        continue
-            league_urls = [
-                SOCCERVISTA_URL + url for url in league_urls
-                if not any(excluded in url for excluded in EXCLUDED)
-            ]
+        league_urls = [SOCCERVISTA_URL + url for url in league_urls
+                       if not any(ex in url for ex in EXCLUDED)]
 
-            print(str(len(league_urls)) + " leagues to scrape")
+        print(f"{len(league_urls)} leagues to scrape")
+        return league_urls
 
-            return league_urls
-        finally:
-            self.web_scraper.destroy_current_thread()
+    def get_matches(self, urls):
+        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=MAX_CONCURRENCY)
 
-    async def my_data_handler(self, url, html):
-        self._scanned_leagues += 1
+    def _parse_page(self, url, html):
         try:
             soup = BeautifulSoup(html, 'html.parser')
-            # One-liner to find container, then rows, defaulting to [] if not found
             container = soup.find('h2', string=lambda t: t and "Upcoming Predictions" in t)
-            matches_entries = container.parent.find("tbody").find_all("tr") if container else []
-            for match_tr in matches_entries:
-                home_team_name = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                away_team_name = match_tr.find_all("td")[3].find_all("span")[0].get_text()
+            matches = container.parent.find("tbody").find_all("tr") if container else []
+
+            for match_tr in matches:
+                home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
+                away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
                 try:
                     date_str = match_tr.find_all("td")[0].get_text()
                     match_datetime = min(
-                        (datetime.strptime(f"{date_str} {y}", "%d %b %Y") for y in [datetime.now().year-1, datetime.now().year, datetime.now().year+1]),
+                        (datetime.strptime(f"{date_str} {y}", "%d %b %Y")
+                         for y in [datetime.now().year - 1, datetime.now().year, datetime.now().year + 1]),
                         key=lambda d: abs(d - datetime.now())
                     )
-                except Exception as e:
-                    print(f"{home_team_name} vs {away_team_name}: Match ongoing")
+                except Exception:
+                    print(f"{home_team} vs {away_team}: Match ongoing")
                     continue
 
-                scores = [Score(SOCCERVISTA_NAME, int(match_tr.find_all("td")[-1].get_text().split(":")[0]),
-                                                    int(match_tr.find_all("td")[-1].get_text().split(":")[1]))]
+                score_text = match_tr.find_all("td")[-1].get_text()
+                scores = [Score(SOCCERVISTA_NAME, int(score_text.split(":")[0]), int(score_text.split(":")[1]))]
 
-                match_to_add = Match(
-                    home_team=home_team_name,
-                    away_team=away_team_name,
-                    datetime=match_datetime,
-                    predictions=scores,
-                    odds=None,
-                    result_url=SOCCERVISTA_URL+match_tr.find("a").get('href')
-                )
-
-                self.add_match(match_to_add)
+                self.add_match(Match(
+                    home_team=home_team, away_team=away_team,
+                    datetime=match_datetime, predictions=scores, odds=None,
+                    result_url=SOCCERVISTA_URL + match_tr.find("a").get('href')
+                ))
 
         except Exception as e:
-            print(f"Caught exception {e} while parsing {url}")
-
-    def get_matches_urls(self):
-        return self._get_league_urls()
-
-    def get_matches(self, urls):
-        """Main function to scrape all matches in parallel."""
-        self._scanned_leagues = 0
-        self._stop_logging = False
-
-        # Get all match URLs
-        self.get_web_scraper(profile='slow')
-        asyncio.run(self.web_scraper.async_scrape(
-            urls=urls,
-            load_callback=self.my_data_handler,
-            max_concurrent=1,
-            additional_wait=1,
-            wait_for_selector=".content-loaded"
-        ))
-
-        print(f"Finished scanning {self._scanned_leagues} leagues")
-
-    def _log_progress(self, matches_urls):
-        """Log scraping progress."""
-        total = len(matches_urls)
-        while not self._stop_logging:
-            progress = (self._scanned_leagues / total * 100) if total > 0 else 0
-            print(f"Progress: {self._scanned_leagues}/{total} ({progress:.1f}%)")
-            time.sleep(2)
+            print(f"Error parsing {url}: {e}")

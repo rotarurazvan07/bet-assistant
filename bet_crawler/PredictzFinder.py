@@ -1,19 +1,15 @@
-import os
-import random
 import re
-import threading
-import time
 from datetime import datetime
 
 from bs4 import BeautifulSoup
 
 from bet_crawler.BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import WebScraper
+from bet_framework.WebScraper import WebScraper, ScrapeMode
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-NUM_THREADS = 1
+MAX_CONCURRENCY = 1
 
 EXCLUDED = [
     "https://www.predictz.com/predictions/england/community-shield/",
@@ -32,106 +28,64 @@ EXCLUDED = [
     "https://www.predictz.com/predictions/usa/leagues-cup/"
 ]
 
+
 class PredictzFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
         super().__init__(add_match_callback)
-        self._scanned_leagues = 0
-        self._stop_logging = False
-        self.web_scraper = None
-
-    def _get_league_urls(self):
-        try:
-            self.get_web_scraper(profile='fast')
-            html = self.web_scraper.load_page(PREDICTZ_URL, additional_wait=10)
-            soup = BeautifulSoup(html, 'html.parser')
-
-            league_urls = []
-            league_divs = soup.find(class_="dd nav-select").find_all('optgroup')[6:]
-            for league_div in league_divs:
-                league_urls += [league.get('value') for league in league_div.find_all('option') \
-                                if league.get('value') not in EXCLUDED]
-
-            print(str(len(league_urls))+" leagues to scrape")
-            return league_urls
-        finally:
-            self.web_scraper.destroy_current_thread()
 
     def get_matches_urls(self):
-        return self._get_league_urls()
+        """Get league URLs via browser (needs JS rendering)."""
+        with WebScraper.browser(solve_cloudflare=True) as session:
+            page = session.fetch(PREDICTZ_URL)
+            soup = BeautifulSoup(page.html_content, 'html.parser')
+
+        league_urls = []
+        for optgroup in soup.find(class_="dd nav-select").find_all('optgroup')[6:]:
+            league_urls += [opt.get('value') for opt in optgroup.find_all('option')
+                            if opt.get('value') not in EXCLUDED]
+
+        print(f"{len(league_urls)} leagues to scrape")
+        return league_urls
 
     def get_matches(self, urls):
-        """Main function to scrape all matches in parallel."""
-        self._scanned_leagues = 0
-        self._stop_logging = False
+        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
 
-        self.get_web_scraper(profile='fast')
-
-        # Run worker jobs using the base helper which starts/stops progress logging
-        self.run_workers(urls, self._find_matches_job, num_threads=NUM_THREADS)
-
-        print(f"Finished scanning {self._scanned_leagues} leagues")
-
-    def _log_progress(self, leagues_urls):
-        """Log scraping progress."""
-        total = len(leagues_urls)
-        while not self._stop_logging:
-            progress = (self._scanned_leagues / total * 100) if total > 0 else 0
-            print(f"Progress: {self._scanned_leagues}/{total} ({progress:.1f}%)")
-            time.sleep(2)
-
-    def _find_matches_job(self, leagues_urls, thread_id):
-        """Worker function that processes a slice of matches."""
+    def _parse_page(self, url, html):
         try:
-            for league_url in leagues_urls:
-                self._scanned_leagues += 1
+            soup = BeautifulSoup(html, 'html.parser')
 
-                html = self.web_scraper.load_page(league_url)
-                try:
-                    soup = BeautifulSoup(html, 'html.parser')
+            if "This could be due to games currently in play" in html:
+                print(f"No matches in {url}")
+                return
 
-                    if "This could be due to games currently in play, tips being formulated, or there might not be any future games for this competition." in html:
-                        print(f"No matches in {league_url}")
-                        continue
+            match_datetime = None
+            for entry in soup.find_all(class_="pzcnth"):
+                if entry.find('h2'):
+                    date_str = entry.find('h2').get_text()
+                    clean = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str).replace(',', '')
+                    match_datetime = next(
+                        dt for y in range(datetime.now().year - 1, datetime.now().year + 2)
+                        for dt in [datetime.strptime(f"{clean} {y}", "%A %B %d %Y")]
+                        if dt.strftime('%A') in date_str
+                    )
+                else:
+                    home_team = entry.find(class_="fixt").get_text().split(" vs ")[0]
+                    away_team = entry.find(class_="fixt").get_text().split(" vs ")[1]
 
-                    entries = soup.find_all(class_="pzcnth")
-                    for entry in entries:
-                        # is date
-                        if entry.find('h2'):
-                            date_str = entry.find('h2').get_text()
-                            clean = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str).replace(',', '')
-                            match_datetime = next(dt for y in range(datetime.now().year - 1, datetime.now().year + 2) for dt in [datetime.strptime(f"{clean} {y}", "%A %B %d %Y")] if dt.strftime('%A') in date_str)
-                        else:
-                            # is game
-                            home_team_name = entry.find(class_="fixt").get_text().split(" vs ")[0]
-                            away_team_name = entry.find(class_="fixt").get_text().split(" vs ")[1]
+                    score_text = entry.find("td").get_text()[-3:]
+                    scores = [Score(PREDICTZ_NAME, int(score_text.split("-")[0]), int(score_text.split("-")[1]))]
 
-                            scores = [Score(PREDICTZ_NAME, int(entry.find("td").get_text()[-3:].split("-")[0]),
-                                                          int(entry.find("td").get_text()[-3:].split("-")[1]))]
+                    try:
+                        odds = Odds(
+                            home=entry.find_all(class_='odds')[0].get_text(),
+                            draw=entry.find_all(class_='odds')[1].get_text(),
+                            away=entry.find_all(class_='odds')[2].get_text(),
+                            over=None, under=None, btts_y=None, btts_n=None
+                        )
+                    except (AttributeError, IndexError):
+                        odds = None
 
-                            try:
-                                odds = Odds(
-                                    home=entry.find_all(class_='odds')[0].get_text(),
-                                    draw=entry.find_all(class_='odds')[1].get_text(),
-                                    away=entry.find_all(class_='odds')[2].get_text(),
-                                    over=None,
-                                    under=None,
-                                    btts_y=None,
-                                    btts_n=None
-                                )
-                            except (AttributeError, IndexError) as e:
-                                odds = None
+                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
 
-                            match_to_add = Match(
-                                home_team=home_team_name,
-                                away_team=away_team_name,
-                                datetime=match_datetime,
-                                predictions=scores,
-                                odds=odds
-                            )
-
-                            self.add_match(match_to_add)
-
-                except Exception as e:
-                    print(f"Caught exception {e} while parsing {league_url}")
-        finally:
-            self.web_scraper.destroy_current_thread()
+        except Exception as e:
+            print(f"Error parsing {url}: {e}")

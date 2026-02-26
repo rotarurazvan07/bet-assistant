@@ -166,8 +166,7 @@ if __name__ == "__main__":
             print(f"Validating {len(pending_legs)} matches...")
 
             for leg_id, url, market, market_type in pending_legs:
-                scraper = WebScraper()
-                html = scraper.fast_http_request(url)
+                html = WebScraper.fetch(url)
                 soup = BeautifulSoup(html, 'html.parser')
 
                 def get_final_score(soup):
