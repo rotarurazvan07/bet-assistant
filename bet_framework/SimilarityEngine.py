@@ -1,4 +1,5 @@
-from typing import Dict, Any
+from functools import lru_cache
+from typing import Dict, Any, Tuple
 from rapidfuzz import fuzz
 import unicodedata
 import re
@@ -49,6 +50,7 @@ class SimilarityEngine:
         soundex_code = soundex_code[:4].ljust(4, "0")
         return soundex_code[:4]
 
+    @lru_cache(maxsize=1024)
     def _normalize(self, match_name: str) -> str:
         # Decompose Unicode and remove diacritics
         name = unicodedata.normalize('NFD', match_name)
@@ -114,8 +116,9 @@ class SimilarityEngine:
         )
         return final_score
 
-    def is_similar(self, s1: str, s2: str) -> bool:
-        n1 = self._normalize(s1)
-        n2 = self._normalize(s2)
+    def is_similar(self, s1: str, s2: str, n1: str = None, n2: str = None) -> Tuple[bool, float]:
+        """Check similarity. Can accept pre-normalized strings n1, n2 for efficiency."""
+        n1 = n1 if n1 is not None else self._normalize(s1)
+        n2 = n2 if n2 is not None else self._normalize(s2)
         score = self.hybrid_match(n1, n2)
         return score > self.similarity_threshold, score

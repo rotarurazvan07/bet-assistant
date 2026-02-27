@@ -11,6 +11,8 @@ REQUIREMENTS:
 """
 
 import asyncio
+import time
+from typing import List, Optional, Callable
 from concurrent.futures import ThreadPoolExecutor
 
 from scrapling.fetchers import (
@@ -113,37 +115,72 @@ class WebScraper:
     """
 
     @staticmethod
-    def fetch(url: str) -> str:
+    def fetch(url: str, stealthy_headers: bool = True) -> str:
         """Fast HTTP GET with TLS impersonation and stealth headers.
         Returns HTML string, or empty string on error.
         """
         try:
-            page = Fetcher.get(url, stealthy_headers=True)
+            page = Fetcher.get(url, stealthy_headers=stealthy_headers)
             return page.html_content
         except Exception as e:
             print(f"[fetch] Error fetching {url}: {e}")
             return ""
 
     @staticmethod
-    def browser(headless: bool = True, solve_cloudflare: bool = False, interactive: bool = False):
+    def is_blocked(html: str) -> bool:
+        """Helper to detect shadowbans or Cloudflare blocks."""
+        if not html:
+            return True
+        block_indicators = [
+            "Just a moment...",
+            "cf-browser-verification",
+            "Access Denied",
+            "Checking your browser",
+            "verify you are a human",
+            "403 Forbidden",
+            "429 Too Many Requests"
+        ]
+        return any(indicator.lower() in html.lower() for indicator in block_indicators)
+
+    @staticmethod
+    def browser(
+        headless: bool = True,
+        solve_cloudflare: bool = False,
+        interactive: bool = False,
+        disable_resources: Optional[bool] = None,
+        network_idle: Optional[bool] = None,
+        wait_until: str = "load"
+    ):
         """Get a browser session as a context manager.
 
-        If interactive=True: returns InteractiveSession supporting execute_script.
-        Otherwise: returns lean Scrapling session.
+        Args:
+            headless: Run browser in background.
+            solve_cloudflare: Enable Cloudflare bypass.
+            interactive: Whether to return an InteractiveSession.
+            disable_resources: Drop fonts/images/etc to speed up.
+            network_idle: Wait for network to be idle.
+            wait_until: 'load', 'domcontentloaded', 'networkidle'.
         """
+        # Default choices based on mode if not explicitly provided
+        if disable_resources is None:
+            disable_resources = not interactive and not solve_cloudflare
+        if network_idle is None:
+            network_idle = interactive or solve_cloudflare
+
         if solve_cloudflare:
             session = StealthySession(
                 headless=headless,
                 solve_cloudflare=True,
-                # Cloudflare/DataDome need JS/CSS to run the challenge
-                disable_resources=False,
-                network_idle=True
+                disable_resources=disable_resources,
+                network_idle=network_idle,
+                wait_until=wait_until
             )
         else:
             session = DynamicSession(
                 headless=headless,
-                disable_resources=(not interactive),
-                network_idle=interactive
+                disable_resources=disable_resources,
+                network_idle=network_idle,
+                wait_until=wait_until
             )
 
         if interactive:

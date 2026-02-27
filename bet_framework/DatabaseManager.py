@@ -6,6 +6,7 @@ import json
 import threading
 from typing import Optional
 import pandas as pd
+import time
 
 from bet_framework.SimilarityEngine import SimilarityEngine
 
@@ -155,17 +156,41 @@ class DatabaseManager:
             WHERE date(datetime) BETWEEN date(?, '-1 day') AND date(?, '+1 day')
         ''', (date_str, date_str))
 
+        # Pre-normalize search strings once
+        n_target_home = self.similarity_engine._normalize(home_team)
+        n_target_away = self.similarity_engine._normalize(away_team)
+
         found_match_row = found_match_row_id = None
         max_score = -1
 
+        # Local cache for DB row normalizations within this window
+        db_norm_cache = {}
+
         for row in cursor:
+            row_home = row['home_team_name']
+            row_away = row['away_team_name']
+
+            # 1. Fast Path: Case-insensitive exact match
+            if row_home.lower() == home_team.lower() and row_away.lower() == away_team.lower():
+                return dict(row), row['id']
+
+            # 2. Hybrid Similarity
+            # Normalize row names (cached locally for this loop)
+            if row_home not in db_norm_cache:
+                db_norm_cache[row_home] = self.similarity_engine._normalize(row_home)
+            if row_away not in db_norm_cache:
+                db_norm_cache[row_away] = self.similarity_engine._normalize(row_away)
+
+            n_row_home = db_norm_cache[row_home]
+            n_row_away = db_norm_cache[row_away]
+
             # Home similarity
-            is_similar_home, score_home = self.similarity_engine.is_similar(row['home_team_name'], home_team)
+            is_similar_home, score_home = self.similarity_engine.is_similar(row_home, home_team, n1=n_row_home, n2=n_target_home)
             if not is_similar_home:
                 continue
 
             # Away similarity
-            is_similar_away, score_away = self.similarity_engine.is_similar(row['away_team_name'], away_team)
+            is_similar_away, score_away = self.similarity_engine.is_similar(row_away, away_team, n1=n_row_away, n2=n_target_away)
             if not is_similar_away:
                 continue
 
@@ -180,6 +205,7 @@ class DatabaseManager:
 
     def add_match(self, match, match_id=None):
         """Add or update a match in the database."""
+        start_time = time.perf_counter()
         try:
             if match_id:
                 cursor = self.conn.execute('SELECT * FROM matches WHERE id = ?', (match_id,))
@@ -268,6 +294,9 @@ class DatabaseManager:
         except Exception as e:
             print(f"Caught {e} while adding to db")
             return None
+        finally:
+            duration = (time.perf_counter() - start_time) * 1000
+            log(f"[DB] add_match took {duration:.2f}ms")
 
     def reset_matches_db(self):
         """Delete all matches from the database."""
