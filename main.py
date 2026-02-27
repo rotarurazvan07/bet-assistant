@@ -23,8 +23,8 @@ FOREBET_NAME = "forebet"
 VITIBET_NAME = "vitibet"
 PREDICTZ_NAME = "predictz"
 
-MAX_GITHUB_RUNNERS = 200
-MAX_LOCAL_RUNNERS = 1
+MAX_GITHUB_RUNNERS = 100
+MAX_LOCAL_RUNNERS = 100
 
 def get_class_by_url(url):
     if SCOREPREDICTOR_NAME.lower() in url.lower():
