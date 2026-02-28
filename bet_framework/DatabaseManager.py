@@ -28,6 +28,7 @@ class DatabaseManager:
         # Loaded lazily on first add_match call, flushed explicitly via
         # flush() or implicitly via close(). Column layout mirrors the DB.
         self._buffer: Optional[pd.DataFrame] = None   # None = not yet loaded
+        self._pending_new_rows = []                   # List of new row dicts (O(1) append)
         self._buffer_dirty: bool = False              # True when pending writes exist
         # ──────────────────────────────────────────────────────────────────────
 
@@ -112,65 +113,70 @@ class DatabaseManager:
 
     def _find_match_in_buffer(self, home_team: str, away_team: str, match_date):
         """
-        Similarity search entirely inside the in-memory buffer.
-        Returns (row_dict | None, index_label | None).
+        Similarity search entirely inside the in-memory buffer (both DataFrame and pending list).
+        Returns the BEST match based on average similarity score.
+        Returns (row_dict | None, index | None, is_pending | bool).
         """
-        if self._buffer.empty:
-            return None, None
-
         date_str = match_date.date().isoformat()
-
-        # Filter to ±1 day window using vectorised string slice (fast)
-        dt_dates = self._buffer['datetime'].str[:10]   # 'YYYY-MM-DD'
         target = pd.Timestamp(date_str)
-        mask = (
-            pd.to_datetime(dt_dates, errors='coerce') >= target - pd.Timedelta(days=1)
-        ) & (
-            pd.to_datetime(dt_dates, errors='coerce') <= target + pd.Timedelta(days=1)
-        )
-        window = self._buffer[mask]
 
-        if window.empty:
-            return None, None
-
-        n_target_home = self.similarity_engine._normalize(home_team)
-        n_target_away = self.similarity_engine._normalize(away_team)
-        norm_cache = {}
-
+        best_row = None
         best_idx = None
+        best_is_pending = False
         max_score = -1
 
-        for idx, row in window.iterrows():
+        # 1. Search in DataFrame buffer
+        if self._buffer is not None and not self._buffer.empty:
+            dt_dates = pd.to_datetime(self._buffer['datetime'].str[:10], errors='coerce')
+            mask = (dt_dates >= target - pd.Timedelta(days=1)) & (dt_dates <= target + pd.Timedelta(days=1))
+            window = self._buffer[mask]
+
+            for idx, row in window.iterrows():
+                row_home = row['home_team_name']
+                row_away = row['away_team_name']
+
+                # Fast path: exact case-insensitive match (score is 100)
+                if row_home.lower() == home_team.lower() and row_away.lower() == away_team.lower():
+                    return row.to_dict(), idx, False
+
+                is_sim_h, score_h = self.similarity_engine.is_similar(row_home, home_team)
+                if not is_sim_h: continue
+                is_sim_a, score_a = self.similarity_engine.is_similar(row_away, away_team)
+                if not is_sim_a: continue
+
+                avg = (score_h + score_a) / 2
+                if avg > max_score:
+                    max_score = avg
+                    best_row = row.to_dict()
+                    best_idx = idx
+                    best_is_pending = False
+
+        # 2. Search in pending list
+        for i, row in enumerate(self._pending_new_rows):
+            row_date = pd.Timestamp(row['datetime'][:10])
+            if abs((row_date - target).days) > 1:
+                continue
+
             row_home = row['home_team_name']
             row_away = row['away_team_name']
 
-            # Fast path: exact case-insensitive match
+            # Fast path: exact
             if row_home.lower() == home_team.lower() and row_away.lower() == away_team.lower():
-                return row.to_dict(), idx
+                return row, i, True
 
-            if row_home not in norm_cache:
-                norm_cache[row_home] = self.similarity_engine._normalize(row_home)
-            if row_away not in norm_cache:
-                norm_cache[row_away] = self.similarity_engine._normalize(row_away)
+            is_sim_h, score_h = self.similarity_engine.is_similar(row_home, home_team)
+            if not is_sim_h: continue
+            is_sim_a, score_a = self.similarity_engine.is_similar(row_away, away_team)
+            if not is_sim_a: continue
 
-            is_similar_home, score_home = self.similarity_engine.is_similar(
-                row_home, home_team, n1=norm_cache[row_home], n2=n_target_home)
-            if not is_similar_home:
-                continue
-
-            is_similar_away, score_away = self.similarity_engine.is_similar(
-                row_away, away_team, n1=norm_cache[row_away], n2=n_target_away)
-            if not is_similar_away:
-                continue
-
-            avg = (score_home + score_away) / 2
+            avg = (score_h + score_a) / 2
             if avg > max_score:
                 max_score = avg
-                best_idx = idx
+                best_row = row
+                best_idx = i
+                best_is_pending = True
 
-        if best_idx is not None:
-            return self._buffer.loc[best_idx].to_dict(), best_idx
-        return None, None
+        return best_row, best_idx, best_is_pending
 
     def flush(self):
         """
@@ -184,7 +190,13 @@ class DatabaseManager:
             cursor = self.conn.cursor()
             cursor.execute('BEGIN')
 
-            for idx, row in self._buffer.iterrows():
+            # Combine DataFrame buffer and pending new rows
+            all_rows = []
+            if self._buffer is not None:
+                all_rows.extend([row for _, row in self._buffer.iterrows()])
+            all_rows.extend(self._pending_new_rows)
+
+            for row in all_rows:
                 row_id = row['id']
 
                 if isinstance(row_id, float) and row_id < 0:
@@ -203,7 +215,7 @@ class DatabaseManager:
                         row['result_url']
                     ))
                     # Back-fill the real DB id so future lookups stay consistent
-                    self._buffer.at[idx, 'id'] = float(cursor.lastrowid)
+                    row['id'] = float(cursor.lastrowid)
                 else:
                     # Existing row — UPDATE (only if dirty; we update all for simplicity
                     # since we track dirty at buffer level, not row level)
@@ -220,6 +232,9 @@ class DatabaseManager:
                         int(row_id)
                     ))
 
+            # Rebuild _buffer from scratch after flush to sync IDs and clear pending
+            self._buffer = pd.DataFrame(all_rows)
+            self._pending_new_rows = []
             self.conn.commit()
             self._buffer_dirty = False
 
@@ -278,7 +293,8 @@ class DatabaseManager:
                     found_idx = self._buffer[id_mask].index[0]
                     found_row = self._buffer.loc[found_idx].to_dict()
             else:
-                found_row, found_idx = self._find_match_in_buffer(
+                # Use unified search in DataFrame buffer AND pending list
+                found_row, found_idx, is_pending = self._find_match_in_buffer(
                     match.home_team, match.away_team, match.datetime
                 )
 
@@ -299,7 +315,10 @@ class DatabaseManager:
                             existing_sources.add(score.source)
                             changed = True
                     if changed:
-                        self._buffer.at[found_idx, 'predictions_scores'] = json.dumps(existing_scores)
+                        ser = json.dumps(existing_scores)
+                        found_row['predictions_scores'] = ser
+                        if not is_pending:
+                            self._buffer.at[found_idx, 'predictions_scores'] = ser
 
                 # --- odds ---
                 if match.odds is not None:
@@ -309,18 +328,23 @@ class DatabaseManager:
                              if current_odds.get(k) is None and v is not None}
                     if patch:
                         updated_odds = {**current_odds, **patch}
-                        self._buffer.at[found_idx, 'odds'] = self._serialize_json(updated_odds)
+                        ser = self._serialize_json(updated_odds)
+                        found_row['odds'] = ser
+                        if not is_pending:
+                            self._buffer.at[found_idx, 'odds'] = ser
                         changed = True
 
                 # --- result_url ---
                 if match.result_url is not None and found_row.get('result_url') is None:
-                    self._buffer.at[found_idx, 'result_url'] = match.result_url
+                    found_row['result_url'] = match.result_url
+                    if not is_pending:
+                        self._buffer.at[found_idx, 'result_url'] = match.result_url
                     changed = True
 
                 if changed:
                     self._buffer_dirty = True
 
-                return int(found_row['id']) if found_row['id'] >= 0 else found_idx
+                return int(found_row['id']) if found_row['id'] >= 0 else found_row['id']
 
             # ── Insert new ────────────────────────────────────────────────────
             else:
@@ -337,10 +361,7 @@ class DatabaseManager:
                 }
                 self._next_temp_id -= 1
 
-                self._buffer = pd.concat(
-                    [self._buffer, pd.DataFrame([new_row])],
-                    ignore_index=True
-                )
+                self._pending_new_rows.append(new_row)
                 self._buffer_dirty = True
 
                 # Return the temp id (negative); real id assigned on flush()

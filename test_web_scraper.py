@@ -7,15 +7,15 @@ from bet_framework.WebScraper import WebScraper, ScrapeMode
 # List of targets: (url, selector_to_wait, name)
 TARGETS = [
     # Forebet
-    ("https://www.forebet.com/en/football-predictions", "div#body-main", "Forebet Parse"),
+    # ("https://www.forebet.com/en/football-predictions", "div#body-main", "Forebet Parse"),
 
     # Predictz
     ("https://www.predictz.com/", ".dd.nav-select", "Predictz Prepare"),
     ("https://www.predictz.com/predictions/england/premier-league/", ".pzcnth", "Predictz Parse"),
 
     # FootballBettingTips
-    ("https://www.footballbettingtips.org/", "h3", "FootballBettingTips Prepare"),
-    ("https://www.footballbettingtips.org/predictions/england/premier-league/", "table.results", "FootballBettingTips Parse"),
+    # ("https://www.footballbettingtips.org/", "h3", "FootballBettingTips Prepare"),
+    #("https://www.footballbettingtips.org/predictions/england/premier-league/", "table.results", "FootballBettingTips Parse"),
 
     # ScorePredictor
     ("https://scorepredictor.net/index.php?section=football", ".block_categories", "ScorePredictor Prepare"),
@@ -29,13 +29,13 @@ TARGETS = [
     ("https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en", "ul#primarne", "Vitibet Prepare"),
     ("https://www.vitibet.com/index.php?clanek=tips&sekce=fotbal&liga=england1&lang=en", "table.tabulkaquick", "Vitibet Parse"),
 
-    # WhoScored
-    ("https://www.whoscored.com/previews", "table.grid", "WhoScored Prepare"),
-    ("https://www.whoscored.com/matches/1821034/preview/", "div#preview-prediction", "WhoScored Parse"),
-
     # WinDrawWin
     ("https://www.windrawwin.com/predictions/", "div.widetable", "WinDrawWin Prepare"),
     ("https://www.windrawwin.com/predictions/england/premier-league/", "div.wdwtablest", "WinDrawWin Parse"),
+
+    # WhoScored
+    ("https://www.whoscored.com/previews", "table.grid", "WhoScored Prepare"),
+    ("https://www.whoscored.com/matches/1821034/preview/", "div#preview-prediction", "WhoScored Parse"),
 ]
 
 def generate_configs():

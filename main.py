@@ -24,7 +24,7 @@ VITIBET_NAME = "vitibet"
 PREDICTZ_NAME = "predictz"
 
 MAX_GITHUB_RUNNERS = 100
-MAX_LOCAL_RUNNERS = 100
+MAX_LOCAL_RUNNERS = 1
 
 def get_class_by_url(url):
     if SCOREPREDICTOR_NAME.lower() in url.lower():
@@ -60,9 +60,6 @@ def get_local_runners():
     from bet_crawler.WhoScoredFinder import WhoScoredFinder
     from bet_crawler.ForebetFinder import ForebetFinder
     from bet_crawler.WinDrawWinFinder import WinDrawWinFinder
-    WhoScoredFinder.MAX_CONCURRENCY = 5
-    ForebetFinder.MAX_CONCURRENCY = 5
-    WinDrawWinFinder.MAX_CONCURRENCY = 5
     return [WhoScoredFinder, ForebetFinder, WinDrawWinFinder]
 
 if __name__ == "__main__":
