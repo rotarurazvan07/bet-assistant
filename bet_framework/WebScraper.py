@@ -115,7 +115,7 @@ class WebScraper:
     """
 
     @staticmethod
-    def fetch(url: str, stealthy_headers: bool = True) -> str:
+    def fetch(url: str, stealthy_headers: bool = False) -> str:
         """Fast HTTP GET with TLS impersonation and stealth headers.
         Returns HTML string, or empty string on error.
         """
@@ -138,7 +138,8 @@ class WebScraper:
             "Checking your browser",
             "verify you are a human",
             "403 Forbidden",
-            "429 Too Many Requests"
+            "429 Too Many Requests",
+            "Attention Required!"
         ]
         return any(indicator.lower() in html.lower() for indicator in block_indicators)
 
@@ -205,9 +206,15 @@ class WebScraper:
         if mode == ScrapeMode.FAST:
             def _fetch(url):
                 try:
-                    html = WebScraper.fetch(url)
-                    if html:
+                    html = WebScraper.fetch(url, stealthy_headers=False)
+                    if not WebScraper.is_blocked(html):
                         callback(url, html)
+                        return
+                    html = WebScraper.fetch(url, stealthy_headers=True)
+                    if not WebScraper.is_blocked(html):
+                        callback(url, html)
+                        return
+                    raise Exception(f"FAST failed")
                 except Exception as e:
                     print(f"[scrape/fast] Error on {url}: {e}")
 

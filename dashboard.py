@@ -366,8 +366,13 @@ class BetAssistantDashboard:
                         ], className="text-start"),
                         dbc.Button([
                             html.I(className="fas fa-sync-alt me-2"), "Refresh Data"
-                        ], id="refresh-btn", className="ms-auto shadow-sm fw-bold",
-                        style={"borderRadius": "10px", "background": "rgba(255,255,255,0.2)", "border": "1px solid rgba(255,255,255,0.3)"})
+                        ], id="refresh-btn", className="ms-auto shadow-sm fw-bold me-2",
+                        style={"borderRadius": "10px", "background": "rgba(255,255,255,0.2)", "border": "1px solid rgba(255,255,255,0.3)"}),
+
+                        dbc.Button([
+                            html.I(className="fas fa-cloud-download-alt me-2"), "Pull Update"
+                        ], id="btn-pull-update", className="shadow-sm fw-bold",
+                        style={"borderRadius": "10px", "background": "rgba(255,193,7,0.4)", "border": "1px solid rgba(255,193,7,0.5)"})
                     ], className="d-flex align-items-center p-4 shadow-lg",
                     style={
                         "background": "linear-gradient(135deg, #4361ee 0%, #3f37c9 100%)",
@@ -510,8 +515,12 @@ class BetAssistantDashboard:
 
                                             # --- NEW REFRESH BUTTON ---
                                             dbc.Button([
-                                                html.I(className="fas fa-sync-alt me-2"), "Validate Results"
+                                                html.I(className="fas fa-check-double me-2"), "Validate Results"
                                             ], id="btn-force-refresh", color="primary", size="sm", className="ms-3 shadow-sm"),
+
+                                            dbc.Button([
+                                                html.I(className="fas fa-magic me-2"), "Generate Slips"
+                                            ], id="btn-generate-slips", color="success", size="sm", className="ms-2 shadow-sm"),
                                         ], className="d-flex align-items-center mb-4")
                                     ]),
                                     # Loading spinner for visual feedback
@@ -538,6 +547,9 @@ class BetAssistantDashboard:
                                             html.Br(),
                                             dbc.Label("Target Leg Count"),
                                             dbc.Input(id="config-low-legs", type="number", step=1),
+                                            html.Br(),
+                                            dbc.Label("Units"),
+                                            dbc.Input(id="config-low-units", type="number", step=0.1),
                                         ])
                                     ], className="shadow-sm border-0"), md=4),
                                     dbc.Col(dbc.Card([
@@ -548,6 +560,9 @@ class BetAssistantDashboard:
                                             html.Br(),
                                             dbc.Label("Target Leg Count"),
                                             dbc.Input(id="config-med-legs", type="number", step=1),
+                                            html.Br(),
+                                            dbc.Label("Units"),
+                                            dbc.Input(id="config-med-units", type="number", step=0.1),
                                         ])
                                     ], className="shadow-sm border-0"), md=4),
                                     dbc.Col(dbc.Card([
@@ -558,9 +573,13 @@ class BetAssistantDashboard:
                                             html.Br(),
                                             dbc.Label("Target Leg Count"),
                                             dbc.Input(id="config-high-legs", type="number", step=1),
+                                            html.Br(),
+                                            dbc.Label("Units"),
+                                            dbc.Input(id="config-high-units", type="number", step=0.1),
                                         ])
                                     ], className="shadow-sm border-0"), md=4),
                                 ], className="mb-4"),
+
                                 dbc.Button([html.I(className="fas fa-save me-2"), "Save Configuration"], id="save-config-btn", color="success", className="shadow-sm px-4"),
                                 html.Span(id="save-config-status", className="ms-3 fw-bold")
                             ], className="p-4")
@@ -731,25 +750,55 @@ class BetAssistantDashboard:
 
         @self.app.callback(
             Output("refresh-status", "children"),
-            Input("btn-force-refresh", "n_clicks"),
+            [Input("btn-force-refresh", "n_clicks"),
+             Input("btn-generate-slips", "n_clicks")],
             prevent_initial_call=True
         )
-        def run_validation_script(n_clicks):
-            if n_clicks:
-                try:
-                    # Execute the exact command requested
-                    # We use the relative path as specified, but ensure we are in the right workdir
-                    result = subprocess.run(
-                        [sys.executable, "-m", "main", "--mode", "validate-slips", "--db_path", f"{self.slips_path}"],
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    return html.Span("✅ Last refresh successful", className="text-success ms-2", style={"fontSize": "0.8rem"})
-                except subprocess.CalledProcessError as e:
-                    print(f"Error running validation: {e.stderr}")
-                    return html.Span("❌ Refresh failed", className="text-danger ms-2", style={"fontSize": "0.8rem"})
-            return ""
+        def run_slips_commands(n_validate, n_generate):
+            ctx = dash.callback_context
+            if not ctx.triggered:
+                return ""
+            
+            trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+            
+            try:
+                if trigger_id == "btn-force-refresh":
+                    command = [sys.executable, "-m", "main", "--mode", "validate-slips", "--db_path", f"{self.slips_path}"]
+                    label = "Validation"
+                else:
+                    command = [sys.executable, "-m", "main", "--mode", "generate-slips", "--db_path", f"{self.db_manager.db_path}"]
+                    label = "Generation"
+
+                subprocess.run(command, capture_output=True, text=True, check=True)
+                return html.Span(f"✅ {label} successful", className="text-success ms-2", style={"fontSize": "0.8rem"})
+            except subprocess.CalledProcessError as e:
+                print(f"Error running {label}: {e.stderr}")
+                return html.Span(f"❌ {label} failed", className="text-danger ms-2", style={"fontSize": "0.8rem"})
+
+        @self.app.callback(
+            [Output("last-updated-text", "children"),
+             Output("refresh-btn", "n_clicks")], # Trigger internal refresh
+            Input("btn-pull-update", "n_clicks"),
+            State("refresh-btn", "n_clicks"),
+            prevent_initial_call=True
+        )
+        def pull_db_update(n_clicks, current_refresh_clicks):
+            if not n_clicks:
+                return dash.no_update, dash.no_update
+            
+            try:
+                # Command as requested by user
+                repo = os.environ.get("REPO", "rotarurazvan07/bet-assistant")
+                artifact = os.environ.get("ARTIFACT_NAME", "final-database")
+                
+                cmd = f"rm -f /app/data/final_matches.db* && gh run download -R {repo} -n {artifact} --dir /app/data"
+                subprocess.run(cmd, shell=True, check=True)
+                
+                # Signal success and trigger a data refresh by incrementing the refresh-btn clicks
+                return f"Last pull: {datetime.now().strftime('%H:%M:%S')}", (current_refresh_clicks or 0) + 1
+            except Exception as e:
+                print(f"Pull failed: {e}")
+                return f"Pull failed: {str(e)}", dash.no_update
 
         @self.app.callback(
             [Output("historic-stats-cards", "children"),
@@ -776,38 +825,41 @@ class BetAssistantDashboard:
             return stats_ui, slips_ui
 
         @self.app.callback(
-            [Output("config-low-odds", "value"), Output("config-low-legs", "value"),
-             Output("config-med-odds", "value"), Output("config-med-legs", "value"),
-             Output("config-high-odds", "value"), Output("config-high-legs", "value")],
+            [Output("config-low-odds", "value"), Output("config-low-legs", "value"), Output("config-low-units", "value"),
+             Output("config-med-odds", "value"), Output("config-med-legs", "value"), Output("config-med-units", "value"),
+             Output("config-high-odds", "value"), Output("config-high-legs", "value"), Output("config-high-units", "value")],
             [Input("main-tabs", "active_tab")]
         )
         def load_config_tab(_active_tab):
             profiles = settings_manager.get_config('betting_profiles') or {}
             profs = profiles.get('betting_profiles', {})
             return (
-                profs.get('low', {}).get('target_odds', 1.6), profs.get('low', {}).get('target_legs', 1),
-                profs.get('med', {}).get('target_odds', 4.0), profs.get('med', {}).get('target_legs', 3),
-                profs.get('high', {}).get('target_odds', 15.0), profs.get('high', {}).get('target_legs', 6),
+                profs.get('low', {}).get('target_odds', 1.6), profs.get('low', {}).get('target_legs', 1), profs.get('low', {}).get('units', 1.0),
+                profs.get('med', {}).get('target_odds', 4.0), profs.get('med', {}).get('target_legs', 3), profs.get('med', {}).get('units', 1.0),
+                profs.get('high', {}).get('target_odds', 15.0), profs.get('high', {}).get('target_legs', 6), profs.get('high', {}).get('units', 1.0),
             )
 
         @self.app.callback(
             Output("save-config-status", "children"),
             Output("save-config-status", "className"),
             Input("save-config-btn", "n_clicks"),
-            State("config-low-odds", "value"), State("config-low-legs", "value"),
-            State("config-med-odds", "value"), State("config-med-legs", "value"),
-            State("config-high-odds", "value"), State("config-high-legs", "value"),
+            [State("config-low-odds", "value"), State("config-low-legs", "value"), State("config-low-units", "value"),
+             State("config-med-odds", "value"), State("config-med-legs", "value"), State("config-med-units", "value"),
+             State("config-high-odds", "value"), State("config-high-legs", "value"), State("config-high-units", "value")],
             prevent_initial_call=True
         )
-        def save_config(n_clicks, lo_odds, lo_legs, mo_odds, mo_legs, ho_odds, ho_legs):
-            data = {
+        def save_config(n_clicks, lo, ll, lu, mo, ml, mu, ho, hl, hu):
+            if not n_clicks:
+                return "", ""
+
+            new_config = {
                 'betting_profiles': {
-                    'low': {'target_odds': float(lo_odds or 2.0), 'target_legs': int(lo_legs or 2)},
-                    'med': {'target_odds': float(mo_odds or 10.0), 'target_legs': int(mo_legs or 4)},
-                    'high': {'target_odds': float(ho_odds or 50.0), 'target_legs': int(ho_legs or 8)}
+                    'low': {'target_odds': lo, 'target_legs': ll, 'units': lu},
+                    'med': {'target_odds': mo, 'target_legs': ml, 'units': mu},
+                    'high': {'target_odds': ho, 'target_legs': hl, 'units': hu}
                 }
             }
-            success = settings_manager.write_settings('betting_profiles', data)
+            success = settings_manager.write_settings('betting_profiles', new_config)
             if success:
                 return "✅ Settings saved successfully", "ms-3 fw-bold text-success"
             return "❌ Failed to save", "ms-3 fw-bold text-danger"

@@ -17,10 +17,8 @@ class WinDrawWinFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        """Get league URLs via browser (needs JS rendering)."""
-        with WebScraper.browser(solve_cloudflare=True) as session:
-            page = session.fetch(WINDRAWWIN_URL)
-            soup = BeautifulSoup(page.html_content, 'html.parser')
+        page = WebScraper.fetch(WINDRAWWIN_URL, stealthy_headers=True)
+        soup = BeautifulSoup(page, 'html.parser')
 
         all_trs = soup.find('div', class_='widetable').find_all('tr')
         start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1

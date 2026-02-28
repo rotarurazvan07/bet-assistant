@@ -29,7 +29,7 @@ class VitibetFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        html = WebScraper.fetch(VITIBET_URL)
+        html = WebScraper.fetch(VITIBET_URL, stealthy_headers=True)
         soup = BeautifulSoup(html, 'html.parser')
 
         kokos_tag = soup.find("ul", id="primarne").find('kokos')

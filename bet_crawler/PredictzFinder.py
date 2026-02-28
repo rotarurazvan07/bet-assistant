@@ -34,11 +34,8 @@ class PredictzFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        """Get league URLs via browser (needs JS rendering)."""
-        with WebScraper.browser(solve_cloudflare=True) as session:
-            page = session.fetch(PREDICTZ_URL)
-            soup = BeautifulSoup(page.html_content, 'html.parser')
-
+        page = WebScraper.fetch(PREDICTZ_URL, stealthy_headers=False)
+        soup = BeautifulSoup(page, 'html.parser')
         league_urls = []
         for optgroup in soup.find(class_="dd nav-select").find_all('optgroup')[6:]:
             league_urls += [opt.get('value') for opt in optgroup.find_all('option')
@@ -48,7 +45,7 @@ class PredictzFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls):
-        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.STEALTH , max_concurrency=MAX_CONCURRENCY)
+        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.FAST , max_concurrency=MAX_CONCURRENCY)
 
     def _parse_page(self, url, html):
         try:

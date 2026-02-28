@@ -196,7 +196,7 @@ class SoccerVistaFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         """Get league URLs via fast HTTP."""
-        html = WebScraper.fetch(SOCCERVISTA_URL)
+        html = WebScraper.fetch(SOCCERVISTA_URL, stealthy_headers=True)
         soup = BeautifulSoup(html, 'html.parser')
 
         league_urls = []

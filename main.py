@@ -54,13 +54,13 @@ def get_action_runners():
     from bet_crawler.SoccerVistaFinder import SoccerVistaFinder
     from bet_crawler.VitibetFinder import VitibetFinder
     from bet_crawler.PredictzFinder import PredictzFinder
-    return [VitibetFinder, ScorePredictorFinder, PredictzFinder, SoccerVistaFinder]
+    from bet_crawler.WinDrawWinFinder import WinDrawWinFinder
+    return [VitibetFinder, ScorePredictorFinder, PredictzFinder, SoccerVistaFinder, WinDrawWinFinder]
 
 def get_local_runners():
     from bet_crawler.WhoScoredFinder import WhoScoredFinder
     from bet_crawler.ForebetFinder import ForebetFinder
-    from bet_crawler.WinDrawWinFinder import WinDrawWinFinder
-    return [WhoScoredFinder, ForebetFinder, WinDrawWinFinder]
+    return [WhoScoredFinder, ForebetFinder]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the Match Finder Scraper")
@@ -148,18 +148,24 @@ if __name__ == "__main__":
 
         bet_slip_manager = BetSlipManager(os.path.join(os.path.dirname(args.db_path), "slips.db"))
         active_urls = bet_slip_manager.get_pending_result_urls()
+        
+        # Load profile-specific units from configuration
+        profiles = settings_manager.get_config('betting_profiles') or {}
+        profile_data = profiles.get('betting_profiles', {})
+        
         risk_profiles = [
-            ("Low", analyzer.generate_bet_slip_low_risk),
-            ("Medium", analyzer.generate_bet_slip_medium_risk),
-            ("High", analyzer.generate_bet_slip_high_risk)
+            ("Low", analyzer.generate_bet_slip_low_risk, profile_data.get('low', {}).get('units', 1.0)),
+            ("Medium", analyzer.generate_bet_slip_medium_risk, profile_data.get('med', {}).get('units', 1.0)),
+            ("High", analyzer.generate_bet_slip_high_risk, profile_data.get('high', {}).get('units', 1.0))
         ]
 
-        for label, gen_func in risk_profiles:
+        for label, gen_func, profile_units in risk_profiles:
             slip = gen_func(excluded_urls=active_urls)
             if slip:
                 print(slip)
-                bet_slip_manager.insert_slip(label, slip)
-                print(f"Successfully saved {label} risk slip.")
+                # Use profile-specific units
+                bet_slip_manager.insert_slip(label, slip, units=profile_units)
+                print(f"Successfully saved {label} risk slip with {profile_units} units.")
                 new_urls = [leg['result_url'] for leg in slip]
                 active_urls.extend(new_urls)
         bet_slip_manager.close()

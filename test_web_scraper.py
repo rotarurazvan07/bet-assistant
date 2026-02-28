@@ -23,7 +23,7 @@ TARGETS = [
 
     # SoccerVista
     ("https://www.soccervista.com/", "h3", "SoccerVista Prepare"),
-    ("https://www.soccervista.com/soccer-predictions-for-today/", "tbody", "SoccerVista Parse"),
+    ("https://www.soccervista.com/italy/serie-a/COuk57Ci/", "tbody", "SoccerVista Parse"),
 
     # Vitibet
     ("https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en", "ul#primarne", "Vitibet Prepare"),
@@ -31,11 +31,11 @@ TARGETS = [
 
     # WinDrawWin
     ("https://www.windrawwin.com/predictions/", "div.widetable", "WinDrawWin Prepare"),
-    ("https://www.windrawwin.com/predictions/england/premier-league/", "div.wdwtablest", "WinDrawWin Parse"),
+    ("https://www.windrawwin.com/tips/england-premier-league/", "div.wdwtablest", "WinDrawWin Parse"),
 
     # WhoScored
     ("https://www.whoscored.com/previews", "table.grid", "WhoScored Prepare"),
-    ("https://www.whoscored.com/matches/1821034/preview/", "div#preview-prediction", "WhoScored Parse"),
+    ("https://www.whoscored.com/matches/1903410/preview/england-premier-league-2025-2026-manchester-united-crystal-palace", "div#preview-prediction", "WhoScored Parse"),
 ]
 
 def generate_configs():
@@ -92,7 +92,10 @@ def run_benchmark(url, selector, config):
                 html = resp.html_content
                 if config.get("extra_wait", 0) > 0:
                     time.sleep(config["extra_wait"])
-                    html = session.page.content()
+                    try:
+                        html = session.page.content()
+                    except:
+                        html = session.browser_page.content()
 
         if WebScraper.is_blocked(html):
             status = "blocked"

@@ -1,0 +1,13 @@
+betting_profiles:
+  high:
+    target_legs: 6
+    target_odds: 15
+    units: 1
+  low:
+    target_legs: 1
+    target_odds: 1.6
+    units: 2.5
+  med:
+    target_legs: 3
+    target_odds: 4
+    units: 1

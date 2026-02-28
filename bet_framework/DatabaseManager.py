@@ -36,21 +36,22 @@ class DatabaseManager:
 
     def _create_tables(self):
         """Create the matches table if it doesn't exist."""
-        self.conn.execute('''
-            CREATE TABLE IF NOT EXISTS matches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                home_team_name TEXT NOT NULL,
-                away_team_name TEXT NOT NULL,
-                datetime TEXT NOT NULL,
-                predictions_scores TEXT,
-                odds TEXT,
-                result_url TEXT
-            )
-        ''')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_datetime   ON matches(datetime)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_home_team  ON matches(home_team_name)')
-        self.conn.execute('CREATE INDEX IF NOT EXISTS idx_away_team  ON matches(away_team_name)')
-        self.conn.commit()
+        with self.db_lock:
+            with self.conn:
+                self.conn.execute('''
+                    CREATE TABLE IF NOT EXISTS matches (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        home_team_name TEXT NOT NULL,
+                        away_team_name TEXT NOT NULL,
+                        datetime TEXT NOT NULL,
+                        predictions_scores TEXT,
+                        odds TEXT,
+                        result_url TEXT
+                    )
+                ''')
+                self.conn.execute('CREATE INDEX IF NOT EXISTS idx_datetime   ON matches(datetime)')
+                self.conn.execute('CREATE INDEX IF NOT EXISTS idx_home_team  ON matches(home_team_name)')
+                self.conn.execute('CREATE INDEX IF NOT EXISTS idx_away_team  ON matches(away_team_name)')
 
     # ─────────────────────────────── (de)serialization ───────────────────────
 
@@ -187,56 +188,57 @@ class DatabaseManager:
             return
 
         with self.db_lock:
-            cursor = self.conn.cursor()
-            cursor.execute('BEGIN')
+            try:
+                with self.conn:
+                    # Use to_dict('records') to get a list of dicts.
+                    # Mixing pandas Series and dicts in a list triggers 'dtype' errors during pd.DataFrame() conversion.
+                    all_rows = self._buffer.to_dict('records') if self._buffer is not None else []
+                    all_rows.extend(self._pending_new_rows)
 
-            # Combine DataFrame buffer and pending new rows
-            all_rows = []
-            if self._buffer is not None:
-                all_rows.extend([row for _, row in self._buffer.iterrows()])
-            all_rows.extend(self._pending_new_rows)
+                    cursor = self.conn.cursor()
+                    for row in all_rows:
+                        row_id = row['id']
 
-            for row in all_rows:
-                row_id = row['id']
+                        if isinstance(row_id, (float, int)) and row_id < 0:
+                            # New row — INSERT
+                            cursor.execute('''
+                                INSERT INTO matches
+                                    (home_team_name, away_team_name, datetime,
+                                     predictions_scores, odds, result_url)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            ''', (
+                                row['home_team_name'],
+                                row['away_team_name'],
+                                row['datetime'],
+                                row['predictions_scores'],
+                                row['odds'],
+                                row['result_url']
+                            ))
+                            # Back-fill the real DB id so future lookups stay consistent
+                            row['id'] = float(cursor.lastrowid)
+                        else:
+                            # Existing row — UPDATE
+                            cursor.execute('''
+                                UPDATE matches
+                                SET predictions_scores = ?,
+                                    odds              = ?,
+                                    result_url        = ?
+                                WHERE id = ?
+                            ''', (
+                                row['predictions_scores'],
+                                row['odds'],
+                                row['result_url'],
+                                int(row_id)
+                            ))
 
-                if isinstance(row_id, float) and row_id < 0:
-                    # New row — INSERT
-                    cursor.execute('''
-                        INSERT INTO matches
-                            (home_team_name, away_team_name, datetime,
-                             predictions_scores, odds, result_url)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    ''', (
-                        row['home_team_name'],
-                        row['away_team_name'],
-                        row['datetime'],
-                        row['predictions_scores'],
-                        row['odds'],
-                        row['result_url']
-                    ))
-                    # Back-fill the real DB id so future lookups stay consistent
-                    row['id'] = float(cursor.lastrowid)
-                else:
-                    # Existing row — UPDATE (only if dirty; we update all for simplicity
-                    # since we track dirty at buffer level, not row level)
-                    cursor.execute('''
-                        UPDATE matches
-                        SET predictions_scores = ?,
-                            odds              = ?,
-                            result_url        = ?
-                        WHERE id = ?
-                    ''', (
-                        row['predictions_scores'],
-                        row['odds'],
-                        row['result_url'],
-                        int(row_id)
-                    ))
+                    # Sync back to memory ONLY after successful commit (end of context)
+                    self._buffer = pd.DataFrame(all_rows)
+                    self._pending_new_rows = []
+                    self._buffer_dirty = False
 
-            # Rebuild _buffer from scratch after flush to sync IDs and clear pending
-            self._buffer = pd.DataFrame(all_rows)
-            self._pending_new_rows = []
-            self.conn.commit()
-            self._buffer_dirty = False
+            except Exception as e:
+                log(f"[DB] Flush failed: {e}")
+                raise
 
     # ─────────────────────────────── public API ───────────────────────────────
 
@@ -297,6 +299,25 @@ class DatabaseManager:
                 found_row, found_idx, is_pending = self._find_match_in_buffer(
                     match.home_team, match.away_team, match.datetime
                 )
+
+                # Caution: this is a heuristic and may not always be correct.
+                # Source unicity check: prevent merging if target match already contains
+                # predictions from the same source(s) as the incoming match.
+                if found_row is not None and match.predictions:
+                    existing_scores = self._deserialize_json(found_row['predictions_scores']) or []
+                    existing_sources = {s.get('source') for s in existing_scores if s.get('source') is not None}
+                    new_sources = {s.source for s in match.predictions if s.source is not None}
+
+                    if not new_sources.isdisjoint(existing_sources):
+                        log(
+                            f"⚠️ Collision detected: Source already exists in target match. "
+                            f"Skipping merge for {match.home_team} vs {match.away_team} | "
+                            f"{found_row['home_team_name']} vs {found_row['away_team_name']} | "
+                            f"{found_row['predictions_scores']} | with new sources:"
+                            f"{new_sources}"
+                        )
+
+                        found_row = None
 
             # ── Update existing ───────────────────────────────────────────────
             if found_row is not None:
@@ -377,8 +398,8 @@ class DatabaseManager:
     def reset_matches_db(self):
         """Delete all matches from the database and clear the buffer."""
         with self.db_lock:
-            self.conn.execute('DELETE FROM matches')
-            self.conn.commit()
+            with self.conn:
+                self.conn.execute('DELETE FROM matches')
         self._buffer = None
         self._buffer_dirty = False
 
@@ -444,8 +465,10 @@ class DatabaseManager:
 
     def close(self):
         """Flush any pending writes and close the connection."""
-        self.flush()
-        self.conn.commit()
+        try:
+            self.flush()
+        except Exception as e:
+            log(f"[DB] Final flush during close failed: {e}")
         self.conn.close()
 
 
