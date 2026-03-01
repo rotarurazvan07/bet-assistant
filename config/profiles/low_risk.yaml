@@ -1,0 +1,17 @@
+date_from: null
+date_to: null
+excluded_urls: null
+included_market_types: null
+max_legs_overflow: null
+min_legs_fill_ratio: 1.0
+min_odds: 1.1
+prob_vs_sources: 0.5
+probability_floor: 100.0
+quality_vs_balance: 0.95
+run_daily: false
+sources_cap: 7
+stop_threshold: null
+target_legs: 1
+target_odds: 1.7
+tolerance_factor: null
+units: 1.0

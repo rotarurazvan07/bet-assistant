@@ -77,6 +77,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     settings_manager.load_settings("config")
+    if os.path.exists("config/profiles"):
+        settings_manager.load_settings("config/profiles")
 
 
     if args.mode == "prepare-scrape":
@@ -149,25 +151,46 @@ if __name__ == "__main__":
         bet_slip_manager = BetSlipManager(os.path.join(os.path.dirname(args.db_path), "slips.db"))
         active_urls = bet_slip_manager.get_pending_result_urls()
         
-        # Load profile-specific units from configuration
-        profiles = settings_manager.get_config('betting_profiles') or {}
-        profile_data = profiles.get('betting_profiles', {})
-        
-        risk_profiles = [
-            ("Low", analyzer.generate_bet_slip_low_risk, profile_data.get('low', {}).get('units', 1.0)),
-            ("Medium", analyzer.generate_bet_slip_medium_risk, profile_data.get('med', {}).get('units', 1.0)),
-            ("High", analyzer.generate_bet_slip_high_risk, profile_data.get('high', {}).get('units', 1.0))
-        ]
+        # Identify all profile configurations
+        profiles = {}
+        for name, config in settings_manager.configs.items():
+            if os.path.exists(f"config/profiles/{name}.yaml"):
+                profiles[name] = config
 
-        for label, gen_func, profile_units in risk_profiles:
-            slip = gen_func(excluded_urls=active_urls)
+        if not profiles:
+            print("⚠️ No betting profiles found in config/profiles/")
+            sys.exit(0)
+
+        for prof_name, p in profiles.items():
+            # Only run if explicitly marked for daily runs in dashboard
+            if not p.get('run_daily', False):
+                print(f"⏩ Skipping profile {prof_name.upper()} (Run Daily is disabled)")
+                continue
+
+            print(f"Generating slip for profile: {prof_name.upper()}")
+            
+            # Use the refined individual parameters
+            slip = analyzer.build_bet_slip(
+                target_odds=p.get('target_odds', 2.0),
+                target_legs=p.get('target_legs', 2),
+                excluded_urls=active_urls,
+                trust_weight=p.get('trust_weight', 1.0),
+                tolerance_factor=p.get('tolerance_factor'),
+                stop_threshold=p.get('stop_threshold')
+            )
+            
             if slip:
-                print(slip)
                 # Use profile-specific units
-                bet_slip_manager.insert_slip(label, slip, units=profile_units)
-                print(f"Successfully saved {label} risk slip with {profile_units} units.")
+                units = p.get('units', 1.0)
+                bet_slip_manager.insert_slip(prof_name, slip, units=units)
+                print(f"✅ Saved slip with {units} units.")
+                
+                # Prevent reusing the same matches in subsequent profiles for same run
                 new_urls = [leg['result_url'] for leg in slip]
                 active_urls.extend(new_urls)
+            else:
+                print(f"ℹ️ No suitable matches for profile {prof_name}")
+
         bet_slip_manager.close()
     elif args.mode == "validate-slips":
         try:
