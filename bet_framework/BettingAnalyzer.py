@@ -11,8 +11,7 @@ Every candidate pick is scored on three normalized axes (each 0.0 → 1.0):
                      A pick right at the floor scores 0; a 100 % certainty scores 1.
 
   2. sources_score — How many independent data sources back this pick?
-                     Normalized from 0 (= 0) to sources_cap (= 1).
-                     Caps at 1.0 beyond sources_cap so outliers don't dominate.
+                     Normalized from 0 (= 0) to max_sources (= 1).
 
   3. balance_score — How close is the pick's odds to the ideal per-leg target?
                      1.0 = perfect match, 0.0 = at or beyond the tolerance edge.
@@ -161,14 +160,6 @@ class BetSlipConfig:
                                        0.0 = use sources only
                                        0.5 = equal (default)
                                        1.0 = use probability only
-
-    sources_cap         [3 – 50]     : Number of sources considered "full coverage"
-                                       for normalization purposes. A match with
-                                       ≥ sources_cap sources gets a perfect 1.0
-                                       sources_score. Matches below this are scaled
-                                       linearly. Tune this to your typical data
-                                       range (e.g. if most matches have 5–15
-                                       sources, set this to 15).
     """
 
     # Scope
@@ -196,7 +187,6 @@ class BetSlipConfig:
     # Scoring
     quality_vs_balance:    float = 0.5              # [0.0 – 1.0]
     prob_vs_sources:       float = 0.5              # [0.0 – 1.0]
-    sources_cap:           int   = 15               # [3 – 50]
 
     def __post_init__(self):
         """Clamp all numeric fields to their documented valid ranges."""
@@ -207,7 +197,6 @@ class BetSlipConfig:
         self.min_legs_fill_ratio = max(0.50,  min(1.00,   self.min_legs_fill_ratio))
         self.quality_vs_balance  = max(0.0,   min(1.0,    self.quality_vs_balance))
         self.prob_vs_sources     = max(0.0,   min(1.0,    self.prob_vs_sources))
-        self.sources_cap         = max(3,     min(50,     self.sources_cap))
 
         if self.tolerance_factor is not None:
             self.tolerance_factor = max(0.05, min(0.80, self.tolerance_factor))
@@ -232,7 +221,6 @@ PROFILES: Dict[str, BetSlipConfig] = {
         min_odds=1.10,
         quality_vs_balance=0.35,    # Lean toward balance
         prob_vs_sources=0.60,       # Probability slightly more important than sources
-        sources_cap=10,
         tolerance_factor=0.20,      # ±20 % band — tight, we want near-even legs
         stop_threshold=0.95,
         min_legs_fill_ratio=0.80,
@@ -246,7 +234,6 @@ PROFILES: Dict[str, BetSlipConfig] = {
         probability_floor=55.0,
         quality_vs_balance=0.50,    # Equal weight
         prob_vs_sources=0.50,       # Equal weight
-        sources_cap=15,
         # tolerance_factor & stop_threshold auto-derived
     ),
 
@@ -258,7 +245,6 @@ PROFILES: Dict[str, BetSlipConfig] = {
         probability_floor=50.0,
         quality_vs_balance=0.70,    # Lean toward quality
         prob_vs_sources=0.50,
-        sources_cap=15,
         min_legs_fill_ratio=0.60,
         # tolerance_factor auto-derived (tighter for 5 legs, prevents drift)
     ),
@@ -272,7 +258,6 @@ PROFILES: Dict[str, BetSlipConfig] = {
         min_odds=1.30,              # Skip very short prices
         quality_vs_balance=0.65,
         prob_vs_sources=0.30,       # Sources dominate quality score
-        sources_cap=20,             # High cap → rewards deep coverage
         min_legs_fill_ratio=0.65,
     ),
 }
@@ -336,12 +321,15 @@ def _score_probability(prob: float, cfg: BetSlipConfig) -> float:
     return max(0.0, min(1.0, (prob - cfg.probability_floor) / span))
 
 
-def _score_sources(sources: int, cfg: BetSlipConfig) -> float:
+def _score_sources(sources: int, max_sources: int) -> float:
     """
-    Normalize source count to [0, 1] relative to sources_cap.
-    0 sources → 0.0. sources_cap or more → 1.0. Linear in between.
+    Normalize source count to [0, 1] relative to the highest-sourced
+    candidate in the current pool. The best-covered match always scores 1.0;
+    all others scale linearly down from it.
     """
-    return max(0.0, min(1.0, sources / cfg.sources_cap))
+    if max_sources <= 0:
+        return 0.0
+    return min(1.0, sources / max_sources)
 
 
 def _score_balance(odds: float, ideal_odds: float, tolerance: float) -> float:
@@ -356,36 +344,25 @@ def _score_balance(odds: float, ideal_odds: float, tolerance: float) -> float:
     return max(0.0, 1.0 - (relative_deviation / tolerance))
 
 
-def _score_pick(opt: dict, ideal_odds: float, cfg: BetSlipConfig) -> Tuple[int, float]:
-    """
-    Compute (tier, final_score) for a candidate pick.
-
-    Tier 1 = within the tolerance band   → always ranked above Tier 2
-    Tier 2 = outside the tolerance band  → considered, but only if nothing better exists
-
-    final_score ∈ [0.0, 1.0]:
-      quality_score = prob_vs_sources × prob_score + (1 − prob_vs_sources) × sources_score
-      final_score   = quality_vs_balance × quality_score + (1 − quality_vs_balance) × balance_score
-    """
+def _score_pick(opt: dict, ideal_odds: float, max_sources: int,
+                cfg: BetSlipConfig) -> Tuple[int, float]:
     tolerance = _resolve_tolerance(cfg)
 
     deviation = abs(opt['odds'] - ideal_odds) / ideal_odds
     tier = 1 if deviation <= tolerance else 2
 
-    prob_score    = _score_probability(opt['prob'],    cfg)
-    sources_score = _score_sources(opt['sources'],     cfg)
+    prob_score    = _score_probability(opt['prob'], cfg)
+    sources_score = _score_sources(opt['sources'], max_sources)
     balance_score = _score_balance(opt['odds'], ideal_odds, tolerance)
 
     quality_score = (
         cfg.prob_vs_sources       * prob_score +
         (1 - cfg.prob_vs_sources) * sources_score
     )
-
     final_score = (
         cfg.quality_vs_balance       * quality_score +
         (1 - cfg.quality_vs_balance) * balance_score
     )
-
     return tier, round(final_score, 6)
 
 
@@ -442,19 +419,12 @@ def _collect_candidates(df: pd.DataFrame, cfg: BetSlipConfig) -> List[dict]:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _select_legs(candidates: List[dict], cfg: BetSlipConfig) -> List[dict]:
-    """
-    Iteratively pick the best next leg from the candidate pool until the
-    slip reaches its target shape.
-
-    Each iteration:
-      1. Calculates the ideal odds for the next leg given remaining need.
-      2. Scores every unseen candidate using _score_pick().
-      3. Picks the highest-scored Tier 1 candidate; falls back to Tier 2 if none.
-      4. Checks stop condition before the next iteration.
-    """
     stop_threshold = _resolve_stop_threshold(cfg)
     max_legs       = _resolve_max_legs(cfg)
     min_legs       = max(1, int(cfg.target_legs * cfg.min_legs_fill_ratio))
+
+    # Compute once — normalizes all candidates relative to the best-covered match
+    max_sources = max((c['sources'] for c in candidates), default=1)
 
     selected:     List[dict] = []
     seen_matches: set        = set()
@@ -472,13 +442,12 @@ def _select_legs(candidates: List[dict], cfg: BetSlipConfig) -> List[dict]:
         for opt in candidates:
             if opt['match'] in seen_matches:
                 continue
-            tier, score = _score_pick(opt, ideal_per_leg, cfg)
+            tier, score = _score_pick(opt, ideal_per_leg, max_sources, cfg)
             scored.append({**opt, 'tier': tier, 'score': score})
 
         if not scored:
             break
 
-        # Tier 1 first, then descending final_score
         scored.sort(key=lambda x: (x['tier'], -x['score']))
         best = scored[0]
 

@@ -114,12 +114,7 @@ TOOLTIP_TEXTS: Dict[str, str] = {
         "0.0 = sources only\n"
         "0.5 = equal weight (default)\n"
         "1.0 = probability only"
-    ),
-    "sources_cap": (
-        "Number of data sources considered 'full coverage'. "
-        "A match with ≥ sources_cap gets a perfect sources score. "
-        "Tune to your typical data range. Range: 3–50."
-    ),
+    )
 }
 
 
@@ -352,11 +347,7 @@ def build_builder_panel() -> html.Div:
                            marks={0: "0", 50: "50", 100: "100"},
                            tooltip={"placement": "bottom", "always_visible": True}),
             ])
-        ),
-        make_labeled_row("Sources Cap", "sources_cap",
-            dbc.Input(id="b-sources-cap", type="number",
-                      value=15, min=3, max=50, step=1, size="sm")
-        ),
+        )
     ])
 
     return html.Div([
@@ -478,7 +469,7 @@ def render_bet_preview(selections: list) -> html.Div:
 
 
 def render_stats_cards(stats: dict) -> list:
-    bal_color = "success" if stats["net_balance"] >= 0 else "danger"
+    bal_color = "success" if stats["net_profit"] >= 0 else "danger"
     roi_color = "success" if stats["roi_percentage"] >= 0 else "danger"
 
     def card(title, value, color, size="H4", col_size=(2, 4, 6)):
@@ -492,8 +483,8 @@ def render_stats_cards(stats: dict) -> list:
 
     return [
         card("Total Bet",   f"{stats['total_units_bet']} Units",  "primary"),
-        card("Total Won",   f"{stats['total_units_won']} Units",  "success"),
-        card("Net Balance", f"{stats['net_balance']:+g} U",       bal_color, "H3", (3, 4, 12)),
+        card("Gross Return",   f"{stats['gross_return']} Units",  "success"),
+        card("Net Profit", f"{stats['net_profit']:+g} U",       bal_color, "H3", (3, 4, 12)),
         card("Win Rate",    f"{stats['win_rate']}%",              "info"),
         card("ROI %",       f"{stats['roi_percentage']}%",        roi_color),
         card("Settled",     str(stats["total_settled"]),          "dark", "H4", (1, 4, 6)),
@@ -530,7 +521,7 @@ def render_slip_card(slip: dict) -> dbc.Card:
         dbc.CardHeader([
             dbc.Row([
                 dbc.Col(html.Strong(f"Date: {slip['date_generated']}"), width=4),
-                dbc.Col(html.Span(f"Risk: {slip['profile'].upper()}", className="fw-bold"), width=3),
+                dbc.Col(html.Span(f"Profile: {slip['profile'].upper()}", className="fw-bold"), width=3),
                 dbc.Col(html.Span(f"Total Odds: @{slip['total_odds']:.2f}", className="fw-bold"),
                         width=3, className="text-end"),
                 dbc.Col(dbc.Badge(slip["slip_status"], color=badge_col, className="float-end"), width=2),
@@ -555,8 +546,7 @@ def render_profile_card(profile_id: str, prof: dict) -> dbc.Card:
         param_badge("Legs",     prof.get("target_legs",  "—")),
         param_badge("ProbFloor",f"{prof.get('probability_floor', '—')}%"),
         param_badge("Q/B",      prof.get("quality_vs_balance", "—")),
-        param_badge("P/S",      prof.get("prob_vs_sources", "—")),
-        param_badge("SrcCap",   prof.get("sources_cap", "—")),
+        param_badge("P/S",      prof.get("prob_vs_sources", "—"))
     ], className="mt-2 mb-3")
 
     markets_raw = prof.get("included_market_types")
@@ -643,7 +633,7 @@ def create_tips_table(df: pd.DataFrame) -> Any:
             {"name": "Date",     "id": "datetime"},
             {"name": "Home",     "id": "home"},
             {"name": "Away",     "id": "away"},
-            {"name": "Src",      "id": "sources"},
+            {"name": "Sources",  "id": "sources", "type": "numeric"},
             {"name": "1",        "id": "home_d"},
             {"name": "X",        "id": "draw_d"},
             {"name": "2",        "id": "away_d"},
@@ -654,22 +644,37 @@ def create_tips_table(df: pd.DataFrame) -> Any:
         ],
         data=show.to_dict("records"),
         sort_action="native", sort_mode="multi",
-        sort_by=[{"column_id": "prob_home", "direction": "desc"}],
-        style_table={"overflowX": "auto"},
+        style_table={
+            'width': '100%',
+            'minWidth': '100%',
+        },
         style_cell={
             "textAlign": "center", "padding": "12px",
             "fontFamily": '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             "fontSize": "13px", "whiteSpace": "pre-line", "height": "auto",
         },
         style_cell_conditional=[
-            {"if": {"column_id": "match_id"},  "display": "none"},
-            {"if": {"column_id": "datetime"},  "width": "110px"},
-            {"if": {"column_id": "home"},      "textAlign": "left", "width": "150px"},
-            {"if": {"column_id": "away"},      "textAlign": "left", "width": "150px"},
-            {"if": {"column_id": "sources"},   "width": "50px"},
-            {"if": {"column_id": "home_d"},    "borderLeft": "3px solid #000", "width": "80px"},
-            {"if": {"column_id": "over_d"},    "borderLeft": "3px solid #000", "width": "80px"},
-            {"if": {"column_id": "btts_y_d"},  "borderLeft": "3px solid #000", "width": "85px"},
+            # 1. The ID Column (Hidden)
+            {"if": {"column_id": "match_id"}, "display": "none"},
+            
+            # 2. The "Big Chunks" (Text Columns)
+            {"if": {"column_id": "datetime"}, "width": "10%", "textAlign": "center"},
+            {"if": {"column_id": "home"},     "width": "20%", "textAlign": "left", "paddingLeft": "15px"},
+            {"if": {"column_id": "away"},     "width": "20%", "textAlign": "left"},
+            
+            # 3. The "Small Chunk" (Source)
+            {"if": {"column_id": "sources"},  "width": "5%",  "textAlign": "center"},
+
+            # 4. The Data Columns (Split Equally ~6.4% each)
+            # We add the left borders here for visual grouping
+            *[
+                {
+                    "if": {"column_id": col}, 
+                    "width": "6.4%", 
+                    "borderLeft": "2px solid #dee2e6" if col in ["home_d", "over_d", "btts_y_d"] else "none"
+                }
+                for col in ["home_d", "draw_d", "away_d", "over_d", "under_d", "btts_y_d", "btts_n_d"]
+            ],
         ],
         style_header={
             "backgroundColor": "#764ba2", "color": "white",
@@ -696,8 +701,15 @@ def create_tips_table(df: pd.DataFrame) -> Any:
                 ]
             ],
         ],
-        css=[{"selector": "tr:hover td",
-              "rule": "background-color:#f3e5f5 !important; cursor:pointer;"}],
+        css=[{
+            'selector': '.dash-spreadsheet td div',
+            'rule': '''
+                line-height: 1.2;
+                display: block;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            '''
+        }],
         page_size=25, page_action="native",
     )
 
@@ -904,6 +916,7 @@ class BetAssistantDashboard:
                                        className="fw-bold text-uppercase text-muted"),
                             className="bg-transparent border-0 py-2 px-3"
                         ),
+                        html.Hr(),
                         dbc.CardBody(
                             html.Div(id="builder-output-container"),
                             className="pt-0 px-3 pb-3"
@@ -1062,8 +1075,7 @@ class BetAssistantDashboard:
              Input("b-fill-ratio",              "value"),
              # Scoring
              Input("b-quality-vs-balance",      "value"),
-             Input("b-prob-vs-sources",         "value"),
-             Input("b-sources-cap",             "value")],
+             Input("b-prob-vs-sources",         "value")],
         )
         def update_builder_preview(
             data_json, active_tab, date_from, date_to, excluded_urls,
@@ -1074,7 +1086,7 @@ class BetAssistantDashboard:
             tolerance_sw, tolerance_val,
             stop_sw, stop_val,
             fill_ratio,
-            quality_vs_balance, prob_vs_sources, sources_cap,
+            quality_vs_balance, prob_vs_sources,
         ):
             if not data_json or active_tab != "tab-builder":
                 return dash.no_update, dash.no_update
@@ -1102,7 +1114,6 @@ class BetAssistantDashboard:
                 min_legs_fill_ratio=float(fill_ratio or 70) / 100.0,
                 quality_vs_balance=float(quality_vs_balance or 50) / 100.0,
                 prob_vs_sources=float(prob_vs_sources or 50) / 100.0,
-                sources_cap=int(sources_cap or 15),
             )
 
             selections = self.betting_analyzer.build_bet_slip(cfg)
@@ -1127,7 +1138,6 @@ class BetAssistantDashboard:
              Output("b-fill-ratio",            "value"),
              Output("b-quality-vs-balance",    "value"),
              Output("b-prob-vs-sources",       "value"),
-             Output("b-sources-cap",           "value"),
              Output("builder-profile-name",    "value")],
             Input("builder-profile-selector", "value"),
             prevent_initial_call=True,
@@ -1163,7 +1173,6 @@ class BetAssistantDashboard:
                 int(prof.get("min_legs_fill_ratio", 0.70) * 100),
                 int(prof.get("quality_vs_balance", 0.5) * 100),
                 int(prof.get("prob_vs_sources",    0.5) * 100),
-                prof.get("sources_cap", 15),
                 profile_name,
             ]
 
@@ -1187,8 +1196,7 @@ class BetAssistantDashboard:
              State("b-stop-val",             "value"),
              State("b-fill-ratio",           "value"),
              State("b-quality-vs-balance",   "value"),
-             State("b-prob-vs-sources",      "value"),
-             State("b-sources-cap",          "value")],
+             State("b-prob-vs-sources",      "value")],
             prevent_initial_call=True,
         )
         def save_profile(n, name,
@@ -1199,7 +1207,7 @@ class BetAssistantDashboard:
                          tolerance_sw, tolerance_val,
                          stop_sw, stop_val,
                          fill_ratio,
-                         quality_vs_balance, prob_vs_sources, sources_cap):
+                         quality_vs_balance, prob_vs_sources):
             if not n:
                 return dash.no_update
             if not name:
@@ -1223,8 +1231,7 @@ class BetAssistantDashboard:
                 stop_threshold=(stop_val / 100.0) if stop_sw else None,
                 min_legs_fill_ratio=float(fill_ratio or 70) / 100.0,
                 quality_vs_balance=float(quality_vs_balance or 50) / 100.0,
-                prob_vs_sources=float(prob_vs_sources or 50) / 100.0,
-                sources_cap=int(sources_cap or 15),
+                prob_vs_sources=float(prob_vs_sources or 50) / 100.0
             )
 
             # Preserve existing units/run_daily if the profile already exists
@@ -1359,7 +1366,10 @@ class BetAssistantDashboard:
                 settings_manager.write_settings(new_id, data, config_dir="config/profiles")
                 profiles[new_id] = data
 
-            cards = [render_profile_card(pid, pdata) for pid, pdata in profiles.items()]
+            cards = [
+                dbc.Col(render_profile_card(pid, pdata), lg=4, md=6, xs=12)
+                for pid, pdata in profiles.items()
+            ]
             options = [{"label": f"👤 {pid.upper()}", "value": pid} for pid in profiles]
             return cards, options
 

@@ -14,4 +14,4 @@ stop_threshold: null
 target_legs: 3
 target_odds: 5.0
 tolerance_factor: null
-units: 1.0
+units: 1

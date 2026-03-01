@@ -164,34 +164,39 @@ class BetSlipManager:
         return self._process_rows_to_slips(rows)
 
     def get_historic_stats(self, profile_filter=None):
-        """Calculates dynamic statistics including net totals based on units placed."""
+        """
+        Calculates betting statistics on SETTLED slips only.
+
+        Definitions:
+        stakes          — total units placed on settled slips
+        gross_return    — total units returned on winning slips (odds × units)
+        net_profit      — gross_return - stakes  (can be negative)
+        roi             — net_profit / stakes × 100
+        win_rate        — won / settled × 100
+        """
         slips = self.get_all_slips_with_legs(profile_filter=profile_filter)
 
-        total_settled = 0
-        total_won_count = 0
-        total_units_bet = sum(slip['units'] for slip in slips)
-        total_units_returned = 0 # Gross payout
+        settled_slips = [s for s in slips if s['slip_status'] in ('Won', 'Lost')]
+        won_slips     = [s for s in settled_slips if s['slip_status'] == 'Won']
 
-        for slip in slips:
-            if slip['slip_status'] in ['Won', 'Lost']:
-                total_settled += 1
+        total_settled   = len(settled_slips)
+        total_won_count = len(won_slips)
 
-                if slip['slip_status'] == 'Won':
-                    total_won_count += 1
-                    total_units_returned += (slip['total_odds'] * slip['units'])
+        stakes       = sum(s['units'] for s in settled_slips)
+        gross_return = sum(s['total_odds'] * s['units'] for s in won_slips)
+        net_profit   = gross_return - stakes
 
-        net_balance = total_units_returned - total_units_bet
-        win_rate = (total_won_count / total_settled * 100) if total_settled > 0 else 0
-        roi = (net_balance / total_units_bet * 100) if total_units_bet > 0 else 0
+        win_rate = (total_won_count / total_settled * 100) if total_settled > 0 else 0.0
+        roi      = (net_profit / stakes * 100)             if stakes > 0         else 0.0
 
         return {
-            'total_settled': total_settled,
-            'total_won_count': total_won_count,
-            'win_rate': round(win_rate, 2),
-            'total_units_bet': round(total_units_bet, 2),      # Total staked
-            'total_units_won': round(total_units_returned, 2), # Gross Returns
-            'net_balance': round(net_balance, 2),    # Final Profit/Loss
-            'roi_percentage': round(roi, 2)
+            'total_settled':    total_settled,
+            'total_won_count':  total_won_count,
+            'win_rate':         round(win_rate, 2),      # % of settled slips won
+            'total_units_bet':  round(stakes, 2),        # staked on settled slips only
+            'gross_return':     round(gross_return, 2),  # gross return from winning slips
+            'net_profit':       round(net_profit, 2),    # profit / loss (+ or -)
+            'roi_percentage':   round(roi, 2),           # net profit as % of stakes
         }
 
     def close(self):
