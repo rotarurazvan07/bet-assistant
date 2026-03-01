@@ -13,7 +13,7 @@ class BetSlipManager:
             CREATE TABLE IF NOT EXISTS slips (
                 slip_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date_generated TEXT,
-                risk_level TEXT,
+                profile TEXT,
                 total_odds REAL,
                 units REAL DEFAULT 1.0
             )
@@ -61,7 +61,7 @@ class BetSlipManager:
             print(f"Error fetching active URLs: {e}")
             return []
 
-    def insert_slip(self, risk_level, legs_list, units=1.0):
+    def insert_slip(self, profile, legs_list, units=1.0):
         """Inserts a parlay slip and all its individual legs."""
         # Calculate total odds (Product of all leg odds)
         total_odds = math.prod([leg['odds'] for leg in legs_list])
@@ -69,8 +69,8 @@ class BetSlipManager:
 
         # Insert Slip
         self.cursor.execute(
-            "INSERT INTO slips (date_generated, risk_level, total_odds, units) VALUES (?, ?, ?, ?)",
-            (date_today, risk_level, total_odds, units)
+            "INSERT INTO slips (date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?)",
+            (date_today, profile, total_odds, units)
         )
         slip_id = self.cursor.lastrowid
 
@@ -106,15 +106,15 @@ class BetSlipManager:
 
         for row in rows:
             # Match the order from your SELECT query:
-            # s.slip_id, s.date_generated, s.risk_level, s.total_odds, s.units,
+            # s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
             # l.match_name, l.market, l.market_type, l.odds, l.status
-            slip_id, date, risk, total_odds, units, match, market, market_type, odds, status = row
+            slip_id, date, profile, total_odds, units, match, market, market_type, odds, status = row
 
             if slip_id not in slips_data:
                 slips_data[slip_id] = {
                     'slip_id': slip_id,
                     'date_generated': date,
-                    'risk_level': risk,
+                    'profile': profile,
                     'total_odds': total_odds,
                     'units': units,
                     'legs': [],
@@ -142,18 +142,18 @@ class BetSlipManager:
 
         return list(slips_data.values())
 
-    def get_all_slips_with_legs(self, risk_filter=None):
+    def get_all_slips_with_legs(self, profile_filter=None):
         query = '''
             SELECT
-                s.slip_id, s.date_generated, s.risk_level, s.total_odds, s.units,
+                s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
                 l.match_name, l.market, l.market_type, l.odds, l.status
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         '''
         params = []
-        if risk_filter and risk_filter != 'all':
-            query += " WHERE s.risk_level = ?"
-            params.append(risk_filter)
+        if profile_filter and profile_filter != 'all':
+            query += " WHERE s.profile = ?"
+            params.append(profile_filter)
 
         query += " ORDER BY s.date_generated DESC, s.slip_id DESC"
 
@@ -163,35 +163,40 @@ class BetSlipManager:
         # Use the helper to structure the data
         return self._process_rows_to_slips(rows)
 
-    def get_historic_stats(self, risk_filter=None):
-        """Calculates dynamic statistics including net totals based on units placed."""
-        slips = self.get_all_slips_with_legs(risk_filter=risk_filter)
+    def get_historic_stats(self, profile_filter=None):
+        """
+        Calculates betting statistics on SETTLED slips only.
 
-        total_settled = 0
-        total_won_count = 0
-        total_units_bet = sum(slip['units'] for slip in slips)
-        total_units_returned = 0 # Gross payout
+        Definitions:
+        stakes          — total units placed on settled slips
+        gross_return    — total units returned on winning slips (odds × units)
+        net_profit      — gross_return - stakes  (can be negative)
+        roi             — net_profit / stakes × 100
+        win_rate        — won / settled × 100
+        """
+        slips = self.get_all_slips_with_legs(profile_filter=profile_filter)
 
-        for slip in slips:
-            if slip['slip_status'] in ['Won', 'Lost']:
-                total_settled += 1
+        settled_slips = [s for s in slips if s['slip_status'] in ('Won', 'Lost')]
+        won_slips     = [s for s in settled_slips if s['slip_status'] == 'Won']
 
-                if slip['slip_status'] == 'Won':
-                    total_won_count += 1
-                    total_units_returned += (slip['total_odds'] * slip['units'])
+        total_settled   = len(settled_slips)
+        total_won_count = len(won_slips)
 
-        net_balance = total_units_returned - total_units_bet
-        win_rate = (total_won_count / total_settled * 100) if total_settled > 0 else 0
-        roi = (net_balance / total_units_bet * 100) if total_units_bet > 0 else 0
+        stakes       = sum(s['units'] for s in settled_slips)
+        gross_return = sum(s['total_odds'] * s['units'] for s in won_slips)
+        net_profit   = gross_return - stakes
+
+        win_rate = (total_won_count / total_settled * 100) if total_settled > 0 else 0.0
+        roi      = (net_profit / stakes * 100)             if stakes > 0         else 0.0
 
         return {
-            'total_settled': total_settled,
-            'total_won_count': total_won_count,
-            'win_rate': round(win_rate, 2),
-            'total_units_bet': round(total_units_bet, 2),      # Total staked
-            'total_units_won': round(total_units_returned, 2), # Gross Returns
-            'net_balance': round(net_balance, 2),    # Final Profit/Loss
-            'roi_percentage': round(roi, 2)
+            'total_settled':    total_settled,
+            'total_won_count':  total_won_count,
+            'win_rate':         round(win_rate, 2),      # % of settled slips won
+            'total_units_bet':  round(stakes, 2),        # staked on settled slips only
+            'gross_return':     round(gross_return, 2),  # gross return from winning slips
+            'net_profit':       round(net_profit, 2),    # profit / loss (+ or -)
+            'roi_percentage':   round(roi, 2),           # net profit as % of stakes
         }
 
     def close(self):
