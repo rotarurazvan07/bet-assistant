@@ -28,6 +28,8 @@ import sys
 from dataclasses import asdict, fields as dc_fields
 from pathlib import Path
 from typing import Any, Dict, Optional
+import plotly.graph_objects as go
+from collections import defaultdict
 
 import dash
 import dash_bootstrap_components as dbc
@@ -66,11 +68,11 @@ TOOLTIP_TEXTS: Dict[str, str] = {
     ),
     "target_legs": (
         "Desired number of selections (legs) on the slip. "
-        "Range: 1–10."
+        "Range: 1-10."
     ),
     "max_legs_overflow": (
         "How many extra legs beyond target_legs are allowed. "
-        "Auto = 0 for singles, +1 for 2–4 legs, +2 for 5+ legs. "
+        "Auto = 0 for singles, +1 for 2-4 legs, +2 for 5+ legs. "
         "Override only if you need tighter control."
     ),
     "probability_floor": (
@@ -81,7 +83,7 @@ TOOLTIP_TEXTS: Dict[str, str] = {
     "min_odds": (
         "Minimum bookmaker odds to consider. "
         "Filters out near-certain outcomes where the margin is unattractive. "
-        "Range: 1.01–10.0."
+        "Range: 1.01-10.0."
     ),
     "included_market_types": (
         "Which bet markets to include. "
@@ -91,17 +93,17 @@ TOOLTIP_TEXTS: Dict[str, str] = {
         "±% band around the ideal per-leg odds. A pick within this band is "
         "'Tier 1 balanced' and always ranked above out-of-band picks. "
         "Auto = wider for few legs, tighter for many (prevents drift). "
-        "Range: 5 %–80 %."
+        "Range: 5 %-80 %."
     ),
     "stop_threshold": (
         "The builder stops when current_total_odds ≥ target_odds × threshold "
         "AND enough legs are filled. E.g. 0.95 = stop within 5 % of target. "
-        "Auto is derived per target_legs. Range: 0.50–1.00."
+        "Auto is derived per target_legs. Range: 0.50-1.00."
     ),
     "min_legs_fill_ratio": (
         "Fraction of target_legs that must be filled before early-stop is allowed. "
         "E.g. 0.70 = need at least 70 % of legs before stopping early. "
-        "Range: 0.50–1.00."
+        "Range: 0.50-1.00."
     ),
     "quality_vs_balance": (
         "Trade-off between pick quality and odds balance.\n"
@@ -510,8 +512,20 @@ def render_slip_card(slip: dict) -> dbc.Card:
 
         leg_rows.append(dbc.Row([
             dbc.Col(html.I(className=f"fas {icon_cls}"), width=1, className="text-center"),
-            dbc.Col(html.Span(leg["match_name"], className="fw-medium",
-                              style={"fontSize": "0.85rem"}), width=6),
+            dbc.Col(
+                html.A(
+                    leg["match_name"],
+                    href=leg["result_url"],
+                    target="_blank",  # Opens the link in a new tab
+                    className="fw-medium text-decoration-none", # Removes the default underline
+                    style={
+                        "fontSize": "0.85rem",
+                        "color": "#764ba2", # Matches your table header theme
+                        "cursor": "pointer"
+                    }
+                ),
+                width=6
+            ),
             dbc.Col(html.Span(leg["market"], style={"fontSize": "0.8rem"}), width=3),
             dbc.Col(html.Span(f"@{leg['odds']:.2f}", className="fw-bold text-end",
                               style={"fontSize": "0.85rem"}), width=2, className="text-end"),
@@ -594,6 +608,310 @@ def render_profile_card(profile_id: str, prof: dict) -> dbc.Card:
         ]),
     ], className="shadow-sm border-0 mb-3 h-100")
 
+
+_CHART_COLORS = ["#764ba2", "#4361ee", "#28a745", "#fd7e14", "#dc3545", "#17a2b8"]
+_CHART_FONT   = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+_CHART_LAYOUT = dict(
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    font=dict(family=_CHART_FONT, size=12),
+    margin=dict(l=45, r=25, t=30, b=45),
+    hovermode="x unified",
+    xaxis=dict(gridcolor="#f0f0f0"),
+    yaxis=dict(gridcolor="#f0f0f0"),
+)
+
+
+def _empty_chart(message: str):
+    """Placeholder when there is no data yet."""
+    return dbc.Alert([
+        html.I(className="fas fa-hourglass-half me-2"),
+        message
+    ], color="info", className="m-2")
+
+
+def render_balance_chart(history: list) -> Any:
+    """
+    Running cumulative net-profit chart.
+    Shows one line per profile + a bold combined line.
+    When the filter is for a single profile, the combined line is omitted.
+    """
+    if not history:
+        return _empty_chart("No settled slips yet — balance chart will appear here.")
+
+    # Group by profile
+    by_profile: dict = defaultdict(list)
+    for item in history:                        # already sorted ASC by DB query
+        by_profile[item["profile"]].append(item)
+
+    show_combined = len(by_profile) > 1         # skip combined when single-profile filter
+
+    fig = go.Figure()
+
+    # ── Combined line ──────────────────────────────────────────────────────
+    if show_combined:
+        cum, dates, vals = 0.0, [], []
+        for item in history:
+            net  = (item["total_odds"] - 1) * item["units"] if item["status"] == "Won" else -item["units"]
+            cum += net
+            dates.append(item["date"])
+            vals.append(round(cum, 2))
+
+        fig.add_trace(go.Scatter(
+            x=dates, y=vals,
+            mode="lines+markers",
+            name="All Profiles",
+            line=dict(color="#764ba2", width=3),
+            marker=dict(size=5),
+        ))
+
+    # ── Per-profile lines ──────────────────────────────────────────────────
+    for i, (profile, items) in enumerate(by_profile.items()):
+        cum, dates, vals = 0.0, [], []
+        for item in items:
+            net  = (item["total_odds"] - 1) * item["units"] if item["status"] == "Won" else -item["units"]
+            cum += net
+            dates.append(item["date"])
+            vals.append(round(cum, 2))
+
+        color = _CHART_COLORS[i % len(_CHART_COLORS)]
+        fig.add_trace(go.Scatter(
+            x=dates, y=vals,
+            mode="lines+markers",
+            name=profile.upper(),
+            line=dict(color=color, width=2, dash="dot" if show_combined else "solid"),
+            marker=dict(size=5),
+        ))
+
+    fig.add_hline(y=0, line_dash="dash", line_color="#adb5bd", line_width=1)
+    fig.update_layout(**_CHART_LAYOUT)
+    fig.update_layout(
+        yaxis_title="Net Profit (Units)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
+def render_profile_comparison(per_profile: dict) -> Any:
+    """
+    Horizontal bar chart — ROI % per profile, green for positive, red for negative.
+    Hover shows settled count and net profit.
+    """
+    if not per_profile:
+        return _empty_chart("No profile data yet.")
+
+    profiles   = sorted(per_profile.keys())
+    rois       = [per_profile[p]["roi"]        for p in profiles]
+    net_profits = [per_profile[p]["net_profit"] for p in profiles]
+    settled    = [per_profile[p]["settled"]     for p in profiles]
+    win_rates  = [per_profile[p]["win_rate"]    for p in profiles]
+
+    bar_colors = ["#28a745" if r >= 0 else "#dc3545" for r in rois]
+
+    fig = go.Figure(go.Bar(
+        y=[p.upper() for p in profiles],
+        x=rois,
+        orientation="h",
+        marker_color=bar_colors,
+        text=[f"{r:+.1f}%" for r in rois],
+        textposition="outside",
+        customdata=list(zip(net_profits, settled, win_rates)),
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "ROI: %{x:+.1f}%<br>"
+            "Net Profit: %{customdata[0]:+.2f}u<br>"
+            "Settled: %{customdata[1]}<br>"
+            "Win Rate: %{customdata[2]}%"
+            "<extra></extra>"
+        ),
+    ))
+
+    fig.add_vline(x=0, line_dash="dash", line_color="#adb5bd", line_width=1)
+
+    # 1. Apply the base layout first
+    fig.update_layout(**_CHART_LAYOUT)
+
+    # 2. Update the specific axes (this will override or add to the base)
+    fig.update_layout(
+        xaxis_title="ROI %",
+        xaxis=dict(gridcolor="#f0f0f0", zeroline=False),
+        yaxis=dict(gridcolor=None, showgrid=False),
+        showlegend=False,
+        bargap=0.35,
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
+def render_market_accuracy(market_stats: list) -> Any:
+    """
+    Stacked bar (Won / Lost counts) per market, with a win-rate line
+    on a secondary axis. Markets are sorted by win rate descending.
+    """
+    if not market_stats:
+        return _empty_chart("No market data yet.")
+
+    # Aggregate by market label
+    agg: dict = defaultdict(lambda: {"won": 0, "lost": 0})
+    for row in market_stats:
+        m = row["market"]
+        if row["status"] == "Won":
+            agg[m]["won"]  += row["count"]
+        else:
+            agg[m]["lost"] += row["count"]
+
+    # Sort by win rate descending
+    markets = sorted(agg.keys(),
+                     key=lambda m: agg[m]["won"] / (agg[m]["won"] + agg[m]["lost"])
+                     if (agg[m]["won"] + agg[m]["lost"]) else 0,
+                     reverse=True)
+
+    won_counts  = [agg[m]["won"]  for m in markets]
+    lost_counts = [agg[m]["lost"] for m in markets]
+    totals      = [agg[m]["won"] + agg[m]["lost"] for m in markets]
+    win_rates   = [round(agg[m]["won"] / t * 100, 1) if t else 0 for m, t in zip(markets, totals)]
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Bar(
+        x=markets, y=won_counts,
+        name="Won", marker_color="#28a745",
+        text=won_counts, textposition="inside", insidetextanchor="middle",
+    ))
+    fig.add_trace(go.Bar(
+        x=markets, y=lost_counts,
+        name="Lost", marker_color="#dc3545",
+        text=lost_counts, textposition="inside", insidetextanchor="middle",
+    ))
+    fig.add_trace(go.Scatter(
+        x=markets, y=win_rates,
+        mode="lines+markers+text",
+        name="Win Rate %",
+        yaxis="y2",
+        line=dict(color="#764ba2", width=2),
+        marker=dict(size=8),
+        text=[f"{w}%" for w in win_rates],
+        textposition="top center",
+        textfont=dict(size=10, color="#764ba2"),
+    ))
+
+    fig.update_layout(**_CHART_LAYOUT)
+    fig.update_layout(
+        barmode="stack",
+        yaxis=dict(title="Legs", gridcolor="#f0f0f0"),
+        yaxis2=dict(
+            title="Win Rate %",
+            overlaying="y", side="right",
+            range=[0, 125],
+            showgrid=False, zeroline=False,
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(gridcolor="#f0f0f0"),
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
+
+
+def render_source_analysis(settled_legs: list, analyzer_df) -> Any:
+    """
+    Correlates number of data sources with leg win rate.
+    Joins settled leg outcomes (from slips DB) with the match DataFrame
+    on result_url to retrieve the source count per match.
+
+    Answers: do picks backed by more sources actually win more often?
+    """
+    if not settled_legs:
+        return _empty_chart("No settled legs yet for source analysis.")
+
+    if analyzer_df is None or analyzer_df.empty:
+        return _empty_chart("Match data not loaded — click Refresh Data first.")
+
+    legs_df = pd.DataFrame(settled_legs)
+
+    # Join on result_url to get the source count for each leg
+    merged = legs_df.merge(
+        analyzer_df[["result_url", "sources"]].drop_duplicates("result_url"),
+        on="result_url", how="inner",
+    )
+
+    if merged.empty:
+        return _empty_chart(
+            "No overlap between settled legs and current match data. "
+            "The matches may have aged out of the DB."
+        )
+
+    max_s = merged["sources"].max() if not merged.empty else 7
+    BUCKET_ORDER = ["1"] + [f"{i}-{i+2}" for i in range(2, max_s - 1, 3)]
+    if int(BUCKET_ORDER[-1].split('-')[-1]) < max_s:
+        BUCKET_ORDER.append(f"{int(BUCKET_ORDER[-1].split('-')[-1]) + 1}+")
+    else:
+        BUCKET_ORDER[-1] = BUCKET_ORDER[-1].split('-')[0] + "+"
+
+    def _bucket(n: int) -> str:
+        if n <= 1: return "1"
+        for b in BUCKET_ORDER[1:]:
+            if "+" in b: return b
+            low, high = map(int, b.split('-'))
+            if low <= n <= high: return b
+        return BUCKET_ORDER[-1]
+
+    merged["bucket"] = merged["sources"].apply(_bucket)
+
+    counts: dict = defaultdict(lambda: {"won": 0, "total": 0})
+    for _, row in merged.iterrows():
+        b = row["bucket"]
+        counts[b]["total"] += 1
+        if row["status"] == "Won":
+            counts[b]["won"] += 1
+
+    labels    = [b for b in BUCKET_ORDER if b in counts]
+    totals    = [counts[b]["total"] for b in labels]
+    win_rates = [
+        round(counts[b]["won"] / counts[b]["total"] * 100, 1)
+        if counts[b]["total"] else 0
+        for b in labels
+    ]
+
+    bar_colors = [
+        "#28a745" if w >= 55 else "#fd7e14" if w >= 40 else "#dc3545"
+        for w in win_rates
+    ]
+
+    fig = go.Figure(go.Bar(
+        x=labels, y=win_rates,
+        marker_color=bar_colors,
+        text=[f"{w}%<br><sub style='font-size:9px'>n={t}</sub>"
+              for w, t in zip(win_rates, totals)],
+        textposition="outside",
+        hovertemplate=(
+            "<b>Sources: %{x}</b><br>"
+            "Win Rate: %{y:.1f}%<br>"
+            "Legs: %{customdata}<extra></extra>"
+        ),
+        customdata=totals,
+    ))
+
+    fig.add_hline(
+        y=50, line_dash="dash", line_color="#adb5bd", line_width=1,
+        annotation_text="50% baseline",
+        annotation_position="top right",
+        annotation_font_size=10,
+    )
+    fig.update_layout(**_CHART_LAYOUT)
+    fig.update_layout(
+        xaxis_title="Number of Sources Backing the Pick",
+        yaxis_title="Win Rate %",
+        yaxis=dict(range=[0, 115], gridcolor="#f0f0f0"),
+        xaxis=dict(
+            gridcolor="#f0f0f0",
+            categoryorder="array",
+            categoryarray=BUCKET_ORDER,
+        ),
+        showlegend=False,
+    )
+
+    return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 def create_tips_table(df: pd.DataFrame) -> Any:
     """Create the betting tips DataTable."""
@@ -712,7 +1030,6 @@ def create_tips_table(df: pd.DataFrame) -> Any:
         }],
         page_size=25, page_action="native",
     )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Dashboard class
@@ -836,6 +1153,14 @@ class BetAssistantDashboard:
                             label="Profiles", tab_id="tab-profiles",
                             labelClassName="px-4 fw-bold",
                         ),
+
+                        # ── Tab 5: Analytics ───────────────────────────────────
+                        dbc.Tab(
+                            self._analytics_tab_layout(),
+                            label="Analytics", tab_id="tab-analytics",
+                            labelClassName="px-4 fw-bold",
+                        ),
+
                     ], className="nav-pills custom-tabs"),
                 ], className="p-4"),
             ], className="border-0 shadow-lg mb-5", style={"borderRadius": "20px"}),
@@ -979,6 +1304,61 @@ class BetAssistantDashboard:
             ], className="text-start"),
         ], className="p-4")
 
+    def _analytics_tab_layout(self) -> html.Div:
+        """Analytics tab: running balance, profile ROI, market accuracy, source reliability."""
+
+        def section(icon_cls: str, title: str, content_id: str, col_size: int = 12) -> dbc.Col:
+            return dbc.Col(
+                dbc.Card([
+                    dbc.CardHeader(
+                        html.Small([html.I(className=f"fas {icon_cls} me-2"),  title],
+                                className="fw-bold text-uppercase text-muted"),
+                        className="bg-transparent border-0 py-2 px-3",
+                    ),
+                    dbc.CardBody(html.Div(id=f"analytics-{content_id}"),
+                                className="pt-0 px-2 pb-2"),
+                ], className="shadow-sm border-0 rounded-3 h-100"),
+                lg=col_size, className="mb-3",
+            )
+
+        return html.Div([
+
+            # ── Filter bar ────────────────────────────────────────────────────
+            dbc.Row([
+                dbc.Col(
+                    dbc.InputGroup([
+                        dbc.InputGroupText(html.I(className="fas fa-filter text-primary")),
+                        dbc.Select(
+                            id="analytics-profile-filter",
+                            options=[{"label": "📊 All Profiles", "value": "all"}],
+                            value="all",
+                            size="sm",
+                        ),
+                    ], className="shadow-sm", style={"width": "260px"}),
+                    className="d-flex align-items-center",
+                ),
+            ], className="mb-3"),
+
+            # ── Row 1: Running Balance (full width) ───────────────────────────
+            dbc.Row([section("fa-chart-line text-primary",   "Running Balance",        "balance-chart", 12)]),
+
+            # ── Row 2: Profile ROI | Market Accuracy ──────────────────────────
+            dbc.Row([
+                section("fa-users text-success",   "ROI by Profile",     "profile-chart", 5),
+                section("fa-tags text-warning",    "Market Accuracy",    "market-chart",  7),
+            ], className="g-3"),
+
+            # ── Row 3: Source Reliability ─────────────────────────────────────
+            dbc.Row([
+                section(
+                    "fa-database text-info",
+                    "Source Reliability — does more data coverage actually mean more wins?",
+                    "source-chart", 12,
+                )
+            ]),
+
+        ], className="p-3")
+
     # ── Callbacks ─────────────────────────────────────────────────────────────
 
     def _setup_callbacks(self):
@@ -994,6 +1374,7 @@ class BetAssistantDashboard:
         self._cb_save_all_profiles()
         self._cb_slips_tab()
         self._cb_pull_update()
+        self._cb_analytics()
 
     # ── Refresh data ──────────────────────────────────────────────────────────
 
@@ -1486,13 +1867,52 @@ class BetAssistantDashboard:
                 return dash.no_update, dash.no_update
             try:
                 repo     = os.environ.get("REPO", "rotarurazvan07/bet-assistant")
-                artifact = os.environ.get("ARTIFACT_NAME", "final-database")
+                artifact = os.environ.get("ARTIFACT_NAME", "all-matches-combined-db")
                 cmd = (f"rm -f /app/data/final_matches.db* && "
                        f"gh run download -R {repo} -n {artifact} --dir /app/data")
                 subprocess.run(cmd, shell=True, check=True)
                 return "Pull successful", (current_clicks or 0) + 1
             except Exception as e:
                 return f"Pull failed: {e}", dash.no_update
+
+    def _cb_analytics(self):
+        @self.app.callback(
+            [Output("analytics-balance-chart",  "children"),
+            Output("analytics-profile-chart",  "children"),
+            Output("analytics-market-chart",   "children"),
+            Output("analytics-source-chart",   "children"),
+            Output("analytics-profile-filter", "options")],
+            [Input("main-tabs",                 "active_tab"),
+            Input("analytics-profile-filter",  "value"),
+            Input("matches-data-store",        "data")],   # re-run when data refreshes
+        )
+        def update_analytics(active_tab, profile_filter, _data_trigger):
+            if active_tab != "tab-analytics":
+                return [dash.no_update] * 5
+
+            # ── Fetch data ────────────────────────────────────────────────────
+            history       = self.slip_manager.get_balance_history(profile_filter)
+            profile_stats = self.slip_manager.get_per_profile_stats()     # always unfiltered
+            market_stats  = self.slip_manager.get_market_type_stats(profile_filter)
+            settled_legs  = self.slip_manager.get_settled_legs_with_urls(profile_filter)
+
+            # ── Charts ────────────────────────────────────────────────────────
+            balance_chart = render_balance_chart(history)
+            profile_chart = render_profile_comparison(profile_stats)
+            market_chart  = render_market_accuracy(market_stats)
+            source_chart  = render_source_analysis(
+                settled_legs,
+                self.betting_analyzer.df,   # join on result_url
+            )
+
+            # ── Update profile filter options ─────────────────────────────────
+            profile_names = [p.stem for p in Path("config/profiles").glob("*.yaml")]
+            options = (
+                [{"label": "📊 All Profiles", "value": "all"}] +
+                [{"label": f"👤 {n.upper()}", "value": n} for n in profile_names]
+            )
+
+            return balance_chart, profile_chart, market_chart, source_chart, options
 
     # ── Run ────────────────────────────────────────────────────────────────────
 

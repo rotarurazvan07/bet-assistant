@@ -108,7 +108,7 @@ class BetSlipManager:
             # Match the order from your SELECT query:
             # s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
             # l.match_name, l.market, l.market_type, l.odds, l.status
-            slip_id, date, profile, total_odds, units, match, market, market_type, odds, status = row
+            slip_id, date, profile, total_odds, units, match, market, market_type, odds, status, result_url = row
 
             if slip_id not in slips_data:
                 slips_data[slip_id] = {
@@ -118,7 +118,7 @@ class BetSlipManager:
                     'total_odds': total_odds,
                     'units': units,
                     'legs': [],
-                    'slip_status': 'Won'  # Default to Won, will be downgraded by legs
+                    'slip_status': 'Won',  # Default to Won, will be downgraded by legs
                 }
 
             # If the slip has a leg (LEFT JOIN might return null for legs)
@@ -128,7 +128,8 @@ class BetSlipManager:
                     'market': market,
                     'market_type': market_type,
                     'odds': odds,
-                    'status': status
+                    'status': status,
+                    'result_url': result_url
                 })
 
                 # Update Slip Status based on this leg
@@ -146,7 +147,7 @@ class BetSlipManager:
         query = '''
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
-                l.match_name, l.market, l.market_type, l.odds, l.status
+                l.match_name, l.market, l.market_type, l.odds, l.status, l.result_url   
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         '''
@@ -198,6 +199,105 @@ class BetSlipManager:
             'net_profit':       round(net_profit, 2),    # profit / loss (+ or -)
             'roi_percentage':   round(roi, 2),           # net profit as % of stakes
         }
+
+    def get_balance_history(self, profile_filter=None):
+        where = "WHERE s.profile = ?" if (profile_filter and profile_filter != "all") else ""
+        params = [profile_filter] if where else []
+
+        query = f'''
+            SELECT
+                s.date_generated, s.profile, s.total_odds, s.units,
+                CASE
+                    WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
+                    WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
+                    ELSE 'Won'
+                END AS slip_status
+            FROM slips s
+            LEFT JOIN legs l ON s.slip_id = l.slip_id
+            {where}
+            GROUP BY s.slip_id
+            HAVING slip_status IN ('Won', 'Lost')
+            ORDER BY s.date_generated ASC
+        '''
+        self.cursor.execute(query, params)
+        return [
+            {"date": r[0], "profile": r[1], "total_odds": r[2],
+             "units": r[3], "status": r[4]}
+            for r in self.cursor.fetchall()
+        ]
+
+    def get_per_profile_stats(self):
+        query = '''
+            SELECT
+                s.profile,
+                s.total_odds, s.units,
+                CASE
+                    WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
+                    WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
+                    ELSE 'Won'
+                END AS slip_status
+            FROM slips s
+            LEFT JOIN legs l ON s.slip_id = l.slip_id
+            GROUP BY s.slip_id
+            HAVING slip_status IN ('Won', 'Lost')
+        '''
+        self.cursor.execute(query)
+
+        from collections import defaultdict
+        agg = defaultdict(lambda: {"settled": 0, "won": 0, "stakes": 0.0, "gross": 0.0})
+
+        for profile, total_odds, units, status in self.cursor.fetchall():
+            agg[profile]["settled"] += 1
+            agg[profile]["stakes"]  += units
+            if status == "Won":
+                agg[profile]["won"]   += 1
+                agg[profile]["gross"] += total_odds * units
+
+        result = {}
+        for name, d in agg.items():
+            net = d["gross"] - d["stakes"]
+            result[name] = {
+                "profile":    name,
+                "settled":    d["settled"],
+                "won":        d["won"],
+                "win_rate":   round(d["won"] / d["settled"] * 100, 1) if d["settled"] else 0.0,
+                "stakes":     round(d["stakes"], 2),
+                "net_profit": round(net, 2),
+                "roi":        round(net / d["stakes"] * 100, 1) if d["stakes"] else 0.0,
+            }
+        return result
+
+    def get_market_type_stats(self, profile_filter=None):
+        where = "AND s.profile = ?" if (profile_filter and profile_filter != "all") else ""
+        params = [profile_filter] if where else []
+
+        query = f'''
+            SELECT l.market_type, l.market, l.status, COUNT(*) AS cnt
+            FROM legs l
+            JOIN slips s ON l.slip_id = s.slip_id
+            WHERE l.status IN ('Won', 'Lost')
+            {where}
+            GROUP BY l.market_type, l.market, l.status
+        '''
+        self.cursor.execute(query, params)
+        return [
+            {"market_type": r[0], "market": r[1], "status": r[2], "count": r[3]}
+            for r in self.cursor.fetchall()
+        ]
+
+    def get_settled_legs_with_urls(self, profile_filter=None):
+        where = "AND s.profile = ?" if (profile_filter and profile_filter != "all") else ""
+        params = [profile_filter] if where else []
+
+        query = f'''
+            SELECT l.result_url, l.status
+            FROM legs l
+            JOIN slips s ON l.slip_id = s.slip_id
+            WHERE l.status IN ('Won', 'Lost') AND l.result_url IS NOT NULL
+            {where}
+        '''
+        self.cursor.execute(query, params)
+        return [{"result_url": r[0], "status": r[1]} for r in self.cursor.fetchall()]
 
     def close(self):
         self.conn.commit()

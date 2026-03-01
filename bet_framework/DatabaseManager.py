@@ -23,6 +23,7 @@ class DatabaseManager:
         self.similarity_engine = SimilarityEngine()
         self.db_lock = threading.Lock()
         self._create_tables()
+        self._file_mtime = os.path.getmtime(self.db_path)
 
         # ── In-memory buffer ──────────────────────────────────────────────────
         # Loaded lazily on first add_match call, flushed explicitly via
@@ -247,6 +248,8 @@ class DatabaseManager:
         Fetch matches as a DataFrame. If there is a dirty buffer, flush first
         so the caller always sees a consistent view.
         """
+        self.reopen_if_changed()
+
         if self._buffer_dirty:
             self.flush()
 
@@ -463,6 +466,39 @@ class DatabaseManager:
 
         log("🏁 All database chunks have been merged.")
 
+    def reopen_if_changed(self):
+        """
+        Check if the database file has been replaced on disk.
+        If the mtime changed, close the old connection and open a fresh one.
+        Called automatically by fetch_matches() before any read.
+        """
+        try:
+            current_mtime = os.path.getmtime(self.db_path)
+        except OSError:
+            return  # file temporarily unavailable, do nothing
+
+        if current_mtime == self._file_mtime:
+            return  # nothing changed
+
+        print(f"[DB] File change detected ({self.db_path}), reopening connection...")
+
+        with self.db_lock:
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+
+            self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self.conn.row_factory = sqlite3.Row
+
+            # Clear in-memory buffer so it reloads from the new file
+            self._buffer        = None
+            self._pending_new_rows = []
+            self._buffer_dirty  = False
+            self._file_mtime    = current_mtime
+
+        print("[DB] Reopened successfully.")
+        
     def close(self):
         """Flush any pending writes and close the connection."""
         try:

@@ -11,6 +11,7 @@ SKIP_PATTERNS: List[Tuple[str, str]] = [  # TODO false skipping
     (r"\bU\d{2}s?\b", "Youth team"),
     (r"\bW\b", "Women's team"),
     (r"\bII\b", "Reserve team II"),
+    (r"\b2\b", "Reserve team 2"),
     (r"\bIII\b", "Reserve team III"),
     (r"\bB\b", "B team"),
     (r"\bC\b", "C team"),

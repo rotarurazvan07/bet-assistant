@@ -1,9 +1,14 @@
 services:
-  # 1. THE DASHBOARD (Web UI)
-  dash-app:
+  # 1. THE DASHBOARD (Your App)
+  bet-dashboard:
     image: ghcr.io/rotarurazvan07/bet-assistant:latest
     container_name: bet-dashboard
     restart: always
+    environment:
+      - GH_TOKEN=<GH_TOKEN_HERE>
+      - REPO=rotarurazvan07/bet-assistant
+      - ARTIFACT_NAME=all-matches-combined-db
+    command: python -u -m dashboard /app/data/final_matches.db
     ports:
       - "8050:8050"
     volumes:
@@ -12,38 +17,48 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
 
-  # 2. THE SCRAPER (The Worker)
-  scraper:
+  # 2. THE MANAGER (Handles the dirty work)
+  bet-manager:
     image: ghcr.io/rotarurazvan07/bet-assistant:latest
-    container_name: bet-scraper
-    command: python -m main
-    restart: "no" # Ofelia will wake it up
+    container_name: bet-manager
+    restart: always
+    environment:
+      - GH_TOKEN=<GH_TOKEN_HERE>
+      - REPO=rotarurazvan07/bet-assistant
+      - ARTIFACT_NAME=all-matches-combined-db
+    # Sits idle, waiting for Ofelia
+    command: tail -f /dev/null
     volumes:
       - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock # Required to control the dashboard
     labels:
-      - "ofelia.enabled=true"
-      - "ofelia.job-run.nightly-scrape.schedule=0 0 2 * * *" # 2:00:00 AM
-      - "ofelia.job-run.nightly-scrape.container=bet-scraper"
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
+      # THE JOB: Stop -> Download -> Start (Using curl to avoid installing Docker CLI)
+      - "ofelia.enabled=true"
+      - "ofelia.job-exec.daily-sync.schedule=0 30 10 * * *"
+      - "ofelia.job-exec.daily-sync.command=sh -c 'curl --unix-socket /var/run/docker.sock -X POST http://localhost/containers/bet-dashboard/stop && rm -f /app/data/final_matches.db* && gh run download -R $$REPO -n $$ARTIFACT_NAME --dir /app/data && python -m main --mode \"validate-slips\" --db_path \"/app/data/slips.db\" && python -m main --mode \"generate-slips\" --db_path \"/app/data/final_matches.db\" && curl --unix-socket /var/run/docker.sock -X POST http://localhost/containers/bet-dashboard/start'"
 
-  # 3. THE SCHEDULER (Ofelia)
-  scheduler:
+# 3. THE SCHEDULER
+  bet-scheduler:
     image: mcuadros/ofelia:latest
+    environment:
+      - TZ=Europe/Bucharest
     container_name: bet-scheduler
     restart: always
-    depends_on:
-      - scraper
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: daemon --docker
+    command: daemon --docker --docker-filter "name=bet-manager"
 
-  # 4. THE AUTO-UPDATER (Watchtower)
-  updater:
-    image: containrrr/watchtower
+  # 4. THE UPDATER
+  bet-updater:
+    image: containrrr/watchtower:1.7.1
+    platform: linux/arm64
     container_name: bet-updater
     restart: always
+    environment:
+      - DOCKER_API_VERSION=1.44
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ~/.docker/config.json:/config.json:ro
+      - /home/fir3w4ll/.docker/config.json:/config.json:ro
     command: --interval 300 --cleanup --scope bet-stack
