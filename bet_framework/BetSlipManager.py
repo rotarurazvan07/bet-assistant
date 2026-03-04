@@ -1,12 +1,15 @@
 import sqlite3
 import math
+import os
 
 import pandas as pd
 
 class BetSlipManager:
     def __init__(self, db_path):
+        self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.cursor = self.conn.cursor()
+        self._file_mtime = os.path.getmtime(self.db_path)
 
         # Create Slips Table
         self.cursor.execute('''
@@ -36,6 +39,7 @@ class BetSlipManager:
         self.conn.commit()
 
     def get_pending_result_urls(self):
+        self.reopen_if_changed()
         try:
             """
             Returns a list of URLs that MUST BE EXCLUDED from new slips.
@@ -147,7 +151,7 @@ class BetSlipManager:
         query = '''
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
-                l.match_name, l.market, l.market_type, l.odds, l.status, l.result_url   
+                l.match_name, l.market, l.market_type, l.odds, l.status, l.result_url
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         '''
@@ -298,6 +302,35 @@ class BetSlipManager:
         '''
         self.cursor.execute(query, params)
         return [{"result_url": r[0], "status": r[1]} for r in self.cursor.fetchall()]
+
+    # to be called by who uses this (dashboard, in a heartbeat thread or something!)
+    def reopen_if_changed(self):
+        """
+        Check if the database file has been replaced on disk.
+        If the mtime changed, close the old connection and open a fresh one.
+        """
+        try:
+            current_mtime = os.path.getmtime(self.db_path)
+        except OSError:
+            return  # file temporarily unavailable, do nothing
+
+        if current_mtime == self._file_mtime:
+            return  # nothing changed
+
+        print(f"[BetSlipManager] File change detected ({self.db_path}), reopening connection...")
+
+        # Close the old connection
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+
+        # Open a new connection
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        self.cursor = self.conn.cursor()
+        self._file_mtime = current_mtime
+
+        print("[BetSlipManager] Reopened successfully.")
 
     def close(self):
         self.conn.commit()
