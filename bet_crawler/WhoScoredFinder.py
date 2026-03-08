@@ -16,6 +16,8 @@ class WhoScoredFinder(BaseMatchFinder):
     def __init__(self, add_match_callback):
         super().__init__(add_match_callback)
 
+    TIMEZONE = "UTC"  # WhoScored provides UTC timestamps
+
     def get_matches_urls(self):
         """Get match URLs via browser (needs JS rendering)."""
         with WebScraper.browser(solve_cloudflare=True) as session:
@@ -46,7 +48,7 @@ class WhoScoredFinder(BaseMatchFinder):
             # StartTimeUtc format: /Date(1772290800000)/
             ts_str = data.get('StartTimeUtc', '').strip('/Date()')
             ts = int(ts_str) / 1000
-            match_datetime = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=2)
+            match_datetime = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
 
             # 2. Extract score predictions from DOM
             soup = BeautifulSoup(html, 'html.parser')

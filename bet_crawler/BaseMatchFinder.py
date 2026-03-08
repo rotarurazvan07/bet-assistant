@@ -1,11 +1,10 @@
 from abc import abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 from typing import Callable, List, Optional, Tuple
+from zoneinfo import ZoneInfo
 
 from bet_framework.WebScraper import WebScraper, ScrapeMode
-
-CURRENT_TIME = datetime.now()
 
 SKIP_PATTERNS: List[Tuple[str, str]] = [  # TODO false skipping
     (r"\bU\d{2}s?\b", "Youth team"),
@@ -19,6 +18,9 @@ SKIP_PATTERNS: List[Tuple[str, str]] = [  # TODO false skipping
     (r"\bRes\b", "Reserve team"),
 ]
 
+CURRENT_TIME = datetime.now()
+_LOCAL_TZ = CURRENT_TIME.astimezone().tzinfo
+# print(f"Detected System Timezone: {_LOCAL_TZ}")
 
 class BaseMatchFinder():
     """Base class for match finders.
@@ -28,8 +30,15 @@ class BaseMatchFinder():
         get_matches(urls)   — main runner, typically calls scrape_urls()
         _parse_page(url, html) — callback to parse a single page
 
-    Each crawler sets MAX_CONCURRENCY to control parallelism.
+    Subclasses should set TIMEZONE to the source timezone of the scraped data:
+        TIMEZONE = "UTC"             — WhoScored (UTC timestamps)
+        TIMEZONE = "Asia/Bangkok"    — Forebet (UTC+7 displayed times)
+        TIMEZONE = "Europe/London"   — UK-based sites
+
+    If TIMEZONE is None, no normalisation is applied (legacy behaviour).
     """
+
+    TIMEZONE: Optional[str] = None  # Subclasses override
 
     def __init__(self, add_match_callback: Callable):
         super().__init__()
@@ -51,16 +60,33 @@ class BaseMatchFinder():
         raise NotImplementedError()
 
     def scrape_urls(self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1):
-        """Scrape URLs with concurrency, calling callback(url, html) for each page.
-
-        This is the main bridge between crawlers and the scraping engine.
-        Crawlers just call this with their _parse_page and MAX_CONCURRENCY.
-        """
+        """Scrape URLs with concurrency, calling callback(url, html) for each page."""
         WebScraper.scrape(urls, callback, mode=mode, max_concurrency=max_concurrency)
+
+    # ─────────────────────────── Datetime normalisation ───────────────────────
+
+    def normalise_datetime(self, dt: datetime) -> datetime:
+        if self.TIMEZONE is None:
+            return dt
+
+        source_tz = ZoneInfo(self.TIMEZONE)
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=source_tz)
+
+        local_dt = dt.astimezone(_LOCAL_TZ)
+
+        return local_dt.replace(tzinfo=None)
+
+    # ─────────────────────────── Match processing ─────────────────────────────
 
     def add_match(self, match, force: bool = False) -> bool:
         """Add a match via callback after skip-pattern and date checks."""
         try:
+            # Normalise the datetime before any validation
+            if match.datetime is not None:
+                match.datetime = self.normalise_datetime(match.datetime)
+
             if not force:
                 reason = self.skip_match_by_patterns(match.home_team, match.away_team)
                 if reason:

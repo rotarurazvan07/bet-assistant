@@ -344,12 +344,30 @@ class DatabaseManager:
                         if not is_pending:
                             self._buffer.at[found_idx, 'predictions_scores'] = ser
 
+                # --- datetime ---
+                # Update if incoming has a specific hour/minute and existing is roughly midnight (likely just a date placeholder)
+                if match.datetime is not None:
+                    try:
+                        existing_dt = datetime.fromisoformat(found_row['datetime'])
+                        if (existing_dt.hour == 0 and existing_dt.minute == 0 and 
+                            (match.datetime.hour != 0 or match.datetime.minute != 0)):
+                            log(f"Enriching time for {match.home_team} vs {match.away_team}: "
+                                f"{existing_dt.isoformat()} -> {match.datetime.isoformat()}")
+                            found_row['datetime'] = match.datetime.isoformat()
+                            if not is_pending:
+                                self._buffer.at[found_idx, 'datetime'] = match.datetime.isoformat()
+                            changed = True
+                    except Exception as e:
+                        log(f"Error checking datetime update: {e}")
+
                 # --- odds ---
                 if match.odds is not None:
                     current_odds = self._deserialize_json(found_row.get('odds')) or {}
                     new_odds_map = asdict(match.odds)
+                    # We patch if the EXISTING key is missing or is None (null in JSON)
+                    # and the NEW value is a valid number.
                     patch = {k: v for k, v in new_odds_map.items()
-                             if current_odds.get(k) is None and v is not None}
+                             if (k not in current_odds or current_odds[k] is None) and v is not None}
                     if patch:
                         updated_odds = {**current_odds, **patch}
                         ser = self._serialize_json(updated_odds)

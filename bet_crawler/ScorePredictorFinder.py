@@ -48,7 +48,7 @@ class ScorePredictorFinder(BaseMatchFinder):
                 date_str = entry.find_all("td")[0].get_text().strip()
                 today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                 day, month = map(int, date_str.split('.'))
-                candidate = datetime(today.year, month, day)
+                candidate = datetime(today.year, month, day).replace(hour=0, minute=0, second=0, microsecond=0)
                 if candidate - today > timedelta(days=300):
                     candidate = candidate.replace(year=today.year - 1)
                 elif today - candidate > timedelta(days=300):

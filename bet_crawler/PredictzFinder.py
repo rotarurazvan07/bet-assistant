@@ -64,7 +64,7 @@ class PredictzFinder(BaseMatchFinder):
                         dt for y in range(datetime.now().year - 1, datetime.now().year + 2)
                         for dt in [datetime.strptime(f"{clean} {y}", "%A %B %d %Y")]
                         if dt.strftime('%A') in date_str
-                    )
+                    ).replace(hour=0, minute=0, second=0, microsecond=0)
                 else:
                     home_team = entry.find(class_="fixt").get_text().split(" vs ")[0]
                     away_team = entry.find(class_="fixt").get_text().split(" vs ")[1]

@@ -18,6 +18,8 @@ class ForebetFinder(BaseMatchFinder):
     get_matches overrides the standard flow since it needs a live session.
     """
 
+    TIMEZONE = "Etc/GMT-7"
+
     def __init__(self, add_match_callback):
         super().__init__(add_match_callback)
 
@@ -35,12 +37,18 @@ class ForebetFinder(BaseMatchFinder):
 
             print("Expanding matches via smart-click...")
             successful_clicks = 0
-            while successful_clicks < 30:
+            while successful_clicks < 100:  # Increased limit for 1400+ matches
                 try:
+                    # Scroll to make sure button is visible or triggered
+                    session.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(1)
+
                     clicked = session.execute_script("""
                         (function() {
-                            var btn = document.querySelector('div#mrows span, span[onclick*="ltodrows"], .showmore');
+                            // Broad selector for the 'More' / 'ltodrows' button
+                            var btn = document.querySelector('div#mrows span, span[onclick*="ltodrows"], .showmore, #mrows span');
                             if (btn && btn.offsetParent !== null) {
+                                btn.scrollIntoView({behavior: 'smooth', block: 'center'});
                                 btn.click();
                                 return true;
                             }
@@ -50,14 +58,14 @@ class ForebetFinder(BaseMatchFinder):
 
                     if clicked:
                         successful_clicks += 1
-                        print(f"Clicked expansion button ({successful_clicks})")
-                        time.sleep(2)
+                        # Get count of current matches loaded
+                        rows_found = session.execute_script("return document.querySelectorAll('div#body-main .rcnt').length;")
+                        print(f"Clicked expansion button ({successful_clicks}) - current matches loaded: {rows_found}")
+                        # Wait for potentially new rows to load
+                        time.sleep(3)
                     else:
-                        try:
-                            session.wait_for_selector('div#mrows span, span[onclick*="ltodrows"], .showmore', timeout=15000)
-                        except:
-                            print("No more expansion buttons found.")
-                            break
+                        print(f"Expansion button not found after {successful_clicks} clicks.")
+                        break
                 except Exception as e:
                     print(f"Expansion loop error: {e}")
                     break
@@ -81,7 +89,7 @@ class ForebetFinder(BaseMatchFinder):
                     continue
 
                 match_date = anchor.find("span", class_="date_bah").get_text()
-                match_date = datetime.strptime(match_date, "%d/%m/%Y %H:%M") + timedelta(hours=7)
+                match_date = datetime.strptime(match_date, "%d/%m/%Y %H:%M")
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
                 away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])

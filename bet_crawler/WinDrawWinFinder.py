@@ -49,7 +49,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                     if match_div.has_attr('class') and 'wttrdt' in match_div['class']:
                         date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', match_div.get_text())
                         date_str = date_str.replace("Today, ", "").replace("Tomorrow, ", "")
-                        current_date = datetime.strptime(date_str, "%A, %B %d, %Y")
+                        current_date = datetime.strptime(date_str, "%A, %B %d, %Y").replace(hour=0, minute=0, second=0, microsecond=0)
                         continue
 
                     inner = match_div.contents[:-1]

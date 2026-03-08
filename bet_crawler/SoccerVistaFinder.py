@@ -235,7 +235,7 @@ class SoccerVistaFinder(BaseMatchFinder):
                         (datetime.strptime(f"{date_str} {y}", "%d %b %Y")
                          for y in [datetime.now().year - 1, datetime.now().year, datetime.now().year + 1]),
                         key=lambda d: abs(d - datetime.now())
-                    )
+                    ).replace(hour=0, minute=0, second=0, microsecond=0)
                 except Exception:
                     print(f"{home_team} vs {away_team}: Match ongoing")
                     continue
