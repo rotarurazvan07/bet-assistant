@@ -4,13 +4,8 @@ from rapidfuzz import fuzz
 import unicodedata
 import re
 
-from bet_framework.SettingsManager import settings_manager
-
-
 class SimilarityEngine:
     """Encapsulates match-name similarity logic.
-
-    Configurable via SettingsManager under keys 'similarity' or 'similarity_config'.
     Exposes a single function `is_similar(a, b)` for external use.
     """
 
@@ -22,13 +17,9 @@ class SimilarityEngine:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, cfg: Dict[str, Any] = None):
+    def __init__(self, cfg: Dict[str, Any]):
         if self._initialized:
             return
-        
-        # Load config keys from SettingsManager if not provided
-        if not cfg:
-            cfg = settings_manager.get_config('similarity_config') or {}
 
         self.acronyms = cfg.get('acronyms', {})
         self.team_shorts = cfg.get('team_shorts', {})
@@ -138,7 +129,7 @@ class SimilarityEngine:
         token_score = fuzz.token_set_ratio(s1, s2)
         substr_presence = any(word in s2 for word in s1.split())
         substr_score = 100 if substr_presence else 0
-        
+
         soundex1 = self._soundex(s1.split()[0]) if s1.split() else "0000"
         soundex2 = self._soundex(s2.split()[0]) if s2.split() else "0000"
         phonetic_score = 100 if soundex1 == soundex2 else 0
@@ -161,9 +152,9 @@ class SimilarityEngine:
 
         n1 = self._normalize(s1)
         n2 = self._normalize(s2)
-        
+
         score = self.hybrid_match(n1, n2)
         res = (score > self.similarity_threshold, score)
-        
+
         self._result_cache[cache_key] = res
         return res

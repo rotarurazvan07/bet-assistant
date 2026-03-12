@@ -27,8 +27,8 @@ from contextlib import redirect_stdout
 from urllib.parse import urlparse
 
 from bet_framework.BettingAnalyzer import BetSlipConfig, BettingAnalyzer
-from bet_framework.DatabaseManager import DatabaseManager
-from bet_framework.SettingsManager import settings_manager
+from bet_framework.MatchesManager import MatchesManager
+from bet_framework.SettingsManager import SettingsManager
 from bet_framework.BetSlipManager import BetSlipManager
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,8 +78,6 @@ def get_runner_classes(runner: str) -> list:
 # Profile helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Keys in the YAML that are NOT BetSlipConfig fields
-_DASHBOARD_KEYS = {"units", "run_daily"}
 # BetSlipConfig fields that are always None at generation time (runtime-only)
 _RUNTIME_FIELDS = {"date_from", "date_to", "excluded_urls"}
 
@@ -87,27 +85,27 @@ from dataclasses import fields as _dc_fields
 _BETSLIP_FIELDS = {f.name for f in _dc_fields(BetSlipConfig)}
 
 
-def load_profiles(profiles_dir: str = "config/profiles") -> dict:
-    """Return all profiles that exist on disk as {name: raw_dict}."""
-    return {
-        name: cfg
-        for name, cfg in settings_manager.configs.items()
-        if os.path.exists(os.path.join(profiles_dir, f"{name}.yaml"))
-    }
+# def load_profiles(profiles_dir: str = "config/profiles") -> dict:
+#     """Return all profiles that exist on disk as {name: raw_dict}."""
+#     return {
+#         name: cfg
+#         for name, cfg in settings_manager.config.items()
+#         if os.path.exists(os.path.join(profiles_dir, f"{name}.yaml"))
+#     }
 
 
-def profile_to_config(data: dict, excluded_urls: list = None) -> BetSlipConfig:
-    """
-    Build a BetSlipConfig from a profile YAML dict.
-    - Ignores dashboard-only keys (units, run_daily).
-    - Injects excluded_urls at runtime (not stored in the profile).
-    """
-    kwargs = {
-        k: v for k, v in data.items()
-        if k in _BETSLIP_FIELDS and k not in _RUNTIME_FIELDS
-    }
-    kwargs["excluded_urls"] = excluded_urls or None
-    return BetSlipConfig(**kwargs)
+# def profile_to_config(data: dict, excluded_urls: list = None) -> BetSlipConfig:
+#     """
+#     Build a BetSlipConfig from a profile YAML dict.
+#     - Ignores dashboard-only keys (units, run_daily).
+#     - Injects excluded_urls at runtime (not stored in the profile).
+#     """
+#     kwargs = {
+#         k: v for k, v in data.items()
+#         if k in _BETSLIP_FIELDS and k not in _RUNTIME_FIELDS
+#     }
+#     kwargs["excluded_urls"] = excluded_urls or None
+#     return BetSlipConfig(**kwargs)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -170,11 +168,11 @@ def mode_scrape(db_path: str, urls_str: str):
         core_name = domain.split(".")[-2] if "." in domain else domain
         groups[core_name].append(url)
 
-    db_manager = DatabaseManager(db_path)
-    db_manager.reset_matches_db()
+    matches_manager = MatchesManager(db_path, similarity_config=settings_manager.get("similarity_config"))
+    matches_manager.reset_matches_db()
 
     def _on_match(match):
-        db_manager.add_match(match)
+        matches_manager.add_match(match)
 
     for i, (domain_key, group_urls) in enumerate(groups.items()):
         print(f"  [{i+1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)...")
@@ -186,7 +184,7 @@ def mode_scrape(db_path: str, urls_str: str):
         finally:
             del crawler
 
-    db_manager.close()
+    matches_manager.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -199,10 +197,10 @@ def mode_merge(db_path: str, chunks_dir: str):
         print(f"❌ Not a valid directory: {chunks_dir}", file=sys.stderr)
         sys.exit(1)
 
-    db_manager = DatabaseManager(db_path)
-    db_manager.reset_matches_db()
-    db_manager.merge_databases(chunks_dir)
-    db_manager.close()
+    matches_manager = MatchesManager(db_path, settings_manager.get("similarity_config"))
+    matches_manager.reset_matches_db()
+    matches_manager.merge_databases(chunks_dir)
+    matches_manager.close()
     print(f"✅ Merged into {db_path}")
 
 
@@ -210,53 +208,53 @@ def mode_merge(db_path: str, chunks_dir: str):
 # Mode: generate-slips
 # ─────────────────────────────────────────────────────────────────────────────
 
-def mode_generate_slips(db_path: str):
-    """
-    For every profile with run_daily=True, build a bet slip and persist it.
-    Matches already in pending slips are excluded to avoid duplication.
-    """
-    # Load match data
-    db_manager = DatabaseManager(db_path)
-    analyzer   = BettingAnalyzer(db_manager)
-    analyzer.refresh_data()
-    db_manager.close()
+# def mode_generate_slips(db_path: str):
+#     """
+#     For every profile with run_daily=True, build a bet slip and persist it.
+#     Matches already in pending slips are excluded to avoid duplication.
+#     """
+#     # Load match data
+#     matches_manager = MatchesManager(db_path)
+#     analyzer   = BettingAnalyzer(matches_manager)
+#     analyzer.refresh_data()
+#     matches_manager.close()
 
-    slips_path      = os.path.join(os.path.dirname(db_path), "slips.db")
-    slip_manager    = BetSlipManager(slips_path)
-    active_urls     = slip_manager.get_pending_result_urls()
+#     slips_path      = os.path.join(os.path.dirname(db_path), "slips.db")
+#     slip_manager    = BetSlipManager(slips_path)
+#     active_urls     = slip_manager.get_pending_result_urls()
 
-    profiles = load_profiles()
-    if not profiles:
-        print("⚠️  No profiles found in config/profiles/")
-        sys.exit(0)
+#     profiles = load_profiles()
+#     if not profiles:
+#         print("⚠️  No profiles found in config/profiles/")
+#         sys.exit(0)
 
-    for prof_name, prof_data in profiles.items():
-        if not prof_data.get("run_daily", False):
-            print(f"⏩ Skipping '{prof_name}' (run_daily is off)")
-            continue
+#     for prof_name, prof_data in profiles.items():
+#         if not prof_data.get("run_daily", False):
+#             print(f"⏩ Skipping '{prof_name}' (run_daily is off)")
+#             continue
 
-        print(f"\n▶ Running profile: {prof_name.upper()}")
+#         print(f"\n▶ Running profile: {prof_name.upper()}")
 
-        cfg  = profile_to_config(prof_data, excluded_urls=active_urls)
-        legs = analyzer.build_bet_slip(cfg)
+#         cfg  = profile_to_config(prof_data, excluded_urls=active_urls)
+#         legs = analyzer.build_bet_slip(cfg)
 
-        if not legs:
-            print(f"  ℹ️  No suitable matches found.")
-            continue
+#         if not legs:
+#             print(f"  ℹ️  No suitable matches found.")
+#             continue
 
-        units   = float(prof_data.get("units", 1.0))
-        slip_id = slip_manager.insert_slip(prof_name, legs, units=units)
+#         units   = float(prof_data.get("units", 1.0))
+#         slip_id = slip_manager.insert_slip(prof_name, legs, units=units)
 
-        total_odds = 1.0
-        for leg in legs:
-            total_odds *= leg.get("odds", 1.0)
+#         total_odds = 1.0
+#         for leg in legs:
+#             total_odds *= leg.get("odds", 1.0)
 
-        print(f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)")
+#         print(f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)")
 
-        # Prevent the same matches being reused across profiles in the same run
-        active_urls.extend(leg["result_url"] for leg in legs)
+#         # Prevent the same matches being reused across profiles in the same run
+#         active_urls.extend(leg["result_url"] for leg in legs)
 
-    slip_manager.close()
+#     slip_manager.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -381,6 +379,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--db_path",    help="Path to the SQLite database file")
     p.add_argument("--urls",       help="Comma-separated URLs to scrape", default="")
     p.add_argument("--chunks_dir", help="Directory containing chunk DBs",  default=".")
+    p.add_argument("--config_path", help="Directory containing config files",  default=".")
     p.add_argument(
         "--runners",
         choices=["actions", "local"],
@@ -393,9 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
 if __name__ == "__main__":
     args = build_parser().parse_args()
 
-    settings_manager.load_settings("config")
-    if os.path.exists("config/profiles"):
-        settings_manager.load_settings("config/profiles")
+    settings_manager = SettingsManager(args.config_path)
 
     if args.mode == "prepare-scrape":
         if not args.runners:

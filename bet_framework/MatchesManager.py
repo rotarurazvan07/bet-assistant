@@ -14,13 +14,15 @@ from .core.Match import *
 from .utils import log
 
 
-class DatabaseManager:
-    def __init__(self, db_path: str = None):
+class MatchesManager:
+    def __init__(self, db_path: str, similarity_config: dict = None):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-
-        self.similarity_engine = SimilarityEngine()
+        if similarity_config:
+            self.similarity_engine = SimilarityEngine(similarity_config)
+        else:
+            self.similarity_engine = None # dashboard dont need this
         self.db_lock = threading.Lock()
         self._create_tables()
         self._file_mtime = os.path.getmtime(self.db_path)
@@ -349,7 +351,7 @@ class DatabaseManager:
                 if match.datetime is not None:
                     try:
                         existing_dt = datetime.fromisoformat(found_row['datetime'])
-                        if (existing_dt.hour == 0 and existing_dt.minute == 0 and 
+                        if (existing_dt.hour == 0 and existing_dt.minute == 0 and
                             (match.datetime.hour != 0 or match.datetime.minute != 0)):
                             log(f"Enriching time for {match.home_team} vs {match.away_team}: "
                                 f"{existing_dt.isoformat()} -> {match.datetime.isoformat()}")
@@ -516,7 +518,7 @@ class DatabaseManager:
             self._file_mtime    = current_mtime
 
         print("[DB] Reopened successfully.")
-        
+
     def close(self):
         """Flush any pending writes and close the connection."""
         try:

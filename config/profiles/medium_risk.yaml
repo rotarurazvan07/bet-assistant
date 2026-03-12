@@ -8,7 +8,7 @@ min_odds: 1.05
 prob_vs_sources: 0.5
 probability_floor: 55.0
 quality_vs_balance: 0.5
-run_daily: false
+run_daily: true
 sources_cap: 15
 stop_threshold: null
 target_legs: 3
