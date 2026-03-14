@@ -22,6 +22,22 @@ from scrapling.fetchers import (
     AsyncStealthySession,
 )
 
+RETRY_INDICATORS = [
+    "429 Too Many Requests",
+    "Too Many Requests",
+    "rate limit exceeded",
+    "rate limited",
+    "slow down",
+    "try again later",
+    "Please wait",
+    "Request throttled",
+    "Service Unavailable",
+    "503 Service Unavailable",
+    "Temporarily Unavailable",
+    "overloaded",
+    "quota exceeded",
+]
+
 class ScrapeMode:
     """Scraping mode constants."""
     FAST = "fast"          # Simple HTTP with TLS impersonation
@@ -115,16 +131,41 @@ class WebScraper:
     """
 
     @staticmethod
-    def fetch(url: str, stealthy_headers: bool = False) -> str:
+    def fetch(url: str, stealthy_headers: bool = False,
+              retries: int = 3, backoff: float = 5.0) -> str:
         """Fast HTTP GET with TLS impersonation and stealth headers.
+        Retries on any RETRY_INDICATORS match with exponential backoff.
         Returns HTML string, or empty string on error.
         """
-        try:
-            page = Fetcher.get(url, stealthy_headers=stealthy_headers)
-            return page.html_content
-        except Exception as e:
-            print(f"[fetch] Error fetching {url}: {e}")
-            return ""
+        for attempt in range(1, retries + 1):
+            try:
+                page = Fetcher.get(url, stealthy_headers=stealthy_headers)
+                html = page.html_content
+                html_lower = html.lower()
+
+                matched = next(
+                    (ind for ind in RETRY_INDICATORS if ind.lower() in html_lower),
+                    None,
+                )
+                if matched:
+                    wait = backoff * attempt
+                    print(f"[fetch] '{matched}' on {url} — retrying in {wait:.0f}s (attempt {attempt}/{retries})")
+                    time.sleep(wait)
+                    continue
+
+                return html
+
+            except Exception as e:
+                if attempt < retries:
+                    wait = backoff * attempt
+                    print(f"[fetch] Error on {url}: {e} — retrying in {wait:.0f}s (attempt {attempt}/{retries})")
+                    time.sleep(wait)
+                else:
+                    print(f"[fetch] Failed after {retries} attempts on {url}: {e}")
+                    return ""
+
+        print(f"[fetch] Gave up after {retries} attempts on {url}")
+        return ""
 
     @staticmethod
     def is_blocked(html: str) -> bool:

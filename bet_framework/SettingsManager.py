@@ -2,12 +2,12 @@ import yaml
 from pathlib import Path
 from typing import Any, Optional, Dict
 
-
 class SettingsManager:
 
     def __init__(self, directory: str):
         self._directory = Path(directory)
         self.settings: Dict[str, Any] = {}
+        print("Settings directory: ", self._directory.resolve())
         self._load()
 
     def _load(self) -> None:

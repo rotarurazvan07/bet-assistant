@@ -246,7 +246,7 @@ class SoccerVistaFinder(BaseMatchFinder):
                 self.add_match(Match(
                     home_team=home_team, away_team=away_team,
                     datetime=match_datetime, predictions=scores, odds=None,
-                    result_url=SOCCERVISTA_URL + match_tr.find("a").get('href')
+                    result_url=SOCCERVISTA_URL + match_tr.find("a").get('href').replace("/fr/", "/")
                 ))
 
         except Exception as e:

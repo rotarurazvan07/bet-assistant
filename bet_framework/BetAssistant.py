@@ -48,10 +48,11 @@ import hashlib
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
-
+from datetime import datetime
 import pandas as pd
 import yaml
 from bs4 import BeautifulSoup
+import threading
 from pathlib import Path
 
 # (prob_col, odds_col, display_label)
@@ -106,7 +107,7 @@ class BetSlipConfig:
     max_legs_overflow:      Optional[int]  = None
 
     # Quality gate
-    probability_floor:      float          = 55.0
+    probability_floor:      float          = 50.0
     min_odds:               float          = 1.05
 
     # Odds tolerance
@@ -159,7 +160,7 @@ PROFILES: Dict[str, BetSlipConfig] = {
     "medium_risk": BetSlipConfig(
         target_odds=5.0,
         target_legs=3,
-        probability_floor=55.0,
+        probability_floor=50.0,
         quality_vs_balance=0.50,
         prob_vs_sources=0.50,
     ),
@@ -372,6 +373,7 @@ class BetAssistant:
         """
         self._conn   = sqlite3.connect(db_path, check_same_thread=False)
         self._cur    = self._conn.cursor()
+        self._lock   = threading.Lock()
         self._df     = pd.DataFrame()
         self.db_path = db_path
 
@@ -379,31 +381,23 @@ class BetAssistant:
         self._file_mtime = os.path.getmtime(self.db_path)
 
     def reopen_if_changed(self):
-        """
-        Check if the database file has been replaced on disk.
-        If the mtime changed, close the old connection and open a fresh one.
-        Called automatically by methods that read from the database.
-        """
-        try:
-            current_mtime = os.path.getmtime(self.db_path)
-        except (OSError, AttributeError):
-            return  # No connection or file unavailable, do nothing
+        with self._lock:
+            try:
+                current_mtime = os.path.getmtime(self.db_path)
+            except (OSError, AttributeError):
+                return
+            if current_mtime == self._file_mtime:
+                return
+            try:
+                print("[BetAssistant] File change detected, reopening connection...")
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._cur  = self._conn.cursor()
+            self._file_mtime = current_mtime
 
-        if current_mtime == self._file_mtime:
-            return  # nothing changed
-
-        print(f"[BetAssistant] File change detected, reopening connection...")
-
-        try:
-            self._conn.close()
-        except Exception:
-            pass
-
-        self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._cur = self._conn.cursor()
-        self._file_mtime = current_mtime
-
-        print("[BetAssistant] Reopened successfully.")
+            print("[BetAssistant] Reopened successfully.")
 
     def _init_db(self) -> None:
         self._cur.executescript("""
@@ -419,6 +413,7 @@ class BetAssistant:
                 leg_id      INTEGER PRIMARY KEY AUTOINCREMENT,
                 slip_id     INTEGER,
                 match_name  TEXT,
+                match_datetime TEXT,
                 market      TEXT,
                 market_type TEXT,
                 odds        REAL,
@@ -461,10 +456,10 @@ class BetAssistant:
             try:
                 match_key = (
                     f"{row['home_name']}_{row['away_name']}"
-                    f"_{row['datetime'].isoformat()}"
+                    f"_{row['datetime']}"
                 )
                 match_id   = f"match_{idx}_{hashlib.md5(match_key.encode()).hexdigest()}"
-                dt         = row["datetime"]
+                dt         = row['datetime']
                 odds       = row.get("odds") or {}
                 scores     = row.get("scores") or []
                 probs      = self._calc_probabilities(scores)
@@ -473,7 +468,6 @@ class BetAssistant:
                 rows.append({
                     "match_id":      match_id,
                     "datetime":      dt,
-                    "datetime_str":  dt.strftime("%Y-%m-%d %H:%M"),
                     "home":          row["home_name"],
                     "away":          row["away_name"],
                     "sources":       n_sources,
@@ -614,26 +608,31 @@ class BetAssistant:
         -------
         The auto-assigned slip_id.
         """
-        total_odds  = math.prod(leg["odds"] for leg in legs)
-        date_today  = pd.Timestamp.now().strftime("%Y-%m-%d")
+        with self._lock:
+            total_odds  = math.prod(leg["odds"] for leg in legs)
+            date_today  = pd.Timestamp.now().strftime("%Y-%m-%d")
 
-        self._cur.execute(
-            "INSERT INTO slips (date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?)",
-            (date_today, profile, total_odds, units),
-        )
-        slip_id = self._cur.lastrowid
-
-        for leg in legs:
             self._cur.execute(
-                """INSERT INTO legs
-                   (slip_id, match_name, market, market_type, odds, result_url)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (slip_id, leg["match"], leg["market"], leg["market_type"],
-                 leg["odds"], leg["result_url"]),
+                "INSERT INTO slips (date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?)",
+                (date_today, profile, total_odds, units),
             )
+            slip_id = self._cur.lastrowid
 
-        self._conn.commit()
-        return slip_id
+            for leg in legs:
+                dt = leg.get("datetime")
+                if hasattr(dt, "isoformat"):
+                    dt = dt.isoformat()
+
+                self._cur.execute(
+                    """INSERT INTO legs
+                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (slip_id, leg["match"], dt, leg["market"], leg["market_type"],
+                    leg["odds"], leg["result_url"]),
+                )
+
+            self._conn.commit()
+            return slip_id
 
     # ── Slip retrieval ────────────────────────────────────────────────────────
 
@@ -651,7 +650,7 @@ class BetAssistant:
         query = """
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
-                l.match_name, l.market, l.market_type, l.odds, l.status, l.result_url
+                l.match_name, l.match_datetime, l.market, l.market_type, l.odds, l.status, l.result_url
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
@@ -661,8 +660,16 @@ class BetAssistant:
             params.append(profile)
         query += " ORDER BY s.date_generated DESC, s.slip_id DESC"
 
-        self._cur.execute(query, params)
-        return self._rows_to_slips(self._cur.fetchall())
+        with self._lock:
+            self._cur.execute(query, params)
+            rows = self._cur.fetchall()
+        return self._rows_to_slips(rows)
+
+    def delete_slip(self, slip_id: int) -> None:
+        with self._lock:
+            self._cur.execute("DELETE FROM legs  WHERE slip_id = ?", (slip_id,))
+            self._cur.execute("DELETE FROM slips WHERE slip_id = ?", (slip_id,))
+            self._conn.commit()
 
     def get_excluded_urls(self) -> List[str]:
         """
@@ -675,17 +682,18 @@ class BetAssistant:
         self.reopen_if_changed()
 
         try:
-            self._cur.execute("""
-                SELECT DISTINCT result_url FROM legs
-                WHERE status IN ('Won', 'Lost', 'Live')
-                   OR (
-                       status = 'Pending'
-                       AND slip_id NOT IN (
-                           SELECT slip_id FROM legs WHERE status = 'Lost'
+            with self._lock:
+                self._cur.execute("""
+                    SELECT DISTINCT result_url FROM legs
+                    WHERE status IN ('Won', 'Lost', 'Live')
+                       OR (
+                           status = 'Pending'
+                           AND slip_id NOT IN (
+                               SELECT slip_id FROM legs WHERE status = 'Lost'
+                           )
                        )
-                   )
-            """)
-            return [r[0] for r in self._cur.fetchall() if r[0] is not None]
+                """)
+                return [r[0] for r in self._cur.fetchall() if r[0] is not None]
         except Exception as e:
             print(f"[BetAssistant] get_excluded_urls error: {e}")
             return []
@@ -695,10 +703,9 @@ class BetAssistant:
     def validate_slips(self) -> Dict[str, int]:
         self.reopen_if_changed()
 
-        self._cur.execute(
-            "SELECT leg_id, result_url, market, market_type, match_name FROM legs WHERE status IN ('Pending', 'Live')"
-        )
-        pending = self._cur.fetchall()
+        with self._lock:
+            self._cur.execute("SELECT leg_id, result_url, market, market_type, match_name FROM legs WHERE status IN ('Pending', 'Live')")
+            pending = self._cur.fetchall()
 
         checked = settled = errors = 0
         live_matches: List[Dict[str, Any]] = []
@@ -724,13 +731,15 @@ class BetAssistant:
                     "minute":     info["minute"],
                 })
 
-        self._conn.commit()
+        with self._lock:
+            self._conn.commit()
         return {"checked": checked, "settled": settled, "live": live_matches, "errors": errors}
 
     def update_leg(self, leg_id: int, status: str) -> None:
         """Manually override a leg outcome ('Won', 'Lost', or 'Pending')."""
-        self._cur.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
-        self._conn.commit()
+        with self._lock:
+            self._cur.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
+            self._conn.commit()
 
     # ── Statistics ────────────────────────────────────────────────────────────
 
@@ -771,18 +780,19 @@ class BetAssistant:
 
     def stats_by_profile(self) -> Dict[str, Dict[str, Any]]:
         """Return the same stats broken down by profile name."""
-        self._cur.execute("""
-            SELECT s.profile, s.total_odds, s.units,
-                CASE
-                    WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
-                    WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
-                    ELSE 'Won'
-                END AS slip_status
-            FROM slips s
-            LEFT JOIN legs l ON s.slip_id = l.slip_id
-            GROUP BY s.slip_id
-            HAVING slip_status IN ('Won', 'Lost')
-        """)
+        with self._lock:
+            self._cur.execute("""
+                SELECT s.profile, s.total_odds, s.units,
+                        CASE
+                            WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
+                            WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
+                        ELSE 'Won'
+                    END AS slip_status
+                FROM slips s
+                LEFT JOIN legs l ON s.slip_id = l.slip_id
+                GROUP BY s.slip_id
+                HAVING slip_status IN ('Won', 'Lost')
+            """)
 
         agg: Dict[str, dict] = defaultdict(
             lambda: {"settled": 0, "won": 0, "stakes": 0.0, "gross": 0.0}
@@ -817,13 +827,14 @@ class BetAssistant:
         where  = "AND s.profile = ?" if (profile and profile != "all") else ""
         params = [profile] if where else []
 
-        self._cur.execute(f"""
-            SELECT l.market_type, l.market, l.status, COUNT(*) AS cnt
-            FROM legs l
-            JOIN slips s ON l.slip_id = s.slip_id
-            WHERE l.status IN ('Won', 'Lost') {where}
-            GROUP BY l.market_type, l.market, l.status
-        """, params)
+        with self._lock:
+            self._cur.execute(f"""
+                SELECT l.market_type, l.market, l.status, COUNT(*) AS cnt
+                FROM legs l
+                JOIN slips s ON l.slip_id = s.slip_id
+                WHERE l.status IN ('Won', 'Lost') {where}
+                GROUP BY l.market_type, l.market, l.status
+            """, params)
 
         return [
             {"market_type": r[0], "market": r[1], "status": r[2], "count": r[3]}
@@ -839,20 +850,21 @@ class BetAssistant:
         where  = "WHERE s.profile = ?" if (profile and profile != "all") else ""
         params = [profile] if where else []
 
-        self._cur.execute(f"""
-            SELECT s.date_generated, s.profile, s.total_odds, s.units,
-                CASE
-                    WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
-                    WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
-                    ELSE 'Won'
-                END AS slip_status
-            FROM slips s
-            LEFT JOIN legs l ON s.slip_id = l.slip_id
-            {where}
-            GROUP BY s.slip_id
-            HAVING slip_status IN ('Won', 'Lost')
-            ORDER BY s.date_generated ASC
-        """, params)
+        with self._lock:
+            self._cur.execute(f"""
+                SELECT s.date_generated, s.profile, s.total_odds, s.units,
+                    CASE
+                        WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
+                        WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
+                        ELSE 'Won'
+                    END AS slip_status
+                FROM slips s
+                LEFT JOIN legs l ON s.slip_id = l.slip_id
+                {where}
+                GROUP BY s.slip_id
+                HAVING slip_status IN ('Won', 'Lost')
+                ORDER BY s.date_generated ASC
+            """, params)
 
         return [
             {"date": r[0], "profile": r[1], "total_odds": r[2],
@@ -913,6 +925,9 @@ class BetAssistant:
     # ── Candidate collection ──────────────────────────────────────────────────
 
     def _collect_candidates(self, cfg: BetSlipConfig) -> List[dict]:
+        # TODO - this wont work unless datetimes are fixed first!
+        # now       = pd.Timestamp.now()
+        # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
         date_from = pd.to_datetime(cfg.date_from) if cfg.date_from else None
         date_to   = (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1)) if cfg.date_to else None
         excluded  = set(cfg.excluded_urls or [])
@@ -924,7 +939,7 @@ class BetAssistant:
                 continue
             if date_to   and row["datetime"] >= date_to:
                 continue
-            if row["result_url"] is None:
+            if not row["result_url"]:
                 continue
             if row["result_url"] in excluded:
                 continue
@@ -940,6 +955,7 @@ class BetAssistant:
                     if prob >= cfg.probability_floor and odds >= cfg.min_odds:
                         candidates.append({
                             "match":       match_name,
+                            "datetime":    row["datetime"],
                             "market":      label,
                             "market_type": m_type,
                             "prob":        prob,
@@ -1004,7 +1020,7 @@ class BetAssistant:
         slips: Dict[int, dict] = {}
 
         for (slip_id, date, profile, total_odds, units,
-             match, market, market_type, odds, status, result_url) in rows:
+             match, dt, market, market_type, odds, status, result_url) in rows:
 
             if slip_id not in slips:
                 slips[slip_id] = {
@@ -1014,12 +1030,13 @@ class BetAssistant:
                     "total_odds":     total_odds,
                     "units":          units,
                     "legs":           [],
-                    "slip_status":    "Won",   # downgraded below as legs are read
+                    "slip_status":    "Won",
                 }
 
             if match:
                 slips[slip_id]["legs"].append({
                     "match_name":  match,
+                    "datetime":    datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S"),
                     "market":      market,
                     "market_type": market_type,
                     "odds":        odds,

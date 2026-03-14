@@ -366,10 +366,10 @@ class MatchesManager:
                 if match.odds is not None:
                     current_odds = self._deserialize_json(found_row.get('odds')) or {}
                     new_odds_map = asdict(match.odds)
-                    # We patch if the EXISTING key is missing or is None (null in JSON)
-                    # and the NEW value is a valid number.
-                    patch = {k: v for k, v in new_odds_map.items()
-                             if (k not in current_odds or current_odds[k] is None) and v is not None}
+                    patch = {
+                        k: v for k, v in new_odds_map.items()
+                        if current_odds.get(k) is None and v is not None
+                    }
                     if patch:
                         updated_odds = {**current_odds, **patch}
                         ser = self._serialize_json(updated_odds)
