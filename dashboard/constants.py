@@ -161,7 +161,7 @@ TABLE_STYLE_CELL = {
 ALL_MARKET_TYPES: List[str] = ["result", "over_under_2.5", "btts"]
 
 # Fields that live in the YAML but are NOT part of BetSlipConfig
-DASHBOARD_ONLY_KEYS = {"units", "run_daily"}
+DASHBOARD_ONLY_KEYS = {"units", "run_daily_count"}
 
 # BetSlipConfig fields that are always None in saved profiles (runtime-only)
 RUNTIME_ONLY_FIELDS = {"date_from", "date_to", "excluded_urls"}
@@ -187,7 +187,7 @@ TOOLTIP_TEXTS: Dict[str, str] = {
     ),
     "probability_floor": (
         "Minimum prediction confidence (%). Picks below this threshold are "
-        "discarded before any scoring. E.g. 55 = only picks where 55 %+ of "
+        "discarded before any scoring. E.g. 50 = only picks where 50 %+ of "
         "historical results agree with the prediction."
     ),
     "min_odds": (

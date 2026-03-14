@@ -57,6 +57,33 @@ def make_tooltip(field_id: str, text: str) -> html.Span:
                            "whiteSpace": "pre-wrap"}),
     ])
 
+def status_msg(msg: str, color: str = "success") -> html.Span:
+    """Generic inline status message — pass any string, pick a Bootstrap color."""
+    return html.Span(msg, className=f"text-{color} ms-2", style={"fontSize": "0.8rem"})
+
+
+def alert_msg(msg: str, color: str = "info") -> dbc.Alert:
+    """Generic dismissable alert — pass any string, pick a Bootstrap color."""
+    return dbc.Alert(msg, color=color, dismissable=True)
+
+
+def render_excluded_badge(url: str, label: str) -> dbc.Badge:
+    return dbc.Badge(
+        [label, html.Span(" ✕", style={"cursor": "pointer"})],
+        id={"type": "exclude-remove-btn", "index": url},
+        color="danger", className="me-1 mb-1",
+        style={"fontSize": "0.75rem"},
+        n_clicks=0,
+    )
+
+
+def render_service_row(name: str, svc: Any) -> dbc.Row:
+    color  = "success" if svc.is_alive() else "danger"
+    status = "Running" if svc.is_alive() else "Stopped"
+    return dbc.Row([
+        dbc.Col(html.Span(name.upper(), className="fw-bold small"), width=4),
+        dbc.Col(dbc.Badge(status, color=color), width=2),
+    ], className="mb-2 align-items-center")
 
 def make_labeled_row(label: str, field_id: str, control: Any) -> dbc.Row:
     """Label + (?) icon on the left, control on the right."""
@@ -117,6 +144,20 @@ def build_config_section(title: str, icon: str, children: list) -> dbc.Card:
 # ─────────────────────────────────────────────────────────────────────────────
 # Builder panel
 # ─────────────────────────────────────────────────────────────────────────────
+def _balance_slider(slider_id, left_label, right_label, value=50):
+    return html.Div([
+        dcc.Slider(
+            id=slider_id,
+            min=0, max=100, step=5, value=value,
+            marks={
+                0:   {"label": left_label,  "style": {"fontSize": FONT_SIZE_XS, "color": COLORS["muted"], "whiteSpace": "nowrap"}},
+                50:  {"label": "▪",         "style": {"fontSize": "10px",       "color": COLORS["muted"]}},
+                100: {"label": right_label, "style": {"fontSize": FONT_SIZE_XS, "color": COLORS["muted"], "whiteSpace": "nowrap"}},
+            },
+            tooltip={"always_visible": False},   # hide number
+            className="mb-0",
+        ),
+    ], style={"paddingLeft": "8px", "paddingRight": "8px"})
 
 def build_builder_panel() -> html.Div:
     """Full configuration panel for the Smart Builder tab."""
@@ -141,8 +182,8 @@ def build_builder_panel() -> html.Div:
 
     quality_section = build_config_section("Quality Gate", "fa-filter", [
         make_labeled_row("Probability Floor", "probability_floor",
-            dcc.Slider(id="b-prob-floor", min=0, max=100, step=1, value=55,
-                       marks={0: "0%", 50: "50%", 75: "75%", 100: "100%"},
+            dcc.Slider(id="b-prob-floor", min=50, max=100, step=1, value=50,
+                       marks={50: "50%", 60: "60%", 70: "70%", 80: "80%", 90: "90%", 100: "100%"},
                        tooltip={"placement": "bottom", "always_visible": True})),
         make_labeled_row("Min Odds", "min_odds",
             dbc.Input(id="b-min-odds", type="number",
@@ -195,46 +236,38 @@ def build_builder_panel() -> html.Div:
         ),
         make_labeled_row("Min Legs Fill Ratio", "min_legs_fill_ratio",
             dcc.Slider(id="b-fill-ratio", min=50, max=100, step=5, value=70,
-                       marks={50: "50%", 70: "70%", 100: "100%"},
+                       marks={50: "50%", 60: "60%", 70: "70%", 80: "80%", 90: "90%", 100: "100%"},
                        tooltip={"placement": "bottom", "always_visible": True})),
     ])
 
     scoring_section = build_config_section("Scoring", "fa-sliders-h", [
-        make_labeled_row("Quality vs Balance", "quality_vs_balance",
-            html.Div([
-                html.Div([
-                    html.Small("← Balance", className="text-muted",
-                               style={"fontSize": FONT_SIZE_XS}),
-                    html.Small("Quality →", className="text-muted float-end",
-                               style={"fontSize": FONT_SIZE_XS}),
-                ]),
-                dcc.Slider(id="b-quality-vs-balance", min=0, max=100, step=5, value=50,
-                           marks={0: "0", 50: "50", 100: "100"},
-                           tooltip={"placement": "bottom", "always_visible": True}),
-            ])),
-        make_labeled_row("Prob vs Sources", "prob_vs_sources",
-            html.Div([
-                html.Div([
-                    html.Small("← Sources", className="text-muted",
-                               style={"fontSize": FONT_SIZE_XS}),
-                    html.Small("Prob →", className="text-muted float-end",
-                               style={"fontSize": FONT_SIZE_XS}),
-                ]),
-                dcc.Slider(id="b-prob-vs-sources", min=0, max=100, step=5, value=50,
-                           marks={0: "0", 50: "50", 100: "100"},
-                           tooltip={"placement": "bottom", "always_visible": True}),
-            ])),
+        make_labeled_row("Balance vs Quality", "quality_vs_balance",
+            _balance_slider("b-quality-vs-balance", "Balance", "Quality")),
+        make_labeled_row("Sources vs Probability", "prob_vs_sources",
+            _balance_slider("b-prob-vs-sources", "Sources", "Probability")),
     ])
 
     return html.Div([shape_section, quality_section, markets_section,
                      tol_section, scoring_section])
 
+def render_profile_pills(profiles: dict) -> list:
+    pills = [
+        dbc.Badge(
+            name.upper(),
+            id={"type": "profile-pill", "index": name},
+            color="primary",
+            className="me-1 mb-1",
+            style={"cursor": "pointer", "fontSize": FONT_SIZE_SM},
+        )
+        for name in profiles
+    ]
+    return pills if pills else [html.Small("No saved profiles yet.", className="text-muted")]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Bet preview
 # ─────────────────────────────────────────────────────────────────────────────
 
-def render_bet_preview(selections: list) -> html.Div:
+def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
     """
     Render the bet-slip preview from the flat list returned by build_slip().
     Each item: {match, market, market_type, prob, odds, result_url, sources, tier, score}
@@ -268,8 +301,8 @@ def render_bet_preview(selections: list) -> html.Div:
 
     cards = []
     for pick in selections:
-        conf       = pick["prob"]
-        conf_color = "success" if conf >= 80 else "warning" if conf >= 60 else "danger"
+        consensus       = pick["prob"]
+        consensus_color = "success" if consensus >= 80 else "warning" if consensus >= 60 else "danger"
         tier       = pick.get("tier", 1)
         score      = pick.get("score", 0.0)
 
@@ -284,14 +317,26 @@ def render_bet_preview(selections: list) -> html.Div:
             color="light", text_color="dark",
             style={"fontSize": FONT_SIZE_XS},
         )
-
+        is_duplicate = pending_urls and pick["result_url"] in pending_urls
         card = dbc.Col(
             dbc.Card([
                 dbc.CardBody([
+                    dbc.Alert(
+                        [html.I(className="fas fa-exclamation-triangle me-1"),
+                        "Already in a pending slip"],
+                        color="warning", className="py-1 px-2 mb-2",
+                        style={"fontSize": FONT_SIZE_XS},
+                    ) if is_duplicate else None,
                     dbc.Row([
                         dbc.Col(
-                            html.H6(pick["match"], className="fw-bold text-dark mb-0",
-                                    style={"fontSize": "0.95rem"}),
+                            html.Div([
+                                html.H6(pick["match"], className="fw-bold text-dark mb-0",
+                                        style={"fontSize": "0.95rem"}),
+                                html.Small(
+                                    pick["datetime"].strftime("%a %d %b, %H:%M") if pd.notna(pick["datetime"]) else "",
+                                    className="text-muted",
+                                    style={"fontSize": FONT_SIZE_XS}),
+                            ]),
                             width=10,
                         ),
                         dbc.Col(
@@ -315,12 +360,12 @@ def render_bet_preview(selections: list) -> html.Div:
                         ),
                     ], className="align-items-center mb-2"),
 
-                    dbc.Progress(value=conf, color=conf_color,
+                    dbc.Progress(value=consensus, color=consensus_color,
                                  style={"height": "6px"}, className="rounded-pill mb-1"),
 
                     html.Div([
-                        html.Small(f"Conf: {conf}%",
-                                   className=f"fw-bold text-{conf_color} me-2",
+                        html.Small(f"Consensus: {consensus}%",
+                                   className=f"fw-bold text-{consensus_color} me-2",
                                    style={"fontSize": FONT_SIZE_XS}),
                         html.Small(f"Sources: {pick.get('sources', 0)}",
                                    className="text-muted me-2",
@@ -330,7 +375,9 @@ def render_bet_preview(selections: list) -> html.Div:
                     ], className="d-flex align-items-center flex-wrap"),
                 ], className="p-2"),
             ], className="shadow-sm border-0 rounded-3 h-100",
-               style={"backgroundColor": COLORS["bg_light"]}),
+               style={"backgroundColor": COLORS["bg_light"],
+                      "border": f"2px solid {COLORS['warning']} !important"   # highlight border
+                      if is_duplicate else {}}),
             xs=12, lg=6, className="mb-3",
         )
         cards.append(card)
@@ -423,20 +470,21 @@ def render_slip_card(
                     )
                 )
 
-        match_cell = html.Span([
-            html.A(
-                leg["match_name"],
-                href=leg["result_url"],
-                target="_blank",
-                className="fw-medium text-decoration-none",
-                style={
-                    "fontSize": FONT_SIZE_MD,
-                    "color":    COLORS["accent"],
-                    "cursor":   "pointer",
-                },
-            ),
-            *live_badges,
-        ], className="d-flex align-items-center flex-wrap gap-1")
+        match_cell = html.Div([
+            html.Div([
+                html.A(
+                    leg["match_name"],
+                    href=leg["result_url"],
+                    target="_blank",
+                    className="fw-medium text-decoration-none",
+                    style={"fontSize": FONT_SIZE_MD, "color": COLORS["accent"]},
+                ),
+                *live_badges,
+            ], className="d-flex align-items-center flex-wrap gap-1"),
+            html.Small(leg["datetime"].strftime("%a %d %b, %H:%M") if pd.notna(leg["datetime"]) else "",
+                    className="text-muted",
+                    style={"fontSize": FONT_SIZE_XS}),
+        ])
 
         leg_rows.append(
             dbc.Row([
@@ -444,25 +492,37 @@ def render_slip_card(
                         width=1, className="text-center"),
                 dbc.Col(match_cell, width=6),
                 dbc.Col(html.Span(leg["market"],
-                                  style={"fontSize": "0.8rem"}), width=3),
+                                style={"fontSize": "0.8rem"}), width=3),
                 dbc.Col(html.Span(f"@{leg['odds']:.2f}",
-                                  className="fw-bold text-end",
-                                  style={"fontSize": FONT_SIZE_MD}),
+                                className="fw-bold text-end",
+                                style={"fontSize": FONT_SIZE_MD}),
                         width=2, className="text-end"),
             ], className="py-2 border-bottom align-items-center g-0")
         )
-
+    all_pending = all(leg["status"] == "Pending" for leg in slip["legs"])
     return dbc.Card([
         dbc.CardHeader([
             dbc.Row([
-                dbc.Col(html.Strong(f"Date: {slip['date_generated']}"), width=4),
+                dbc.Col(html.Strong(f"Date: {slip['date_generated']}"), width=3),
                 dbc.Col(html.Span(f"Profile: {slip['profile'].upper()}",
-                                  className="fw-bold"), width=3),
+                                className="fw-bold"), width=3),
+                dbc.Col(html.Span(f"Units: {slip['units']}",
+                                className="fw-bold text-info"),
+                        width=1),
                 dbc.Col(html.Span(f"Total Odds: @{slip['total_odds']:.2f}",
-                                  className="fw-bold"),
-                        width=3, className="text-end"),
+                                className="fw-bold"),
+                        width=2, className="text-end"),
                 dbc.Col(dbc.Badge(slip["slip_status"], color=badge_col,
-                                  className="float-end"), width=2),
+                                className="float-end"), width=1),
+                dbc.Col(
+                    dbc.Button(
+                        html.I(className="fas fa-trash-alt"),
+                        id={"type": "delete-slip-btn", "index": slip["slip_id"]},
+                        color="danger", size="sm", outline=True,
+                        className="float-end p-1 border-0",
+                    ) if all_pending else None,
+                    width=1,
+                ),
             ], className="align-items-center"),
         ], style={"backgroundColor": hdr_bg}, className="border-bottom-0"),
         dbc.CardBody(leg_rows, className="p-2"),
@@ -558,14 +618,14 @@ def create_tips_table(df: pd.DataFrame) -> Any:
     d["btts_y_d"] = d.apply(lambda r: fmt(r.prob_btts_yes, r.odds_btts_yes), axis=1)
     d["btts_n_d"] = d.apply(lambda r: fmt(r.prob_btts_no,  r.odds_btts_no),  axis=1)
 
-    show = d[["match_id", "datetime_str", "home", "away", "sources",
+    show = d[["match_id", "datetime", "home", "away", "sources",
               "prob_home",    "home_d",
               "prob_draw",    "draw_d",
               "prob_away",    "away_d",
               "prob_over",    "over_d",
               "prob_under",   "under_d",
               "prob_btts_yes","btts_y_d",
-              "prob_btts_no", "btts_n_d"]].rename(columns={"datetime_str": "datetime"})
+              "prob_btts_no", "btts_n_d"]]
 
     return dash_table.DataTable(
         id={"type": "match-table", "index": "tips"},

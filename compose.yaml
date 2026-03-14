@@ -1,5 +1,4 @@
 services:
-  # 1. THE DASHBOARD (Your App)
   bet-dashboard:
     image: ghcr.io/rotarurazvan07/bet-assistant:latest
     container_name: bet-dashboard
@@ -17,40 +16,6 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
 
-  # 2. THE MANAGER (Handles the dirty work)
-  bet-manager:
-    image: ghcr.io/rotarurazvan07/bet-assistant:latest
-    container_name: bet-manager
-    restart: always
-    environment:
-      - GH_TOKEN=<GH_TOKEN_HERE>
-      - REPO=rotarurazvan07/bet-assistant
-      - ARTIFACT_NAME=all-matches-combined-db
-    # Sits idle, waiting for Ofelia
-    command: tail -f /dev/null
-    volumes:
-      - ./data:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock # Required to control the dashboard
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.scope=bet-stack"
-      # THE JOB: Stop -> Download -> Start (Using curl to avoid installing Docker CLI)
-      - "ofelia.enabled=true"
-      - "ofelia.job-exec.daily-sync.schedule=0 30 10 * * *"
-      - "ofelia.job-exec.daily-sync.command=sh -c 'curl --unix-socket /var/run/docker.sock -X POST http://localhost/containers/bet-dashboard/stop && rm -f /app/data/final_matches.db* && gh run download -R $$REPO -n $$ARTIFACT_NAME --dir /app/data && python -m main --mode \"validate-slips\" --db_path \"/app/data/slips.db\" && python -m main --mode \"generate-slips\" --db_path \"/app/data/final_matches.db\" && curl --unix-socket /var/run/docker.sock -X POST http://localhost/containers/bet-dashboard/start'"
-
-# 3. THE SCHEDULER
-  bet-scheduler:
-    image: mcuadros/ofelia:latest
-    environment:
-      - TZ=Europe/Bucharest
-    container_name: bet-scheduler
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: daemon --docker --docker-filter "name=bet-manager"
-
-  # 4. THE UPDATER
   bet-updater:
     image: containrrr/watchtower:1.7.1
     platform: linux/arm64

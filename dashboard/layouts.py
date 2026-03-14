@@ -12,32 +12,8 @@ from __future__ import annotations
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
-from dashboard.components import build_builder_panel
+from dashboard.components import build_builder_panel, make_tooltip
 from dashboard.constants import COLORS, RADIUS_LG, SHADOW_LG, STYLE_HEADER_GRADIENT
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Shared card wrapper
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _chart_section(icon_cls: str, title: str, content_id: str,
-                   col_size: int = 12) -> dbc.Col:
-    """A titled card containing a placeholder for chart content."""
-    return dbc.Col(
-        dbc.Card([
-            dbc.CardHeader(
-                html.Small([html.I(className=f"fas {icon_cls} me-2"), title],
-                           className="fw-bold text-uppercase text-muted"),
-                className="bg-transparent border-0 py-2 px-3",
-            ),
-            dbc.CardBody(
-                html.Div(id=f"analytics-{content_id}"),
-                className="pt-0 px-2 pb-2",
-            ),
-        ], className="shadow-sm border-0 rounded-3 h-100"),
-        lg=col_size, className="mb-3",
-    )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Tips tab
@@ -63,7 +39,16 @@ def builder_tab_layout() -> html.Div:
                                    className="fw-bold text-uppercase text-muted"),
                         className="bg-transparent border-0 py-2 px-3",
                     ),
-                    dbc.CardBody(build_builder_panel(), className="pt-0 px-3 pb-3"),
+                    dbc.CardBody([
+                        # Profile pills
+                        html.Div([
+                            html.Small("PROFILES", className="fw-bold text-muted d-block mb-1",
+                                       style={"fontSize": "0.65rem"}),
+                            html.Div(id="profile-pills", className="d-flex flex-wrap mb-3"),
+                        ]),
+                        html.Hr(className="my-2"),
+                        build_builder_panel(),
+                    ], className="pt-0 px-3 pb-3"),
                 ], className="shadow-sm border-0 rounded-3 h-100"),
             ], lg=4, className="mb-3"),
 
@@ -72,50 +57,62 @@ def builder_tab_layout() -> html.Div:
                 dbc.Card([
                     dbc.CardBody([
                         dbc.Row([
-                            # Save profile
                             dbc.Col([
                                 dbc.InputGroup([
-                                    dbc.InputGroupText(html.I(className="fas fa-save")),
-                                    dbc.Input(id="builder-profile-name",
-                                              placeholder="Profile name…", size="sm"),
-                                    dbc.Button("Save Profile",
-                                               id="save-profile-btn",
-                                               color="primary", size="sm"),
-                                ], className="shadow-sm"),
-                            ], lg=5, className="mb-2 mb-lg-0"),
-
-                            # Load profile
-                            dbc.Col([
-                                dbc.InputGroup([
-                                    dbc.InputGroupText("Load"),
-                                    dbc.Select(id="builder-profile-selector",
-                                               options=[], size="sm"),
+                                    dbc.InputGroupText(html.I(className="fas fa-user-tag")),
+                                    dbc.Input(
+                                        id="builder-profile-name",
+                                        placeholder="manual",
+                                        value="manual",
+                                        size="sm",
+                                    ),
+                                    dbc.Button("Save", id="btn-save-profile", color="primary", size="sm"),
+                                    dbc.Button("Delete", id="btn-delete-profile", color="danger",  size="sm"),
                                 ], className="shadow-sm"),
                             ], lg=4, className="mb-2 mb-lg-0"),
 
-                            # Add to slips
                             dbc.Col([
-                                dbc.InputGroup([
-                                    dbc.InputGroupText("Units"),
-                                    dbc.Input(id="builder-units", type="number",
-                                              value=1.0, min=0.1, step=0.1, size="sm",
-                                              style={"maxWidth": "70px"}),
-                                    dbc.Button([
-                                        html.I(className="fas fa-plus-circle me-1"),
-                                        "Add to Slips",
-                                    ], id="btn-add-manual-slip",
-                                       color="success", size="sm",
-                                       className="fw-bold"),
-                                ], className="shadow-sm"),
-                            ], lg=3),
+                                dbc.Row([
+                                    dbc.Col([
+                                        dbc.InputGroup([
+                                            dbc.InputGroupText("Units"),
+                                            dbc.Input(id="builder-units", type="number",
+                                                    value=1.0, min=0.1, step=0.1, size="sm",
+                                                    style={"maxWidth": "70px"}),
+                                            dbc.Button(
+                                                [html.I(className="fas fa-plus-circle me-1"), "Add to Slips"],
+                                                id="btn-add-manual-slip", color="success", size="sm", className="fw-bold",
+                                            ),
+                                            dbc.Button(
+                                                [html.I(className="fas fa-undo me-1"), "Reset excluded"],
+                                                id="btn-reset-excluded", color="outline-secondary", size="sm",
+                                            ),
+                                        ], className="shadow-sm"),
+                                    ], width="auto"),
+
+                                    dbc.Col([
+                                        html.Div([
+                                            html.Small("RUN DAILY", className="text-muted fw-bold d-block",
+                                                    style={"fontSize": "0.6rem", "letterSpacing": "0.5px"}),
+                                            dbc.Input(
+                                                id="builder-run-daily",
+                                                type="number",
+                                                value=0, min=0, step=1,
+                                                size="sm",
+                                                style={"maxWidth": "70px"},
+                                                className="mt-1",
+                                            ),
+                                        ], className="d-flex flex-column align-items-center px-2 border-start"),
+                                    ], width="auto", className="d-flex align-items-center"),
+                                ], className="g-2 align-items-center flex-nowrap"),
+                            ], lg=8),
+
                         ], className="g-2 align-items-center"),
                     ], className="py-2 px-3"),
                 ], className="shadow-sm border-0 rounded-3 mb-3"),
 
-                # Status message
                 html.Div(id="builder-status-msg", className="mb-2"),
 
-                # Preview card
                 dbc.Card([
                     dbc.CardHeader(
                         html.Small([html.I(className="fas fa-eye me-2 text-primary"),
@@ -129,10 +126,23 @@ def builder_tab_layout() -> html.Div:
                         className="pt-0 px-3 pb-3",
                     ),
                 ], className="shadow-sm border-0 rounded-3"),
+
+                dbc.Collapse(
+                    dbc.Card([
+                        dbc.CardHeader(
+                            html.Small([html.I(className="fas fa-ban me-2 text-danger"),
+                                        "Excluded Matches"],
+                                    className="fw-bold text-uppercase text-muted"),
+                            className="bg-transparent border-0 py-2 px-3",
+                        ),
+                        dbc.CardBody(html.Div(id="excluded-matches-list"), className="pt-0 px-3 pb-2"),
+                    ], className="shadow-sm border-0 rounded-3 mt-3"),
+                    id="excluded-collapse",
+                    is_open=False,
+                ),
             ], lg=8),
         ], className="g-3 mt-2"),
     ], className="p-3")
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Slips tab
@@ -174,75 +184,63 @@ def slips_tab_layout() -> html.Div:
         html.Div(id="historic-slips-container"),
     ], className="p-3")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Profiles tab
-# ─────────────────────────────────────────────────────────────────────────────
-
-def profiles_tab_layout() -> html.Div:
+def services_tab_layout() -> html.Div:
     return html.Div([
+        html.H5("Automation Services", className="fw-bold mb-4"),
         dbc.Row([
-            dbc.Col(html.H5("Betting Strategies", className="mb-0 fw-bold"), width=8),
-            dbc.Col(
-                dbc.Button([html.I(className="fas fa-plus me-2"), "Add Profile"],
-                           id="add-profile-btn", color="primary", size="sm",
-                           className="float-end shadow-sm"),
-                width=4,
-            ),
-        ], className="mb-4 align-items-center"),
-
-        dbc.Row(id="profiles-container", className="g-3"),
-
-        html.Div([
-            dbc.Button([html.I(className="fas fa-save me-2"), "Save All Profiles"],
-                       id="save-config-btn", color="success",
-                       className="shadow-sm px-4 mt-4"),
-            html.Span(id="save-config-status", className="ms-3 fw-bold"),
-        ], className="text-start"),
-    ], className="p-4")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Analytics tab
-# ─────────────────────────────────────────────────────────────────────────────
-
-def analytics_tab_layout() -> html.Div:
-    return html.Div([
-        # Filter bar
-        dbc.Row([
-            dbc.Col(
-                dbc.InputGroup([
-                    dbc.InputGroupText(html.I(className="fas fa-filter text-primary")),
-                    dbc.Select(
-                        id="analytics-profile-filter",
-                        options=[{"label": "📊 All Profiles", "value": "all"}],
-                        value="all", size="sm",
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader(
+                        html.Small([html.I(className="fas fa-clock me-2 text-primary"),
+                                    "Scheduled Tasks"],
+                                   className="fw-bold text-uppercase text-muted"),
+                        className="bg-transparent border-0 py-2 px-3",
                     ),
-                ], className="shadow-sm", style={"width": "260px"}),
-                className="d-flex align-items-center",
-            ),
-        ], className="mb-3"),
+                    dbc.CardBody([
+                        html.Small(["Pull DB", make_tooltip("pull-hour",
+                            "Hour when the app pulls the latest match database from GitHub.")],
+                            className="fw-bold text-muted mb-1 d-block"),
+                        dcc.Slider(id="svc-pull-hour", min=0, max=23, step=1, value=6,
+                                   marks={h: str(h) for h in range(0, 24, 3)},
+                                   tooltip={"placement": "bottom", "always_visible": True},
+                                   className="mb-4"),
 
-        # Row 1: Running Balance (full width)
-        dbc.Row([_chart_section("fa-chart-line text-primary",
-                                "Running Balance", "balance-chart", 12)]),
+                        html.Small(["Generate Slips", make_tooltip("gen-hour",
+                            "Hour when the app auto-generates bet slips for all active profiles.")],
+                            className="fw-bold text-muted mb-1 d-block"),
+                        dcc.Slider(id="svc-generate-hour", min=0, max=23, step=1, value=8,
+                                   marks={h: str(h) for h in range(0, 24, 3)},
+                                   tooltip={"placement": "bottom", "always_visible": True},
+                                   className="mb-4"),
 
-        # Row 2: Profile ROI | Market Accuracy
-        dbc.Row([
-            _chart_section("fa-users text-success",  "ROI by Profile",  "profile-chart", 5),
-            _chart_section("fa-tags text-warning",   "Market Accuracy", "market-chart",  7),
+                        html.Hr(),
+
+                        dbc.Button(
+                            [html.I(className="fas fa-save me-2"), "Save Settings"],
+                            id="btn-save-services", color="primary", size="sm",
+                            className="shadow-sm",
+                        ),
+                        html.Span(id="svc-save-status", className="ms-3 small fw-bold"),
+                    ], className="px-3 pb-3"),
+                ], className="shadow-sm border-0 rounded-3"),
+            ], lg=5),
+
+            dbc.Col([
+                dbc.Card([
+                    dbc.CardHeader(
+                        html.Small([html.I(className="fas fa-heartbeat me-2 text-success"),
+                                    "Service Status"],
+                                   className="fw-bold text-uppercase text-muted"),
+                        className="bg-transparent border-0 py-2 px-3",
+                    ),
+                    dbc.CardBody(
+                        html.Div(id="svc-status-container"),
+                        className="px-3 pb-3",
+                    ),
+                ], className="shadow-sm border-0 rounded-3"),
+            ], lg=7),
         ], className="g-3"),
-
-        # Row 3: Source Reliability
-        dbc.Row([
-            _chart_section(
-                "fa-database text-info",
-                "Source Reliability — does more data coverage actually mean more wins?",
-                "source-chart", 12,
-            ),
-        ]),
-    ], className="p-3")
-
+    ], className="p-4")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Full page layout
@@ -256,7 +254,10 @@ def build_main_layout() -> dbc.Container:
         dcc.Store(id="matches-data-store"),
         dcc.Store(id="builder-last-selections",  data=[]),
         dcc.Store(id="live-matches-store",       data={}),   # match_name → {score, minute}
-
+        dcc.Store(id="profiles-updated-store", data=0),
+        dcc.Store(id="svc-verify-trigger",  data=0),
+        dcc.Store(id="svc-generate-trigger", data=0),
+        dcc.Interval(id="svc-poll-interval", interval=5000, n_intervals=0),  # 5s poll
         # ── Header ──────────────────────────────────────────────────────────
         dbc.Row([
             dbc.Col([
@@ -334,11 +335,8 @@ def build_main_layout() -> dbc.Container:
                     dbc.Tab(slips_tab_layout(),
                             label="Slips",         tab_id="tab-historic",
                             labelClassName="px-4 fw-bold"),
-                    dbc.Tab(profiles_tab_layout(),
-                            label="Profiles",      tab_id="tab-profiles",
-                            labelClassName="px-4 fw-bold"),
-                    dbc.Tab(analytics_tab_layout(),
-                            label="Analytics",     tab_id="tab-analytics",
+                    dbc.Tab(services_tab_layout(),
+                            label="Services", tab_id="tab-services",
                             labelClassName="px-4 fw-bold"),
                 ], className="nav-pills custom-tabs"),
             ], className="p-4"),

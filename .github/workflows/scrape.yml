@@ -35,7 +35,7 @@ jobs:
           pip install -r requirements-scrape.txt
           scrapling install
       - name: Run Scraper
-        run: python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
+        run: python main.py --mode "scrape" --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -55,7 +55,7 @@ jobs:
             python3 -m venv venv
           fi
           source venv/bin/activate
-          pip install -r requirements-scrape.txt --no-cache-dir 
+          pip install -r requirements-scrape.txt --no-cache-dir
           scrapling install
       - name: Generate Matrix
         id: set-matrix
@@ -77,10 +77,10 @@ jobs:
             python3 -m venv venv
           fi
           source venv/bin/activate
-          pip install -r requirements-scrape.txt --no-cache-dir 
+          pip install -r requirements-scrape.txt --no-cache-dir
           scrapling install
       - name: Run Scraper
-        run: ./venv/bin/python main.py --mode "scrape" --db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
+        run: ./venv/bin/python main.py --mode "scrape" --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -107,7 +107,7 @@ jobs:
         run: |
           pip install -r requirements-scrape.txt
       - name: Merge Databases
-        run: python main.py --mode merge --chunks_dir "." --db_path "final_matches.db"
+        run: python main.py --mode merge --chunks_dir "." --matches_db_path "final_matches.db"
       - name: Upload Final Database
         uses: actions/upload-artifact@v4
         with:

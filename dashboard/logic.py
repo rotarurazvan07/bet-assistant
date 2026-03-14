@@ -96,11 +96,13 @@ class DashboardLogic:
         profiles : {profile_name: (BetSlipConfig, units)}
         """
         results = {}
-        for name, (cfg, units) in profiles.items():
-            legs = self._assistant.build_slip_auto_exclude(cfg)
-            if legs:
-                slip_id       = self._assistant.save_slip(name, legs, units)
-                results[name] = {"slip_id": slip_id, "legs": len(legs)}
+        for name, (cfg, units, count) in profiles.items():
+            for _ in range(count):
+                legs = self._assistant.build_slip_auto_exclude(cfg)
+                if legs:
+                    slip_id       = self._assistant.save_slip(name, legs, units)
+                    results[name] = results.get(name, [])
+                    results[name].append(slip_id)
         return results
 
     # ── Slip persistence ──────────────────────────────────────────────────────
@@ -142,6 +144,20 @@ class DashboardLogic:
             slip_status, legs: [{match_name, market, market_type, odds, status, result_url}]
         """
         return self._assistant.get_slips(profile)
+
+    def get_pending_urls(self) -> set:
+        """result_urls already present in pending/live slip legs."""
+        slips = self.get_slips()
+        urls  = set()
+        for slip in slips:
+            if slip["slip_status"] == "Pending":
+                for leg in slip["legs"]:
+                    if leg["status"] in ("Pending", "Live"):
+                        urls.add(leg["result_url"])
+        return urls
+
+    def delete_slip(self, slip_id: int) -> None:
+        self._assistant.delete_slip(slip_id)
 
     # ── Statistics ────────────────────────────────────────────────────────────
 
