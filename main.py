@@ -36,22 +36,25 @@ from bet_framework.SettingsManager import SettingsManager
 # ─────────────────────────────────────────────────────────────────────────────
 
 _CRAWLER_KEYS = {
-    "scorepredictor": lambda: _import("bet_crawler.ScorePredictorFinder", "ScorePredictorFinder"),
-    "soccervista":    lambda: _import("bet_crawler.SoccerVistaFinder",    "SoccerVistaFinder"),
-    "whoscored":      lambda: _import("bet_crawler.WhoScoredFinder",      "WhoScoredFinder"),
-    "windrawwin":     lambda: _import("bet_crawler.WinDrawWinFinder",     "WinDrawWinFinder"),
-    "forebet":        lambda: _import("bet_crawler.ForebetFinder",        "ForebetFinder"),
-    "vitibet":        lambda: _import("bet_crawler.VitibetFinder",        "VitibetFinder"),
-    "predictz":       lambda: _import("bet_crawler.PredictzFinder",       "PredictzFinder"),
+    "scorepredictor":        lambda: _import("bet_crawler.ScorePredictorFinder", "ScorePredictorFinder"),
+    "soccervista":           lambda: _import("bet_crawler.SoccerVistaFinder",    "SoccerVistaFinder"),
+    "whoscored":             lambda: _import("bet_crawler.WhoScoredFinder",      "WhoScoredFinder"),
+    "windrawwin":            lambda: _import("bet_crawler.WinDrawWinFinder",     "WinDrawWinFinder"),
+    "forebet":               lambda: _import("bet_crawler.ForebetFinder",        "ForebetFinder"),
+    "vitibet":               lambda: _import("bet_crawler.VitibetFinder",        "VitibetFinder"),
+    "predictz":              lambda: _import("bet_crawler.PredictzFinder",       "PredictzFinder"),
+    "onemillionpredictions": lambda: _import("bet_crawler.OneMillionPredictionsFinder", "OneMillionPredictionsFinder"),
+    "footballbettingtips":   lambda: _import("bet_crawler.FootballBettingTipsFinder", "FootballBettingTipsFinder"),
 }
 
 _RUNNER_SETS = {
-    "actions": ["vitibet", "scorepredictor", "predictz", "soccervista", "windrawwin"],
-    "local":   ["whoscored", "forebet"],
+    "actions": ["vitibet", "scorepredictor", "predictz", "soccervista", "windrawwin", "onemillionpredictions"],
+    "local":   ["whoscored", "forebet", "footballbettingtips"],
     "all":     list(_CRAWLER_KEYS.keys()),
+    "test":    ["footballbettingtips"],
 }
 
-MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1}
+MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
 
 _BETSLIP_FIELDS  = {f.name for f in _dc_fields(BetSlipConfig)}
 _RUNTIME_FIELDS  = {"date_from", "date_to", "excluded_urls"}

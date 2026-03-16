@@ -5,3 +5,5 @@ beautifulsoup4
 pandas
 scrapling[fetchers]
 rapidfuzz
+waitress
+flask-compress

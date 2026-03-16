@@ -4,10 +4,8 @@ services:
     container_name: bet-dashboard
     restart: always
     environment:
-      - GH_TOKEN=<GH_TOKEN_HERE>
       - REPO=rotarurazvan07/bet-assistant
-      - ARTIFACT_NAME=all-matches-combined-db
-    command: python -u -m dashboard /app/data/final_matches.db
+    command: python -m dashboard.app --matches_db_path /app/data/final_matches.db --slips_db_path /app/data/slips.db --config_path /app/config --no-debug
     ports:
       - "8050:8050"
     volumes:

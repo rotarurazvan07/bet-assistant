@@ -242,6 +242,44 @@ def services_tab_layout() -> html.Div:
         ], className="g-3"),
     ], className="p-4")
 
+def analytics_tab_layout() -> html.Div:
+    return html.Div([
+        dbc.Row([
+            dbc.Col([
+                dbc.InputGroup([
+                    dbc.InputGroupText("Filter Profile:"),
+                    dbc.Select(
+                        id="analytics-profile-filter",
+                        options=[{"label": "📊 All Profiles", "value": "all"}],
+                        value="all", size="sm",
+                    ),
+                ], className="shadow-sm", style={"width": "250px"}),
+            ]),
+        ], className="mb-4"),
+
+        html.H4([html.I(className="fas fa-history me-2 text-primary"), "History Tracking"],
+                className="fw-bold mb-3 mt-2"),
+        dbc.Row([
+            dbc.Col(html.Div(id="ana-history-1"), lg=6, className="mb-3"),
+            dbc.Col(html.Div(id="ana-history-2"), lg=6, className="mb-3"),
+            dbc.Col(html.Div(id="ana-history-3"), lg=6, className="mb-3"),
+            dbc.Col(html.Div(id="ana-history-4"), lg=6, className="mb-3"),
+        ]),
+
+        html.Hr(className="my-5"),
+        html.H4([html.I(className="fas fa-bullseye me-2 text-success"), "Market Statistics"],
+                className="fw-bold mb-3"),
+        html.Div(id="ana-market-accuracy", className="mb-5"),
+
+        html.Hr(className="my-5"),
+        html.H4([html.I(className="fas fa-project-diagram me-2 text-warning"), "Correlation Analysis"],
+                className="fw-bold mb-3"),
+        dbc.Row([
+            dbc.Col(html.Div(id="ana-correlation-1"), lg=6, className="mb-3"),
+            dbc.Col(html.Div(id="ana-correlation-2"), lg=6, className="mb-3"),
+        ]),
+    ], className="p-3")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Full page layout
 # ─────────────────────────────────────────────────────────────────────────────
@@ -251,41 +289,63 @@ def build_main_layout() -> dbc.Container:
     return dbc.Container([
         # Stores
         dcc.Store(id="excluded-urls-store",      data=[]),
-        dcc.Store(id="matches-data-store"),
+        dcc.Store(id="matches-data-store",       data=0),        # version trigger only
         dcc.Store(id="builder-last-selections",  data=[]),
-        dcc.Store(id="live-matches-store",       data={}),   # match_name → {score, minute}
-        dcc.Store(id="profiles-updated-store", data=0),
-        dcc.Store(id="svc-verify-trigger",  data=0),
-        dcc.Store(id="svc-generate-trigger", data=0),
-        dcc.Store(id="svc-pull-trigger",     data=0),
-        dcc.Interval(id="svc-poll-interval", interval=5000, n_intervals=0),  # 5s poll
+        dcc.Store(id="live-matches-store",       data={}),       # match_name → {score, minute}
+        dcc.Store(id="profiles-updated-store",   data=0),
+        dcc.Store(id="server-version-store",     data=0),        # tracks logic.version
+        dcc.Store(id="session-init-trigger",    data=1),        # fires once on load
+        dcc.Interval(id="svc-poll-interval", interval=15_000, n_intervals=0),
         # ── Header ──────────────────────────────────────────────────────────
         dbc.Row([
             dbc.Col([
                 html.Div([
-                    html.H1([html.I(className="fas fa-chart-line me-3"), "Bet Assistant"],
-                            className="fw-bold text-white mb-1",
-                            style={"letterSpacing": "-1px"}),
-                    dbc.Button(
-                        [html.I(className="fas fa-sync-alt me-2"), "Refresh Data"],
-                        id="refresh-btn",
-                        className="ms-auto shadow-sm fw-bold me-2",
-                        style={"borderRadius": "10px",
-                               "background": "rgba(255,255,255,0.2)",
-                               "border": "1px solid rgba(255,255,255,0.3)"},
+                    # --- LEFT SIDE: TITLE ---
+                    html.Div([
+                        html.I(className="fas fa-chart-line me-3", style={"fontSize": "2rem"}),
+                        html.H1("Bet Assistant",
+                                className="fw-bold text-white mb-0",
+                                style={"letterSpacing": "-1px", "fontSize": "2.25rem"})
+                    ], className="d-flex align-items-center"),
+
+                    # --- RIGHT SIDE: OPERATIONS ---
+                    dcc.Loading(
+                        id="header-ops-loading",
+                        type="dot", # 'dot' is often cleaner for headers than 'circle'
+                        color="white",
+                        children=html.Div([
+                            # Status text
+                            html.Small(
+                                id="header-status-text",
+                                className="text-white-50 me-4 d-none d-md-block", # Hidden on tiny screens
+                                style={"fontSize": "0.8rem", "fontWeight": "500"}
+                            ),
+
+                            # Buttons Group
+                            html.Div([
+                                dbc.Button(
+                                    [html.I(className="fas fa-sync-alt me-2"), "Refresh"],
+                                    id="refresh-btn",
+                                    className="btn-light btn-sm fw-bold me-2 px-3", # Used btn-light for better contrast
+                                    style={"borderRadius": "8px", "opacity": "0.9"}
+                                ),
+                                dbc.Button(
+                                    [html.I(className="fas fa-cloud-download-alt me-2"), "Pull Update"],
+                                    id="btn-pull-update",
+                                    # Amber/Warning styling
+                                    className="btn-warning btn-sm fw-bold px-3",
+                                    style={"borderRadius": "8px", "boxShadow": "0 4px 15px rgba(255,193,7,0.2)"}
+                                ),
+                            ], className="d-flex align-items-center"),
+                        ], className="d-flex align-items-center")
                     ),
-                    dbc.Button(
-                        [html.I(className="fas fa-cloud-download-alt me-2"), "Pull Update"],
-                        id="btn-pull-update",
-                        className="shadow-sm fw-bold",
-                        style={"borderRadius": "10px",
-                               "background": "rgba(255,193,7,0.4)",
-                               "border": "1px solid rgba(255,193,7,0.5)"},
-                    ),
-                ], className="d-flex align-items-center p-4 shadow-lg",
-                   style=STYLE_HEADER_GRADIENT),
-            ]),
-        ], className="mb-4"),
+
+                ],
+                # The key change: justify-content-between pushes items to the edges
+                className="d-flex align-items-center justify-content-between p-4 shadow-lg",
+                style={**STYLE_HEADER_GRADIENT, "borderRadius": "15px"}),
+            ], width=12),
+        ], className="mb-4 mx-0"), # mx-0 prevents horizontal scroll on some browsers
 
         # ── Global Filters ───────────────────────────────────────────────────
         dbc.Card([
@@ -314,11 +374,7 @@ def build_main_layout() -> dbc.Container:
                         ], className="shadow-sm rounded-3"),
                     ], lg=4, md=6),
 
-                    dbc.Col(
-                        html.Div(id="last-updated-text",
-                                 className="text-muted small text-end mt-3"),
-                        lg=5, md=12,
-                    ),
+                    dbc.Col(lg=5, md=12),
                 ], className="g-2 align-items-end"),
             ], className="py-2"),
         ], className="shadow-sm mb-3 border-0"),
@@ -335,6 +391,9 @@ def build_main_layout() -> dbc.Container:
                             labelClassName="px-4 fw-bold"),
                     dbc.Tab(slips_tab_layout(),
                             label="Slips",         tab_id="tab-historic",
+                            labelClassName="px-4 fw-bold"),
+                    dbc.Tab(analytics_tab_layout(),
+                            label="Analytics",     tab_id="tab-analytics",
                             labelClassName="px-4 fw-bold"),
                     dbc.Tab(services_tab_layout(),
                             label="Services", tab_id="tab-services",

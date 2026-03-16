@@ -25,7 +25,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         return [FOOTBALLBETTINGTIPS_URL + a.find("a")['href'] for a in soup.find_all("h3")[:2]]
 
     def get_matches(self, urls):
-        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
+        self.scrape_urls(urls, self._parse_page, mode=ScrapeMode.STEALTH, max_concurrency=MAX_CONCURRENCY)
 
     def _parse_page(self, url, html):
         try:
@@ -42,22 +42,19 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                 score_text = re.search(r"(\d+:\d+)", match_html.find_all("td")[-2].get_text()).group(1)
                 score = Score(FOOTBALLBETTINGTIPS_NAME, score_text.split(":")[0], score_text.split(":")[1])
 
-                result = "Home Win" if score.home > score.away else "Draw" if score.home == score.away else "Away Win"
                 try:
-                    odds = float(soup.find_all(class_='desktop')[0].get_text()) if score.home > score.away else \
-                        float(soup.find_all(class_='desktop')[1].get_text()) if score.home == score.away else \
-                        float(soup.find_all(class_='desktop')[2].get_text())
+                    odds = Odds(home=match_html.find_all(class_='desktop')[0].get_text().strip(),
+                                draw=match_html.find_all(class_='desktop')[1].get_text().strip(),
+                                away=match_html.find_all(class_='desktop')[2].get_text().strip())
                 except:
                     odds = None
 
-                tips = [Tip(raw_text=result, confidence=100, source=FOOTBALLBETTINGTIPS_NAME, odds=odds)]
-
                 self.add_match(Match(
-                    home_team=Team(home_team_name, None, None, None),
-                    away_team=Team(away_team_name, None, None, None),
+                    home_team=home_team_name,
+                    away_team=away_team_name,
                     datetime=match_datetime,
-                    predictions=MatchPredictions([score], None, tips),
-                    h2h=None,
+                    predictions=[score],
+                    odds=odds,
                 ))
         except Exception as e:
             print(f"Error parsing {url}: {e}")

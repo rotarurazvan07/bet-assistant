@@ -181,8 +181,8 @@ def build_builder_panel() -> html.Div:
     ])
 
     quality_section = build_config_section("Quality Gate", "fa-filter", [
-        make_labeled_row("Probability Floor", "probability_floor",
-            dcc.Slider(id="b-prob-floor", min=50, max=100, step=1, value=50,
+        make_labeled_row("Consensus Floor", "consensus_floor",
+            dcc.Slider(id="b-consensus-floor", min=50, max=100, step=1, value=50,
                        marks={50: "50%", 60: "60%", 70: "70%", 80: "80%", 90: "90%", 100: "100%"},
                        tooltip={"placement": "bottom", "always_visible": True})),
         make_labeled_row("Min Odds", "min_odds",
@@ -194,22 +194,33 @@ def build_builder_panel() -> html.Div:
         dbc.Row([
             dbc.Col([
                 html.Small("Included Markets", className="fw-bold text-muted"),
-                make_tooltip("included_market_types",
-                             TOOLTIP_TEXTS.get("included_market_types", "")),
+                make_tooltip("included_markets",
+                             TOOLTIP_TEXTS.get("included_markets", "")),
             ], width=5, className="d-flex align-items-center"),
             dbc.Col(
                 dbc.Checklist(
                     id="b-markets",
                     options=[
-                        {"label": "Results (1/X/2)", "value": "result"},
-                        {"label": "Over/Under 2.5", "value": "over_under_2.5"},
-                        {"label": "BTTS",            "value": "btts"},
+                        {"label": "Home", "value": "1"},
+                        {"label": "Draw", "value": "X"},
+                        {"label": "Away", "value": "2"},
+                        {"label": "Over 2.5", "value": "Over 2.5"},
+                        {"label": "Under 2.5", "value": "Under 2.5"},
+                        {"label": "BTTS Yes", "value": "BTTS Yes"},
+                        {"label": "BTTS No", "value": "BTTS No"},
                     ],
                     value=ALL_MARKET_TYPES,
-                    inline=False, switch=True,
-                    style={"fontSize": FONT_SIZE_MD},
-                ), width=7,
-            ),
+                    inline=False, # Keep False so it obeys the grid container
+                    switch=True,
+                    style={
+                        "fontSize": FONT_SIZE_MD,
+                        "display": "grid",
+                        "gridTemplateColumns": "repeat(3, 1fr)", # Creates 3 equal columns
+                        "gap": "10px", # Adds spacing between items
+                    },
+                ),
+                width=10, # Increased width slightly to accommodate 3 columns comfortably
+            )
         ], className="align-items-start g-1"),
     ])
 
@@ -243,8 +254,8 @@ def build_builder_panel() -> html.Div:
     scoring_section = build_config_section("Scoring", "fa-sliders-h", [
         make_labeled_row("Balance vs Quality", "quality_vs_balance",
             _balance_slider("b-quality-vs-balance", "Balance", "Quality")),
-        make_labeled_row("Sources vs Probability", "prob_vs_sources",
-            _balance_slider("b-prob-vs-sources", "Sources", "Probability")),
+        make_labeled_row("Sources vs Consensus", "consensus_vs_sources",
+            _balance_slider("b-consensus-vs-sources", "Sources", "Consensus")),
     ])
 
     return html.Div([shape_section, quality_section, markets_section,
@@ -270,7 +281,7 @@ def render_profile_pills(profiles: dict) -> list:
 def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
     """
     Render the bet-slip preview from the flat list returned by build_slip().
-    Each item: {match, market, market_type, prob, odds, result_url, sources, tier, score}
+    Each item: {match, market, market_type, consensus, odds, result_url, sources, tier, score}
     """
     if not selections:
         return dbc.Alert("No matches meet criteria with current settings.", color="warning")
@@ -301,7 +312,7 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
 
     cards = []
     for pick in selections:
-        consensus       = pick["prob"]
+        consensus       = pick["consensus"]
         consensus_color = "success" if consensus >= 80 else "warning" if consensus >= 60 else "danger"
         tier       = pick.get("tier", 1)
         score      = pick.get("score", 0.0)
@@ -542,12 +553,12 @@ def render_profile_card(profile_id: str, prof: dict) -> dbc.Card:
     summary_badges = html.Div([
         _param_badge("Odds",     prof.get("target_odds",  "—")),
         _param_badge("Legs",     prof.get("target_legs",  "—")),
-        _param_badge("ProbFloor",f"{prof.get('probability_floor', '—')}%"),
+        _param_badge("Consensus",f"{prof.get('consensus_floor', '—')}%"),
         _param_badge("Q/B",      prof.get("quality_vs_balance", "—")),
-        _param_badge("P/S",      prof.get("prob_vs_sources", "—")),
+        _param_badge("C/S",      prof.get("consensus_vs_sources", "—")),
     ], className="mt-2 mb-3")
 
-    markets_raw = prof.get("included_market_types")
+    markets_raw = prof.get("included_markets")
     markets_str = "All" if not markets_raw else ", ".join(markets_raw)
 
     return dbc.Card([
@@ -610,22 +621,22 @@ def create_tips_table(df: pd.DataFrame) -> Any:
         return f"{pct}%"
 
     d = df.copy()
-    d["home_d"]   = d.apply(lambda r: fmt(r.prob_home,     r.odds_home),     axis=1)
-    d["draw_d"]   = d.apply(lambda r: fmt(r.prob_draw,     r.odds_draw),     axis=1)
-    d["away_d"]   = d.apply(lambda r: fmt(r.prob_away,     r.odds_away),     axis=1)
-    d["over_d"]   = d.apply(lambda r: fmt(r.prob_over,     r.odds_over),     axis=1)
-    d["under_d"]  = d.apply(lambda r: fmt(r.prob_under,    r.odds_under),    axis=1)
-    d["btts_y_d"] = d.apply(lambda r: fmt(r.prob_btts_yes, r.odds_btts_yes), axis=1)
-    d["btts_n_d"] = d.apply(lambda r: fmt(r.prob_btts_no,  r.odds_btts_no),  axis=1)
+    d["home_d"]   = d.apply(lambda r: fmt(r.cons_home,     r.odds_home),     axis=1)
+    d["draw_d"]   = d.apply(lambda r: fmt(r.cons_draw,     r.odds_draw),     axis=1)
+    d["away_d"]   = d.apply(lambda r: fmt(r.cons_away,     r.odds_away),     axis=1)
+    d["over_d"]   = d.apply(lambda r: fmt(r.cons_over,     r.odds_over),     axis=1)
+    d["under_d"]  = d.apply(lambda r: fmt(r.cons_under,    r.odds_under),    axis=1)
+    d["btts_y_d"] = d.apply(lambda r: fmt(r.cons_btts_yes, r.odds_btts_yes), axis=1)
+    d["btts_n_d"] = d.apply(lambda r: fmt(r.cons_btts_no,  r.odds_btts_no),  axis=1)
 
     show = d[["match_id", "datetime", "home", "away", "sources",
-              "prob_home",    "home_d",
-              "prob_draw",    "draw_d",
-              "prob_away",    "away_d",
-              "prob_over",    "over_d",
-              "prob_under",   "under_d",
-              "prob_btts_yes","btts_y_d",
-              "prob_btts_no", "btts_n_d"]]
+              "cons_home",    "home_d",
+              "cons_draw",    "draw_d",
+              "cons_away",    "away_d",
+              "cons_over",    "over_d",
+              "cons_under",   "under_d",
+              "cons_btts_yes","btts_y_d",
+              "cons_btts_no", "btts_n_d"]]
 
     return dash_table.DataTable(
         id={"type": "match-table", "index": "tips"},
@@ -672,13 +683,13 @@ def create_tips_table(df: pd.DataFrame) -> Any:
             {"if": {"state": "active"},
              "backgroundColor": "#f3e5f5", "border": f"2px solid {COLORS['accent']}"},
             *[
-                {"if": {"filter_query": f"{{{prob}}} >= 80", "column_id": disp},
+                {"if": {"filter_query": f"{{{cons}}} >= 80", "column_id": disp},
                  "backgroundColor": "#4ce770", "color": "#073F14", "fontWeight": "bold"}
-                for prob, disp in [
-                    ("prob_home",    "home_d"),  ("prob_draw",    "draw_d"),
-                    ("prob_away",    "away_d"),  ("prob_over",    "over_d"),
-                    ("prob_under",   "under_d"), ("prob_btts_yes","btts_y_d"),
-                    ("prob_btts_no", "btts_n_d"),
+                for cons, disp in [
+                    ("cons_home",    "home_d"),  ("cons_draw",    "draw_d"),
+                    ("cons_away",    "away_d"),  ("cons_over",    "over_d"),
+                    ("cons_under",   "under_d"), ("cons_btts_yes","btts_y_d"),
+                    ("cons_btts_no", "btts_n_d"),
                 ]
             ],
         ],

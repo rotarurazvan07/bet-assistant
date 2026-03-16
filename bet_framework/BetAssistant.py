@@ -16,8 +16,8 @@ SCORING MODEL
 ──────────────────────────────────────────────────────────────────────────────
 Every candidate pick is scored on three normalised axes (each 0.0 → 1.0):
 
-  prob_score    — confidence in the predicted outcome
-                  floor (cfg.probability_floor) → 0.0 ; 100 % → 1.0
+  consensus_score — agreement between independent data sources on the predicted outcome
+                    floor (cfg.consensus_floor) → 0.0 ; 100 % → 1.0
 
   sources_score — number of independent data sources backing the pick
                   0 → 0.0 ; highest count in pool → 1.0
@@ -28,10 +28,10 @@ Every candidate pick is scored on three normalised axes (each 0.0 → 1.0):
 Two top-level levers control how these axes are combined:
 
   quality_vs_balance   0.0 = balance only  │  1.0 = quality only
-  prob_vs_sources      0.0 = sources only  │  1.0 = probability only
+  consensus_vs_sources 0.0 = sources only  │  1.0 = consensus only
 
 Formula:
-  quality = prob_vs_sources × prob_score + (1 − prob_vs_sources) × sources_score
+  quality = consensus_vs_sources × consensus_score + (1 − consensus_vs_sources) × sources_score
   final   = quality_vs_balance × quality + (1 − quality_vs_balance) × balance_score
 
 Picks inside the ±tolerance band are "Tier 1" and always rank above "Tier 2"
@@ -55,15 +55,15 @@ from bs4 import BeautifulSoup
 import threading
 from pathlib import Path
 
-# (prob_col, odds_col, display_label)
+# (cons_col, odds_col, display_label)
 MARKET_MAP: Dict[str, List[Tuple[str, str, str]]] = {
-    "result":         [("prob_home",     "odds_home",     "1"),
-                       ("prob_draw",     "odds_draw",     "X"),
-                       ("prob_away",     "odds_away",     "2")],
-    "over_under_2.5": [("prob_over",     "odds_over",     "Over 2.5"),
-                       ("prob_under",    "odds_under",    "Under 2.5")],
-    "btts":           [("prob_btts_yes", "odds_btts_yes", "BTTS Yes"),
-                       ("prob_btts_no",  "odds_btts_no",  "BTTS No")],
+    "result":         [("cons_home",     "odds_home",     "1"),
+                       ("cons_draw",     "odds_draw",     "X"),
+                       ("cons_away",     "odds_away",     "2")],
+    "over_under_2.5": [("cons_over",     "odds_over",     "Over 2.5"),
+                       ("cons_under",    "odds_under",    "Under 2.5")],
+    "btts":           [("cons_btts_yes", "odds_btts_yes", "BTTS Yes"),
+                       ("cons_btts_no",  "odds_btts_no",  "BTTS No")],
 }
 
 @dataclass
@@ -74,16 +74,16 @@ class BetSlipConfig:
     ┌─ SCOPE ──────────────────────────────────────────────────────────────────┐
     │ date_from / date_to        ISO 'YYYY-MM-DD' window. None = no limit.     │
     │ excluded_urls              result_urls to skip entirely.                 │
-    │ included_market_types      None = all; or list from MARKET_MAP keys.     │
+    │ included_markets           None = all; or list of labels (1, X, 2, etc). │
     ├─ SHAPE ──────────────────────────────────────────────────────────────────┤
     │ target_odds      [1.10–1000]  Desired cumulative odds.                   │
     │ target_legs      [1–10]       Desired number of legs.                    │
     │ max_legs_overflow[0–5]        Extra legs allowed beyond target.          │
     ├─ QUALITY GATE ───────────────────────────────────────────────────────────┤
-    │ probability_floor[0–100]   Minimum prediction confidence (%).            │
-    │ min_odds         [1.01–10] Minimum bookmaker odds (filters near-certs).  │
+    │ consensus_floor    [0–100]   Minimum source agreement percentage.        │
+    │ min_odds           [1.01–10] Minimum bookmaker odds (filters near-certs).  │
     ├─ ODDS TOLERANCE ─────────────────────────────────────────────────────────┤
-    │ tolerance_factor [0.05–0.80] ±band around ideal per-leg odds.            │
+    │ tolerance_factor   [0.05–0.80] ±band around ideal per-leg odds.            │
     │                              None = auto-derived.                        │
     ├─ STOP CONDITION ─────────────────────────────────────────────────────────┤
     │ stop_threshold     [0.50–1.00] Stop when odds ≥ target × this.          │
@@ -91,7 +91,7 @@ class BetSlipConfig:
     │ min_legs_fill_ratio[0.50–1.00] Min fraction of legs before early stop.  │
     ├─ SCORING ────────────────────────────────────────────────────────────────┤
     │ quality_vs_balance [0–1]  0 = balance only, 1 = quality only.           │
-    │ prob_vs_sources    [0–1]  Within quality: 0 = sources, 1 = probability. │
+    │ consensus_vs_sources [0–1]  Within quality: 0 = sources, 1 = consensus. │
     └──────────────────────────────────────────────────────────────────────────┘
     """
 
@@ -99,7 +99,7 @@ class BetSlipConfig:
     date_from:              Optional[str]        = None
     date_to:                Optional[str]        = None
     excluded_urls:          Optional[List[str]]  = None
-    included_market_types:  Optional[List[str]]  = None
+    included_markets:       Optional[List[str]]  = None
 
     # Shape
     target_odds:            float          = 3.0
@@ -107,7 +107,7 @@ class BetSlipConfig:
     max_legs_overflow:      Optional[int]  = None
 
     # Quality gate
-    probability_floor:      float          = 50.0
+    consensus_floor:        float          = 50.0
     min_odds:               float          = 1.05
 
     # Odds tolerance
@@ -119,16 +119,16 @@ class BetSlipConfig:
 
     # Scoring weights
     quality_vs_balance:     float           = 0.5
-    prob_vs_sources:        float           = 0.5
+    consensus_vs_sources:   float           = 0.5
 
     def __post_init__(self) -> None:
         self.target_odds          = max(1.10,  min(1000.0, self.target_odds))
         self.target_legs          = max(1,     min(10,     self.target_legs))
-        self.probability_floor    = max(0.0,   min(100.0,  self.probability_floor))
+        self.consensus_floor      = max(0.0,   min(100.0,  self.consensus_floor))
         self.min_odds             = max(1.01,  min(10.0,   self.min_odds))
         self.min_legs_fill_ratio  = max(0.50,  min(1.00,   self.min_legs_fill_ratio))
         self.quality_vs_balance   = max(0.0,   min(1.0,    self.quality_vs_balance))
-        self.prob_vs_sources      = max(0.0,   min(1.0,    self.prob_vs_sources))
+        self.consensus_vs_sources = max(0.0,   min(1.0,    self.consensus_vs_sources))
 
         if self.tolerance_factor is not None:
             self.tolerance_factor = max(0.05, min(0.80, self.tolerance_factor))
@@ -146,32 +146,32 @@ PROFILES: Dict[str, BetSlipConfig] = {
     "low_risk": BetSlipConfig(
         target_odds=2.0,
         target_legs=2,
-        probability_floor=65.0,
+        consensus_floor=65.0,
         min_odds=1.10,
         quality_vs_balance=0.35,
-        prob_vs_sources=0.60,
+        consensus_vs_sources=0.60,
         tolerance_factor=0.20,
         stop_threshold=0.95,
         min_legs_fill_ratio=0.80,
-        included_market_types=["result", "btts"],
+        included_markets=["1", "2", "X", "BTTS Yes", "BTTS No"],
     ),
 
     # Balanced 3-leg accumulator
     "medium_risk": BetSlipConfig(
         target_odds=5.0,
         target_legs=3,
-        probability_floor=50.0,
+        consensus_floor=50.0,
         quality_vs_balance=0.50,
-        prob_vs_sources=0.50,
+        consensus_vs_sources=0.50,
     ),
 
     # Longer accumulator, quality over odds precision
     "high_risk": BetSlipConfig(
         target_odds=15.0,
         target_legs=5,
-        probability_floor=50.0,
+        consensus_floor=50.0,
         quality_vs_balance=0.70,
-        prob_vs_sources=0.50,
+        consensus_vs_sources=0.50,
         min_legs_fill_ratio=0.60,
     ),
 
@@ -179,10 +179,10 @@ PROFILES: Dict[str, BetSlipConfig] = {
     "value_hunter": BetSlipConfig(
         target_odds=8.0,
         target_legs=4,
-        probability_floor=52.0,
+        consensus_floor=52.0,
         min_odds=1.30,
         quality_vs_balance=0.65,
-        prob_vs_sources=0.30,
+        consensus_vs_sources=0.30,
         min_legs_fill_ratio=0.65,
     ),
 }
@@ -224,9 +224,9 @@ def _resolve_max_legs(cfg: BetSlipConfig) -> int:
     return cfg.target_legs + 2
 
 
-def _score_probability(prob: float, cfg: BetSlipConfig) -> float:
-    span = 100.0 - cfg.probability_floor
-    return 1.0 if span <= 0 else max(0.0, min(1.0, (prob - cfg.probability_floor) / span))
+def _score_consensus(consensus: float, cfg: BetSlipConfig) -> float:
+    span = 100.0 - cfg.consensus_floor
+    return 1.0 if span <= 0 else max(0.0, min(1.0, (consensus - cfg.consensus_floor) / span))
 
 
 def _score_sources(sources: int, max_sources: int) -> float:
@@ -248,11 +248,11 @@ def _score_pick(
     deviation     = abs(opt["odds"] - ideal_odds) / ideal_odds
     tier          = 1 if deviation <= tolerance else 2
 
-    prob_score    = _score_probability(opt["prob"],    cfg)
-    sources_score = _score_sources(opt["sources"],     max_sources)
-    balance_score = _score_balance(opt["odds"], ideal_odds, tolerance)
+    consensus_score = _score_consensus(opt.get("consensus", 0.0), cfg)
+    sources_score   = _score_sources(opt["sources"], max_sources)
+    balance_score   = _score_balance(opt["odds"], ideal_odds, tolerance)
 
-    quality = cfg.prob_vs_sources * prob_score + (1 - cfg.prob_vs_sources) * sources_score
+    quality = cfg.consensus_vs_sources * consensus_score + (1 - cfg.consensus_vs_sources) * sources_score
     final   = cfg.quality_vs_balance * quality + (1 - cfg.quality_vs_balance) * balance_score
     return tier, round(final, 6)
 
@@ -327,7 +327,7 @@ def _check_match_result(url: str, market: str, market_type: str) -> Dict[str, An
                 text   = parent.get_text(separator=" | ", strip=True)
                 parts  = [p.strip() for p in text.split("|")]
                 for part in parts:
-                    if "'" in part and part[0].isdigit():
+                    if ("'" in part and part[0].isdigit()) or "HT" in part:
                         result["minute"] = part
                         break
 
@@ -356,7 +356,6 @@ class BetAssistant:
 
     assistant.validate_slips()                   # settle finished legs
 
-    stats = assistant.stats()
     """
 
     # ── Construction ──────────────────────────────────────────────────────────
@@ -462,7 +461,7 @@ class BetAssistant:
                 dt         = row['datetime']
                 odds       = row.get("odds") or {}
                 scores     = row.get("scores") or []
-                probs      = self._calc_probabilities(scores)
+                cons_data  = self._calc_consensus(scores)
                 n_sources  = len({s.get("source", "") for s in scores if s.get("source")})
 
                 rows.append({
@@ -472,14 +471,14 @@ class BetAssistant:
                     "away":          row["away_name"],
                     "sources":       n_sources,
                     "result_url":    row.get("result_url"),
-                    # Probabilities
-                    "prob_home":     probs["result"]["home"],
-                    "prob_draw":     probs["result"]["draw"],
-                    "prob_away":     probs["result"]["away"],
-                    "prob_over":     probs["over_under_2.5"]["over"],
-                    "prob_under":    probs["over_under_2.5"]["under"],
-                    "prob_btts_yes": probs["btts"]["yes"],
-                    "prob_btts_no":  probs["btts"]["no"],
+                    # Consensus
+                    "cons_home":     cons_data["result"]["home"],
+                    "cons_draw":     cons_data["result"]["draw"],
+                    "cons_away":     cons_data["result"]["away"],
+                    "cons_over":     cons_data["over_under_2.5"]["over"],
+                    "cons_under":    cons_data["over_under_2.5"]["under"],
+                    "cons_btts_yes": cons_data["btts"]["yes"],
+                    "cons_btts_no":  cons_data["btts"]["no"],
                     # Odds
                     "odds_home":     odds.get("home",   0.0),
                     "odds_draw":     odds.get("draw",   0.0),
@@ -558,7 +557,7 @@ class BetAssistant:
         Returns
         -------
         List of leg dicts, each containing:
-            match, market, market_type, prob, odds,
+            match, market, market_type, consensus, odds,
             result_url, sources, tier, score
         """
         if self._df.empty:
@@ -741,146 +740,15 @@ class BetAssistant:
             self._cur.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
             self._conn.commit()
 
-    # ── Statistics ────────────────────────────────────────────────────────────
-
-    def stats(self, profile: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Aggregate statistics over all settled slips.
-
-        Returns
-        -------
-        {
-            total_settled, total_won_count,
-            win_rate        (%),
-            total_units_bet,
-            gross_return,
-            net_profit,
-            roi_percentage  (%)
-        }
-        """
-        slips    = self.get_slips(profile)
-        settled  = [s for s in slips if s["slip_status"] in ("Won", "Lost")]
-        won      = [s for s in settled if s["slip_status"] == "Won"]
-
-        n_settled    = len(settled)
-        n_won        = len(won)
-        stakes       = sum(s["units"]                    for s in settled)
-        gross_return = sum(s["total_odds"] * s["units"]  for s in won)
-        net_profit   = gross_return - stakes
-
-        return {
-            "total_settled":   n_settled,
-            "total_won_count": n_won,
-            "win_rate":        round((n_won / n_settled * 100) if n_settled else 0.0, 2),
-            "total_units_bet": round(stakes, 2),
-            "gross_return":    round(gross_return, 2),
-            "net_profit":      round(net_profit, 2),
-            "roi_percentage":  round((net_profit / stakes * 100) if stakes else 0.0, 2),
-        }
-
-    def stats_by_profile(self) -> Dict[str, Dict[str, Any]]:
-        """Return the same stats broken down by profile name."""
-        with self._lock:
-            self._cur.execute("""
-                SELECT s.profile, s.total_odds, s.units,
-                        CASE
-                            WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
-                            WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
-                        ELSE 'Won'
-                    END AS slip_status
-                FROM slips s
-                LEFT JOIN legs l ON s.slip_id = l.slip_id
-                GROUP BY s.slip_id
-                HAVING slip_status IN ('Won', 'Lost')
-            """)
-
-        agg: Dict[str, dict] = defaultdict(
-            lambda: {"settled": 0, "won": 0, "stakes": 0.0, "gross": 0.0}
-        )
-        for profile, total_odds, units, status in self._cur.fetchall():
-            agg[profile]["settled"] += 1
-            agg[profile]["stakes"]  += units
-            if status == "Won":
-                agg[profile]["won"]   += 1
-                agg[profile]["gross"] += total_odds * units
-
-        result: Dict[str, Dict[str, Any]] = {}
-        for name, d in agg.items():
-            net = d["gross"] - d["stakes"]
-            result[name] = {
-                "profile":    name,
-                "settled":    d["settled"],
-                "won":        d["won"],
-                "win_rate":   round(d["won"] / d["settled"] * 100, 1) if d["settled"] else 0.0,
-                "stakes":     round(d["stakes"], 2),
-                "net_profit": round(net, 2),
-                "roi":        round(net / d["stakes"] * 100, 1) if d["stakes"] else 0.0,
-            }
-        return result
-
-    def stats_by_market(self, profile: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Return per-market-type win/loss counts across all settled legs.
-
-        Useful for identifying which markets are performing best.
-        """
-        where  = "AND s.profile = ?" if (profile and profile != "all") else ""
-        params = [profile] if where else []
-
-        with self._lock:
-            self._cur.execute(f"""
-                SELECT l.market_type, l.market, l.status, COUNT(*) AS cnt
-                FROM legs l
-                JOIN slips s ON l.slip_id = s.slip_id
-                WHERE l.status IN ('Won', 'Lost') {where}
-                GROUP BY l.market_type, l.market, l.status
-            """, params)
-
-        return [
-            {"market_type": r[0], "market": r[1], "status": r[2], "count": r[3]}
-            for r in self._cur.fetchall()
-        ]
-
-    def balance_history(self, profile: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        Return a chronological list of settled slips for balance-curve charts.
-
-        Each entry: {date, profile, total_odds, units, status}
-        """
-        where  = "WHERE s.profile = ?" if (profile and profile != "all") else ""
-        params = [profile] if where else []
-
-        with self._lock:
-            self._cur.execute(f"""
-                SELECT s.date_generated, s.profile, s.total_odds, s.units,
-                    CASE
-                        WHEN SUM(CASE WHEN l.status = 'Lost'    THEN 1 ELSE 0 END) > 0 THEN 'Lost'
-                        WHEN SUM(CASE WHEN l.status = 'Pending' THEN 1 ELSE 0 END) > 0 THEN 'Pending'
-                        ELSE 'Won'
-                    END AS slip_status
-                FROM slips s
-                LEFT JOIN legs l ON s.slip_id = l.slip_id
-                {where}
-                GROUP BY s.slip_id
-                HAVING slip_status IN ('Won', 'Lost')
-                ORDER BY s.date_generated ASC
-            """, params)
-
-        return [
-            {"date": r[0], "profile": r[1], "total_odds": r[2],
-             "units": r[3], "status": r[4]}
-            for r in self._cur.fetchall()
-        ]
-
     # ══════════════════════════════════════════════════════════════════════════
     # Private helpers
     # ══════════════════════════════════════════════════════════════════════════
 
-    # ── Probability calculation ───────────────────────────────────────────────
+    # ── Consensus calculation ─────────────────────────────────────────────────
 
     @staticmethod
-    def _calc_probabilities(scores: list) -> Dict[str, Dict[str, float]]:
-        """Derive result / over-under / BTTS probabilities from historical scores."""
+    def _calc_consensus(scores: list) -> Dict[str, Dict[str, float]]:
+        """Derive result / over-under / BTTS consensus from historical scores."""
         empty = {
             "result":         {"home": 0.0, "draw": 0.0, "away": 0.0},
             "over_under_2.5": {"over": 0.0, "under": 0.0},
@@ -910,7 +778,7 @@ class BetAssistant:
                 else:                btts_n += 1
 
         except Exception as e:
-            print(f"[BetAssistant] Probability calc error: {e}")
+            print(f"[BetAssistant] Consensus calc error: {e}")
             return empty
 
         def pct(n: int) -> float:
@@ -931,7 +799,7 @@ class BetAssistant:
         date_from = pd.to_datetime(cfg.date_from) if cfg.date_from else None
         date_to   = (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1)) if cfg.date_to else None
         excluded  = set(cfg.excluded_urls or [])
-        markets   = cfg.included_market_types
+        markets   = cfg.included_markets
 
         candidates = []
         for _, row in self._df.iterrows():
@@ -939,26 +807,27 @@ class BetAssistant:
                 continue
             if date_to   and row["datetime"] >= date_to:
                 continue
-            if not row["result_url"]:
+            url = row.get("result_url")
+            if pd.isna(url) or not str(url).strip() or str(url).strip().lower() in ("none", "null"):
                 continue
-            if row["result_url"] in excluded:
+            if url in excluded:
                 continue
 
             match_name = f"{row['home']} vs {row['away']}"
 
             for m_type, market_cols in MARKET_MAP.items():
-                if markets and m_type not in markets:
-                    continue
-                for prob_col, odds_col, label in market_cols:
-                    prob = float(row.get(prob_col, 0))
+                for cons_col, odds_col, label in market_cols:
+                    if markets and label not in markets:
+                        continue
+                    consensus = float(row.get(cons_col, 0))
                     odds = float(row.get(odds_col, 0))
-                    if prob >= cfg.probability_floor and odds >= cfg.min_odds:
+                    if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
                         candidates.append({
                             "match":       match_name,
                             "datetime":    row["datetime"],
                             "market":      label,
                             "market_type": m_type,
-                            "prob":        prob,
+                            "consensus":   consensus,
                             "odds":        odds,
                             "result_url":  row["result_url"],
                             "sources":     int(row["sources"]),
@@ -1002,6 +871,9 @@ class BetAssistant:
             selected.append(best)
             seen_matches.add(best["match"])
             total_odds *= best["odds"]
+
+        if len(selected) < min_legs:
+            return []
 
         return selected
 

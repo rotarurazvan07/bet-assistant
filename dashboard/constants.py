@@ -158,7 +158,7 @@ TABLE_STYLE_CELL = {
 # Config field metadata
 # ─────────────────────────────────────────────────────────────────────────────
 
-ALL_MARKET_TYPES: List[str] = ["result", "over_under_2.5", "btts"]
+ALL_MARKET_TYPES: List[str] = ["1", "X", "2", "Over 2.5", "Under 2.5", "BTTS Yes", "BTTS No"]
 
 # Fields that live in the YAML but are NOT part of BetSlipConfig
 DASHBOARD_ONLY_KEYS = {"units", "run_daily_count"}
@@ -185,19 +185,19 @@ TOOLTIP_TEXTS: Dict[str, str] = {
         "How many extra legs beyond target_legs are allowed. "
         "Auto = 0 for singles, +1 for 2-4 legs, +2 for 5+ legs."
     ),
-    "probability_floor": (
-        "Minimum prediction confidence (%). Picks below this threshold are "
+    "consensus_floor": (
+        "Minimum source agreement (%). Picks below this threshold are "
         "discarded before any scoring. E.g. 50 = only picks where 50 %+ of "
-        "historical results agree with the prediction."
+        "historical data sources agree with the prediction."
     ),
     "min_odds": (
         "Minimum bookmaker odds to consider. "
         "Filters out near-certain outcomes where the margin is unattractive. "
         "Range: 1.01-10.0."
     ),
-    "included_market_types": (
-        "Which bet markets to include. "
-        "Results = 1/X/2, O/U 2.5 = goals over/under, BTTS = both teams score."
+    "included_markets": (
+        "Which specific bet markets to include. "
+        "Select individual outcomes like '1', 'Over 2.5', 'BTTS Yes', etc."
     ),
     "tolerance_factor": (
         "±% band around the ideal per-leg odds. A pick within this band is "
@@ -216,13 +216,13 @@ TOOLTIP_TEXTS: Dict[str, str] = {
         "Trade-off between pick quality and odds balance.\n"
         "0.0 = care only about matching the target odds per leg\n"
         "0.5 = equal weight (default)\n"
-        "1.0 = care only about quality (best prob/sources wins)"
+        "1.0 = care only about quality (best consensus/sources wins)"
     ),
-    "prob_vs_sources": (
-        "Within the quality score, how much weight goes to probability vs data sources.\n"
+    "consensus_vs_sources": (
+        "Within the quality score, how much weight goes to source agreement vs total source count.\n"
         "0.0 = sources only\n"
         "0.5 = equal weight (default)\n"
-        "1.0 = probability only"
+        "1.0 = consensus only"
     ),
 }
 

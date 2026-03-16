@@ -34,12 +34,6 @@ from dash import ALL, Input, Output, State, callback_context, dcc
 from bet_framework.BetAssistant import BetSlipConfig, PROFILES
 from bet_framework.SettingsManager import SettingsManager
 
-from dashboard.charts import (
-    render_balance_chart,
-    render_market_accuracy,
-    render_profile_comparison,
-    render_source_analysis,
-)
 from dashboard.components import (
     create_tips_table,
     render_bet_preview,
@@ -51,6 +45,11 @@ from dashboard.components import (
     status_msg,
     render_excluded_badge,
     render_service_row,
+)
+from dashboard.charts import (
+    render_history_charts,
+    render_market_accuracy_chart,
+    render_correlation_charts,
 )
 from dashboard.constants import ALL_MARKET_TYPES, DASHBOARD_ONLY_KEYS, RUNTIME_ONLY_FIELDS
 from dashboard.layouts import build_main_layout
@@ -112,9 +111,9 @@ class BetAssistantDashboard:
     """
     Dash application for the Bet Assistant.
 
-    Parameters
-    ----------
-    db_path : Path to the BetAssistant SQLite file (slips + legs).
+    Server-first architecture: services run 24/7 in background threads
+    and mutate server-side state. Dash callbacks are lightweight renderers
+    that poll a version counter to detect changes.
     """
 
     def __init__(self, matches_db_path: str, slips_db_path: str, config_path: str) -> None:
@@ -122,42 +121,55 @@ class BetAssistantDashboard:
         self.matches_db_path = matches_db_path
         self.slips_db_path   = slips_db_path
         self.config_path     = config_path
-        self._verify_counter   = [0]
-        self._generate_counter = [0]
-        self._pull_counter     = [0]
-        self._last_verify      = 0
-        self._last_generate    = 0
-        self._last_pull        = 0
         self.settings_manager = SettingsManager(config_path)
+
+        # Last validation result (stored server-side for UI to read)
+        self._last_validate_result = {}
+
+        ensure_default_profiles(profiles_dir=config_path + "/profiles")
 
         svc_cfg = self.settings_manager.get("services") or {}
         self._services = init_services(
             pull_hour     = int(svc_cfg.get("pull_hour",     6)),
             generate_hour = int(svc_cfg.get("generate_hour", 8)),
-            on_pull       = self._inc_pull,
-            on_verify     = self._inc_verify,
-            on_generate   = self._inc_generate,
+            on_pull       = self._do_pull,
+            on_verify     = self._do_verify,
+            on_generate   = self._do_generate,
         )
-
-        ensure_default_profiles(profiles_dir=config_path + "/profiles")
 
         self.app = dash.Dash(
             __name__,
             external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
             suppress_callback_exceptions=True,
+            compress=True, # Significantly improves UI responsiveness by gzip-ing payloads
         )
         self.app.title = "Bet Assistant"
         self.app.layout = build_main_layout()
         self._setup_callbacks()
 
-    def _inc_verify(self):
-        self._verify_counter[0] += 1
+    # ── Service work (runs in background threads, no browser needed) ──────────
 
-    def _inc_generate(self):
-        self._generate_counter[0] += 1
+    def _do_verify(self):
+        """Called by the verifier TickerService — actually runs validation."""
+        self._last_validate_result = self.logic.validate_slips()
+        print(f"[Service] Verified: {self._last_validate_result}")
 
-    def _inc_pull(self):
-        self._pull_counter[0] += 1
+    def _do_generate(self):
+        """Called by the generator TickerService — actually generates slips."""
+        all_profiles = self.settings_manager.get("profiles") or {}
+        profiles = {
+            name: (yaml_dict_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 1))
+            for name, cfg in all_profiles.items()
+            if cfg.get("run_daily_count")
+        }
+        results = self.logic.generate_slips(profiles)
+        total   = sum(len(v) for v in results.values())
+        print(f"[Service] Generated {total} slip(s)")
+
+    def _do_pull(self):
+        """Called by the puller TickerService — actually pulls the matches DB."""
+        self.logic.pull_matches_db(self.matches_db_path)
+        print("[Service] Pull complete")
 
     # ── Callback registration ─────────────────────────────────────────────────
 
@@ -178,19 +190,36 @@ class BetAssistantDashboard:
         self._cb_pull_update()
         self._cb_save_services()
         self._cb_services_tab()
-        self._cb_service_sync()
+        self._cb_version_poller()
+        self._cb_analytics_tab()
+        self._cb_session_init()
 
-    # ── Refresh match data ────────────────────────────────────────────────────
+    # ── Session initialization (browser connect) ──────────────────────────────
+
+    def _cb_session_init(self) -> None:
+        """Bump the server version on every new browser session to force-refresh."""
+        @self.app.callback(
+            Output("session-init-trigger", "id"),
+            Input("session-init-trigger", "data"),
+        )
+        def on_session_init(_):
+            self.logic.bump_version()
+            return dash.no_update
+
+    # ── Refresh match data (user-triggered only) ──────────────────────────────
 
     def _cb_refresh_data(self) -> None:
         @self.app.callback(
-            Output("matches-data-store", "data"),
+            [Output("matches-data-store", "data"),
+             Output("header-status-text", "children", allow_duplicate=True)],
             Input("refresh-btn", "n_clicks"),
-            prevent_initial_call=False,
+            prevent_initial_call=True,
         )
         def refresh_data(_):
-            df = self.logic.refresh_data()
-            return df.to_json(date_format="iso", orient="split")
+            self.logic.refresh_data()
+            from datetime import datetime
+            ts = datetime.now().strftime("%H:%M:%S")
+            return self.logic.version, f"✅ Refreshed ({ts})"
 
     # ── Tips table ────────────────────────────────────────────────────────────
 
@@ -202,8 +231,8 @@ class BetAssistantDashboard:
              Input("date-from",          "value"),
              Input("date-to",            "value")],
         )
-        def update_tips_table(data_json, search_text, date_from, date_to):
-            if not data_json:
+        def update_tips_table(_, search_text, date_from, date_to):
+            if self.logic.match_df.empty:
                 return alert_msg("No data available. Click Refresh Data to load matches.", "warning")
             filtered = self.logic.filter_matches(
                 search_text=search_text,
@@ -242,7 +271,7 @@ class BetAssistantDashboard:
             Input("b-target-legs",         "value"),
             Input("b-max-overflow-sw",     "value"),
             Input("b-max-overflow-val",    "value"),
-            Input("b-prob-floor",          "value"),
+            Input("b-consensus-floor",    "value"),
             Input("b-min-odds",            "value"),
             Input("b-markets",             "value"),
             Input("b-tolerance-sw",        "value"),
@@ -251,7 +280,7 @@ class BetAssistantDashboard:
             Input("b-stop-val",            "value"),
             Input("b-fill-ratio",          "value"),
             Input("b-quality-vs-balance",  "value"),
-            Input("b-prob-vs-sources",     "value"),
+            Input("b-consensus-vs-sources", "value"),
             Input({"type": "profile-pill", "index": ALL}, "n_clicks"),
             Input("btn-add-manual-slip",   "n_clicks"),],
             State("builder-profile-name",   "value"),
@@ -259,25 +288,25 @@ class BetAssistantDashboard:
             allow_duplicate=True,
         )
         def update_builder_preview(
-            data_json, active_tab, date_from, date_to, excluded_urls,
+            data_version, active_tab, date_from, date_to, excluded_urls,
             target_odds, target_legs,
             max_overflow_sw, max_overflow_val,
-            prob_floor, min_odds,
+            consensus_floor, min_odds,
             markets,
             tolerance_sw, tolerance_val,
             stop_sw, stop_val,
             fill_ratio,
-            quality_vs_balance, prob_vs_sources,
+            quality_vs_balance, consensus_vs_sources,
             n_pill_clicks, n_add,
             profile_name,
         ):
-            if not data_json or active_tab != "tab-builder":
+            if self.logic.match_df.empty or active_tab != "tab-builder":
                 return dash.no_update, dash.no_update, dash.no_update
 
             config_inputs = {
                 "b-target-odds", "b-target-legs", "b-max-overflow-sw", "b-max-overflow-val",
-                "b-prob-floor", "b-min-odds", "b-markets", "b-tolerance-sw", "b-tolerance-val",
-                "b-stop-sw", "b-stop-val", "b-fill-ratio", "b-quality-vs-balance", "b-prob-vs-sources",
+                "b-consensus-floor", "b-min-odds", "b-markets", "b-tolerance-sw", "b-tolerance-val",
+                "b-stop-sw", "b-stop-val", "b-fill-ratio", "b-quality-vs-balance", "b-consensus-vs-sources",
             }
 
             triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
@@ -299,17 +328,17 @@ class BetAssistantDashboard:
                 date_from=date_from,
                 date_to=date_to,
                 excluded_urls=excluded_urls or None,
-                included_market_types=included_markets,
+                included_markets=included_markets,
                 target_odds=float(target_odds or 3.0),
                 target_legs=int(target_legs or 3),
                 max_legs_overflow=int(max_overflow_val) if max_overflow_sw else None,
-                probability_floor=float(prob_floor or 50.0),
+                consensus_floor=float(consensus_floor or 50.0),
                 min_odds=float(min_odds or 1.05),
                 tolerance_factor=(tolerance_val / 100.0) if tolerance_sw else None,
                 stop_threshold=(stop_val / 100.0)         if stop_sw      else None,
                 min_legs_fill_ratio=float(fill_ratio or 70) / 100.0,
                 quality_vs_balance=float(quality_vs_balance or 50) / 100.0,
-                prob_vs_sources=float(prob_vs_sources or 50) / 100.0,
+                consensus_vs_sources=float(consensus_vs_sources or 50) / 100.0,
             )
             selections   = self.logic.build_slip(cfg)
             pending_urls = self.logic.get_pending_urls()
@@ -325,7 +354,7 @@ class BetAssistantDashboard:
             State("b-target-legs",         "value"),
             State("b-max-overflow-sw",     "value"),
             State("b-max-overflow-val",    "value"),
-            State("b-prob-floor",          "value"),
+            State("b-consensus-floor",    "value"),
             State("b-min-odds",            "value"),
             State("b-markets",             "value"),
             State("b-tolerance-sw",        "value"),
@@ -334,15 +363,15 @@ class BetAssistantDashboard:
             State("b-stop-val",            "value"),
             State("b-fill-ratio",          "value"),
             State("b-quality-vs-balance",  "value"),
-            State("b-prob-vs-sources",     "value"),
+            State("b-consensus-vs-sources", "value"),
             State("builder-units",     "value"),
             State("builder-run-daily", "value"),
             State("profiles-updated-store", "data")],
             prevent_initial_call=True,
         )
         def save_profile(n, name, target_odds, target_legs, max_overflow_sw, max_overflow_val,
-                        prob_floor, min_odds, markets, tolerance_sw, tolerance_val,
-                        stop_sw, stop_val, fill_ratio, quality_vs_balance, prob_vs_sources,
+                        consensus_floor, min_odds, markets, tolerance_sw, tolerance_val,
+                        stop_sw, stop_val, fill_ratio, quality_vs_balance, consensus_vs_sources,
                         units, run_daily, store_val):
             if not n:
                 return dash.no_update, dash.no_update
@@ -351,23 +380,23 @@ class BetAssistantDashboard:
 
             clean = "".join(c for c in name if c.isalnum() or c in ("_", "-")).lower()
             cfg = BetSlipConfig(
-                included_market_types=(
+                included_markets=(
                     None if set(markets or []) == set(ALL_MARKET_TYPES) else (markets or [])
                 ),
-                target_odds=float(target_odds or 3.0),
-                target_legs=int(target_legs or 3),
+                target_odds=float(target_odds),
+                target_legs=int(target_legs),
                 max_legs_overflow=int(max_overflow_val) if max_overflow_sw else None,
-                probability_floor=float(prob_floor or 50.0),
-                min_odds=float(min_odds or 1.05),
+                consensus_floor=float(consensus_floor),
+                min_odds=float(min_odds),
                 tolerance_factor=(tolerance_val / 100.0) if tolerance_sw else None,
                 stop_threshold=(stop_val / 100.0)         if stop_sw      else None,
-                min_legs_fill_ratio=float(fill_ratio or 70) / 100.0,
-                quality_vs_balance=float(quality_vs_balance or 50) / 100.0,
-                prob_vs_sources=float(prob_vs_sources or 50) / 100.0,
+                min_legs_fill_ratio=float(fill_ratio) / 100.0,
+                quality_vs_balance=float(quality_vs_balance) / 100.0,
+                consensus_vs_sources=float(consensus_vs_sources) / 100.0,
             )
             data = config_to_yaml_dict(cfg,
-                                        units=units or 1.0,
-                                        run_daily_count=int(run_daily or 0))
+                                        units=units,
+                                        run_daily_count=int(run_daily))
             self.settings_manager.write(self.config_path + "/profiles", clean, data)
             return alert_msg(f"✅ Profile '{clean}' saved!", "success"), (store_val or 0) + 1
 
@@ -400,7 +429,7 @@ class BetAssistantDashboard:
             Output("b-target-legs",        "value"),
             Output("b-max-overflow-sw",    "value"),
             Output("b-max-overflow-val",   "value"),
-            Output("b-prob-floor",         "value"),
+            Output("b-consensus-floor",    "value"),
             Output("b-min-odds",           "value"),
             Output("b-markets",            "value"),
             Output("b-tolerance-sw",       "value"),
@@ -409,7 +438,7 @@ class BetAssistantDashboard:
             Output("b-stop-val",           "value"),
             Output("b-fill-ratio",         "value"),
             Output("b-quality-vs-balance", "value"),
-            Output("b-prob-vs-sources",    "value"),
+            Output("b-consensus-vs-sources", "value"),
             Output("builder-profile-name", "value", allow_duplicate=True),
             Output("builder-units",     "value",    allow_duplicate=True),
             Output("builder-run-daily", "value",    allow_duplicate=True),],
@@ -428,7 +457,7 @@ class BetAssistantDashboard:
             if not prof:
                 return [dash.no_update] * 17
 
-            mkt_raw  = prof.get("included_market_types")
+            mkt_raw  = prof.get("included_markets")
             tol_raw  = prof.get("tolerance_factor")
             stop_raw = prof.get("stop_threshold")
             ovf_raw  = prof.get("max_legs_overflow")
@@ -438,7 +467,7 @@ class BetAssistantDashboard:
                 prof.get("target_legs",         3),
                 [1] if ovf_raw  is not None else [],
                 int(ovf_raw) if ovf_raw is not None else 1,
-                prof.get("probability_floor",   50.0),
+                prof.get("consensus_floor",   50.0),
                 prof.get("min_odds",            1.05),
                 mkt_raw if mkt_raw else ALL_MARKET_TYPES,
                 [1] if tol_raw  is not None else [],
@@ -447,7 +476,7 @@ class BetAssistantDashboard:
                 int((stop_raw or 0.91) * 100),
                 int(prof.get("min_legs_fill_ratio", 0.70) * 100),
                 int(prof.get("quality_vs_balance",  0.5)  * 100),
-                int(prof.get("prob_vs_sources",     0.5)  * 100),
+                int(prof.get("consensus_vs_sources", 0.5)  * 100),
                 profile_name,
                 prof.get("units", 1.0),
                 prof.get("run_daily_count", 0),
@@ -577,8 +606,6 @@ class BetAssistantDashboard:
             url_to_remove = triggered_id["index"]
             return [u for u in current_excluded if u != url_to_remove]
 
-    # ── Slips tab ─────────────────────────────────────────────────────────────
-
     def _cb_slips_tab(self) -> None:
         @self.app.callback(
             [Output("historic-stats-cards",      "children"),
@@ -592,16 +619,15 @@ class BetAssistantDashboard:
              Input("btn-generate-slips",      "n_clicks"),
              Input("btn-add-manual-slip",     "n_clicks"),
              Input({"type": "delete-slip-btn", "index": ALL}, "n_clicks"),
-             Input("svc-verify-trigger",      "data"),
-             Input("svc-generate-trigger",    "data"),],
+             Input("server-version-store",    "data")],
             State("live-matches-store", "data"),
-            prevent_initial_call=True,
+            prevent_initial_call=False,
         )
         def update_slips_tab(
             active_tab, profile_filter,
             n_validate, n_generate, n_add,
             n_delete_list,
-            v_trigger, g_trigger,
+            server_version,
             current_live,
         ):
             ctx       = dash.callback_context
@@ -615,23 +641,17 @@ class BetAssistantDashboard:
             live_store  = current_live if isinstance(current_live, dict) else {}
             live_out    = dash.no_update
 
-            if triggered in ("btn-force-refresh", "svc-verify-trigger"):
+            if triggered == "btn-force-refresh":
                 result     = self.logic.validate_slips()
                 live_store = {item["match_name"]: {"score": item["score"], "minute": item["minute"]}
                               for item in result.get("live", [])}
-                for item in result.get("finished", []):
-                    live_store[item["match_name"]] = {
-                        "score":   item["score"],
-                        "minute":  "FT",
-                        "outcome": item["outcome"],
-                    }
                 live_out    = live_store
                 refresh_msg = status_msg(
                     f"✅ Checked {result['checked']} · Settled {result['settled']} · "
                     f"Live {len(live_store)} · Errors {result['errors']}"
                 )
 
-            elif triggered in ("btn-generate-slips", "svc-generate-trigger"):
+            elif triggered == "btn-generate-slips":
                 all_profiles = self.settings_manager.get("profiles") or {}
                 profiles = {
                     name: (yaml_dict_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 1))
@@ -641,6 +661,13 @@ class BetAssistantDashboard:
                 results     = self.logic.generate_slips(profiles)
                 total       = sum(len(v) for v in results.values())
                 refresh_msg = status_msg(f"✅ Generated {total} slip(s)")
+
+            # If the service validated in the background, grab its cached result
+            elif triggered == "server-version-store" and self._last_validate_result:
+                result = self._last_validate_result
+                live_store = {item["match_name"]: {"score": item["score"], "minute": item["minute"]}
+                              for item in result.get("live", [])}
+                live_out = live_store
 
             if active_tab != "tab-historic" and triggered != "btn-add-manual-slip":
                 return (dash.no_update, dash.no_update,
@@ -657,6 +684,8 @@ class BetAssistantDashboard:
             )
 
             profile_names = [p.stem for p in Path(self.config_path + "/profiles").glob("*.yaml")]
+            profile_names.append("manual")
+
             options = (
                 [{"label": "📊 All Profiles", "value": "all"}] +
                 [{"label": f"👤 {n.upper()}", "value": n} for n in profile_names]
@@ -668,21 +697,22 @@ class BetAssistantDashboard:
 
     def _cb_pull_update(self) -> None:
         @self.app.callback(
-            [Output("last-updated-text", "children"),
+            [Output("header-status-text", "children", allow_duplicate=True),
              Output("refresh-btn",       "n_clicks")],
-            [Input("btn-pull-update",  "n_clicks"),
-            Input("svc-pull-trigger", "data")],
+            Input("btn-pull-update",  "n_clicks"),
             State("refresh-btn",      "n_clicks"),
             prevent_initial_call=True,
         )
-        def pull_update(n, pull_trigger, current_clicks):
-            if not n and not pull_trigger:
+        def pull_update(n, current_clicks):
+            if not n:
                 return dash.no_update, dash.no_update
             try:
                 self.logic.pull_matches_db(self.matches_db_path)
-                return "Pull successful", (current_clicks or 0) + 1
+                from datetime import datetime
+                ts = datetime.now().strftime("%H:%M:%S")
+                return f"✅ Pull successful ({ts})", (current_clicks or 0) + 1
             except Exception as exc:
-                return f"Pull failed: {exc}", dash.no_update
+                return f"❌ Pull failed: {exc}", dash.no_update
 
     def _cb_save_services(self) -> None:
         @self.app.callback(
@@ -722,43 +752,97 @@ class BetAssistantDashboard:
                 cfg.get("generate_hour", 8),
             )
 
-    def _cb_service_sync(self) -> None:
+    def _cb_version_poller(self) -> None:
+        """Lightweight interval that pushes the server version to the client store.
+        When the version changes, downstream callbacks (slips, analytics) re-render."""
         @self.app.callback(
-            [Output("svc-verify-trigger",   "data"),
-            Output("svc-generate-trigger", "data"),
-            Output("svc-pull-trigger",     "data")],
-            Input("svc-poll-interval", "n_intervals"),
+            Output("server-version-store", "data"),
+            [Input("svc-poll-interval", "n_intervals"),
+             Input("session-init-trigger", "data")],
+            State("server-version-store", "data"),
         )
-        def sync_service_triggers(_):
-            verify_val   = self._verify_counter[0]
-            generate_val = self._generate_counter[0]
-            pull_val     = self._pull_counter[0]
+        def poll_version(n, init, last_seen):
+            current = self.logic.version
+            if current == (last_seen or 0):
+                return dash.no_update
+            return current
 
-            # only return new values when they've actually changed
-            if verify_val   == self._last_verify:
-                verify_out = dash.no_update
+    def _cb_analytics_tab(self) -> None:
+        @self.app.callback(
+            [Output("ana-history-1", "children"),
+             Output("ana-history-2", "children"),
+             Output("ana-history-3", "children"),
+             Output("ana-history-4", "children"),
+             Output("ana-market-accuracy", "children"),
+             Output("ana-correlation-1", "children"),
+             Output("ana-correlation-2", "children"),
+             Output("analytics-profile-filter", "options")],
+            [Input("main-tabs", "active_tab"),
+             Input("analytics-profile-filter", "value"),
+             Input("profiles-updated-store",  "data"),
+             Input("server-version-store",    "data")],
+            prevent_initial_call=False,
+        )
+        def update_analytics_tab(active_tab, profile_filter, _prof_ver, _srv_ver):
+            profile_names = [p.stem for p in Path(self.config_path + "/profiles").glob("*.yaml")]
+            profile_names.append("manual")
+            options = (
+                [{"label": "📊 All Profiles", "value": "all"}] +
+                [{"label": f"👤 {n.upper()}", "value": n} for n in profile_names]
+            )
+
+            if active_tab != "tab-analytics":
+                return [dash.no_update] * 7 + [options]
+
+            prof = profile_filter if profile_filter != "all" else None
+
+            daily_summary = self.logic.daily_summary(prof)
+            history_charts = render_history_charts(daily_summary)
+
+            market_stats = self.logic.market_accuracy(prof)
+            market_chart = render_market_accuracy_chart(market_stats)
+
+            correlation = self.logic.correlation_data(prof)
+            corr_charts = render_correlation_charts(correlation)
+
+            # Fill with empty graphs if history_charts is a single alert
+            if isinstance(history_charts, list) and len(history_charts) == 1:
+                # It's an empty chart alert
+                h1, h2, h3, h4 = history_charts[0], "", "", ""
             else:
-                self._last_verify = verify_val
-                verify_out = verify_val
+                h1, h2, h3, h4 = history_charts
 
-            if generate_val == self._last_generate:
-                generate_out = dash.no_update
+            if isinstance(corr_charts, list) and len(corr_charts) == 1:
+                c1, c2 = corr_charts[0], ""
             else:
-                self._last_generate = generate_val
-                generate_out = generate_val
+                c1, c2 = corr_charts
 
-            if pull_val == self._last_pull:
-                pull_out = dash.no_update
-            else:
-                self._last_pull = pull_val
-                pull_out = pull_val
-
-            return verify_out, generate_out, pull_out
-    # ── Run ───────────────────────────────────────────────────────────────────
-
+            return h1, h2, h3, h4, market_chart, c1, c2, options
     def run(self, debug: bool = True, port: int = 8050) -> None:
-        print(f"Starting dashboard on http://0.0.0.0:{port}")
-        self.app.run(debug=debug, host="0.0.0.0", port=port, dev_tools_hot_reload=False)
+        """Run the dashboard server."""
+        if not debug:
+            print(f"Starting dashboard in PRODUCTION mode on http://0.0.0.0:{port}")
+            try:
+                from waitress import serve
+                print(f"[Server] Using Waitress WSGI server (threaded=True) on port {port}")
+                # Waitress does not fork processes, so background threads survive
+                serve(self.app.server, host="0.0.0.0", port=port, threads=8)
+                return
+            except ImportError:
+                print("[Server] Waitress NOT found. Please 'pip install waitress'")
+
+        # Standard Flask/Dash server (for debug or fallback)
+        self.app.run(
+            debug=debug,
+            host="0.0.0.0",
+            port=port,
+            dev_tools_hot_reload=False,
+            dev_tools_ui=debug,
+            dev_tools_props_check=debug,
+            dev_tools_silence_routes_logging=not debug,
+            threaded=True,
+            use_reloader=False if not debug else True
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
