@@ -24,7 +24,6 @@ import pandas as pd
 import pytest
 
 from bet_framework.BetAssistant import (
-    MARKET_MAP,
     PROFILES,
     BetAssistant,
     BetSlipConfig,
@@ -712,8 +711,34 @@ class TestGetExcludedUrls:
 class TestRowsToSlips:
     def test_normal_groups_legs_under_slip(self):
         rows = [
-            (1, "2026-04-01", "profile", 3.0, 1.0, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "Pending", "http://x"),
-            (1, "2026-04-01", "profile", 3.0, 1.0, "C vs D", "2026-04-01T18:00:00", "2", "result", 2.0, "Pending", "http://y"),
+            (
+                1,
+                "2026-04-01",
+                "profile",
+                3.0,
+                1.0,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                "1",
+                "result",
+                1.5,
+                "Pending",
+                "http://x",
+            ),
+            (
+                1,
+                "2026-04-01",
+                "profile",
+                3.0,
+                1.0,
+                "C vs D",
+                "2026-04-01T18:00:00",
+                "2",
+                "result",
+                2.0,
+                "Pending",
+                "http://y",
+            ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
         assert len(slips) == 1
@@ -721,38 +746,142 @@ class TestRowsToSlips:
 
     def test_normal_status_pending(self):
         rows = [
-            (1, "2026-04-01", "p", 3.0, 1.0, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "Pending", None),
+            (
+                1,
+                "2026-04-01",
+                "p",
+                3.0,
+                1.0,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                "1",
+                "result",
+                1.5,
+                "Pending",
+                None,
+            ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0]["slip_status"] == "Pending"
 
     def test_normal_status_won(self):
         rows = [
-            (1, "2026-04-01", "p", 3.0, 1.0, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "Won", None),
+            (
+                1,
+                "2026-04-01",
+                "p",
+                3.0,
+                1.0,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                "1",
+                "result",
+                1.5,
+                "Won",
+                None,
+            ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0]["slip_status"] == "Won"
 
     def test_normal_status_lost(self):
         rows = [
-            (1, "2026-04-01", "p", 3.0, 1.0, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "Won", None),
-            (1, "2026-04-01", "p", 3.0, 1.0, "C vs D", "2026-04-01T18:00:00", "2", "result", 2.0, "Lost", None),
+            (
+                1,
+                "2026-04-01",
+                "p",
+                3.0,
+                1.0,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                "1",
+                "result",
+                1.5,
+                "Won",
+                None,
+            ),
+            (
+                1,
+                "2026-04-01",
+                "p",
+                3.0,
+                1.0,
+                "C vs D",
+                "2026-04-01T18:00:00",
+                "2",
+                "result",
+                2.0,
+                "Lost",
+                None,
+            ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0]["slip_status"] == "Lost"
 
     def test_normal_status_live(self):
         rows = [
-            (1, "2026-04-01", "p", 3.0, 1.0, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "Live", None),
-            (1, "2026-04-01", "p", 3.0, 1.0, "C vs D", "2026-04-01T18:00:00", "2", "result", 2.0, "Pending", None),
+            (
+                1,
+                "2026-04-01",
+                "p",
+                3.0,
+                1.0,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                "1",
+                "result",
+                1.5,
+                "Live",
+                None,
+            ),
+            (
+                1,
+                "2026-04-01",
+                "p",
+                3.0,
+                1.0,
+                "C vs D",
+                "2026-04-01T18:00:00",
+                "2",
+                "result",
+                2.0,
+                "Pending",
+                None,
+            ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0]["slip_status"] == "Live"
 
     def test_edge_multiple_slips(self):
         rows = [
-            (1, "2026-04-01", "p1", 3.0, 1.0, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "Pending", None),
-            (2, "2026-04-02", "p2", 5.0, 2.0, "C vs D", "2026-04-02T15:00:00", "2", "result", 2.0, "Won", None),
+            (
+                1,
+                "2026-04-01",
+                "p1",
+                3.0,
+                1.0,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                "1",
+                "result",
+                1.5,
+                "Pending",
+                None,
+            ),
+            (
+                2,
+                "2026-04-02",
+                "p2",
+                5.0,
+                2.0,
+                "C vs D",
+                "2026-04-02T15:00:00",
+                "2",
+                "result",
+                2.0,
+                "Won",
+                None,
+            ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
         assert len(slips) == 2

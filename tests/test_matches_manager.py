@@ -72,6 +72,7 @@ def make_chunk_db(path, matches):
         odds_json = None
         if m.odds:
             from dataclasses import asdict
+
             odds_json = json.dumps(asdict(m.odds))
         conn.execute(
             "INSERT INTO matches (home_team_name, away_team_name, datetime, predictions_scores, odds, result_url) VALUES (?, ?, ?, ?, ?, ?)",
@@ -117,9 +118,7 @@ def populated_mm(tmp_path):
     manager = MatchesManager(
         str(tmp_path / "populated.db"), similarity_config=SIMILARITY_CONFIG
     )
-    manager.add_match(
-        make_match("Arsenal", "Chelsea", DT_BASE, [Score("src_a", 2, 1)])
-    )
+    manager.add_match(make_match("Arsenal", "Chelsea", DT_BASE, [Score("src_a", 2, 1)]))
     manager.add_match(
         make_match(
             "Liverpool",
@@ -164,7 +163,9 @@ class TestInit:
         mm.close()
 
     def test_edge_empty_db_has_matches_table(self, mm):
-        rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='table' AND name='matches'")
+        rows = mm.fetch_rows(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='matches'"
+        )
         assert len(rows) == 1
 
 
@@ -220,8 +221,22 @@ class TestAddMatch:
         assert odds["draw"] == 3.0
 
     def test_normal_url_preserved_from_first_insert(self, mm):
-        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)], url="https://first.com"))
-        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_b", 1, 0)], url="https://second.com"))
+        mm.add_match(
+            make_match(
+                "Arsenal",
+                "Chelsea",
+                preds=[Score("src_a", 2, 1)],
+                url="https://first.com",
+            )
+        )
+        mm.add_match(
+            make_match(
+                "Arsenal",
+                "Chelsea",
+                preds=[Score("src_b", 1, 0)],
+                url="https://second.com",
+            )
+        )
         buf = mm.ensure_buffer()
         # First URL is preserved, second is not overwritten
         assert buf.iloc[0]["result_url"] == "https://first.com"
@@ -285,7 +300,14 @@ class TestFetchMatches:
 
     def test_normal_has_expected_columns(self, populated_mm):
         df = populated_mm.fetch_matches()
-        for col in ["home_name", "away_name", "datetime", "scores", "odds", "result_url"]:
+        for col in [
+            "home_name",
+            "away_name",
+            "datetime",
+            "scores",
+            "odds",
+            "result_url",
+        ]:
             assert col in df.columns
 
     def test_normal_scores_deserialized_as_lists(self, populated_mm):
@@ -338,7 +360,9 @@ class TestFlush:
         mm.add_match(make_match("Flush", "Test"))
         mm.flush()
         # Read from disk directly
-        rows = mm.fetch_rows("SELECT * FROM matches WHERE home_team_name = ?", ("Flush",))
+        rows = mm.fetch_rows(
+            "SELECT * FROM matches WHERE home_team_name = ?", ("Flush",)
+        )
         assert len(rows) == 1
 
     def test_normal_flush_clears_dirty_flag(self, mm):
