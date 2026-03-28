@@ -42,7 +42,6 @@ from __future__ import annotations
 
 import hashlib
 import math
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -321,6 +320,7 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
 
         import re
         import time
+
         html = ""
         soup = None
 
@@ -333,8 +333,10 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
             gametime_container = soup.find(id="gametime-container")
 
             status_parts = []
-            if status_container: status_parts.append(status_container.get_text(strip=True))
-            if gametime_container: status_parts.append(gametime_container.get_text(strip=True))
+            if status_container:
+                status_parts.append(status_container.get_text(strip=True))
+            if gametime_container:
+                status_parts.append(gametime_container.get_text(strip=True))
             status_text = " ".join(status_parts).strip()
 
             # Global fallback for status if containers are empty (e.g. initial loads)
@@ -357,10 +359,10 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
 
             # Heuristic: search globally for minutes if specialized tags missed it
             if not (is_finished or is_live):
-                 match_live = minute_rx.search(soup.get_text()[:2000])
-                 if match_live:
-                     is_live = True
-                     minute = match_live.group(1)
+                match_live = minute_rx.search(soup.get_text()[:2000])
+                if match_live:
+                    is_live = True
+                    minute = match_live.group(1)
 
             # If match hasn't started yet, don't look for scores (prevents future stat leaks)
             if not (is_finished or is_live):
@@ -375,7 +377,9 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
 
             if not match_score:
                 # Fallback to fuzzy search for X:Y in common score-like classes
-                score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.I))
+                score_div = soup.find(
+                    "div", class_=re.compile(r"font-bold.*text-center", re.I)
+                )
                 if score_div:
                     match_score = score_rx.search(score_div.get_text(strip=True))
 
@@ -389,11 +393,15 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
                 break
 
             if attempt == 0:
-                logger.debug(f"[BetAssistant] Active match ({status_text}) but score missing for {url}, retrying...")
+                logger.debug(
+                    f"[BetAssistant] Active match ({status_text}) but score missing for {url}, retrying..."
+                )
                 time.sleep(2)
 
         if not result["score"]:
-            logger.debug(f"[BetAssistant] Active match ({status_text}) but no score found for {url}")
+            logger.debug(
+                f"[BetAssistant] Active match ({status_text}) but no score found for {url}"
+            )
             return result
 
         if is_finished:
