@@ -321,6 +321,7 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
 
         # or the score div hasn't propagated to the cache yet.
         import re
+
         score_regex = re.compile(r"^\s*\d{1,2}\s*:\s*\d{1,2}\s*$")
         score_div = None
         html = ""
@@ -329,15 +330,17 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
         for attempt in range(2):
             html = WebScraper.fetch(url, stealthy_headers=True)
             soup = BeautifulSoup(html, "html.parser")
-            
+
             # 1. Identify Status FIRST to know if we should even look for a score
             status_container = soup.find(id="status-container")
-            status_text = status_container.get_text(strip=True) if status_container else ""
-            
+            status_text = (
+                status_container.get_text(strip=True) if status_container else ""
+            )
+
             is_finished = "FT" in status_text or "Finished" in status_text
             is_live = False
             minute = ""
-            
+
             # Check for live indicators (e.g. 45', HT, etc)
             # Use regex to find a minute marker preceded by a number anywhere in the status
             minute_rx = re.compile(r"(\d+'|HT)")
@@ -345,7 +348,7 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
             if match_live:
                 is_live = True
                 minute = match_live.group(1)
-            
+
             # If match hasn't started yet, don't look for scores (prevents H2H/Stats leaks)
             if not (is_finished or is_live):
                 return result
@@ -354,7 +357,7 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
             score_div = soup.find(
                 "div", class_="text-base font-bold min-sm:text-xl text-center"
             )
-            
+
             # 3. Try fuzzy fallback
             if not score_div:
                 target_node = soup.find(string=score_regex)
