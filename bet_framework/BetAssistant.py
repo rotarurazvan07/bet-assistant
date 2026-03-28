@@ -319,11 +319,8 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
             "outcome": "",
         }
 
-        # or the score div hasn't propagated to the cache yet.
         import re
-
-        score_regex = re.compile(r"^\s*\d{1,2}\s*:\s*\d{1,2}\s*$")
-        score_div = None
+        import time
         html = ""
         soup = None
 
@@ -331,62 +328,78 @@ def _check_match_result(url: str, market: str, market_type: str) -> dict[str, An
             html = WebScraper.fetch(url, stealthy_headers=True)
             soup = BeautifulSoup(html, "html.parser")
 
-            # 1. Identify Status FIRST to know if we should even look for a score
+            # 1. Identify Status (Check Soccervista specific IDs)
             status_container = soup.find(id="status-container")
-            status_text = (
-                status_container.get_text(strip=True) if status_container else ""
-            )
+            gametime_container = soup.find(id="gametime-container")
+
+            status_parts = []
+            if status_container: status_parts.append(status_container.get_text(strip=True))
+            if gametime_container: status_parts.append(gametime_container.get_text(strip=True))
+            status_text = " ".join(status_parts).strip()
+
+            # Global fallback for status if containers are empty (e.g. initial loads)
+            if not status_text:
+                all_text_start = soup.get_text(separator=" ", strip=True)[:2000]
+                for marker in ["FT", "Finished", "HT"]:
+                    if marker in all_text_start:
+                        status_text = marker
+                        break
 
             is_finished = "FT" in status_text or "Finished" in status_text
             is_live = False
             minute = ""
 
-            # Check for live indicators (e.g. 45', HT, etc)
-            # Use regex to find a minute marker preceded by a number anywhere in the status
             minute_rx = re.compile(r"(\d+'|HT)")
             match_live = minute_rx.search(status_text)
             if match_live:
                 is_live = True
                 minute = match_live.group(1)
 
-            # If match hasn't started yet, don't look for scores (prevents H2H/Stats leaks)
+            # Heuristic: search globally for minutes if specialized tags missed it
+            if not (is_finished or is_live):
+                 match_live = minute_rx.search(soup.get_text()[:2000])
+                 if match_live:
+                     is_live = True
+                     minute = match_live.group(1)
+
+            # If match hasn't started yet, don't look for scores (prevents future stat leaks)
             if not (is_finished or is_live):
                 return result
 
-            # 2. Try primary CSS class
-            score_div = soup.find(
-                "div", class_="text-base font-bold min-sm:text-xl text-center"
-            )
+            # 2. Identify Score (Prioritize Soccervista livescore-container)
+            score_container = soup.find(id="livescore-container")
+            score_text = score_container.get_text(strip=True) if score_container else ""
 
-            # 3. Try fuzzy fallback
-            if not score_div:
-                target_node = soup.find(string=score_regex)
-                if target_node:
-                    score_div = target_node.parent
+            score_rx = re.compile(r"(\d{1,2})\s*:\s*(\d{1,2})")
+            match_score = score_rx.search(score_text)
 
-            if score_div:
+            if not match_score:
+                # Fallback to fuzzy search for X:Y in common score-like classes
+                score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.I))
+                if score_div:
+                    match_score = score_rx.search(score_div.get_text(strip=True))
+
+            if not match_score:
+                # Last resort: global search for the FIRST X:Y pattern in page header
+                match_score = score_rx.search(soup.get_text()[:2000])
+
+            if match_score:
                 # Successfully found score for an active/finished match
+                result["score"] = f"{match_score.group(1)}:{match_score.group(2)}"
                 break
 
             if attempt == 0:
-                logger.debug(
-                    f"[BetAssistant] Active match ({status_text}) but score missing for {url}, retrying in 2s..."
-                )
+                logger.debug(f"[BetAssistant] Active match ({status_text}) but score missing for {url}, retrying...")
                 time.sleep(2)
 
-        if not score_div:
-            logger.debug(
-                f"[BetAssistant] Active match ({status_text}) but no score found for {url} — remaining PENDING"
-            )
+        if not result["score"]:
+            logger.debug(f"[BetAssistant] Active match ({status_text}) but no score found for {url}")
             return result
-
-        raw_score = score_div.get_text(strip=True)
-        result["score"] = raw_score
 
         if is_finished:
             result["status"] = "FT"
             try:
-                h, a = _parse_score(raw_score)
+                h, a = _parse_score(result["score"])
                 result["outcome"] = _determine_outcome(h, a, market, market_type)
             except Exception:
                 pass

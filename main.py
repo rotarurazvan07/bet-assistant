@@ -209,37 +209,30 @@ def mode_merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
     )
     matches_manager.reset_matches_db()
     matches_manager.merge_databases(chunks_dir)
+    matches_df = matches_manager.fetch_matches()
     matches_manager.close()
 
     # Generate summary
-    import sqlite3
-
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT result_url, predictions_scores FROM matches")
-    rows = cur.fetchall()
-
     # Track unique match indices per source to prevent double counting
     source_to_matches = defaultdict(set)
-    matches_count = len(rows)
+    matches_count = len(matches_df)
 
-    for i, (url, preds) in enumerate(rows):
+    for i, row in matches_df.iterrows():
+        url = row.get("result_url")
+        scores_list = row.get("scores")
+
         # 1. Infer from URL
         if url:
             domain = urlparse(url).netloc
             core_name = domain.split(".")[-2] if "." in domain else domain
             source_to_matches[core_name.lower()].add(i)
 
-        # 2. Extract from predictions list
-        if preds:
-            try:
-                ps = json.loads(preds)
-                for p in ps:
-                    src = p.get("source")
-                    if src:
-                        source_to_matches[src.lower()].add(i)
-            except:
-                pass
+        # 2. Extract from predictions list (already deserialized by fetch_matches)
+        if scores_list:
+            for p in scores_list:
+                src = p.get("source")
+                if src:
+                    source_to_matches[src.lower()].add(i)
 
     logger.info("  " + "=" * 26)
     logger.info("  " + "MERGE SUMMARY".center(26))
