@@ -766,7 +766,7 @@ class BetAssistantDashboard:
                 }
                 live_out = live_store
                 refresh_msg = status_msg(
-                    f"✅ Checked {result['checked']} · Settled {result['settled']} · "
+                    f"✅ Checked {result['checked']} · Settled {len(result['settled'])} · "
                     f"Live {len(live_store)} · Errors {result['errors']}"
                 )
 

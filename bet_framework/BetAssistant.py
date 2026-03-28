@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -303,27 +304,14 @@ def _determine_outcome(home: int, away: int, market: str, market_type: str) -> s
     return "Pending"
 
 
-def _check_match_result(
-    url: str, market: str, market_type: str, session: Any = None
-) -> dict[str, Any]:
+def _check_match_result(url: str, market: str, market_type: str) -> dict[str, Any]:
     """
     Scrape a result page and return the match status for a given market.
     """
     try:
         from bet_framework.WebScraper import WebScraper
 
-        if session:
-            session.fetch(url, timeout=60000)
-            # wait for score-div like element
-            try:
-                session.wait_for_selector("div.text-base.font-bold", timeout=10000)
-            except Exception:
-                pass  # optional wait
-            html = session.page.content()
-        else:
-            html = WebScraper.fetch(url, stealthy_headers=True)
-
-        soup = BeautifulSoup(html, "html.parser")
+        # Default result structure
         result: dict[str, Any] = {
             "status": "PENDING",
             "score": "",
@@ -331,22 +319,68 @@ def _check_match_result(
             "outcome": "",
         }
 
-        score_div = soup.find(
-            "div", class_="text-base font-bold min-sm:text-xl text-center"
-        )
+        # or the score div hasn't propagated to the cache yet.
+        import re
+        score_regex = re.compile(r"^\s*\d{1,2}\s*:\s*\d{1,2}\s*$")
+        score_div = None
+        html = ""
+        soup = None
+
+        for attempt in range(2):
+            html = WebScraper.fetch(url, stealthy_headers=True)
+            soup = BeautifulSoup(html, "html.parser")
+            
+            # 1. Identify Status FIRST to know if we should even look for a score
+            status_container = soup.find(id="status-container")
+            status_text = status_container.get_text(strip=True) if status_container else ""
+            
+            is_finished = "FT" in status_text or "Finished" in status_text
+            is_live = False
+            minute = ""
+            
+            # Check for live indicators (e.g. 45', HT, etc)
+            # Use regex to find a minute marker preceded by a number anywhere in the status
+            minute_rx = re.compile(r"(\d+'|HT)")
+            match_live = minute_rx.search(status_text)
+            if match_live:
+                is_live = True
+                minute = match_live.group(1)
+            
+            # If match hasn't started yet, don't look for scores (prevents H2H/Stats leaks)
+            if not (is_finished or is_live):
+                return result
+
+            # 2. Try primary CSS class
+            score_div = soup.find(
+                "div", class_="text-base font-bold min-sm:text-xl text-center"
+            )
+            
+            # 3. Try fuzzy fallback
+            if not score_div:
+                target_node = soup.find(string=score_regex)
+                if target_node:
+                    score_div = target_node.parent
+
+            if score_div:
+                # Successfully found score for an active/finished match
+                break
+
+            if attempt == 0:
+                logger.debug(
+                    f"[BetAssistant] Active match ({status_text}) but score missing for {url}, retrying in 2s..."
+                )
+                time.sleep(2)
+
         if not score_div:
             logger.debug(
-                f"[BetAssistant] No score_div found on result page (len={len(html)}) for {url} — remaining PENDING"
+                f"[BetAssistant] Active match ({status_text}) but no score found for {url} — remaining PENDING"
             )
             return result
 
         raw_score = score_div.get_text(strip=True)
         result["score"] = raw_score
 
-        status_container = soup.find(id="status-container")
-        status_text = status_container.get_text(strip=True) if status_container else ""
-
-        if "FT" in status_text or "Finished" in status_text:
+        if is_finished:
             result["status"] = "FT"
             try:
                 h, a = _parse_score(raw_score)
@@ -355,14 +389,7 @@ def _check_match_result(
                 pass
         else:
             result["status"] = "LIVE"
-            parent = score_div.parent
-            if parent:
-                text = parent.get_text(separator=" | ", strip=True)
-                parts = [p.strip() for p in text.split("|")]
-                for part in parts:
-                    if ("'" in part and part[0].isdigit()) or "HT" in part:
-                        result["minute"] = part
-                        break
+            result["minute"] = minute
 
         return result
 
@@ -730,53 +757,50 @@ class BetAssistant(BaseStorageManager):
         live_matches: list[dict[str, Any]] = []
         settled_matches: list[dict[str, Any]] = []
 
-        from bet_framework.WebScraper import WebScraper
+        for row in pending:
+            leg_id, url, market, market_type, match_name = tuple(row)
+            checked += 1
+            info = _check_match_result(url, market, market_type)
 
-        with WebScraper.browser(solve_cloudflare=True) as session:
-            for row in pending:
-                leg_id, url, market, market_type, match_name = tuple(row)
-                checked += 1
-                info = _check_match_result(url, market, market_type, session=session)
+            if info["status"] == "ERROR":
+                errors += 1
+                logger.error(
+                    f"[BetAssistant] Validation error on leg {leg_id}: {info.get('error')}"
+                )
 
-                if info["status"] == "ERROR":
-                    errors += 1
-                    logger.error(
-                        f"[BetAssistant] Validation error on leg {leg_id}: {info.get('error')}"
+            elif info["status"] == "FT" and info["outcome"] in ("Won", "Lost"):
+                with self.db_lock:
+                    self.conn.execute(
+                        "UPDATE legs SET status = ? WHERE leg_id = ?",
+                        (info["outcome"], leg_id),
                     )
+                    self.conn.commit()
+                settled_matches.append(
+                    {
+                        "leg_id": leg_id,
+                        "match_name": match_name,
+                        "market": market,
+                        "score": info["score"],
+                        "outcome": info["outcome"],
+                    }
+                )
 
-                elif info["status"] == "FT" and info["outcome"] in ("Won", "Lost"):
-                    with self.db_lock:
-                        self.conn.execute(
-                            "UPDATE legs SET status = ? WHERE leg_id = ?",
-                            (info["outcome"], leg_id),
-                        )
-                        self.conn.commit()
-                    settled_matches.append(
-                        {
-                            "leg_id": leg_id,
-                            "match_name": match_name,
-                            "market": market,
-                            "score": info["score"],
-                            "outcome": info["outcome"],
-                        }
+            elif info["status"] == "LIVE":
+                with self.db_lock:
+                    self.conn.execute(
+                        "UPDATE legs SET status = 'Live' WHERE leg_id = ?",
+                        (leg_id,),
                     )
-
-                elif info["status"] == "LIVE":
-                    with self.db_lock:
-                        self.conn.execute(
-                            "UPDATE legs SET status = 'Live' WHERE leg_id = ?",
-                            (leg_id,),
-                        )
-                        self.conn.commit()
-                    live_matches.append(
-                        {
-                            "leg_id": leg_id,
-                            "match_name": match_name,
-                            "market": market,
-                            "score": info["score"],
-                            "minute": info["minute"],
-                        }
-                    )
+                    self.conn.commit()
+                live_matches.append(
+                    {
+                        "leg_id": leg_id,
+                        "match_name": match_name,
+                        "market": market,
+                        "score": info["score"],
+                        "minute": info["minute"],
+                    }
+                )
 
         return {
             "checked": checked,
