@@ -1,26 +1,36 @@
-# Use official Playwright Python image
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+FROM python:3.10-slim-bookworm
 
-# Set working directory
+# Global envs for smaller layers
+ENV PIP_NO_CACHE_DIR=1 \
+    PYTHONUNBUFFERED=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
 WORKDIR /app
 
-# Install GH CLI (Binary Method), Unzip, and Curl
-RUN apt-get update && apt-get install -y curl unzip && \
-    # Download the binary (detects architecture automatically)
-    curl -fsSL https://github.com/cli/cli/releases/download/v2.42.1/gh_2.42.1_linux_$(dpkg --print-architecture).tar.gz -o gh.tar.gz && \
-    # Extract and move to /usr/local/bin
-    tar xzf gh.tar.gz --strip-components=1 -C /usr/local/ && \
-    rm gh.tar.gz && \
-    # Verify installation
-    gh --version
+# 1. Install system tools + clean up in ONE layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && pip install --upgrade pip \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python requirements
-COPY requirements-dashboard.txt .
-COPY requirements-scrape.txt .
-RUN pip install -r requirements-dashboard.txt
-RUN pip install -r requirements-scrape.txt
+# 2. Copy requirement files first (better caching)
+COPY setup/requirements-dashboard.txt .
+COPY setup/requirements-scrape.txt .
 
-# Copy your scripts
+# 3. Install Python deps AND purge build tools in the same layer as installs
+# This ensures 'git' doesn't stay in the final image layers
+RUN pip install -r requirements-dashboard.txt \
+    && pip install -r requirements-scrape.txt \
+    && apt-get purge -y --auto-remove git \
+    && rm -rf /var/lib/apt/lists/*
+
+# 4. Install EXACTLY what we need for Chromium and nothing else
+RUN playwright install-deps chromium \
+    && playwright install chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# 5. Copy app code (relying on .dockerignore to skip .git and local venv)
 COPY . .
 
-CMD ["echo", "hello"]
+# Default command
+CMD ["python", "main.py", "--help"]

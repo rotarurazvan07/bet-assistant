@@ -1,0 +1,259 @@
+name: CICD
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.10"
+
+# ════════════════════════════════════════════════════════════════════════════
+# PHILOSOPHY
+#   auto-fix  — runs first, commits ALL mechanical improvements back to the
+#               branch so you never do them manually:
+#                 · removes unused imports/vars      (autoflake)
+#                 · modernises syntax                (pyupgrade)
+#                 · adds trivial type annotations    (autotyping)
+#                 · sorts imports                    (isort)
+#                 · formats code                     (ruff format)
+#                 · fixes lint + perf anti-patterns  (ruff --fix)
+#   test      — the ONLY job you need to read. Fails on logic bugs only.
+#   audit     — security / complexity scans. Informational, never blocks.
+#   ci-gate   — the single required status check for branch protection.
+# ════════════════════════════════════════════════════════════════════════════
+
+jobs:
+
+  # ── 1. AUTO-FIX ───────────────────────────────────────────────────────────
+  auto-fix:
+    name: "Auto-fix"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.AUTO_FIX_TOKEN || secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install auto-fix tools
+        run: |
+          pip install \
+            ruff \
+            isort \
+            pyupgrade \
+            autoflake \
+            autotyping
+
+      - name: autoflake — remove unused imports and variables
+        run: |
+          autoflake \
+            --in-place \
+            --recursive \
+            --remove-all-unused-imports \
+            --remove-unused-variables \
+            --exclude .venv,__pycache__ \
+            bet_crawler/ bet_framework/ dashboard/ main.py tests/
+
+      - name: pyupgrade — modernise syntax to Python 3.10+
+        run: |
+          find bet_crawler bet_framework dashboard tests -name "*.py" | xargs pyupgrade --py310-plus || true
+          pyupgrade --py310-plus main.py || true
+
+      - name: autotyping — infer and add trivial return type annotations
+        run: |
+          python -m autotyping \
+            --none-return \
+            --scalar-return \
+            --bool-param \
+            bet_crawler/ bet_framework/ dashboard/ main.py
+
+      - name: isort — sort imports
+        run: isort bet_crawler/ bet_framework/ dashboard/ main.py tests/
+
+      - name: ruff format
+        run: ruff format bet_crawler/ bet_framework/ dashboard/ main.py tests/
+
+      - name: ruff lint --fix
+        run: ruff check --fix --unsafe-fixes --output-format=github bet_crawler/ bet_framework/ dashboard/ main.py tests/ || true
+
+      - name: Commit fixes (if any)
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Nothing to fix — working tree is clean."
+          else
+            git add -A
+            git commit -m "chore: auto-fix (types · lint · perf) [skip ci]"
+            git push
+            echo "Fixes committed and pushed."
+          fi
+
+  # ── 2. TESTS ─────────────────────────────────────────────────────────────
+  test:
+    name: "Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    needs: [auto-fix]
+    if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            setup/requirements-dashboard.txt
+            setup/requirements-scrape.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r setup/requirements-dashboard.txt
+          pip install -r setup/requirements-scrape.txt
+          pip install pytest pytest-cov pytest-xdist pytest-timeout
+
+      - name: scrapling install (browser binaries)
+        run: |
+          scrapling install
+
+      - name: Run tests
+        run: |
+          python -m pytest \
+            --cov=bet_crawler \
+            --cov=bet_framework \
+            --cov=dashboard \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --junitxml=test-results.xml \
+            --timeout=60 \
+            -n auto \
+            -v
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-py${{ matrix.python-version }}
+          path: htmlcov/
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-py${{ matrix.python-version }}
+          path: test-results.xml
+          retention-days: 14
+
+  # ── 3. AUDIT ─────────────────────────────────────────────────────────────
+  audit:
+    name: "Audit (security · complexity · dead code)"
+    runs-on: ubuntu-latest
+    needs: [auto-fix]
+    if: always()
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            setup/requirements-dashboard.txt
+            setup/requirements-scrape.txt
+
+      - name: Install dependencies and audit tools
+        run: |
+          pip install -r setup/requirements-dashboard.txt
+          pip install -r setup/requirements-scrape.txt
+          pip install bandit pip-audit radon vulture
+
+      - name: bandit — security SAST
+        run: |
+          bandit -r bet_crawler/ bet_framework/ dashboard/ main.py -ll -ii \
+            --format json \
+            --output bandit-report.json || true
+          bandit -r bet_crawler/ bet_framework/ dashboard/ main.py -ll -ii || true
+
+      - name: pip-audit — CVE scan
+        run: |
+          pip-audit --format json --output pip-audit-report.json || true
+          pip-audit || true
+
+      - name: radon — complexity report
+        run: |
+          echo "── Cyclomatic Complexity ────────────────────────────────────"
+          radon cc bet_crawler/ bet_framework/ dashboard/ main.py --show-complexity --average --json \
+            > radon-cc-report.json || true
+          radon cc bet_crawler/ bet_framework/ dashboard/ main.py --min C --show-complexity --average || true
+          echo ""
+          echo "── Maintainability Index ────────────────────────────────────"
+          radon mi bet_crawler/ bet_framework/ dashboard/ main.py --json > radon-mi-report.json || true
+          radon mi bet_crawler/ bet_framework/ dashboard/ main.py --show --min B || true
+
+      - name: vulture — dead code detection
+        run: vulture bet_crawler/ bet_framework/ dashboard/ main.py --min-confidence 80 | tee vulture-report.txt || true
+
+      - name: Upload all audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-reports
+          retention-days: 30
+          path: |
+            bandit-report.json
+            pip-audit-report.json
+            radon-cc-report.json
+            radon-mi-report.json
+            vulture-report.txt
+
+  # ── GATE ─────────────────────────────────────────────────────────────────
+  ci-gate:
+    name: "CI Gate"
+    if: always()
+    needs: [auto-fix, test, audit]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required jobs passed
+        run: |
+          python3 -c "
+          import sys
+          required = {
+              'auto-fix': '${{ needs.auto-fix.result }}',
+              'test':     '${{ needs.test.result }}',
+          }
+          failures = [
+              name for name, result in required.items()
+              if result not in ('success', 'skipped')
+          ]
+          if failures:
+              print('Blocking failures in:', ', '.join(failures))
+              sys.exit(1)
+          print('All required jobs passed.')
+          print('Audit result (advisory):', '${{ needs.audit.result }}')
+          "

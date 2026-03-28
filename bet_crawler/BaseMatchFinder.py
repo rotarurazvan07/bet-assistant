@@ -1,12 +1,16 @@
-from abc import abstractmethod
-from datetime import datetime, timezone
+from scrape_kit import get_logger
+
+logger = get_logger(__name__)
+
 import re
-from typing import Callable, List, Optional, Tuple
+from abc import abstractmethod
+from collections.abc import Callable
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from bet_framework.WebScraper import WebScraper, ScrapeMode
+from bet_framework.WebScraper import ScrapeMode, WebScraper
 
-SKIP_PATTERNS: List[Tuple[str, str]] = [  # TODO false skipping
+SKIP_PATTERNS: list[tuple[str, str]] = [  # TODO false skipping
     (r"\bU\d{2}s?\b", "Youth team"),
     (r"\bW\b", "Women's team"),
     (r"\bII\b", "Reserve team II"),
@@ -20,9 +24,10 @@ SKIP_PATTERNS: List[Tuple[str, str]] = [  # TODO false skipping
 
 CURRENT_TIME = datetime.now()
 _LOCAL_TZ = CURRENT_TIME.astimezone().tzinfo
-# print(f"Detected System Timezone: {_LOCAL_TZ}")
+# logger.info(f"Detected System Timezone: {_LOCAL_TZ}")
 
-class BaseMatchFinder():
+
+class BaseMatchFinder:
     """Base class for match finders.
 
     Subclasses implement:
@@ -38,9 +43,9 @@ class BaseMatchFinder():
     If TIMEZONE is None, no normalisation is applied (legacy behaviour).
     """
 
-    TIMEZONE: Optional[str] = None  # Subclasses override
+    TIMEZONE: str | None = None  # Subclasses override
 
-    def __init__(self, add_match_callback: Callable):
+    def __init__(self, add_match_callback: Callable) -> None:
         super().__init__()
         self.add_match_callback = add_match_callback
 
@@ -59,7 +64,9 @@ class BaseMatchFinder():
         """Parse a single scraped page. Used as callback for scrape_urls()."""
         raise NotImplementedError()
 
-    def scrape_urls(self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1):
+    def scrape_urls(
+        self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1
+    ) -> None:
         """Scrape URLs with concurrency, calling callback(url, html) for each page."""
         WebScraper.scrape(urls, callback, mode=mode, max_concurrency=max_concurrency)
 
@@ -90,22 +97,43 @@ class BaseMatchFinder():
             if not force:
                 reason = self.skip_match_by_patterns(match.home_team, match.away_team)
                 if reason:
-                    print(f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})")
+                    logger.info(
+                        f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})"
+                    )
                     return False
-                if match.datetime is not None and not self.validate_match_date(match.datetime):
-                    print(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
+                if match.datetime is not None and not self.validate_match_date(
+                    match.datetime
+                ):
+                    logger.info(
+                        f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})"
+                    )
                     return False
+            logger.info(
+                f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})"
+            )
             self.add_match_callback(match)
             return True
         except Exception as e:
-            print(f"Error while adding match: {e}")
+            logger.error(f"Error while adding match: {e}")
             return False
 
-    def skip_match_by_patterns(self, home_team_name: str, away_team_name: str, skip_patterns: Optional[List[Tuple[str, str]]] = None) -> Optional[str]:
+    def skip_match_by_patterns(
+        self,
+        home_team_name: str,
+        away_team_name: str,
+        skip_patterns: list[tuple[str, str]] | None = None,
+    ) -> str | None:
         """Return the reason for skipping when any pattern matches either team."""
         patterns = skip_patterns if skip_patterns is not None else SKIP_PATTERNS
-        return next((reason for pattern, reason in patterns
-                     if re.search(pattern, home_team_name, re.I) or re.search(pattern, away_team_name, re.I)), None)
+        return next(
+            (
+                reason
+                for pattern, reason in patterns
+                if re.search(pattern, home_team_name, re.I)
+                or re.search(pattern, away_team_name, re.I)
+            ),
+            None,
+        )
 
     def validate_match_date(self, match_datetime):
         """Keep only today's matches and future matches."""

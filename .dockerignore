@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+venv
+env
+__pycache__
+*.db
+*.db-shm
+*.db-wal
+.pytest_cache
+.tasks
+*.log
+Dockerfile
+.gitignore
+.dockerignore
+README.md

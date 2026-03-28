@@ -10,7 +10,6 @@ Single source of truth for:
 Every other module imports from here — nothing is hard-coded elsewhere.
 """
 
-from typing import Dict, List
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Colour palette
@@ -18,31 +17,28 @@ from typing import Dict, List
 
 COLORS = {
     # Brand / primary
-    "primary":       "#4361ee",
-    "primary_dark":  "#3f37c9",
-    "accent":        "#764ba2",
-
+    "primary": "#4361ee",
+    "primary_dark": "#3f37c9",
+    "accent": "#764ba2",
     # Semantic
-    "success":       "#28a745",
-    "danger":        "#dc3545",
-    "warning":       "#fd7e14",
-    "info":          "#17a2b8",
-    "live":          "#ff4b4b",
-
+    "success": "#28a745",
+    "danger": "#dc3545",
+    "warning": "#fd7e14",
+    "info": "#17a2b8",
+    "live": "#ff4b4b",
     # Neutral
-    "bg_page":       "#f8f9fe",
-    "bg_card":       "#ffffff",
-    "bg_light":      "#f8f9fa",
-    "border":        "#dee2e6",
+    "bg_page": "#f8f9fe",
+    "bg_card": "#ffffff",
+    "bg_light": "#f8f9fa",
+    "border": "#dee2e6",
     "border_subtle": "#e9ecef",
-    "muted":         "#6c757d",
-    "text_dark":     "#212529",
-
+    "muted": "#6c757d",
+    "text_dark": "#212529",
     # Status backgrounds
-    "bg_won":        "#d1e7dd",
-    "bg_lost":       "#f8d7da",
-    "bg_pending":    "#f8f9fa",
-    "bg_live":       "#fff3cd",
+    "bg_won": "#d1e7dd",
+    "bg_lost": "#f8d7da",
+    "bg_pending": "#f8f9fa",
+    "bg_live": "#fff3cd",
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -59,13 +55,13 @@ FONT_SIZE_BASE = "13px"
 # Spacing / shape
 # ─────────────────────────────────────────────────────────────────────────────
 
-RADIUS_SM  = "8px"
-RADIUS_MD  = "12px"
-RADIUS_LG  = "20px"
+RADIUS_SM = "8px"
+RADIUS_MD = "12px"
+RADIUS_LG = "20px"
 
-SHADOW_SM  = "0 1px 3px rgba(0,0,0,.08)"
-SHADOW_MD  = "0 4px 12px rgba(0,0,0,.10)"
-SHADOW_LG  = "0 8px 30px rgba(0,0,0,.12)"
+SHADOW_SM = "0 1px 3px rgba(0,0,0,.08)"
+SHADOW_MD = "0 4px 12px rgba(0,0,0,.10)"
+SHADOW_LG = "0 8px 30px rgba(0,0,0,.12)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Shared inline style dicts  (reusable across components)
@@ -73,33 +69,33 @@ SHADOW_LG  = "0 8px 30px rgba(0,0,0,.12)"
 
 STYLE_CARD = {
     "borderRadius": RADIUS_MD,
-    "boxShadow":    SHADOW_SM,
-    "border":       "none",
+    "boxShadow": SHADOW_SM,
+    "border": "none",
     "backgroundColor": COLORS["bg_card"],
 }
 
 STYLE_HEADER_GRADIENT = {
-    "background":    f"linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['primary_dark']} 100%)",
-    "borderRadius":  RADIUS_LG,
-    "marginTop":     "20px",
+    "background": f"linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['primary_dark']} 100%)",
+    "borderRadius": RADIUS_LG,
+    "marginTop": "20px",
 }
 
 STYLE_LIVE_BADGE = {
     "backgroundColor": COLORS["live"],
-    "color":           "white",
-    "borderRadius":    RADIUS_SM,
-    "padding":         "2px 8px",
-    "fontSize":        FONT_SIZE_SM,
-    "fontWeight":      "bold",
-    "letterSpacing":   "0.5px",
+    "color": "white",
+    "borderRadius": RADIUS_SM,
+    "padding": "2px 8px",
+    "fontSize": FONT_SIZE_SM,
+    "fontWeight": "bold",
+    "letterSpacing": "0.5px",
 }
 
 STYLE_TOOLTIP_ICON = {
-    "cursor":       "pointer",
-    "fontSize":     FONT_SIZE_XS,
-    "border":       f"1px solid {COLORS['muted']}",
+    "cursor": "pointer",
+    "fontSize": FONT_SIZE_XS,
+    "border": f"1px solid {COLORS['muted']}",
     "borderRadius": "50%",
-    "padding":      "1px 5px",
+    "padding": "1px 5px",
     "verticalAlign": "middle",
 }
 
@@ -107,7 +103,7 @@ STYLE_TOOLTIP_ICON = {
 # Chart constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-CHART_COLORS: List[str] = [
+CHART_COLORS: list[str] = [
     COLORS["accent"],
     COLORS["primary"],
     COLORS["success"],
@@ -132,33 +128,41 @@ CHART_LAYOUT = dict(
 
 TABLE_STYLE_HEADER = {
     "backgroundColor": COLORS["accent"],
-    "color":           "white",
-    "fontWeight":      "bold",
-    "textAlign":       "center",
-    "padding":         "14px",
-    "border":          "none",
+    "color": "white",
+    "fontWeight": "bold",
+    "textAlign": "center",
+    "padding": "14px",
+    "border": "none",
 }
 
 TABLE_STYLE_DATA = {
     "backgroundColor": "white",
-    "border":          "none",
-    "borderBottom":    f"1px solid {COLORS['border_subtle']}",
+    "border": "none",
+    "borderBottom": f"1px solid {COLORS['border_subtle']}",
 }
 
 TABLE_STYLE_CELL = {
-    "textAlign":    "center",
-    "padding":      "12px",
-    "fontFamily":   FONT_FAMILY,
-    "fontSize":     FONT_SIZE_BASE,
-    "whiteSpace":   "pre-line",
-    "height":       "auto",
+    "textAlign": "center",
+    "padding": "12px",
+    "fontFamily": FONT_FAMILY,
+    "fontSize": FONT_SIZE_BASE,
+    "whiteSpace": "pre-line",
+    "height": "auto",
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Config field metadata
 # ─────────────────────────────────────────────────────────────────────────────
 
-ALL_MARKET_TYPES: List[str] = ["result", "over_under_2.5", "btts"]
+ALL_MARKET_TYPES: list[str] = [
+    "1",
+    "X",
+    "2",
+    "Over 2.5",
+    "Under 2.5",
+    "BTTS Yes",
+    "BTTS No",
+]
 
 # Fields that live in the YAML but are NOT part of BetSlipConfig
 DASHBOARD_ONLY_KEYS = {"units", "run_daily_count"}
@@ -173,31 +177,29 @@ NULLABLE_CONFIG_FIELDS = {"max_legs_overflow", "tolerance_factor", "stop_thresho
 # Tooltip texts
 # ─────────────────────────────────────────────────────────────────────────────
 
-TOOLTIP_TEXTS: Dict[str, str] = {
+TOOLTIP_TEXTS: dict[str, str] = {
     "target_odds": (
         "Desired cumulative odds for the entire slip. "
         "The algorithm stops building once it gets close enough to this number."
     ),
-    "target_legs": (
-        "Desired number of selections (legs) on the slip. Range: 1-10."
-    ),
+    "target_legs": ("Desired number of selections (legs) on the slip. Range: 1-10."),
     "max_legs_overflow": (
         "How many extra legs beyond target_legs are allowed. "
         "Auto = 0 for singles, +1 for 2-4 legs, +2 for 5+ legs."
     ),
-    "probability_floor": (
-        "Minimum prediction confidence (%). Picks below this threshold are "
+    "consensus_floor": (
+        "Minimum source agreement (%). Picks below this threshold are "
         "discarded before any scoring. E.g. 50 = only picks where 50 %+ of "
-        "historical results agree with the prediction."
+        "historical data sources agree with the prediction."
     ),
     "min_odds": (
         "Minimum bookmaker odds to consider. "
         "Filters out near-certain outcomes where the margin is unattractive. "
         "Range: 1.01-10.0."
     ),
-    "included_market_types": (
-        "Which bet markets to include. "
-        "Results = 1/X/2, O/U 2.5 = goals over/under, BTTS = both teams score."
+    "included_markets": (
+        "Which specific bet markets to include. "
+        "Select individual outcomes like '1', 'Over 2.5', 'BTTS Yes', etc."
     ),
     "tolerance_factor": (
         "±% band around the ideal per-leg odds. A pick within this band is "
@@ -216,13 +218,13 @@ TOOLTIP_TEXTS: Dict[str, str] = {
         "Trade-off between pick quality and odds balance.\n"
         "0.0 = care only about matching the target odds per leg\n"
         "0.5 = equal weight (default)\n"
-        "1.0 = care only about quality (best prob/sources wins)"
+        "1.0 = care only about quality (best consensus/sources wins)"
     ),
-    "prob_vs_sources": (
-        "Within the quality score, how much weight goes to probability vs data sources.\n"
+    "consensus_vs_sources": (
+        "Within the quality score, how much weight goes to source agreement vs total source count.\n"
         "0.0 = sources only\n"
         "0.5 = equal weight (default)\n"
-        "1.0 = probability only"
+        "1.0 = consensus only"
     ),
 }
 
@@ -231,14 +233,18 @@ TOOLTIP_TEXTS: Dict[str, str] = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 STATUS_STYLES = {
-    "Won":  {"bg": COLORS["bg_won"],    "text": "success", "badge": "success"},
-    "Lost": {"bg": COLORS["bg_lost"],   "text": "danger",  "badge": "danger"},
-    "Live": {"bg": COLORS["bg_live"],   "text": "warning", "badge": "warning"},
+    "Won": {"bg": COLORS["bg_won"], "text": "success", "badge": "success"},
+    "Lost": {"bg": COLORS["bg_lost"], "text": "danger", "badge": "danger"},
+    "Live": {"bg": COLORS["bg_live"], "text": "warning", "badge": "warning"},
 }
-STATUS_STYLES_DEFAULT = {"bg": COLORS["bg_pending"], "text": "dark", "badge": "secondary"}
+STATUS_STYLES_DEFAULT = {
+    "bg": COLORS["bg_pending"],
+    "text": "dark",
+    "badge": "secondary",
+}
 
 LEG_ICON = {
-    "Won":  "fa-check-circle text-success",
+    "Won": "fa-check-circle text-success",
     "Lost": "fa-times-circle text-danger",
     "Live": "fa-circle-notch fa-spin text-warning",
 }
