@@ -7,9 +7,10 @@ from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
 
-from .BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
 from bet_framework.WebScraper import ScrapeMode, WebScraper
+
+from .BaseMatchFinder import BaseMatchFinder
 
 WHOSCORED_URL = "https://www.whoscored.com/"
 WHOSCORED_NAME = "whoscored"

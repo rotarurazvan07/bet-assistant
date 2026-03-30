@@ -7,9 +7,10 @@ from datetime import datetime
 
 from bs4 import BeautifulSoup
 
-from .BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
 from bet_framework.WebScraper import WebScraper
+
+from .BaseMatchFinder import BaseMatchFinder
 
 XGSCORE_URL = "https://xgscore.io/predictions/correct-score"
 XGSCORE_NAME = "xgscore"

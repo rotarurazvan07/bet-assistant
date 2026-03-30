@@ -69,6 +69,7 @@ MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
 
 def _import(cls: str):
     from bet_crawler import finders
+
     return getattr(finders, cls)
 
 

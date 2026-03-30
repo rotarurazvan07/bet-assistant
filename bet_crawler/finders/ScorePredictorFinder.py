@@ -5,9 +5,10 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
-from .BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
 from bet_framework.WebScraper import ScrapeMode, WebScraper
+
+from .BaseMatchFinder import BaseMatchFinder
 
 SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
