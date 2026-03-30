@@ -7,7 +7,7 @@ from datetime import datetime
 
 from bs4 import BeautifulSoup
 
-from bet_crawler.BaseMatchFinder import BaseMatchFinder
+from .BaseMatchFinder import BaseMatchFinder
 from bet_framework.core.Match import *
 from bet_framework.WebScraper import ScrapeMode, WebScraper
 
@@ -23,7 +23,8 @@ class FootballBettingTipsFinder(BaseMatchFinder):
     def get_matches_urls(self):
         """Load main page via browser (CF bypass), extract prediction URLs."""
         with WebScraper.browser(interactive=True, solve_cloudflare=True) as session:
-            page = session.fetch(FOOTBALLBETTINGTIPS_URL)
+            page = session.fetch(FOOTBALLBETTINGTIPS_URL, timeout=90000, wait_until="networkidle")
+            session.wait_for_selector("h3", timeout=15000)
             soup = BeautifulSoup(page.html_content, "html.parser")
 
         return [

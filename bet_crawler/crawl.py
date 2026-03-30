@@ -37,24 +37,16 @@ from bet_framework.MatchesManager import MatchesManager
 # ─────────────────────────────────────────────────────────────────────────────
 
 _CRAWLER_KEYS = {
-    "scorepredictor": lambda: _import(
-        "bet_crawler.ScorePredictorFinder", "ScorePredictorFinder"
-    ),
-    "soccervista": lambda: _import(
-        "bet_crawler.SoccerVistaFinder", "SoccerVistaFinder"
-    ),
-    "whoscored": lambda: _import("bet_crawler.WhoScoredFinder", "WhoScoredFinder"),
-    "windrawwin": lambda: _import("bet_crawler.WinDrawWinFinder", "WinDrawWinFinder"),
-    "forebet": lambda: _import("bet_crawler.ForebetFinder", "ForebetFinder"),
-    "vitibet": lambda: _import("bet_crawler.VitibetFinder", "VitibetFinder"),
-    "predictz": lambda: _import("bet_crawler.PredictzFinder", "PredictzFinder"),
-    "onemillionpredictions": lambda: _import(
-        "bet_crawler.OneMillionPredictionsFinder", "OneMillionPredictionsFinder"
-    ),
-    "footballbettingtips": lambda: _import(
-        "bet_crawler.FootballBettingTipsFinder", "FootballBettingTipsFinder"
-    ),
-    "xgscore": lambda: _import("bet_crawler.xGScoreFinder", "xGScoreFinder"),
+    "scorepredictor": lambda: _import("ScorePredictorFinder"),
+    "soccervista": lambda: _import("SoccerVistaFinder"),
+    "whoscored": lambda: _import("WhoScoredFinder"),
+    "windrawwin": lambda: _import("WinDrawWinFinder"),
+    "forebet": lambda: _import("ForebetFinder"),
+    "vitibet": lambda: _import("VitibetFinder"),
+    "predictz": lambda: _import("PredictzFinder"),
+    "onemillionpredictions": lambda: _import("OneMillionPredictionsFinder"),
+    "footballbettingtips": lambda: _import("FootballBettingTipsFinder"),
+    "xgscore": lambda: _import("xGScoreFinder"),
 }
 
 _RUNNER_SETS = {
@@ -69,16 +61,15 @@ _RUNNER_SETS = {
     ],
     "local": ["whoscored", "forebet", "footballbettingtips"],
     "all": list(_CRAWLER_KEYS.keys()),
-    "test": ["forebet"],
+    "test": ["footballbettingtips"],
 }
 
 MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
 
 
-def _import(module: str, cls: str):
-    import importlib
-
-    return getattr(importlib.import_module(module), cls)
+def _import(cls: str):
+    from bet_crawler import finders
+    return getattr(finders, cls)
 
 
 def get_crawler_class(url: str):

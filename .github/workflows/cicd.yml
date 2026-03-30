@@ -66,12 +66,11 @@ jobs:
             --remove-all-unused-imports \
             --remove-unused-variables \
             --exclude .venv,__pycache__ \
-            bet_crawler/ bet_framework/ dashboard/ main.py tests/
+            bet_crawler/ bet_framework/ dashboard/ tests/
 
       - name: pyupgrade — modernise syntax to Python 3.10+
         run: |
           find bet_crawler bet_framework dashboard tests -name "*.py" | xargs pyupgrade --py310-plus || true
-          pyupgrade --py310-plus main.py || true
 
       - name: autotyping — infer and add trivial return type annotations
         run: |
@@ -79,16 +78,16 @@ jobs:
             --none-return \
             --scalar-return \
             --bool-param \
-            bet_crawler/ bet_framework/ dashboard/ main.py
+            bet_crawler/ bet_framework/ dashboard/
 
       - name: isort — sort imports
-        run: isort bet_crawler/ bet_framework/ dashboard/ main.py tests/
+        run: isort bet_crawler/ bet_framework/ dashboard/ tests/
 
       - name: ruff format
-        run: ruff format bet_crawler/ bet_framework/ dashboard/ main.py tests/
+        run: ruff format bet_crawler/ bet_framework/ dashboard/ tests/
 
       - name: ruff lint --fix
-        run: ruff check --fix --unsafe-fixes --output-format=github bet_crawler/ bet_framework/ dashboard/ main.py tests/ || true
+        run: ruff check --fix --unsafe-fixes --output-format=github bet_crawler/ bet_framework/ dashboard/ tests/ || true
 
       - name: Commit fixes (if any)
         run: |
@@ -195,10 +194,10 @@ jobs:
 
       - name: bandit — security SAST
         run: |
-          bandit -r bet_crawler/ bet_framework/ dashboard/ main.py -ll -ii \
+          bandit -r bet_crawler/ bet_framework/ dashboard/ -ll -ii \
             --format json \
             --output bandit-report.json || true
-          bandit -r bet_crawler/ bet_framework/ dashboard/ main.py -ll -ii || true
+          bandit -r bet_crawler/ bet_framework/ dashboard/ -ll -ii || true
 
       - name: pip-audit — CVE scan
         run: |
@@ -208,16 +207,16 @@ jobs:
       - name: radon — complexity report
         run: |
           echo "── Cyclomatic Complexity ────────────────────────────────────"
-          radon cc bet_crawler/ bet_framework/ dashboard/ main.py --show-complexity --average --json \
+          radon cc bet_crawler/ bet_framework/ dashboard/ --show-complexity --average --json \
             > radon-cc-report.json || true
-          radon cc bet_crawler/ bet_framework/ dashboard/ main.py --min C --show-complexity --average || true
+          radon cc bet_crawler/ bet_framework/ dashboard/ --min C --show-complexity --average || true
           echo ""
           echo "── Maintainability Index ────────────────────────────────────"
-          radon mi bet_crawler/ bet_framework/ dashboard/ main.py --json > radon-mi-report.json || true
-          radon mi bet_crawler/ bet_framework/ dashboard/ main.py --show --min B || true
+          radon mi bet_crawler/ bet_framework/ dashboard/ --json > radon-mi-report.json || true
+          radon mi bet_crawler/ bet_framework/ dashboard/ --show --min B || true
 
       - name: vulture — dead code detection
-        run: vulture bet_crawler/ bet_framework/ dashboard/ main.py --min-confidence 80 | tee vulture-report.txt || true
+        run: vulture bet_crawler/ bet_framework/ dashboard/ --min-confidence 80 | tee vulture-report.txt || true
 
       - name: Upload all audit reports
         if: always()
