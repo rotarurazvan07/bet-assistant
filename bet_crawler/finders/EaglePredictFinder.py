@@ -4,15 +4,18 @@ logger = get_logger(__name__)
 
 import re
 from datetime import datetime
+
 from bs4 import BeautifulSoup, NavigableString
-from collections import defaultdict
+
 from bet_framework.core.Match import *
 from bet_framework.WebScraper import WebScraper
+
 from .BaseMatchFinder import BaseMatchFinder
 
 EAGLEPREDICT_URL = "https://eaglepredict.com/predictions/correct-score/"
 EAGLEPREDICT_NAME = "eaglepredict"
 MAX_CONCURRENCY = 1
+
 
 class EaglePredictFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
@@ -23,16 +26,26 @@ class EaglePredictFinder(BaseMatchFinder):
 
     def get_matches(self, urls=None) -> None:
         page = WebScraper.fetch(EAGLEPREDICT_URL, stealthy_headers=False)
-        with open("eaglepredict.txt", "w", encoding="utf-8") as f: f.write(page)
+        with open("eaglepredict.txt", "w", encoding="utf-8") as f:
+            f.write(page)
         self._parse_page(None, page)
 
     def _parse_page(self, _, html) -> None:
         soup = BeautifulSoup(html, "html.parser")
 
         MONTHS = {
-            "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4,
-            "May": 5, "Jun": 6, "Jul": 7, "Aug": 8,
-            "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+            "Jan": 1,
+            "Feb": 2,
+            "Mar": 3,
+            "Apr": 4,
+            "May": 5,
+            "Jun": 6,
+            "Jul": 7,
+            "Aug": 8,
+            "Sep": 9,
+            "Oct": 10,
+            "Nov": 11,
+            "Dec": 12,
         }
 
         seen = set()
@@ -111,8 +124,14 @@ class EaglePredictFinder(BaseMatchFinder):
                     home,
                     away,
                     dt,
-                    [Score(EAGLEPREDICT_NAME, score_match.group(1), score_match.group(2))],
+                    [
+                        Score(
+                            EAGLEPREDICT_NAME,
+                            score_match.group(1),
+                            score_match.group(2),
+                        )
+                    ],
                     odds=None,
-                    result_url=None
+                    result_url=None,
                 )
             )

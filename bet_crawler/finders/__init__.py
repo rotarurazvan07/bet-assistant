@@ -1,4 +1,5 @@
 from .BaseMatchFinder import BaseMatchFinder
+from .EaglePredictFinder import EaglePredictFinder
 from .FootballBettingTipsFinder import FootballBettingTipsFinder
 from .ForebetFinder import ForebetFinder
 from .OneMillionPredictionsFinder import OneMillionPredictionsFinder
@@ -9,7 +10,7 @@ from .VitibetFinder import VitibetFinder
 from .WhoScoredFinder import WhoScoredFinder
 from .WinDrawWinFinder import WinDrawWinFinder
 from .xGScoreFinder import xGScoreFinder
-from .EaglePredictFinder import EaglePredictFinder
+
 __all__ = [
     "BaseMatchFinder",
     "FootballBettingTipsFinder",
