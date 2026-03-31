@@ -9,7 +9,7 @@ from .VitibetFinder import VitibetFinder
 from .WhoScoredFinder import WhoScoredFinder
 from .WinDrawWinFinder import WinDrawWinFinder
 from .xGScoreFinder import xGScoreFinder
-
+from .EaglePredictFinder import EaglePredictFinder
 __all__ = [
     "BaseMatchFinder",
     "FootballBettingTipsFinder",
@@ -22,4 +22,5 @@ __all__ = [
     "WhoScoredFinder",
     "WinDrawWinFinder",
     "xGScoreFinder",
+    "EaglePredictFinder",
 ]

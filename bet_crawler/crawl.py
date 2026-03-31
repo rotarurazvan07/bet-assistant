@@ -47,6 +47,7 @@ _CRAWLER_KEYS = {
     "onemillionpredictions": lambda: _import("OneMillionPredictionsFinder"),
     "footballbettingtips": lambda: _import("FootballBettingTipsFinder"),
     "xgscore": lambda: _import("xGScoreFinder"),
+    "eaglepredict": lambda: _import("EaglePredictFinder"),
 }
 
 _RUNNER_SETS = {
@@ -58,10 +59,11 @@ _RUNNER_SETS = {
         "windrawwin",
         "onemillionpredictions",
         "xgscore",
+        "eaglepredict",
     ],
     "local": ["whoscored", "forebet", "footballbettingtips"],
     "all": list(_CRAWLER_KEYS.keys()),
-    "test": ["footballbettingtips"],
+    "test": ["eaglepredict"],
 }
 
 MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
