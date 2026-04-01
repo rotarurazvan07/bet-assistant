@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from bet_framework.BetAssistant import BetAssistant, _check_match_result
+from bet_framework.BetAssistant import BetAssistant, _parse_match_result_html
 
 # ── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -20,81 +20,39 @@ def ba(tmp_path):
     assistant.close()
 
 
-# ── Tests for _check_match_result ───────────────────────────────────────────
+# ── Tests for _parse_match_result_html ──────────────────────────────────────
 
 
-def test_check_result_normal_finished():
-    """Verify FT result parsing with single fetch."""
+def test_parse_normal_finished():
+    """Verify FT result parsing with downloaded HTML."""
     html = f"<html><body>{SCORE_DIV}{STATUS_FINISHED}</body></html>"
-    with patch(
-        "bet_framework.WebScraper.WebScraper.fetch", return_value=html
-    ) as mock_fetch:
-        res = _check_match_result("http://test.url", "1", "result")
-        assert res["status"] == "FT"
-        assert res["score"] == "2:1"
-        assert res["outcome"] == "Won"
-        assert mock_fetch.call_count == 1
+    res = _parse_match_result_html(html, "http://test.url")
+    assert res["status"] == "FT"
+    assert res["score"] == "2:1"
 
 
-def test_check_result_retry_success():
-    """Verify that it retries if score_div is missing on first fetch but status is present."""
-    # Match is active (FT) but score hasn't loaded in the first fetch
-    html_no_score = f"<html><body>{STATUS_FINISHED}</body></html>"
-    html_with_score = f"<html><body>{SCORE_DIV}{STATUS_FINISHED}</body></html>"
-
-    with patch("bet_framework.WebScraper.WebScraper.fetch") as mock_fetch:
-        mock_fetch.side_effect = [html_no_score, html_with_score]
-        with patch("time.sleep"):
-            res = _check_match_result("http://test.url", "1", "result")
-            assert res["status"] == "FT"
-            assert res["score"] == "2:1"
-            assert mock_fetch.call_count == 2
-
-
-def test_check_result_still_pending_after_retries():
-    """Verify it remains PENDING if score_div is never found even if match is full time."""
-    html_no_score = f"<html><body>{STATUS_FINISHED}</body></html>"
-    with patch(
-        "bet_framework.WebScraper.WebScraper.fetch", return_value=html_no_score
-    ) as mock_fetch:
-        with patch("time.sleep"):
-            res = _check_match_result("http://test.url", "1", "result")
-            assert res["status"] == "PENDING"
-            assert mock_fetch.call_count == 2
-
-
-def test_check_result_future_match_ignores_stats():
+def test_parse_future_match_ignores_stats():
     """Verify that a future match (no status) ignores random X:Y patterns on the page."""
-    # This simulates a Soccervista page with H2H or predictions ("4:3") but no "FT" or live clock
     html = '<html><body><span class="random-stat">4:3</span><div class="footer">Kickoff 20:00</div></body></html>'
-    with patch(
-        "bet_framework.WebScraper.WebScraper.fetch", return_value=html
-    ) as mock_fetch:
-        res = _check_match_result("http://test.future", "1", "result")
-        assert res["status"] == "PENDING"
-        assert res["score"] == ""  # Should NOT pick up the 4:3
-        assert mock_fetch.call_count == 1
+    res = _parse_match_result_html(html, "http://test.future")
+    assert res["status"] == "PENDING"
+    assert res["score"] == ""  # Should NOT pick up the 4:3
 
 
-def test_check_result_fuzzy_fallback():
+def test_parse_fuzzy_fallback():
     """Verify that score is found via fuzzy regex if class structure changes."""
-    # Class is totally different than expected
     html = '<html><body><span class="random-new-class">3:2</span><div id="status-container">FT</div></body></html>'
-    with patch("bet_framework.WebScraper.WebScraper.fetch", return_value=html):
-        res = _check_match_result("http://test.url", "1", "result")
-        assert res["status"] == "FT"
-        assert res["score"] == "3:2"
-        # Since it's 3:2 and market is '1', outcome should be 'Won'
-        assert res["outcome"] == "Won"
+    res = _parse_match_result_html(html, "http://test.url")
+    assert res["status"] == "FT"
+    assert res["score"] == "3:2"
 
 
-def test_check_match_result_live():
+def test_parse_live():
     """Verify LIVE result parsing."""
     html = f"<html><body>{SCORE_DIV}{STATUS_LIVE}</body></html>"
-    with patch("bet_framework.WebScraper.WebScraper.fetch", return_value=html):
-        res = _check_match_result("http://test.url", "1", "result")
-        assert res["status"] == "LIVE"
-        assert res["score"] == "2:1"
+    res = _parse_match_result_html(html, "http://test.url")
+    assert res["status"] == "LIVE"
+    assert res["score"] == "2:1"
 
 
 # ── Tests for validate_slips ───────────────────────────────────────────────
@@ -117,12 +75,14 @@ def test_validate_slips_integration(ba):
     ]
     ba.save_slip("test_profile", legs)
 
-    # 2. Mock result: The match finished 2:1 (Home win for market '1')
-    f"<html><body>{SCORE_DIV}{STATUS_FINISHED}</body></html>"
+    # 2. Fake WebScraper scrape calling the callback
+    html = f"<html><body>{SCORE_DIV}{STATUS_FINISHED}</body></html>"
 
-    with patch("bet_framework.BetAssistant._check_match_result") as mock_check:
-        mock_check.return_value = {"status": "FT", "score": "2:1", "outcome": "Won"}
+    def fake_scrape(urls, callback, **kwargs):
+        for url in urls:
+            callback(url, html)
 
+    with patch("bet_framework.WebScraper.WebScraper.scrape", side_effect=fake_scrape):
         report = ba.validate_slips()
 
         assert report["checked"] == 1
@@ -152,7 +112,7 @@ def test_validate_slips_skips_processed(ba):
     rows = ba.fetch_rows("SELECT leg_id FROM legs")
     ba.update_leg(rows[0]["leg_id"], "Won")
 
-    with patch("bet_framework.BetAssistant._check_match_result") as mock_check:
+    with patch("bet_framework.WebScraper.WebScraper.scrape") as mock_scrape:
         report = ba.validate_slips()
         assert report["checked"] == 0
-        assert mock_check.call_count == 0
+        assert mock_scrape.call_count == 0
