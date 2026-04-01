@@ -865,7 +865,10 @@ class BetAssistantDashboard:
                 # which bumps matches_version. Return the new matches_version
                 # directly to the `data-version-store` so the UI updates once.
                 self.logic.pull_matches_db(self.matches_db_path)
-                return self.logic.matches_version, f"Last Update: {self.logic.last_pull_timestamp}"
+                return (
+                    self.logic.matches_version,
+                    f"Last Update: {self.logic.last_pull_timestamp}",
+                )
             except Exception as exc:
                 print(f"❌ Pull failed: {exc}")
                 return dash.no_update, dash.no_update

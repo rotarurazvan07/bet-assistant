@@ -47,7 +47,6 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-from bs4 import BeautifulSoup
 from scrape_kit import BaseStorageManager, get_logger
 
 logger = get_logger(__name__)
@@ -308,6 +307,7 @@ def _parse_match_result_html(html: str, url: str) -> dict[str, str]:
     Parse a result page HTML and return the match status.
     """
     import re
+
     from bs4 import BeautifulSoup
 
     result = {
@@ -367,9 +367,7 @@ def _parse_match_result_html(html: str, url: str) -> dict[str, str]:
 
     if not match_score:
         # Fallback to fuzzy search for X:Y in common score-like classes
-        score_div = soup.find(
-            "div", class_=re.compile(r"font-bold.*text-center", re.I)
-        )
+        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.I))
         if score_div:
             match_score = score_rx.search(score_div.get_text(strip=True))
 
@@ -773,7 +771,9 @@ class BetAssistant(BaseStorageManager):
                     if info["status"] == "FT" and info["score"]:
                         try:
                             h, a = _parse_score(info["score"])
-                            info["outcome"] = _determine_outcome(h, a, market, market_type)
+                            info["outcome"] = _determine_outcome(
+                                h, a, market, market_type
+                            )
                         except Exception:
                             pass
 
