@@ -23,9 +23,9 @@ Public API
 
 from __future__ import annotations
 
+import copy
 import os
 from typing import Any
-import copy
 
 import pandas as pd
 
@@ -170,7 +170,9 @@ class DashboardLogic:
             # Return a deep copy to avoid accidental mutation by callers
             return copy.deepcopy(cached)
 
-        result = self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
+        result = self._assistant.build_slip(
+            cfg, extra_excluded_urls=extra_excluded_urls
+        )
         # Cache the result for subsequent identical requests
         try:
             self._build_slip_cache[key] = copy.deepcopy(result)

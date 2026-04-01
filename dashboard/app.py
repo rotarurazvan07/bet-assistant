@@ -234,7 +234,10 @@ class BetAssistantDashboard:
         )
         def refresh_data(_):
             self.logic.refresh_data()
-            return self.logic.matches_version, f"Last Update: {self.logic.last_pull_timestamp}"
+            return (
+                self.logic.matches_version,
+                f"Last Update: {self.logic.last_pull_timestamp}",
+            )
 
     # ── Tips table ────────────────────────────────────────────────────────────
 
@@ -975,9 +978,11 @@ class BetAssistantDashboard:
             )
 
             # Use 'no_update' ONLY if neither version has changed AND this isn't a new session connecting.
-            if (current_slips == (last_slips_version or 0) and
-                current_matches == (last_matches_version or 0) and
-                triggered != "session-init-trigger"):
+            if (
+                current_slips == (last_slips_version or 0)
+                and current_matches == (last_matches_version or 0)
+                and triggered != "session-init-trigger"
+            ):
                 return dash.no_update, dash.no_update, dash.no_update
 
             return current_slips, current_matches, msg

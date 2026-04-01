@@ -1126,7 +1126,12 @@ def create_tips_table(df: pd.DataFrame) -> Any:
         data=show.to_dict("records"),
         sort_action="native",
         sort_mode="multi",
-        style_table={"width": "100%", "minWidth": "100%", "height": "55vh", "overflowY": "auto"},
+        style_table={
+            "width": "100%",
+            "minWidth": "100%",
+            "height": "55vh",
+            "overflowY": "auto",
+        },
         style_cell=TABLE_STYLE_CELL,
         style_cell_conditional=[
             {"if": {"column_id": "match_id"}, "display": "none"},
