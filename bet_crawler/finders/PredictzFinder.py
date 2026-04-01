@@ -14,7 +14,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 EXCLUDED = [
     "https://www.predictz.com/predictions/england/community-shield/",

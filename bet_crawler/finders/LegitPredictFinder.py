@@ -13,7 +13,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 LEGITPREDICT_URL = "https://legitpredict.com/correct-score?dt="
 LEGITPREDICT_NAME = "legitpredict"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 
 class LegitPredictFinder(BaseMatchFinder):

@@ -13,7 +13,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 EXCLUDED = [
     "premier-league-u18",

@@ -14,7 +14,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 
 class WinDrawWinFinder(BaseMatchFinder):

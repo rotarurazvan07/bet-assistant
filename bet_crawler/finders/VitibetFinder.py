@@ -12,7 +12,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 VITIBET_URL = "https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en"
 VITIBET_NAME = "vitibet"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 EXCLUDED = {
     "/index.php?clanek=tips&sekce=fotbal&liga=champions2&lang=en",

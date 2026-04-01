@@ -14,7 +14,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 WHOSCORED_URL = "https://www.whoscored.com/"
 WHOSCORED_NAME = "whoscored"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 
 class WhoScoredFinder(BaseMatchFinder):
