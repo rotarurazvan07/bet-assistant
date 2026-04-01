@@ -593,7 +593,8 @@ def build_main_layout() -> dbc.Container:
             dcc.Store(id="builder-last-selections", data=[]),
             dcc.Store(id="live-matches-store", data={}),  # match_name → {score, minute}
             dcc.Store(id="profiles-updated-store", data=0),
-            dcc.Store(id="server-version-store", data=0),  # tracks logic.version
+            dcc.Store(id="slips-version-store", data=0),  # tracks logic.slips_version
+            dcc.Store(id="data-version-store", data=0),  # tracks logic.matches_version
             dcc.Store(id="session-init-trigger", data=1),  # fires once on load
             dcc.Interval(id="svc-poll-interval", interval=15_000, n_intervals=0),
             # ── Header ──────────────────────────────────────────────────────────

@@ -10,6 +10,8 @@ from .VitibetFinder import VitibetFinder
 from .WhoScoredFinder import WhoScoredFinder
 from .WinDrawWinFinder import WinDrawWinFinder
 from .xGScoreFinder import xGScoreFinder
+from .EaglePredictFinder import EaglePredictFinder
+from .LegitPredictFinder import LegitPredictFinder
 
 __all__ = [
     "BaseMatchFinder",
@@ -24,4 +26,5 @@ __all__ = [
     "WinDrawWinFinder",
     "xGScoreFinder",
     "EaglePredictFinder",
+    "LegitPredictFinder",
 ]

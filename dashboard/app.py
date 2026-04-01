@@ -126,7 +126,6 @@ class BetAssistantDashboard:
         self.config_path = config_path
         self.settings_manager = SettingsManager(config_path)
 
-        # Last validation result (stored server-side for UI to read)
         self._last_validate_result = {}
 
         ensure_default_profiles(profiles_dir=config_path + "/profiles")
@@ -218,7 +217,8 @@ class BetAssistantDashboard:
             Input("session-init-trigger", "data"),
         )
         def on_session_init(_):
-            self.logic.bump_version()
+            self.logic.bump_slips_version()
+            self.logic.bump_matches_version()
             return dash.no_update
 
     # ── Refresh match data (user-triggered only) ──────────────────────────────
@@ -226,7 +226,7 @@ class BetAssistantDashboard:
     def _cb_refresh_data(self) -> None:
         @self.app.callback(
             [
-                Output("server-version-store", "data", allow_duplicate=True),
+                Output("data-version-store", "data", allow_duplicate=True),
                 Output("header-status-text", "children", allow_duplicate=True),
             ],
             Input("refresh-btn", "n_clicks"),
@@ -234,7 +234,7 @@ class BetAssistantDashboard:
         )
         def refresh_data(_):
             self.logic.refresh_data()
-            return self.logic.version, f"Last Update: {self.logic.last_pull_timestamp}"
+            return self.logic.matches_version, f"Last Update: {self.logic.last_pull_timestamp}"
 
     # ── Tips table ────────────────────────────────────────────────────────────
 
@@ -242,7 +242,7 @@ class BetAssistantDashboard:
         @self.app.callback(
             Output("tips-table-container", "children"),
             [
-                Input("refresh-btn", "n_clicks"),
+                Input("data-version-store", "data"),
                 Input("search-input", "value"),
                 Input("date-from", "value"),
                 Input("date-to", "value"),
@@ -286,7 +286,7 @@ class BetAssistantDashboard:
                 Output("builder-profile-name", "value", allow_duplicate=True),
             ],
             [
-                Input("server-version-store", "data"),
+                Input("data-version-store", "data"),
                 Input("main-tabs", "active_tab"),
                 Input("date-from", "value"),
                 Input("date-to", "value"),
@@ -721,7 +721,7 @@ class BetAssistantDashboard:
                 Input("btn-generate-slips", "n_clicks"),
                 Input("btn-add-manual-slip", "n_clicks"),
                 Input({"type": "delete-slip-btn", "index": ALL}, "n_clicks"),
-                Input("server-version-store", "data"),
+                Input("slips-version-store", "data"),
                 Input("hide-settled-slips", "value"),
                 Input("date-from", "value"),
                 Input("date-to", "value"),
@@ -786,7 +786,7 @@ class BetAssistantDashboard:
                 refresh_msg = status_msg(f"✅ Generated {total} slip(s)")
 
             # If the service validated in the background, grab its cached result
-            elif triggered == "server-version-store" and self._last_validate_result:
+            elif triggered == "slips-version-store" and self._last_validate_result:
                 result = self._last_validate_result
                 live_store = {
                     item["match_name"]: {
@@ -847,17 +847,19 @@ class BetAssistantDashboard:
 
     def _cb_pull_update(self) -> None:
         @self.app.callback(
-            Output("refresh-btn", "n_clicks"),
+            Output("data-version-store", "data"),
             Input("btn-pull-update", "n_clicks"),
-            State("refresh-btn", "n_clicks"),
             prevent_initial_call=True,
         )
-        def pull_update(n, current_clicks):
+        def pull_update(n):
             if not n:
                 return dash.no_update
             try:
+                # pull_matches_db downloads the DB and calls refresh_data(),
+                # which bumps matches_version. Return the new matches_version
+                # directly to the `data-version-store` so the UI updates once.
                 self.logic.pull_matches_db(self.matches_db_path)
-                return (current_clicks or 0) + 1
+                return self.logic.matches_version
             except Exception as exc:
                 print(f"❌ Pull failed: {exc}")
                 return dash.no_update
@@ -889,7 +891,7 @@ class BetAssistantDashboard:
 
     def _cb_toggle_service(self) -> None:
         @self.app.callback(
-            Output("server-version-store", "data", allow_duplicate=True),
+            Output("slips-version-store", "data", allow_duplicate=True),
             Input({"type": "toggle-service-btn", "index": ALL}, "n_clicks"),
             prevent_initial_call=True,
         )
@@ -920,8 +922,8 @@ class BetAssistantDashboard:
             cfg["toggles"] = toggles
             self.settings_manager.write("services", cfg)
 
-            self.logic.bump_version()
-            return self.logic.version
+            self.logic.bump_slips_version()
+            return self.logic.slips_version
 
     def _cb_services_tab(self) -> None:
         @self.app.callback(
@@ -930,7 +932,7 @@ class BetAssistantDashboard:
                 Output("svc-pull-hour", "value"),
                 Output("svc-generate-hour", "value"),
             ],
-            [Input("main-tabs", "active_tab"), Input("server-version-store", "data")],
+            [Input("main-tabs", "active_tab"), Input("slips-version-store", "data")],
         )
         def update_services_tab(active_tab, version):
             if active_tab != "tab-services":
@@ -944,22 +946,27 @@ class BetAssistantDashboard:
             )
 
     def _cb_version_poller(self) -> None:
-        """Lightweight interval that pushes the server version to the client store.
-        When the version changes, downstream callbacks (slips, analytics) re-render."""
+        """Lightweight interval that pushes the version counters to the client stores.
+        When versions change, downstream callbacks re-render."""
 
         @self.app.callback(
             [
-                Output("server-version-store", "data"),
+                Output("slips-version-store", "data"),
+                Output("data-version-store", "data"),
                 Output("header-status-text", "children"),
             ],
             [
                 Input("svc-poll-interval", "n_intervals"),
                 Input("session-init-trigger", "data"),
             ],
-            State("server-version-store", "data"),
+            [
+                State("slips-version-store", "data"),
+                State("data-version-store", "data"),
+            ],
         )
-        def poll_version(n, init, last_seen):
-            current = self.logic.version
+        def poll_version(n, init, last_slips_version, last_matches_version):
+            current_slips = self.logic.slips_version
+            current_matches = self.logic.matches_version
             msg = f"Last Update: {self.logic.last_pull_timestamp}"
 
             ctx = dash.callback_context
@@ -967,11 +974,13 @@ class BetAssistantDashboard:
                 ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
             )
 
-            # Use 'no_update' ONLY if the version hasn't changed AND this isn't a new session connecting.
-            if current == (last_seen or 0) and triggered != "session-init-trigger":
-                return dash.no_update, dash.no_update
+            # Use 'no_update' ONLY if neither version has changed AND this isn't a new session connecting.
+            if (current_slips == (last_slips_version or 0) and
+                current_matches == (last_matches_version or 0) and
+                triggered != "session-init-trigger"):
+                return dash.no_update, dash.no_update, dash.no_update
 
-            return current, msg
+            return current_slips, current_matches, msg
 
     def _cb_analytics_tab(self) -> None:
         @self.app.callback(
@@ -989,7 +998,7 @@ class BetAssistantDashboard:
                 Input("main-tabs", "active_tab"),
                 Input("analytics-profile-filter", "value"),
                 Input("profiles-updated-store", "data"),
-                Input("server-version-store", "data"),
+                Input("slips-version-store", "data"),
                 Input("date-from", "value"),
                 Input("date-to", "value"),
             ],

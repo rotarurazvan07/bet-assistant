@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 from typing import Any
+import copy
 
 import pandas as pd
 
@@ -39,8 +40,9 @@ class DashboardLogic:
     All state lives here (server-side singleton). Callbacks only read from
     this object — they never own data in client-side dcc.Stores.
 
-    The ``version`` counter is bumped on every data mutation so that
-    lightweight polling callbacks can detect changes without re-querying.
+    The ``slips_version`` counter is bumped on slip/status changes.
+    The ``matches_version`` counter is bumped on match data changes.
+    Lightweight polling callbacks detect changes without re-querying.
     """
 
     def __init__(self, matches_db_path: str, slips_db_path: str) -> None:
@@ -48,7 +50,13 @@ class DashboardLogic:
         self._slips_db_path = slips_db_path
         self._assistant = BetAssistant(slips_db_path)
         self._matches_manager = MatchesManager(matches_db_path)
-        self.version = 0  # bumped on any data mutation
+        self.slips_version = 0  # bumped on slip/status changes
+        self.matches_version = 0  # bumped on match data changes
+
+        # In-memory caches to avoid expensive recomputation while the
+        # underlying match data hasn't changed.
+        self._build_slip_cache: dict = {}
+        self._filter_cache: dict = {}
 
         # Pre-load match data so it's ready before any browser connects
         self.refresh_data()
@@ -58,12 +66,29 @@ class DashboardLogic:
     def refresh_data(self) -> pd.DataFrame:
         raw_df = self._matches_manager.fetch_matches()
         self._assistant.load_matches(raw_df)
-        self.bump_version()
+        self.bump_matches_version()
         return self._assistant._df.copy()
 
-    def bump_version(self) -> None:
-        """Manually increment the version to trigger UI refreshes."""
-        self.version += 1
+    def bump_slips_version(self) -> None:
+        """Manually increment the slips version to trigger UI refreshes."""
+        self.slips_version += 1
+
+    def bump_matches_version(self) -> None:
+        """Increment the matches version to trigger match data UI refreshes.
+
+        Also clear any caches that depend on the match dataset so future
+        requests recompute correctly against the new data.
+        """
+        self.matches_version += 1
+        # Clear caches that depend on match contents
+        try:
+            self._build_slip_cache.clear()
+        except Exception:
+            self._build_slip_cache = {}
+        try:
+            self._filter_cache.clear()
+        except Exception:
+            self._filter_cache = {}
 
     def filter_matches(
         self,
@@ -72,11 +97,20 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> pd.DataFrame:
         """Return a filtered view of the loaded match DataFrame."""
-        return self._assistant.filter_matches(
+        # Cache filtered results per (query, date range, matches_version)
+        key = (search_text or "", date_from or "", date_to or "", self.matches_version)
+        cached = self._filter_cache.get(key)
+        if cached is not None:
+            return cached
+
+        df = self._assistant.filter_matches(
             search_text=search_text,
             date_from=date_from,
             date_to=date_to,
         )
+        # Store in cache (shallow reference) and return
+        self._filter_cache[key] = df
+        return df
 
     def pull_matches_db(self, matches_db_path: str) -> str:
         import urllib.error
@@ -122,7 +156,29 @@ class DashboardLogic:
         Returns list of leg dicts:
             match, market, market_type, consensus, odds, result_url, sources, tier, score
         """
-        return self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
+        # Build a cache key from the config + current matches_version + excluded URLs
+        try:
+            cfg_items = tuple(sorted(cfg.__dict__.items()))
+        except Exception:
+            cfg_items = str(cfg)
+
+        excl_key = tuple(sorted(extra_excluded_urls or []))
+        key = (cfg_items, self.matches_version, excl_key)
+
+        cached = self._build_slip_cache.get(key)
+        if cached is not None:
+            # Return a deep copy to avoid accidental mutation by callers
+            return copy.deepcopy(cached)
+
+        result = self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
+        # Cache the result for subsequent identical requests
+        try:
+            self._build_slip_cache[key] = copy.deepcopy(result)
+        except Exception:
+            # If deep-copying fails for some reason, store the raw result
+            self._build_slip_cache[key] = result
+
+        return copy.deepcopy(self._build_slip_cache[key])
 
     def generate_slips(self, profiles: dict[str, tuple]) -> dict[str, Any]:
         """
@@ -142,7 +198,7 @@ class DashboardLogic:
                 slip_id = self._assistant.save_slip(name, legs, units)
                 results[name] = results.get(name, [])
                 results[name].append(slip_id)
-        self.bump_version()
+        self.bump_slips_version()
         return results
 
     # ── Slip persistence ──────────────────────────────────────────────────────
@@ -155,7 +211,7 @@ class DashboardLogic:
     ) -> int:
         """Persist a bet slip; return the new slip_id."""
         slip_id = self._assistant.save_slip(profile, legs, units)
-        self.bump_version()
+        self.bump_slips_version()
         return slip_id
 
     # ── Validation ────────────────────────────────────────────────────────────
@@ -174,7 +230,7 @@ class DashboardLogic:
         }
         """
         result = self._assistant.validate_slips()
-        self.bump_version()
+        self.bump_slips_version()
         return result
 
     # ── Slip retrieval ────────────────────────────────────────────────────────
@@ -218,7 +274,7 @@ class DashboardLogic:
 
     def delete_slip(self, slip_id: int) -> None:
         self._assistant.delete_slip(slip_id)
-        self.bump_version()
+        self.bump_slips_version()
 
     # ── Statistics ────────────────────────────────────────────────────────────
 

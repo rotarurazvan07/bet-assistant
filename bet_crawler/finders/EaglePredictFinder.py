@@ -26,8 +26,6 @@ class EaglePredictFinder(BaseMatchFinder):
 
     def get_matches(self, urls=None) -> None:
         page = WebScraper.fetch(EAGLEPREDICT_URL, stealthy_headers=False)
-        with open("eaglepredict.txt", "w", encoding="utf-8") as f:
-            f.write(page)
         self._parse_page(None, page)
 
     def _parse_page(self, _, html) -> None:

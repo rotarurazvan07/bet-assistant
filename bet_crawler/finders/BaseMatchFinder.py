@@ -109,7 +109,7 @@ class BaseMatchFinder:
                     )
                     return False
             logger.info(
-                f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})"
+                f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
             )
             self.add_match_callback(match)
             return True

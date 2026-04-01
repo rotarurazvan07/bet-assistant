@@ -58,14 +58,14 @@ class Match:
         home_team: str,
         away_team: str,
         datetime: datetime,
-        predictions: list[Score],
+        predictions: list[Score] | Score,
         odds: Odds,
         result_url: str | None = None,
     ) -> None:
         self.home_team = home_team
         self.away_team = away_team
         self.datetime = datetime
-        self.predictions = predictions
+        self.predictions = predictions if isinstance(predictions, list) else [predictions]
         self.odds = odds
         self.result_url = result_url
 
