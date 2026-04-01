@@ -149,7 +149,7 @@ class BetAssistantDashboard:
             __name__,
             external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME],
             suppress_callback_exceptions=True,
-            compress=True,  # Significantly improves UI responsiveness by gzip-ing payloads
+            compress=True,  # Restoring compression for faster payloads
         )
         self.app.title = "Bet Assistant"
         self.app.layout = build_main_layout()
@@ -186,6 +186,7 @@ class BetAssistantDashboard:
     # ── Callback registration ─────────────────────────────────────────────────
 
     def _setup_callbacks(self) -> None:
+        self._cb_version_poller()
         self._cb_refresh_data()
         self._cb_tips_table()
         self._cb_nullable_toggles()
@@ -203,7 +204,6 @@ class BetAssistantDashboard:
         self._cb_save_services()
         self._cb_toggle_service()
         self._cb_services_tab()
-        self._cb_version_poller()
         self._cb_analytics_tab()
         self._cb_session_init()
 
@@ -850,22 +850,25 @@ class BetAssistantDashboard:
 
     def _cb_pull_update(self) -> None:
         @self.app.callback(
-            Output("data-version-store", "data"),
+            [
+                Output("data-version-store", "data", allow_duplicate=True),
+                Output("header-status-text", "children", allow_duplicate=True),
+            ],
             Input("btn-pull-update", "n_clicks"),
             prevent_initial_call=True,
         )
         def pull_update(n):
             if not n:
-                return dash.no_update
+                return dash.no_update, dash.no_update
             try:
                 # pull_matches_db downloads the DB and calls refresh_data(),
                 # which bumps matches_version. Return the new matches_version
                 # directly to the `data-version-store` so the UI updates once.
                 self.logic.pull_matches_db(self.matches_db_path)
-                return self.logic.matches_version
+                return self.logic.matches_version, f"Last Update: {self.logic.last_pull_timestamp}"
             except Exception as exc:
                 print(f"❌ Pull failed: {exc}")
-                return dash.no_update
+                return dash.no_update, dash.no_update
 
     def _cb_save_services(self) -> None:
         @self.app.callback(

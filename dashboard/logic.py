@@ -23,7 +23,6 @@ Public API
 
 from __future__ import annotations
 
-import copy
 import os
 from typing import Any
 
@@ -53,10 +52,10 @@ class DashboardLogic:
         self.slips_version = 0  # bumped on slip/status changes
         self.matches_version = 0  # bumped on match data changes
 
-        # In-memory caches to avoid expensive recomputation while the
-        # underlying match data hasn't changed.
-        self._build_slip_cache: dict = {}
-        self._filter_cache: dict = {}
+        # Caches for heavy operations
+        self._filter_cache_key = None
+        self._filter_cache_df = None
+        self._build_slip_cache = {}
 
         # Pre-load match data so it's ready before any browser connects
         self.refresh_data()
@@ -74,21 +73,11 @@ class DashboardLogic:
         self.slips_version += 1
 
     def bump_matches_version(self) -> None:
-        """Increment the matches version to trigger match data UI refreshes.
-
-        Also clear any caches that depend on the match dataset so future
-        requests recompute correctly against the new data.
-        """
+        """Increment the matches version to trigger match data UI refreshes."""
         self.matches_version += 1
-        # Clear caches that depend on match contents
-        try:
-            self._build_slip_cache.clear()
-        except Exception:
-            self._build_slip_cache = {}
-        try:
-            self._filter_cache.clear()
-        except Exception:
-            self._filter_cache = {}
+        self._filter_cache_key = None
+        self._filter_cache_df = None
+        self._build_slip_cache.clear()
 
     def filter_matches(
         self,
@@ -97,19 +86,15 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> pd.DataFrame:
         """Return a filtered view of the loaded match DataFrame."""
-        # Cache filtered results per (query, date range, matches_version)
-        key = (search_text or "", date_from or "", date_to or "", self.matches_version)
-        cached = self._filter_cache.get(key)
-        if cached is not None:
-            return cached
+        key = (search_text, date_from, date_to)
+        if self._filter_cache_key == key and self._filter_cache_df is not None:
+            return self._filter_cache_df
 
         df = self._assistant.filter_matches(
-            search_text=search_text,
-            date_from=date_from,
-            date_to=date_to,
+            search_text=search_text, date_from=date_from, date_to=date_to
         )
-        # Store in cache (shallow reference) and return
-        self._filter_cache[key] = df
+        self._filter_cache_key = key
+        self._filter_cache_df = df
         return df
 
     def pull_matches_db(self, matches_db_path: str) -> str:
@@ -156,31 +141,18 @@ class DashboardLogic:
         Returns list of leg dicts:
             match, market, market_type, consensus, odds, result_url, sources, tier, score
         """
-        # Build a cache key from the config + current matches_version + excluded URLs
-        try:
-            cfg_items = tuple(sorted(cfg.__dict__.items()))
-        except Exception:
-            cfg_items = str(cfg)
+        cfg_hash = repr(cfg)
+        key = (cfg_hash, tuple(extra_excluded_urls) if extra_excluded_urls else None)
 
-        excl_key = tuple(sorted(extra_excluded_urls or []))
-        key = (cfg_items, self.matches_version, excl_key)
+        if getattr(self, "_build_slip_cache", None) is None:
+            self._build_slip_cache = {}
 
-        cached = self._build_slip_cache.get(key)
-        if cached is not None:
-            # Return a deep copy to avoid accidental mutation by callers
-            return copy.deepcopy(cached)
+        if key in self._build_slip_cache:
+            return self._build_slip_cache[key]
 
-        result = self._assistant.build_slip(
-            cfg, extra_excluded_urls=extra_excluded_urls
-        )
-        # Cache the result for subsequent identical requests
-        try:
-            self._build_slip_cache[key] = copy.deepcopy(result)
-        except Exception:
-            # If deep-copying fails for some reason, store the raw result
-            self._build_slip_cache[key] = result
-
-        return copy.deepcopy(self._build_slip_cache[key])
+        res = self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
+        self._build_slip_cache[key] = res
+        return res
 
     def generate_slips(self, profiles: dict[str, tuple]) -> dict[str, Any]:
         """
@@ -228,7 +200,7 @@ class DashboardLogic:
             "checked":  int,
             "settled":  int,
             "errors":   int,
-            "live":     [{"leg_id", "match_name", "score", "minute"}, …]
+            "live":     [{"leg_id", "match_name", "score", "minute"}, ...]
         }
         """
         result = self._assistant.validate_slips()

@@ -65,9 +65,12 @@ class Match:
         self.home_team = home_team
         self.away_team = away_team
         self.datetime = datetime
-        self.predictions = (
-            predictions if isinstance(predictions, list) else [predictions]
-        )
+        if predictions is None:
+            self.predictions = []
+        elif isinstance(predictions, list):
+            self.predictions = predictions
+        else:
+            self.predictions = [predictions]
         self.odds = odds
         self.result_url = result_url
 

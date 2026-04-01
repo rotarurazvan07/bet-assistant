@@ -1126,12 +1126,7 @@ def create_tips_table(df: pd.DataFrame) -> Any:
         data=show.to_dict("records"),
         sort_action="native",
         sort_mode="multi",
-        style_table={
-            "width": "100%",
-            "minWidth": "100%",
-            "height": "55vh",
-            "overflowY": "auto",
-        },
+        style_table={"width": "100%", "minWidth": "100%"},
         style_cell=TABLE_STYLE_CELL,
         style_cell_conditional=[
             {"if": {"column_id": "match_id"}, "display": "none"},
@@ -1196,9 +1191,7 @@ def create_tips_table(df: pd.DataFrame) -> Any:
                 "rule": "line-height:1.2;display:block;overflow:hidden;text-overflow:ellipsis;",
             }
         ],
-        # Enable virtualization and fixed header to improve rendering performance
-        virtualization=True,
-        fixed_rows={"headers": True},
+        # (No virtualization here; keep rendering simple for compatibility)
         page_size=25,
         page_action="native",
     )
