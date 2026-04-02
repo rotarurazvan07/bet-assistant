@@ -6,7 +6,8 @@ from scrape_kit import get_logger
 logger = get_logger(__name__)
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -27,7 +28,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        html = WebScraper.fetch(SCOREPREDICTOR_URL + "index.php?section=football")
+        html = fetch(SCOREPREDICTOR_URL + "index.php?section=football")
         soup = BeautifulSoup(html, "html.parser")
 
         league_urls = [
@@ -40,7 +41,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.FAST,
@@ -83,3 +84,5 @@ class ScorePredictorFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

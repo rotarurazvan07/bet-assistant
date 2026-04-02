@@ -1,4 +1,5 @@
 from scrape_kit import get_logger
+from scrape_kit import fetch, browser
 
 logger = get_logger(__name__)
 
@@ -8,7 +9,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import WebScraper
+
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -26,7 +27,7 @@ class xGScoreFinder(BaseMatchFinder):
 
     def get_matches(self, urls=None) -> None:
         """Load predictions page, execute JS to expand, then parse."""
-        with WebScraper.browser(solve_cloudflare=True, interactive=True) as session:
+        with browser(solve_cloudflare=True, interactive=True) as session:
             logger.info("Loading predictions page...")
             session.fetch(XGSCORE_URL)
             session.wait_for_selector("mat-button-toggle-group", timeout=15000)
@@ -104,3 +105,5 @@ class xGScoreFinder(BaseMatchFinder):
 
             except Exception as e:
                 logger.info(f"SKIPPED: Parse error - {e}")
+
+

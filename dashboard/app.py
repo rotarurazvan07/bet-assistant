@@ -983,15 +983,21 @@ class BetAssistantDashboard:
                 ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
             )
 
-            # Use 'no_update' ONLY if neither version has changed AND this isn't a new session connecting.
-            if (
-                current_slips == (last_slips_version or 0)
-                and current_matches == (last_matches_version or 0)
-                and triggered != "session-init-trigger"
-            ):
+            # Use 'no_update' for individual stores if their version hasn't changed.
+            # This prevents cascading re-renders in unaffected tabs (like Betting Tips).
+            init_trigger = triggered == "session-init-trigger"
+
+            slip_changed = current_slips != (last_slips_version or 0)
+            match_changed = current_matches != (last_matches_version or 0)
+
+            if not slip_changed and not match_changed and not init_trigger:
                 return dash.no_update, dash.no_update, dash.no_update
 
-            return current_slips, current_matches, msg
+            return (
+                current_slips if (slip_changed or init_trigger) else dash.no_update,
+                current_matches if (match_changed or init_trigger) else dash.no_update,
+                msg,
+            )
 
     def _cb_analytics_tab(self) -> None:
         @self.app.callback(

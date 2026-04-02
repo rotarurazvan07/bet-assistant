@@ -8,7 +8,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch, browser
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -23,7 +24,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         """Load main page via browser (CF bypass), extract prediction URLs."""
-        with WebScraper.browser(interactive=True, solve_cloudflare=True) as session:
+        with browser(interactive=True, solve_cloudflare=True) as session:
             page = session.fetch(
                 FOOTBALLBETTINGTIPS_URL, timeout=90000, wait_until="networkidle"
             )
@@ -36,7 +37,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         ]
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.STEALTH,
@@ -92,3 +93,5 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                 )
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

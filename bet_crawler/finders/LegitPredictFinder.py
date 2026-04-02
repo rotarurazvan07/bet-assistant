@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode
+from scrape_kit import ScrapeMode, scrape
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -29,7 +29,7 @@ class LegitPredictFinder(BaseMatchFinder):
         return urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.STEALTH,
@@ -66,3 +66,4 @@ class LegitPredictFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+

@@ -8,7 +8,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -22,7 +23,7 @@ class WinDrawWinFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        page = WebScraper.fetch(WINDRAWWIN_URL, stealthy_headers=True)
+        page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
@@ -39,7 +40,7 @@ class WinDrawWinFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.STEALTH,
@@ -102,3 +103,5 @@ class WinDrawWinFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

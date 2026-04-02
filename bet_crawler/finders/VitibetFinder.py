@@ -6,7 +6,8 @@ from scrape_kit import get_logger
 logger = get_logger(__name__)
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -32,7 +33,7 @@ class VitibetFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        html = WebScraper.fetch(VITIBET_URL, stealthy_headers=True)
+        html = fetch(VITIBET_URL, stealthy_headers=True)
         soup = BeautifulSoup(html, "html.parser")
 
         kokos_tag = soup.find("ul", id="primarne").find("kokos")
@@ -51,7 +52,7 @@ class VitibetFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.FAST,
@@ -105,3 +106,5 @@ class VitibetFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

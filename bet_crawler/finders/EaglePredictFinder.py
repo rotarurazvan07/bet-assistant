@@ -1,4 +1,5 @@
 from scrape_kit import get_logger
+from scrape_kit import fetch
 
 logger = get_logger(__name__)
 
@@ -8,7 +9,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup, NavigableString
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import WebScraper
+
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -25,7 +26,7 @@ class EaglePredictFinder(BaseMatchFinder):
         return [EAGLEPREDICT_URL]
 
     def get_matches(self, urls=None) -> None:
-        page = WebScraper.fetch(EAGLEPREDICT_URL, stealthy_headers=False)
+        page = fetch(EAGLEPREDICT_URL, stealthy_headers=False)
         self._parse_page(None, page)
 
     def _parse_page(self, _, html) -> None:
@@ -133,3 +134,5 @@ class EaglePredictFinder(BaseMatchFinder):
                     result_url=None,
                 )
             )
+
+

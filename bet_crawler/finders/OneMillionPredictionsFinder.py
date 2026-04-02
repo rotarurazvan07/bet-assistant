@@ -6,7 +6,8 @@ from scrape_kit import get_logger
 logger = get_logger(__name__)
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -20,7 +21,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        page = WebScraper.fetch(ONE_MILLION_PREDICTIONS_URL, stealthy_headers=True)
+        page = fetch(ONE_MILLION_PREDICTIONS_URL, stealthy_headers=True)
         soup = BeautifulSoup(page, "html.parser")
         table = soup.find("table", attrs={"aria-label": "Predictions by Days"})
         links = [a["href"] + "correct-score/" for a in table.find_all("a")][1:]
@@ -28,7 +29,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
         return links
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.FAST,
@@ -71,3 +72,5 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

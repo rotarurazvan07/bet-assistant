@@ -8,7 +8,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -39,7 +40,7 @@ class PredictzFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        page = WebScraper.fetch(PREDICTZ_URL, stealthy_headers=False)
+        page = fetch(PREDICTZ_URL, stealthy_headers=False)
         soup = BeautifulSoup(page, "html.parser")
         league_urls = []
         for optgroup in soup.find(class_="dd nav-select").find_all("optgroup")[6:]:
@@ -53,7 +54,7 @@ class PredictzFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.FAST,
@@ -113,3 +114,5 @@ class PredictzFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

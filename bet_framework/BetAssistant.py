@@ -47,7 +47,7 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-from scrape_kit import BaseStorageManager, get_logger
+from scrape_kit import BaseStorageManager, get_logger, scrape
 
 logger = get_logger(__name__)
 
@@ -754,7 +754,6 @@ class BetAssistant(BaseStorageManager):
         if not urls:
             return {"checked": 0, "settled": [], "live": [], "errors": 0}
 
-        from bet_framework.WebScraper import WebScraper
 
         def _handle_url(url: str, html: str) -> None:
             try:
@@ -816,7 +815,7 @@ class BetAssistant(BaseStorageManager):
                 logger.error(f"[BetAssistant] parse error on {url}: {e}")
 
         try:
-            WebScraper.scrape(
+            scrape(
                 urls,
                 _handle_url,
                 mode="fast",

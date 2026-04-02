@@ -1,4 +1,5 @@
 from scrape_kit import get_logger
+from scrape_kit import fetch, browser
 
 logger = get_logger(__name__)
 
@@ -8,7 +9,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import WebScraper
+
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -37,7 +38,7 @@ class ForebetFinder(BaseMatchFinder):
         max_attempts = 2
         for attempt in range(1, max_attempts + 1):
             try:
-                with WebScraper.browser(
+                with browser(
                     solve_cloudflare=True, interactive=True, disable_resources=True
                 ) as session:
                     logger.info(
@@ -193,3 +194,5 @@ class ForebetFinder(BaseMatchFinder):
 
             except Exception as e:
                 logger.info(f"SKIPPED: Parse error - {e}")
+
+

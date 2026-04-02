@@ -7,7 +7,8 @@ import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -651,14 +652,14 @@ class SoccerVistaFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         """Get league URLs via fast HTTP."""
-        html = WebScraper.fetch(SOCCERVISTA_URL, stealthy_headers=True)
+        html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
         soup = BeautifulSoup(html, "html.parser")
 
         league_urls = []
         leagues_tag = soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent
         all_links = [link["href"] for link in leagues_tag.find_all("a", href=True)][:-2]
         for link in all_links:
-            html = WebScraper.fetch(SOCCERVISTA_URL + link)
+            html = fetch(SOCCERVISTA_URL + link)
             soup = BeautifulSoup(html, "html.parser")
             if html:
                 try:
@@ -681,7 +682,7 @@ class SoccerVistaFinder(BaseMatchFinder):
         return league_urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.STEALTH,
@@ -739,3 +740,5 @@ class SoccerVistaFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

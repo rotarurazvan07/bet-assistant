@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-from bet_framework.WebScraper import ScrapeMode, WebScraper
+from scrape_kit import ScrapeMode, scrape
+from scrape_kit import fetch, browser
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -25,7 +26,7 @@ class WhoScoredFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         """Get match URLs via browser (needs JS rendering)."""
-        with WebScraper.browser(solve_cloudflare=True) as session:
+        with browser(solve_cloudflare=True) as session:
             page = session.fetch(WHOSCORED_URL + "previews")
             soup = BeautifulSoup(page.html_content, "html.parser")
 
@@ -39,7 +40,7 @@ class WhoScoredFinder(BaseMatchFinder):
         return urls
 
     def get_matches(self, urls) -> None:
-        self.scrape_urls(
+        scrape(
             urls,
             self._parse_page,
             mode=ScrapeMode.FAST,
@@ -82,3 +83,5 @@ class WhoScoredFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
+
+

@@ -8,7 +8,6 @@ from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from bet_framework.WebScraper import ScrapeMode, WebScraper
 
 SKIP_PATTERNS: list[tuple[str, str]] = [  # TODO false skipping
     (r"\bU\d{2}s?\b", "Youth team"),
@@ -63,12 +62,6 @@ class BaseMatchFinder:
     def _parse_page(self, url, html):
         """Parse a single scraped page. Used as callback for scrape_urls()."""
         raise NotImplementedError()
-
-    def scrape_urls(
-        self, urls, callback, mode=ScrapeMode.FAST, max_concurrency=1
-    ) -> None:
-        """Scrape URLs with concurrency, calling callback(url, html) for each page."""
-        WebScraper.scrape(urls, callback, mode=mode, max_concurrency=max_concurrency)
 
     # ─────────────────────────── Datetime normalisation ───────────────────────
 
