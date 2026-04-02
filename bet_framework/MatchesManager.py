@@ -64,13 +64,14 @@ class MatchesManager(BufferedStorageManager):
     # ── Flush: DELETE + append preserves indexes (unlike parent's replace) ────
 
     def flush(self) -> None:
-        if not self._dirty or self._buffer is None:
+        if not self._dirty:
             return
+        df = self.ensure_buffer()
         with self.db_lock:
             try:
                 self.conn.execute("DELETE FROM matches")
-                if not self._buffer.empty:
-                    self._buffer.to_sql(
+                if not df.empty:
+                    df.to_sql(
                         "matches", self.conn, if_exists="append", index=False
                     )
                 self.conn.commit()
@@ -276,8 +277,14 @@ class MatchesManager(BufferedStorageManager):
                 logger.error(f"merge row error: {exc}")
 
         self.merge_row_by_row(
-            chunks_dir, "matches", row_callback=_row, flush_callback=self.flush
+            chunks_dir,
+            "matches",
+            row_callback=_row,
+            flush_callback=self.flush,
+            read_batch_size=2000,
+            flush_every_rows=5000,
         )
+        self.flush()
         logger.info(
             f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing)."
         )
