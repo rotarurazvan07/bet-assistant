@@ -71,9 +71,7 @@ class MatchesManager(BufferedStorageManager):
             try:
                 self.conn.execute("DELETE FROM matches")
                 if not df.empty:
-                    df.to_sql(
-                        "matches", self.conn, if_exists="append", index=False
-                    )
+                    df.to_sql("matches", self.conn, if_exists="append", index=False)
                 self.conn.commit()
                 self._dirty = False
             except Exception as exc:

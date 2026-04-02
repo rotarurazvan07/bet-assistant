@@ -5,10 +5,9 @@ logger = get_logger(__name__)
 import datetime
 
 from bs4 import BeautifulSoup
+from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
-from scrape_kit import ScrapeMode, scrape
-from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -740,5 +739,3 @@ class SoccerVistaFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
-
-

@@ -1,5 +1,4 @@
-from scrape_kit import get_logger
-from scrape_kit import fetch, browser
+from scrape_kit import browser, get_logger
 
 logger = get_logger(__name__)
 
@@ -9,7 +8,6 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
-
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -194,5 +192,3 @@ class ForebetFinder(BaseMatchFinder):
 
             except Exception as e:
                 logger.info(f"SKIPPED: Parse error - {e}")
-
-

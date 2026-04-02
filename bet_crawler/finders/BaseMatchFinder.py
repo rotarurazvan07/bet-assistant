@@ -8,7 +8,6 @@ from collections.abc import Callable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-
 SKIP_PATTERNS: list[tuple[str, str]] = [  # TODO false skipping
     (r"\bU\d{2}s?\b", "Youth team"),
     (r"\bW\b", "Women's team"),

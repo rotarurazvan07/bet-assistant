@@ -6,10 +6,9 @@ import re
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+from scrape_kit import ScrapeMode, browser, scrape
 
 from bet_framework.core.Match import *
-from scrape_kit import ScrapeMode, scrape
-from scrape_kit import fetch, browser
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -93,5 +92,3 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                 )
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
-
-

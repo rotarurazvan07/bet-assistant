@@ -754,7 +754,6 @@ class BetAssistant(BaseStorageManager):
         if not urls:
             return {"checked": 0, "settled": [], "live": [], "errors": 0}
 
-
         def _handle_url(url: str, html: str) -> None:
             try:
                 base_info = _parse_match_result_html(html, url)

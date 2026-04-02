@@ -1,5 +1,4 @@
-from scrape_kit import get_logger
-from scrape_kit import fetch
+from scrape_kit import fetch, get_logger
 
 logger = get_logger(__name__)
 
@@ -9,7 +8,6 @@ from datetime import datetime
 from bs4 import BeautifulSoup, NavigableString
 
 from bet_framework.core.Match import *
-
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -134,5 +132,3 @@ class EaglePredictFinder(BaseMatchFinder):
                     result_url=None,
                 )
             )
-
-

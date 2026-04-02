@@ -5,9 +5,9 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
+from scrape_kit import ScrapeMode, fetch, scrape
+
 from bet_framework.core.Match import *
-from scrape_kit import ScrapeMode, scrape
-from scrape_kit import fetch
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -72,5 +72,3 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
-
-

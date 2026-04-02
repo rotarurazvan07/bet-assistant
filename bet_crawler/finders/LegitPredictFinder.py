@@ -5,9 +5,9 @@ logger = get_logger(__name__)
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
+from scrape_kit import ScrapeMode, scrape
 
 from bet_framework.core.Match import *
-from scrape_kit import ScrapeMode, scrape
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -66,4 +66,3 @@ class LegitPredictFinder(BaseMatchFinder):
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
-
