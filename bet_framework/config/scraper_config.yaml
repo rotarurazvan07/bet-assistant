@@ -1,0 +1,5 @@
+retry_indicators:
+  - "403 Forbidden"
+
+block_indicators:
+  - "403 Forbidden"

@@ -26,7 +26,7 @@ from collections import defaultdict
 from contextlib import redirect_stdout
 from urllib.parse import urlparse
 
-from scrape_kit import SettingsManager, get_logger
+from scrape_kit import SettingsManager, configure, get_logger
 
 logger = get_logger(__name__)
 
@@ -95,7 +95,8 @@ def get_runner_classes(runner: str) -> list:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def mode_prepare_scrape(runner: str) -> None:
+def mode_prepare_scrape(runner: str, config_dir: str) -> None:
+    configure(config_dir)
     crawler_classes = get_runner_classes(runner)
     if not crawler_classes:
         logger.error("❌ No crawlers found for runner type.")
@@ -153,6 +154,8 @@ def mode_prepare_scrape(runner: str) -> None:
 
 
 def mode_scrape(db_path: str, urls_str: str, config_dir: str) -> None:
+    configure(config_dir)
+
     if os.path.isfile(urls_str):
         with open(urls_str) as f:
             urls = [u.strip() for u in f.read().split(",") if u.strip()]
@@ -411,9 +414,11 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
 
     if args.mode == "prepare-scrape":
-        if not args.runners:
-            build_parser().error("--runners is required for prepare-scrape")
-        mode_prepare_scrape(args.runners)
+        if not args.runners or not args.config_dir:
+            build_parser().error(
+                "--runners and --config_dir are required for prepare-scrape"
+            )
+        mode_prepare_scrape(args.runners, args.config_dir)
 
     elif args.mode == "scrape":
         if not args.urls or not args.matches_db_path or not args.config_dir:

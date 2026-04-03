@@ -24,7 +24,7 @@ jobs:
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions)
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "bet_framework/config")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
   scrape-actions:
@@ -72,7 +72,7 @@ jobs:
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local)
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "bet_framework/config")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
   scrape-local:

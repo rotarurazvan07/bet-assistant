@@ -27,7 +27,7 @@ from pathlib import Path
 import dash
 import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, callback_context
-from scrape_kit import SettingsManager
+from scrape_kit import SettingsManager, configure
 
 from bet_framework.BetAssistant import PROFILES, BetSlipConfig
 from dashboard.charts import (
@@ -129,7 +129,7 @@ class BetAssistantDashboard:
         self._last_validate_result = {}
 
         ensure_default_profiles(profiles_dir=config_path + "/profiles")
-
+        configure(config_path)
         svc_cfg = self.settings_manager.get("services") or {}
         self._services = init_services(
             pull_hour=int(svc_cfg.get("pull_hour", 6)),
