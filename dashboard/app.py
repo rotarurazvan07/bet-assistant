@@ -726,6 +726,7 @@ class BetAssistantDashboard:
                 Input({"type": "delete-slip-btn", "index": ALL}, "n_clicks"),
                 Input("slips-version-store", "data"),
                 Input("hide-settled-slips", "value"),
+                Input("live-only-slips", "value"),
                 Input("date-from", "value"),
                 Input("date-to", "value"),
             ],
@@ -741,6 +742,7 @@ class BetAssistantDashboard:
             n_delete_list,
             server_version,
             hide_settled,
+            live_only,
             date_from,
             date_to,
             current_live,
@@ -823,6 +825,18 @@ class BetAssistantDashboard:
             if hide_settled:
                 slips = [
                     s for s in slips if s["slip_status"] not in ("Won", "Lost", "Void")
+                ]
+            if live_only:
+                slips = [
+                    s
+                    for s in slips
+                    if any(
+                        (
+                            leg.get("status") == "Live"
+                            or leg.get("match_name") in live_store
+                        )
+                        for leg in s.get("legs", [])
+                    )
                 ]
 
             stats_ui = render_stats_cards(stats)

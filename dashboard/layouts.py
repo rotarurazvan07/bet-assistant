@@ -345,6 +345,12 @@ def slips_tab_layout() -> html.Div:
                                         value=False,
                                         className="ms-4 mt-1 fw-bold text-muted",
                                     ),
+                                    dbc.Switch(
+                                        id="live-only-slips",
+                                        label="Live",
+                                        value=False,
+                                        className="ms-3 mt-1 fw-bold text-muted",
+                                    ),
                                 ],
                                 className="d-flex align-items-center mb-4",
                             ),
