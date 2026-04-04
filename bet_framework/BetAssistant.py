@@ -42,13 +42,19 @@ from __future__ import annotations
 
 import hashlib
 import math
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
 from scrape_kit import BaseStorageManager, get_logger, scrape
 
+from bet_framework.core.consensus import calc_consensus
+from bet_framework.core.outcomes import determine_outcome, parse_score
+from bet_framework.core.scoring import (
+    resolve_max_legs,
+    resolve_stop_threshold,
+    score_pick,
+)
 from bet_framework.core.Slip import (
     BetLeg,
     BetSlip,
@@ -57,19 +63,10 @@ from bet_framework.core.Slip import (
     LegOutcomeInfo,
     MatchResultInfo,
     ValidationReport,
-    PROFILES,
     get_profile,
 )
-from bet_framework.core.consensus import calc_consensus
-from bet_framework.core.outcomes import determine_outcome, parse_score
-from bet_framework.core.scoring import (
-    resolve_max_legs,
-    resolve_stop_threshold,
-    resolve_tolerance,
-    score_pick,
-)
-from bet_framework.core.utils import coerce_datetime_str, is_valid_url
 from bet_framework.core.types import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.core.utils import coerce_datetime_str, is_valid_url
 
 logger = get_logger(__name__)
 
@@ -530,7 +527,9 @@ class BetAssistant(BaseStorageManager):
         h, a = parse_score(score)
         outcome = determine_outcome(h, a, market, market_type)
         self.update_leg(leg_id, outcome)
-        logger.info(f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})")
+        logger.info(
+            f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})"
+        )
         return outcome
 
     def score_match(
@@ -622,7 +621,12 @@ class BetAssistant(BaseStorageManager):
         return derive_slip_status([leg["status"] for leg in legs])
 
     def process_leg_result(
-        self, leg_id: int, info: MatchResultInfo, market: MarketLabel, market_type: MarketType, match_name: str
+        self,
+        leg_id: int,
+        info: MatchResultInfo,
+        market: MarketLabel,
+        market_type: MarketType,
+        match_name: str,
     ) -> LegOutcomeInfo | None:
         """
         Evaluate a MatchResultInfo against a specific leg's market, calculate outcome,
@@ -644,7 +648,10 @@ class BetAssistant(BaseStorageManager):
             except Exception:
                 pass
 
-        if info.status == MatchStatus.FT and outcome_info.outcome in (Outcome.WON, Outcome.LOST):
+        if info.status == MatchStatus.FT and outcome_info.outcome in (
+            Outcome.WON,
+            Outcome.LOST,
+        ):
             self.update_leg(leg_id, outcome_info.outcome)
             return outcome_info
 
@@ -677,18 +684,21 @@ class BetAssistant(BaseStorageManager):
         if not urls:
             return {"checked": 0, "settled": [], "live": [], "errors": 0}
 
-        from dataclasses import asdict
-
         def _handle_url(url: str, html: str) -> None:
             try:
                 base_info = _parse_match_result_html(html, url)
 
                 for leg_id, market, market_type, match_name in url_to_legs[url]:
-                    outcome_info = self.process_leg_result(leg_id, base_info, market, market_type, match_name)
+                    outcome_info = self.process_leg_result(
+                        leg_id, base_info, market, market_type, match_name
+                    )
                     if not outcome_info:
                         continue
 
-                    if base_info.status == MatchStatus.FT and outcome_info.outcome in (Outcome.WON, Outcome.LOST):
+                    if base_info.status == MatchStatus.FT and outcome_info.outcome in (
+                        Outcome.WON,
+                        Outcome.LOST,
+                    ):
                         settled_matches.append(outcome_info)
 
                     elif base_info.status == MatchStatus.LIVE:
@@ -787,7 +797,9 @@ class BetAssistant(BaseStorageManager):
     # ── Leg selection loop ────────────────────────────────────────────────────
 
     @staticmethod
-    def _select_legs(candidates: list[CandidateLeg], cfg: BetSlipConfig) -> list[CandidateLeg]:
+    def _select_legs(
+        candidates: list[CandidateLeg], cfg: BetSlipConfig
+    ) -> list[CandidateLeg]:
         stop_threshold = resolve_stop_threshold(cfg)
         max_legs = resolve_max_legs(cfg)
         min_legs = max(1, int(cfg.target_legs * cfg.min_legs_fill_ratio))
@@ -819,11 +831,11 @@ class BetAssistant(BaseStorageManager):
 
             scored.sort(key=lambda x: (x[0], -x[1]))
             tier, score, best = scored[0]
-            
+
             # Populate UI-only fields
             best.tier = tier
             best.score = score
-            
+
             selected.append(best)
             seen_matches.add(best.match_name)
             total_odds *= best.odds

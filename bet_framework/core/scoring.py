@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
 # ── Config resolvers ──────────────────────────────────────────────────────────
 
+
 def resolve_tolerance(cfg: BetSlipConfig) -> float:
     """
     Auto-derive the per-leg odds tolerance band from the target leg count.
@@ -34,7 +35,7 @@ def resolve_tolerance(cfg: BetSlipConfig) -> float:
     """
     if cfg.tolerance_factor is not None:
         return cfg.tolerance_factor
-    return round(0.40 / (cfg.target_legs ** 0.5), 4)
+    return round(0.40 / (cfg.target_legs**0.5), 4)
 
 
 def resolve_stop_threshold(cfg: BetSlipConfig) -> float:
@@ -60,6 +61,7 @@ def resolve_max_legs(cfg: BetSlipConfig) -> int:
 
 
 # ── Individual scoring axes ───────────────────────────────────────────────────
+
 
 def score_consensus(consensus: float, cfg: BetSlipConfig) -> float:
     """
@@ -90,6 +92,7 @@ def score_balance(odds: float, ideal: float, tolerance: float) -> float:
 
 # ── Composite scorer ──────────────────────────────────────────────────────────
 
+
 def score_pick(
     opt: CandidateLeg,
     ideal_odds: float,
@@ -114,6 +117,8 @@ def score_pick(
     s_score = score_sources(opt.sources, max_sources)
     b_score = score_balance(opt.odds, ideal_odds, tolerance)
 
-    quality = cfg.consensus_vs_sources * c_score + (1 - cfg.consensus_vs_sources) * s_score
+    quality = (
+        cfg.consensus_vs_sources * c_score + (1 - cfg.consensus_vs_sources) * s_score
+    )
     final = cfg.quality_vs_balance * quality + (1 - cfg.quality_vs_balance) * b_score
     return tier, round(final, 6)

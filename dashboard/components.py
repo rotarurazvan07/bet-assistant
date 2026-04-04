@@ -12,12 +12,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from bet_framework.core.types import Outcome
-
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import dash_table, dcc, html
 
+from bet_framework.core.types import Outcome
 from dashboard.constants import (
     ALL_MARKET_TYPES,
     COLORS,
@@ -618,9 +617,9 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
                                                     style={"fontSize": "0.95rem"},
                                                 ),
                                                 html.Small(
-                                                    pd.to_datetime(pick.datetime).strftime(
-                                                        "%a %d %b, %H:%M"
-                                                    )
+                                                    pd.to_datetime(
+                                                        pick.datetime
+                                                    ).strftime("%a %d %b, %H:%M")
                                                     if pd.notna(pick.datetime)
                                                     else "",
                                                     className="text-muted",

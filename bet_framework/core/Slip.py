@@ -26,24 +26,25 @@ from typing import Any
 
 from bet_framework.core.types import MarketLabel, MarketType, MatchStatus, Outcome
 
-
 # ── Candidate / Match / Leg data models ───────────────────────────────────────
+
 
 @dataclass
 class CandidateLeg:
     """
     A single candidate pick before scoring and selection.
     """
+
     match_name: str
-    datetime: Any        # pandas.Timestamp or datetime
+    datetime: Any  # pandas.Timestamp or datetime
     market: MarketLabel
     market_type: MarketType
     consensus: float
     odds: float
     result_url: str
     sources: int
-    tier: int = 1        # UI only: 1=balanced, 2=drift
-    score: float = 0.0   # UI only: quality score
+    tier: int = 1  # UI only: 1=balanced, 2=drift
+    score: float = 0.0  # UI only: quality score
 
 
 @dataclass
@@ -51,6 +52,7 @@ class MatchResultInfo:
     """
     Standardized representation of a parsed live or full-time match result.
     """
+
     status: MatchStatus
     score: str = ""
     minute: str = ""
@@ -61,6 +63,7 @@ class LegOutcomeInfo:
     """
     Details about a leg after outcome evaluation.
     """
+
     leg_id: int
     match_name: str
     market: MarketLabel
@@ -74,17 +77,21 @@ class ValidationReport:
     """
     Summary of a validation run, containing checked count, settled legs, live legs, and error count.
     """
+
     checked: int
     settled: list[LegOutcomeInfo]
     live: list[LegOutcomeInfo]
     errors: int
+
+
 @dataclass
 class BetLeg:
     """
     Representation of a leg that has been saved to the database.
     """
+
     match_name: str
-    datetime: Any        # ISO format or datetime
+    datetime: Any  # ISO format or datetime
     market: MarketLabel
     market_type: MarketType
     odds: float
@@ -97,6 +104,7 @@ class BetSlip:
     """
     A completed bet slip containing one or more legs.
     """
+
     slip_id: int
     date_generated: str
     profile: str
@@ -107,6 +115,7 @@ class BetSlip:
 
 
 # ── Slip configuration ────────────────────────────────────────────────────────
+
 
 @dataclass
 class BetSlipConfig:

@@ -24,9 +24,8 @@ import pandas as pd
 import pytest
 
 from bet_framework.BetAssistant import BetAssistant
-from bet_framework.core.Slip import BetSlipConfig, CandidateLeg, PROFILES, get_profile
+from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
-from bet_framework.core.types import MarketLabel, MarketType, Outcome, MatchStatus
 from bet_framework.core.scoring import (
     resolve_max_legs,
     resolve_stop_threshold,
@@ -36,7 +35,8 @@ from bet_framework.core.scoring import (
     score_pick,
     score_sources,
 )
-from bet_framework.core.consensus import calc_consensus
+from bet_framework.core.Slip import PROFILES, BetSlipConfig, CandidateLeg, get_profile
+from bet_framework.core.types import MarketLabel, MarketType, Outcome
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -289,33 +289,70 @@ class TestOutcomeFunctions:
             parse_score("invalid")
 
     def test_determine_outcome_home_win(self):
-        assert determine_outcome(2, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
-        assert determine_outcome(2, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
+        assert (
+            determine_outcome(2, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
+        )
+        assert (
+            determine_outcome(2, 1, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
+        )
+        assert (
+            determine_outcome(2, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
+        )
 
     def test_determine_outcome_draw(self):
-        assert determine_outcome(1, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(1, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+        assert (
+            determine_outcome(1, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
+        )
+        assert (
+            determine_outcome(1, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+        )
 
     def test_determine_outcome_away_win(self):
-        assert determine_outcome(0, 2, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(0, 2, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+        assert (
+            determine_outcome(0, 2, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
+        )
+        assert (
+            determine_outcome(0, 2, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+        )
 
     def test_determine_outcome_over_25(self):
-        assert determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
-        assert determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
+        assert (
+            determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
+            == Outcome.WON
+        )
+        assert (
+            determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
+            == Outcome.LOST
+        )
 
     def test_determine_outcome_under_25(self):
-        assert determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
+        assert (
+            determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25)
+            == Outcome.WON
+        )
+        assert (
+            determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25)
+            == Outcome.LOST
+        )
 
     def test_determine_outcome_btts_yes(self):
-        assert determine_outcome(1, 1, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.WON
-        assert determine_outcome(1, 0, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.LOST
+        assert (
+            determine_outcome(1, 1, MarketLabel.BTTS_YES, MarketType.BTTS)
+            == Outcome.WON
+        )
+        assert (
+            determine_outcome(1, 0, MarketLabel.BTTS_YES, MarketType.BTTS)
+            == Outcome.LOST
+        )
 
     def test_determine_outcome_btts_no(self):
-        assert determine_outcome(1, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.LOST
+        assert (
+            determine_outcome(1, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
+        )
+        assert (
+            determine_outcome(2, 1, MarketLabel.BTTS_NO, MarketType.BTTS)
+            == Outcome.LOST
+        )
 
     def test_determine_outcome_unknown_market_type(self):
         assert determine_outcome(1, 0, "?", "unknown_type") == Outcome.PENDING

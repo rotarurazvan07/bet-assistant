@@ -24,14 +24,12 @@ Public API
 from __future__ import annotations
 
 import os
-from dataclasses import asdict
 from typing import Any
 
 import pandas as pd
 
-from bet_framework.core.types import Outcome
-
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.core.types import Outcome
 from bet_framework.MatchesManager import MatchesManager
 
 
@@ -227,17 +225,9 @@ class DashboardLogic:
         slips = self._assistant.get_slips(profile)
 
         if date_from:
-            slips = [
-                s
-                for s in slips
-                if s.date_generated.split("T")[0] >= date_from
-            ]
+            slips = [s for s in slips if s.date_generated.split("T")[0] >= date_from]
         if date_to:
-            slips = [
-                s
-                for s in slips
-                if s.date_generated.split("T")[0] <= date_to
-            ]
+            slips = [s for s in slips if s.date_generated.split("T")[0] <= date_to]
         return slips
 
     def get_pending_urls(self) -> set:
@@ -291,7 +281,9 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled_slips = [s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)]
+        settled_slips = [
+            s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)
+        ]
 
         settled_slips.sort(key=lambda x: x.date_generated)
 

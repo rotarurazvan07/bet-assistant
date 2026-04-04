@@ -9,6 +9,7 @@ from enum import Enum
 
 class MarketType(str, Enum):
     """Supported betting market categories."""
+
     RESULT = "result"
     OVER_UNDER_25 = "over_under_2.5"
     BTTS = "btts"
@@ -16,6 +17,7 @@ class MarketType(str, Enum):
 
 class Outcome(str, Enum):
     """The settled state of a specific leg or slip."""
+
     WON = "Won"
     LOST = "Lost"
     LIVE = "Live"
@@ -24,6 +26,7 @@ class Outcome(str, Enum):
 
 class MatchStatus(str, Enum):
     """Parsing-level match states for live results (source domain)."""
+
     FT = "FT"
     FINISHED = "Finished"
     LIVE = "LIVE"
@@ -33,6 +36,7 @@ class MatchStatus(str, Enum):
 
 class MarketLabel(str, Enum):
     """Standardised display labels for market outcomes."""
+
     HOME = "1"
     DRAW = "X"
     AWAY = "2"

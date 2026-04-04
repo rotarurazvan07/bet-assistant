@@ -835,10 +835,7 @@ class BetAssistantDashboard:
                     s
                     for s in slips
                     if any(
-                        (
-                            leg.status == Outcome.LIVE
-                            or leg.match_name in live_store
-                        )
+                        (leg.status == Outcome.LIVE or leg.match_name in live_store)
                         for leg in s.legs
                     )
                 ]
