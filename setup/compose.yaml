@@ -6,9 +6,9 @@ services:
     environment:
       - REPO=rotarurazvan07/bet-assistant
     command: >
-      sh -c "mkdir -p /app/workspace/config &&
+      sh -c "mkdir -p /app/workspace/config && mkdir -p /app/workspace/data &&
              cp -r /app/config/. /app/workspace/config/ &&
-             python -m main --matches_db_path /app/workspace/data/final_matches.db --slips_db_path /app/workspace/data/slips.db --config_path /app/workspace/config --no-debug"
+             python -m dashboard.app --matches_db_path /app/workspace/data/final_matches.db --slips_db_path /app/workspace/data/slips.db --config_path /app/workspace/config --no-debug"
     ports:
       - "8050:8050"
     volumes:

@@ -30,7 +30,7 @@ import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, callback_context
 from scrape_kit import SettingsManager, configure
 
-from bet_framework.BetAssistant import PROFILES, BetSlipConfig
+from bet_framework.core.Slip import PROFILES, BetSlipConfig
 from bet_framework.core.Slip import CandidateLeg, Outcome
 from dashboard.charts import (
     render_correlation_charts,
