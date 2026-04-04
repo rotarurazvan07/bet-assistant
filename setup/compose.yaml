@@ -5,11 +5,11 @@ services:
     restart: always
     environment:
       - REPO=rotarurazvan07/bet-assistant
-    command: python -m dashboard.app --matches_db_path /app/data/final_matches.db --slips_db_path /app/data/slips.db --config_path /app/config --no-debug
+    command: python -m dashboard.app --matches_db_path /app/workspace/data/final_matches.db --slips_db_path /app/workspace/data/slips.db --config_path /app/workspace/config --no-debug
     ports:
       - "8050:8050"
     volumes:
-      - ./data:/app/data
+      - ./workspace:/app/workspace
       - /etc/localtime:/etc/localtime:ro
     labels:
       - "com.centurylinklabs.watchtower.enable=true"

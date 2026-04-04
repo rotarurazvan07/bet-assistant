@@ -61,21 +61,6 @@ class MatchesManager(BufferedStorageManager):
             )
             self.conn.commit()
 
-    # ── Flush: DELETE + append preserves indexes (unlike parent's replace) ────
-
-    def flush(self) -> None:
-        if not self._dirty:
-            return
-        df = self.ensure_buffer()
-        with self.db_lock:
-            try:
-                self.conn.execute("DELETE FROM matches")
-                if not df.empty:
-                    df.to_sql("matches", self.conn, if_exists="append", index=False)
-                self.conn.commit()
-                self._dirty = False
-            except Exception as exc:
-                raise StorageError(f"MatchesManager flush failed: {exc}") from exc
 
     # ── Similarity search inside the buffer ───────────────────────────────────
 
