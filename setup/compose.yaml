@@ -5,7 +5,10 @@ services:
     restart: always
     environment:
       - REPO=rotarurazvan07/bet-assistant
-    command: python -m dashboard.app --matches_db_path /app/workspace/data/final_matches.db --slips_db_path /app/workspace/data/slips.db --config_path /app/workspace/config --no-debug
+    command: >
+      sh -c "mkdir -p /app/workspace/config &&
+             cp -r /app/config/. /app/workspace/config/ &&
+             python -m main --matches_db_path /app/workspace/data/final_matches.db --slips_db_path /app/workspace/data/slips.db --config_path /app/workspace/config --no-debug"
     ports:
       - "8050:8050"
     volumes:
@@ -24,5 +27,4 @@ services:
       - DOCKER_API_VERSION=1.44
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/fir3w4ll/.docker/config.json:/config.json:ro
     command: --interval 300 --cleanup --scope bet-stack

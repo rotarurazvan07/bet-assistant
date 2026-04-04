@@ -24,7 +24,7 @@ jobs:
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "bet_framework/config")
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "config")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
   scrape-actions:
@@ -42,7 +42,7 @@ jobs:
           pip install -r setup/requirements-scrape.txt
           scrapling install
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "bet_framework/config"
+        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -72,7 +72,7 @@ jobs:
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "bet_framework/config")
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "config")
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
 
   scrape-local:
@@ -97,7 +97,7 @@ jobs:
           pip install -r setup/requirements-scrape.txt
           scrapling install
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "bet_framework/config"
+        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -124,7 +124,7 @@ jobs:
         run: |
           pip install -r setup/requirements-scrape.txt
       - name: Merge Databases
-        run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "bet_framework/config"
+        run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "config"
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         with:

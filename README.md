@@ -60,6 +60,8 @@ If you prefer to run locally on Windows, Linux, or a Raspberry Pi:
 
 ### 🏃 3. Usage & Operations
 
+Copy all yamls of config folder to your project config folder. These can be finetuned, the ones in the repo are whats used in actions. When setuping the dashboard, you need to copy those configs to where your workspace will be.
+
 #### **A. Collecting Match Data**
 First, generate a list of target URLs:
 ```bash
