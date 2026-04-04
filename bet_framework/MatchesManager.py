@@ -10,7 +10,6 @@ from scrape_kit import (
     get_logger,
     time_profiler,
 )
-from scrape_kit.errors import StorageError
 
 from .core.Match import Match, Odds, Score, asdict
 
@@ -60,7 +59,6 @@ class MatchesManager(BufferedStorageManager):
                 "CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)"
             )
             self.conn.commit()
-
 
     # ── Similarity search inside the buffer ───────────────────────────────────
 
