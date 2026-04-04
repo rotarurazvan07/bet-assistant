@@ -62,6 +62,7 @@ from bet_framework.core.Slip import (
     CandidateLeg,
     LegOutcomeInfo,
     MatchResultInfo,
+    PROFILES,
     ValidationReport,
     get_profile,
 )
