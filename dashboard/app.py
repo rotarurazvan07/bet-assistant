@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import fields as dc_fields
@@ -30,6 +31,7 @@ from dash import ALL, Input, Output, State, callback_context
 from scrape_kit import SettingsManager, configure
 
 from bet_framework.BetAssistant import PROFILES, BetSlipConfig
+from bet_framework.core.Slip import CandidateLeg, Outcome
 from dashboard.charts import (
     render_correlation_charts,
     render_history_charts,
@@ -160,7 +162,7 @@ class BetAssistantDashboard:
     def _do_verify(self) -> None:
         """Called by the verifier TickerService — actually runs validation."""
         self._last_validate_result = self.logic.validate_slips()
-        print(f"[Service] Verified: {self._last_validate_result}")
+        print(f"[Service] Verified: checked={self._last_validate_result.checked}")
 
     def _do_generate(self) -> None:
         """Called by the generator TickerService — actually generates slips."""
@@ -396,7 +398,7 @@ class BetAssistantDashboard:
             pending_urls = self.logic.get_pending_urls()
             return (
                 render_bet_preview(selections, pending_urls=pending_urls),
-                selections,
+                [asdict(s) for s in selections],
                 profile_out,
             )
 
@@ -607,14 +609,15 @@ class BetAssistantDashboard:
             profile = (profile_name or "manual").strip() or "manual"
             units_val = float(units or 1.0)
 
+            # Convert dicts from Store back to CandidateLeg objects
+            leg_objs = [CandidateLeg(**s) for s in selections]
+
             try:
-                slip_id = self.logic.save_slip(profile, selections, units_val)
-                total_odds = 1.0
-                for s in selections:
-                    total_odds *= s.get("odds", 1.0)
+                slip_id = self.logic.save_slip(profile, leg_objs, units_val)
+                total_odds = math.prod(s.odds for s in leg_objs)
                 return alert_msg(
                     f"✅ Slip #{slip_id} added to '{profile}' — "
-                    f"{len(selections)} legs @ {total_odds:.2f} ({units_val}u)",
+                    f"{len(leg_objs)} legs @ {total_odds:.2f} ({units_val}u)",
                     "success",
                 )
             except Exception as exc:
@@ -763,16 +766,16 @@ class BetAssistantDashboard:
             if triggered == "btn-force-refresh":
                 result = self.logic.validate_slips()
                 live_store = {
-                    item["match_name"]: {
-                        "score": item["score"],
-                        "minute": item["minute"],
+                    item.match_name: {
+                        "score": item.score,
+                        "minute": item.minute,
                     }
-                    for item in result.get("live", [])
+                    for item in result.live
                 }
                 live_out = live_store
                 refresh_msg = status_msg(
-                    f"✅ Checked {result['checked']} · Settled {len(result['settled'])} · "
-                    f"Live {len(live_store)} · Errors {result['errors']}"
+                    f"✅ Checked {result.checked} · Settled {len(result.settled)} · "
+                    f"Live {len(live_store)} · Errors {result.errors}"
                 )
 
             elif triggered == "btn-generate-slips":
@@ -793,12 +796,13 @@ class BetAssistantDashboard:
             # If the service validated in the background, grab its cached result
             elif triggered == "slips-version-store" and self._last_validate_result:
                 result = self._last_validate_result
+                # _last_validate_result is ValidationReport
                 live_store = {
-                    item["match_name"]: {
-                        "score": item["score"],
-                        "minute": item["minute"],
+                    item.match_name: {
+                        "score": item.score,
+                        "minute": item.minute,
                     }
-                    for item in result.get("live", [])
+                    for item in result.live
                 }
                 live_out = live_store
 
@@ -824,7 +828,7 @@ class BetAssistantDashboard:
 
             if hide_settled:
                 slips = [
-                    s for s in slips if s["slip_status"] not in ("Won", "Lost", "Void")
+                    s for s in slips if s.slip_status not in (Outcome.WON, Outcome.LOST)
                 ]
             if live_only:
                 slips = [
@@ -832,10 +836,10 @@ class BetAssistantDashboard:
                     for s in slips
                     if any(
                         (
-                            leg.get("status") == "Live"
-                            or leg.get("match_name") in live_store
+                            leg.status == Outcome.LIVE
+                            or leg.match_name in live_store
                         )
-                        for leg in s.get("legs", [])
+                        for leg in s.legs
                     )
                 ]
 

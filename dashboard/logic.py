@@ -24,9 +24,12 @@ Public API
 from __future__ import annotations
 
 import os
+from dataclasses import asdict
 from typing import Any
 
 import pandas as pd
+
+from bet_framework.core.types import Outcome
 
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
@@ -214,24 +217,26 @@ class DashboardLogic:
         profile: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[BetSlip]:
         """
         Return all slips with their legs, optionally filtered by profile and date horizon.
         """
+        if profile == "all":
+            profile = None
+
         slips = self._assistant.get_slips(profile)
+
         if date_from:
             slips = [
                 s
                 for s in slips
-                if s["date_generated"].split("T")[0] >= date_from
-                if "date_generated" in s
+                if s.date_generated.split("T")[0] >= date_from
             ]
         if date_to:
             slips = [
                 s
                 for s in slips
-                if s["date_generated"].split("T")[0] <= date_to
-                if "date_generated" in s
+                if s.date_generated.split("T")[0] <= date_to
             ]
         return slips
 
@@ -240,10 +245,10 @@ class DashboardLogic:
         slips = self.get_slips()
         urls = set()
         for slip in slips:
-            if slip["slip_status"] == "Pending":
-                for leg in slip["legs"]:
-                    if leg["status"] in ("Pending", "Live"):
-                        urls.add(leg["result_url"])
+            if slip.slip_status == "Pending":
+                for leg in slip.legs:
+                    if leg.status in ("Pending", "Live"):
+                        urls.add(leg.result_url)
         return urls
 
     def delete_slip(self, slip_id: int) -> None:
@@ -259,13 +264,13 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> dict[str, Any]:
         slips = self.get_slips(profile, date_from, date_to)
-        settled = [s for s in slips if s["slip_status"] in ("Won", "Lost")]
-        won = [s for s in settled if s["slip_status"] == "Won"]
+        settled = [s for s in slips if s.slip_status in ("Won", "Lost")]
+        won = [s for s in settled if s.slip_status == "Won"]
 
         n_settled = len(settled)
         n_won = len(won)
-        stakes = sum(s["units"] for s in settled)
-        gross_return = sum(s["total_odds"] * s["units"] for s in won)
+        stakes = sum(s.units for s in settled)
+        gross_return = sum(s.total_odds * s.units for s in won)
         net_profit = gross_return - stakes
 
         return {
@@ -286,13 +291,13 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled_slips = [s for s in slips if s["slip_status"] in ("Won", "Lost")]
+        settled_slips = [s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)]
 
-        settled_slips.sort(key=lambda x: x["date_generated"])
+        settled_slips.sort(key=lambda x: x.date_generated)
 
         daily_stats = {}
         for s in settled_slips:
-            day = s["date_generated"]
+            day = s.date_generated
             if day not in daily_stats:
                 daily_stats[day] = {
                     "date": day,
@@ -304,9 +309,9 @@ class DashboardLogic:
 
             stats = daily_stats[day]
             stats["slips_count"] += 1
-            stats["units_bet"] += s["units"]
-            if s["slip_status"] == "Won":
-                stats["units_won"] += s["total_odds"] * s["units"]
+            stats["units_bet"] += s.units
+            if s.slip_status == Outcome.WON:
+                stats["units_won"] += s.total_odds * s.units
                 stats["won_count"] += 1
 
         summary = []
@@ -358,11 +363,11 @@ class DashboardLogic:
 
         market_stats = {}
         for slip in slips:
-            for leg in slip["legs"]:
-                if leg["status"] not in ("Won", "Lost"):
+            for leg in slip.legs:
+                if leg.status not in (Outcome.WON, Outcome.LOST):
                     continue
 
-                mtype = leg["market"] or "Unknown"
+                mtype = leg.market or "Unknown"
                 if mtype not in market_stats:
                     market_stats[mtype] = {
                         "market": mtype,
@@ -372,7 +377,7 @@ class DashboardLogic:
                     }
 
                 market_stats[mtype]["total"] += 1
-                if leg["status"] == "Won":
+                if leg.status == Outcome.WON:
                     market_stats[mtype]["won"] += 1
                 else:
                     market_stats[mtype]["lost"] += 1
@@ -391,20 +396,20 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled = [s for s in slips if s["slip_status"] in ("Won", "Lost")]
+        settled = [s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)]
 
         data = []
         for s in settled:
             data.append(
                 {
-                    "legs_count": len(s["legs"]),
-                    "total_odds": round(s["total_odds"], 2),
-                    "units": s["units"],
-                    "status": s["slip_status"],
+                    "legs_count": len(s.legs),
+                    "total_odds": round(s.total_odds, 2),
+                    "units": s.units,
+                    "status": s.slip_status,
                     "profit": round(
-                        (s["total_odds"] * s["units"] - s["units"])
-                        if s["slip_status"] == "Won"
-                        else -s["units"],
+                        (s.total_odds * s.units - s.units)
+                        if s.slip_status == Outcome.WON
+                        else -s.units,
                         2,
                     ),
                 }

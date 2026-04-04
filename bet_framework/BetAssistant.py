@@ -49,272 +49,57 @@ from typing import Any
 import pandas as pd
 from scrape_kit import BaseStorageManager, get_logger, scrape
 
+from bet_framework.core.Slip import (
+    BetLeg,
+    BetSlip,
+    BetSlipConfig,
+    CandidateLeg,
+    LegOutcomeInfo,
+    MatchResultInfo,
+    ValidationReport,
+    PROFILES,
+    get_profile,
+)
+from bet_framework.core.consensus import calc_consensus
+from bet_framework.core.outcomes import determine_outcome, parse_score
+from bet_framework.core.scoring import (
+    resolve_max_legs,
+    resolve_stop_threshold,
+    resolve_tolerance,
+    score_pick,
+)
+from bet_framework.core.utils import coerce_datetime_str, is_valid_url
+from bet_framework.core.types import MarketLabel, MarketType, MatchStatus, Outcome
+
 logger = get_logger(__name__)
 
 # (cons_col, odds_col, display_label)
-MARKET_MAP: dict[str, list[tuple[str, str, str]]] = {
-    "result": [
-        ("cons_home", "odds_home", "1"),
-        ("cons_draw", "odds_draw", "X"),
-        ("cons_away", "odds_away", "2"),
+MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {
+    MarketType.RESULT: [
+        ("cons_home", "odds_home", MarketLabel.HOME),
+        ("cons_draw", "odds_draw", MarketLabel.DRAW),
+        ("cons_away", "odds_away", MarketLabel.AWAY),
     ],
-    "over_under_2.5": [
-        ("cons_over", "odds_over", "Over 2.5"),
-        ("cons_under", "odds_under", "Under 2.5"),
+    MarketType.OVER_UNDER_25: [
+        ("cons_over", "odds_over", MarketLabel.OVER_25),
+        ("cons_under", "odds_under", MarketLabel.UNDER_25),
     ],
-    "btts": [
-        ("cons_btts_yes", "odds_btts_yes", "BTTS Yes"),
-        ("cons_btts_no", "odds_btts_no", "BTTS No"),
+    MarketType.BTTS: [
+        ("cons_btts_yes", "odds_btts_yes", MarketLabel.BTTS_YES),
+        ("cons_btts_no", "odds_btts_no", MarketLabel.BTTS_NO),
     ],
 }
 
 
-@dataclass
-class BetSlipConfig:
+def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
     """
-    Full configuration for the slip builder.
-
-    ┌─ SCOPE ──────────────────────────────────────────────────────────────────┐
-    │ date_from / date_to        ISO 'YYYY-MM-DD' window. None = no limit.     │
-    │ excluded_urls              result_urls to skip entirely.                 │
-    │ included_markets           None = all; or list of labels (1, X, 2, etc). │
-    ├─ SHAPE ──────────────────────────────────────────────────────────────────┤
-    │ target_odds      [1.10–1000]  Desired cumulative odds.                   │
-    │ target_legs      [1–10]       Desired number of legs.                    │
-    │ max_legs_overflow[0–5]        Extra legs allowed beyond target.          │
-    ├─ QUALITY GATE ───────────────────────────────────────────────────────────┤
-    │ consensus_floor    [0–100]   Minimum source agreement percentage.        │
-    │ min_odds           [1.01–10] Minimum bookmaker odds (filters near-certs).  │
-    ├─ ODDS TOLERANCE ─────────────────────────────────────────────────────────┤
-    │ tolerance_factor   [0.05–0.80] ±band around ideal per-leg odds.            │
-    │                              None = auto-derived.                        │
-    ├─ STOP CONDITION ─────────────────────────────────────────────────────────┤
-    │ stop_threshold     [0.50–1.00] Stop when odds ≥ target × this.          │
-    │                                None = auto-derived.                      │
-    │ min_legs_fill_ratio[0.50–1.00] Min fraction of legs before early stop.  │
-    ├─ SCORING ────────────────────────────────────────────────────────────────┤
-    │ quality_vs_balance [0–1]  0 = balance only, 1 = quality only.           │
-    │ consensus_vs_sources [0–1]  Within quality: 0 = sources, 1 = consensus. │
-    └──────────────────────────────────────────────────────────────────────────┘
-    """
-
-    # Scope
-    date_from: str | None = None
-    date_to: str | None = None
-    excluded_urls: list[str] | None = None
-    included_markets: list[str] | None = None
-
-    # Shape
-    target_odds: float = 3.0
-    target_legs: int = 3
-    max_legs_overflow: int | None = None
-
-    # Quality gate
-    consensus_floor: float = 50.0
-    min_odds: float = 1.05
-
-    # Odds tolerance
-    tolerance_factor: float | None = None
-
-    # Stop condition
-    stop_threshold: float | None = None
-    min_legs_fill_ratio: float = 0.70
-
-    # Scoring weights
-    quality_vs_balance: float = 0.5
-    consensus_vs_sources: float = 0.5
-
-    def __post_init__(self) -> None:
-        self.target_odds = max(1.10, min(1000.0, self.target_odds))
-        self.target_legs = max(1, min(10, self.target_legs))
-        self.consensus_floor = max(0.0, min(100.0, self.consensus_floor))
-        self.min_odds = max(1.01, min(10.0, self.min_odds))
-        self.min_legs_fill_ratio = max(0.50, min(1.00, self.min_legs_fill_ratio))
-        self.quality_vs_balance = max(0.0, min(1.0, self.quality_vs_balance))
-        self.consensus_vs_sources = max(0.0, min(1.0, self.consensus_vs_sources))
-
-        if self.tolerance_factor is not None:
-            self.tolerance_factor = max(0.05, min(0.80, self.tolerance_factor))
-        if self.stop_threshold is not None:
-            self.stop_threshold = max(0.50, min(1.00, self.stop_threshold))
-        if self.max_legs_overflow is not None:
-            self.max_legs_overflow = max(0, min(5, self.max_legs_overflow))
-
-
-# ── Built-in risk profiles ────────────────────────────────────────────────────
-
-PROFILES: dict[str, BetSlipConfig] = {
-    # Short-odds doubles — tight balance, high confidence
-    "low_risk": BetSlipConfig(
-        target_odds=2.0,
-        target_legs=2,
-        consensus_floor=65.0,
-        min_odds=1.10,
-        quality_vs_balance=0.35,
-        consensus_vs_sources=0.60,
-        tolerance_factor=0.20,
-        stop_threshold=0.95,
-        min_legs_fill_ratio=0.80,
-        included_markets=["1", "2", "X", "BTTS Yes", "BTTS No"],
-    ),
-    # Balanced 3-leg accumulator
-    "medium_risk": BetSlipConfig(
-        target_odds=5.0,
-        target_legs=3,
-        consensus_floor=50.0,
-        quality_vs_balance=0.50,
-        consensus_vs_sources=0.50,
-    ),
-    # Longer accumulator, quality over odds precision
-    "high_risk": BetSlipConfig(
-        target_odds=15.0,
-        target_legs=5,
-        consensus_floor=50.0,
-        quality_vs_balance=0.70,
-        consensus_vs_sources=0.50,
-        min_legs_fill_ratio=0.60,
-    ),
-    # Well-sourced picks with a minimum price floor
-    "value_hunter": BetSlipConfig(
-        target_odds=8.0,
-        target_legs=4,
-        consensus_floor=52.0,
-        min_odds=1.30,
-        quality_vs_balance=0.65,
-        consensus_vs_sources=0.30,
-        min_legs_fill_ratio=0.65,
-    ),
-}
-
-
-def get_profile(name: str) -> BetSlipConfig:
-    """Return a deep copy of a named built-in profile."""
-    import copy
-
-    if name not in PROFILES:
-        raise ValueError(f"Unknown profile '{name}'. Available: {list(PROFILES)}")
-    return copy.deepcopy(PROFILES[name])
-
-
-def _resolve_tolerance(cfg: BetSlipConfig) -> float:
-    """
-    Auto-derived tolerance: wider for few legs, tighter for many.
-    1 leg → 0.40 │ 2 → 0.28 │ 3 → 0.23 │ 5 → 0.18 │ 10 → 0.13
-    """
-    if cfg.tolerance_factor is not None:
-        return cfg.tolerance_factor
-    return round(0.40 / (cfg.target_legs**0.5), 4)
-
-
-def _resolve_stop_threshold(cfg: BetSlipConfig) -> float:
-    """
-    Auto-derived stop: tight for singles, slightly looser for longer accas.
-    1 leg → 0.98 │ 2 → 0.93 │ 3 → 0.91 │ 5 → 0.90 │ 10 → 0.89
-    """
-    if cfg.stop_threshold is not None:
-        return cfg.stop_threshold
-    return round(0.88 + (0.1 / cfg.target_legs), 4)
-
-
-def _resolve_max_legs(cfg: BetSlipConfig) -> int:
-    if cfg.max_legs_overflow is not None:
-        return cfg.target_legs + cfg.max_legs_overflow
-    if cfg.target_legs == 1:
-        return 1
-    if cfg.target_legs < 5:
-        return cfg.target_legs + 1
-    return cfg.target_legs + 2
-
-
-def _score_consensus(consensus: float, cfg: BetSlipConfig) -> float:
-    span = 100.0 - cfg.consensus_floor
-    return (
-        1.0
-        if span <= 0
-        else max(0.0, min(1.0, (consensus - cfg.consensus_floor) / span))
-    )
-
-
-def _score_sources(sources: int, max_sources: int) -> float:
-    return 0.0 if max_sources <= 0 else min(1.0, sources / max_sources)
-
-
-def _score_balance(odds: float, ideal: float, tolerance: float) -> float:
-    deviation = abs(odds - ideal) / ideal
-    return max(0.0, 1.0 - (deviation / tolerance))
-
-
-def _score_pick(
-    opt: dict,
-    ideal_odds: float,
-    max_sources: int,
-    cfg: BetSlipConfig,
-) -> tuple[int, float]:
-    tolerance = _resolve_tolerance(cfg)
-    deviation = abs(opt["odds"] - ideal_odds) / ideal_odds
-    tier = 1 if deviation <= tolerance else 2
-
-    consensus_score = _score_consensus(opt.get("consensus", 0.0), cfg)
-    sources_score = _score_sources(opt["sources"], max_sources)
-    balance_score = _score_balance(opt["odds"], ideal_odds, tolerance)
-
-    quality = (
-        cfg.consensus_vs_sources * consensus_score
-        + (1 - cfg.consensus_vs_sources) * sources_score
-    )
-    final = (
-        cfg.quality_vs_balance * quality + (1 - cfg.quality_vs_balance) * balance_score
-    )
-    return tier, round(final, 6)
-
-
-def _parse_score(raw: str) -> tuple[int, int]:
-    h, a = raw.split(":")
-    return int(h), int(a)
-
-
-def _determine_outcome(home: int, away: int, market: str, market_type: str) -> str:
-    if market_type == "result":
-        if market == "1" and home > away:
-            return "Won"
-        if market == "2" and away > home:
-            return "Won"
-        if market == "X" and home == away:
-            return "Won"
-        return "Lost"
-
-    if market_type == "btts":
-        scored = home > 0 and away > 0
-        if market == "BTTS Yes" and scored:
-            return "Won"
-        if market == "BTTS No" and not scored:
-            return "Won"
-        return "Lost"
-
-    if market_type == "over_under_2.5":
-        total = home + away
-        if market == "Over 2.5" and total >= 3:
-            return "Won"
-        if market == "Under 2.5" and total < 3:
-            return "Won"
-        return "Lost"
-
-    return "Pending"
-
-
-def _parse_match_result_html(html: str, url: str) -> dict[str, str]:
-    """
-    Parse a result page HTML and return the match status.
+    Parse a result page HTML and return the MatchResultInfo.
     """
     import re
 
     from bs4 import BeautifulSoup
 
-    result = {
-        "status": "PENDING",
-        "score": "",
-        "minute": "",
-    }
+    result = MatchResultInfo(status=MatchStatus.PENDING)
 
     soup = BeautifulSoup(html, "html.parser")
 
@@ -332,12 +117,12 @@ def _parse_match_result_html(html: str, url: str) -> dict[str, str]:
     # Global fallback for status if containers are empty (e.g. initial loads)
     if not status_text:
         all_text_start = soup.get_text(separator=" ", strip=True)[:2000]
-        for marker in ["FT", "Finished", "HT"]:
+        for marker in [MatchStatus.FT, MatchStatus.FINISHED, MatchStatus.HT]:
             if marker in all_text_start:
                 status_text = marker
                 break
 
-    is_finished = "FT" in status_text or "Finished" in status_text
+    is_finished = MatchStatus.FT in status_text or MatchStatus.FINISHED in status_text
     is_live = False
     minute = ""
 
@@ -377,13 +162,13 @@ def _parse_match_result_html(html: str, url: str) -> dict[str, str]:
 
     if match_score:
         # Successfully found score for an active/finished match
-        result["score"] = f"{match_score.group(1)}:{match_score.group(2)}"
+        result.score = f"{match_score.group(1)}:{match_score.group(2)}"
 
     if is_finished:
-        result["status"] = "FT"
+        result.status = "FT"
     elif is_live:
-        result["status"] = "LIVE"
-        result["minute"] = minute
+        result.status = "LIVE"
+        result.minute = minute
 
     return result
 
@@ -485,7 +270,7 @@ class BetAssistant(BaseStorageManager):
                 dt = row["datetime"]
                 odds = row.get("odds") or {}
                 scores = row.get("scores") or []
-                cons_data = self._calc_consensus(scores)
+                cons_data = calc_consensus(scores)
                 n_sources = len(
                     {s.get("source", "") for s in scores if s.get("source")}
                 )
@@ -571,22 +356,12 @@ class BetAssistant(BaseStorageManager):
         self,
         profile_or_config: str | BetSlipConfig = "medium_risk",
         extra_excluded_urls: list[str] | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[CandidateLeg]:
         """
-        Build a bet slip and return its legs as a list of dicts.
+        Build a list of candidate legs passing the risk profile filters.
 
-        Parameters
-        ----------
-        profile_or_config   : A named profile string (e.g. "low_risk") or a
-                              fully constructed BetSlipConfig instance.
-        extra_excluded_urls : Additional result_urls to exclude on top of any
-                              already listed in the config (e.g. live URLs).
-
-        Returns
-        -------
-        List of leg dicts, each containing:
-            match, market, market_type, consensus, odds,
-            result_url, sources, tier, score
+        Returns:
+            list[CandidateLeg]: Structured leg data.
         """
         if self._df.empty:
             return []
@@ -623,7 +398,7 @@ class BetAssistant(BaseStorageManager):
     def save_slip(
         self,
         profile: str,
-        legs: list[dict[str, Any]],
+        legs: list[CandidateLeg],
         units: float = 1.0,
     ) -> int:
         """
@@ -632,7 +407,7 @@ class BetAssistant(BaseStorageManager):
         Parameters
         ----------
         profile : Descriptive label stored alongside the slip (e.g. "medium_risk").
-        legs    : List of leg dicts as returned by build_slip().
+        legs    : List of CandidateLeg objects.
         units   : Stake size in units (default 1.0).
 
         Returns
@@ -640,7 +415,7 @@ class BetAssistant(BaseStorageManager):
         The auto-assigned slip_id.
         """
         with self.db_lock:
-            total_odds = math.prod(leg["odds"] for leg in legs)
+            total_odds = math.prod(leg.odds for leg in legs)
             date_today = pd.Timestamp.now().strftime("%Y-%m-%d")
 
             cursor = self.conn.execute(
@@ -650,22 +425,18 @@ class BetAssistant(BaseStorageManager):
             slip_id = cursor.lastrowid
 
             for leg in legs:
-                dt = leg.get("datetime")
-                if hasattr(dt, "isoformat"):
-                    dt = dt.isoformat()
-
                 self.conn.execute(
                     """INSERT INTO legs
                     (slip_id, match_name, match_datetime, market, market_type, odds, result_url)
                     VALUES (?, ?, ?, ?, ?, ?, ?)""",
                     (
                         slip_id,
-                        leg["match"],
-                        dt,
-                        leg["market"],
-                        leg["market_type"],
-                        leg["odds"],
-                        leg["result_url"],
+                        leg.match_name,
+                        coerce_datetime_str(leg.datetime),
+                        leg.market,
+                        leg.market_type,
+                        leg.odds,
+                        leg.result_url,
                     ),
                 )
 
@@ -731,6 +502,158 @@ class BetAssistant(BaseStorageManager):
 
     # ── Validation ────────────────────────────────────────────────────────────
 
+    def settle_leg_manually(
+        self,
+        leg_id: int,
+        score: str,
+        market: str,
+        market_type: str,
+    ) -> str:
+        """
+        Manually settle a single leg from a plain score string.
+
+        Parameters
+        ----------
+        leg_id      : Primary key of the leg row.
+        score       : Full-time score in 'H:A' format (e.g. '2:1').
+        market      : Leg market label (e.g. '1', 'X', 'Over 2.5').
+        market_type : One of 'result', 'btts', 'over_under_2.5'.
+
+        Returns
+        -------
+        The outcome string ('Won' or 'Lost') written to the database.
+
+        Raises
+        ------
+        ValueError  : If *score* cannot be parsed.
+        """
+        h, a = parse_score(score)
+        outcome = determine_outcome(h, a, market, market_type)
+        self.update_leg(leg_id, outcome)
+        logger.info(f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})")
+        return outcome
+
+    def score_match(
+        self,
+        row: dict,
+        cfg: BetSlipConfig | str = "medium_risk",
+    ) -> list[dict]:
+        """
+        Score a single match row against a config and return candidate leg dicts.
+
+        Useful for inspecting why a particular match was or was not included in a
+        slip, or for building custom selection pipelines.
+
+        Parameters
+        ----------
+        row : A dict with the same keys produced by :meth:`load_matches`, e.g.:
+              home, away, datetime, result_url, sources,
+              cons_home, cons_draw, cons_away, ... odds_home, ...
+        cfg : A named profile string or a BetSlipConfig instance.
+
+        Returns
+        -------
+        List of candidate dicts (may be empty) — each contains
+        market, market_type, consensus, odds, tier, score.
+        """
+        if isinstance(cfg, str):
+            cfg = get_profile(cfg)
+
+        candidates: list[dict] = []
+        url = row.get("result_url")
+        if not is_valid_url(url):
+            return candidates
+
+        match_name = f"{row['home']} vs {row['away']}"
+        for m_type, market_cols in MARKET_MAP.items():
+            for cons_col, odds_col, label in market_cols:
+                if cfg.included_markets and label not in cfg.included_markets:
+                    continue
+                consensus = float(row.get(cons_col, 0))
+                odds = float(row.get(odds_col, 0))
+                if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
+                    opt = {
+                        "match": match_name,
+                        "datetime": row["datetime"],
+                        "market": label,
+                        "market_type": m_type,
+                        "consensus": consensus,
+                        "odds": odds,
+                        "result_url": url,
+                        "sources": int(row.get("sources", 0)),
+                    }
+                    ideal = cfg.target_odds ** (1.0 / max(1, cfg.target_legs))
+                    max_s = int(row.get("sources", 1)) or 1
+                    tier, sc = score_pick(opt, ideal, max_s, cfg)
+                    candidates.append({**opt, "tier": tier, "score": sc})
+
+        return candidates
+
+    def build_slip_from_df(
+        self,
+        df: pd.DataFrame,
+        profile_or_config: str | BetSlipConfig = "medium_risk",
+        extra_excluded_urls: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        One-shot convenience: load *df*, build a slip, and return legs without
+        persisting anything to the database.
+
+        Equivalent to calling :meth:`load_matches` then :meth:`build_slip`,
+        but restores the original internal DataFrame afterwards so callers
+        that already have data loaded are not affected.
+        """
+        previous_df = self._df.copy()
+        try:
+            self.load_matches(df)
+            return self.build_slip(profile_or_config, extra_excluded_urls)
+        finally:
+            self._df = previous_df
+
+    @staticmethod
+    def derive_slip_status(legs: list[dict]) -> str:
+        """
+        Derive the overall slip status from a list of leg dicts (each must have
+        a 'status' key).  Delegates to :func:`slip_utils.derive_slip_status`.
+
+        >>> BetAssistant.derive_slip_status([{"status": "Won"}, {"status": "Lost"}])
+        'Lost'
+        """
+        return derive_slip_status([leg["status"] for leg in legs])
+
+    def process_leg_result(
+        self, leg_id: int, info: MatchResultInfo, market: MarketLabel, market_type: MarketType, match_name: str
+    ) -> LegOutcomeInfo | None:
+        """
+        Evaluate a MatchResultInfo against a specific leg's market, calculate outcome,
+        and apply the update to the SQLite database if the leg status has advanced.
+        Can be used manually to force-process an explicit match result object against a leg.
+        """
+        outcome_info = LegOutcomeInfo(
+            leg_id=leg_id,
+            match_name=match_name,
+            market=market,
+            score=info.score,
+            minute=info.minute,
+        )
+
+        if info.status == MatchStatus.FT and info.score:
+            try:
+                h, a = parse_score(info.score)
+                outcome_info.outcome = determine_outcome(h, a, market, market_type)
+            except Exception:
+                pass
+
+        if info.status == MatchStatus.FT and outcome_info.outcome in (Outcome.WON, Outcome.LOST):
+            self.update_leg(leg_id, outcome_info.outcome)
+            return outcome_info
+
+        elif info.status == MatchStatus.LIVE and info.score:
+            self.update_leg(leg_id, Outcome.LIVE)
+            return outcome_info
+
+        return None
+
     def validate_slips(self) -> dict[str, Any]:
         self.reopen_if_changed()
 
@@ -740,8 +663,8 @@ class BetAssistant(BaseStorageManager):
 
         checked = len(pending)
         errors = [0]
-        live_matches: list[dict[str, Any]] = []
-        settled_matches: list[dict[str, Any]] = []
+        live_matches: list[LegOutcomeInfo] = []
+        settled_matches: list[LegOutcomeInfo] = []
 
         url_to_legs = {}
         for row in pending:
@@ -754,60 +677,22 @@ class BetAssistant(BaseStorageManager):
         if not urls:
             return {"checked": 0, "settled": [], "live": [], "errors": 0}
 
+        from dataclasses import asdict
+
         def _handle_url(url: str, html: str) -> None:
             try:
                 base_info = _parse_match_result_html(html, url)
 
                 for leg_id, market, market_type, match_name in url_to_legs[url]:
-                    info = {
-                        "status": base_info["status"],
-                        "score": base_info["score"],
-                        "minute": base_info["minute"],
-                        "outcome": "",
-                    }
+                    outcome_info = self.process_leg_result(leg_id, base_info, market, market_type, match_name)
+                    if not outcome_info:
+                        continue
 
-                    if info["status"] == "FT" and info["score"]:
-                        try:
-                            h, a = _parse_score(info["score"])
-                            info["outcome"] = _determine_outcome(
-                                h, a, market, market_type
-                            )
-                        except Exception:
-                            pass
+                    if base_info.status == MatchStatus.FT and outcome_info.outcome in (Outcome.WON, Outcome.LOST):
+                        settled_matches.append(outcome_info)
 
-                    if info["status"] == "FT" and info["outcome"] in ("Won", "Lost"):
-                        with self.db_lock:
-                            self.conn.execute(
-                                "UPDATE legs SET status = ? WHERE leg_id = ?",
-                                (info["outcome"], leg_id),
-                            )
-                            self.conn.commit()
-                        settled_matches.append(
-                            {
-                                "leg_id": leg_id,
-                                "match_name": match_name,
-                                "market": market,
-                                "score": info["score"],
-                                "outcome": info["outcome"],
-                            }
-                        )
-
-                    elif info["status"] == "LIVE" and info["score"]:
-                        with self.db_lock:
-                            self.conn.execute(
-                                "UPDATE legs SET status = 'Live' WHERE leg_id = ?",
-                                (leg_id,),
-                            )
-                            self.conn.commit()
-                        live_matches.append(
-                            {
-                                "leg_id": leg_id,
-                                "match_name": match_name,
-                                "market": market,
-                                "score": info["score"],
-                                "minute": info["minute"],
-                            }
-                        )
+                    elif base_info.status == MatchStatus.LIVE:
+                        live_matches.append(outcome_info)
 
             except Exception as e:
                 errors[0] += 1
@@ -824,12 +709,12 @@ class BetAssistant(BaseStorageManager):
             logger.error(f"[BetAssistant] Scrape failure: {e}")
             errors[0] += 1
 
-        return {
-            "checked": checked,
-            "settled": settled_matches,
-            "live": live_matches,
-            "errors": errors[0],
-        }
+        return ValidationReport(
+            checked=checked,
+            settled=settled_matches,
+            live=live_matches,
+            errors=errors[0],
+        )
 
     def update_leg(self, leg_id: int, status: str) -> None:
         """Manually override a leg outcome ('Won', 'Lost', or 'Pending')."""
@@ -848,53 +733,7 @@ class BetAssistant(BaseStorageManager):
     @staticmethod
     def _calc_consensus(scores: list) -> dict[str, dict[str, float]]:
         """Derive result / over-under / BTTS consensus from historical scores."""
-        empty = {
-            "result": {"home": 0.0, "draw": 0.0, "away": 0.0},
-            "over_under_2.5": {"over": 0.0, "under": 0.0},
-            "btts": {"yes": 0.0, "no": 0.0},
-        }
-        if not scores:
-            return empty
-
-        total = len(scores)
-        home_w = draw_w = away_w = 0
-        over = under = 0
-        btts_y = btts_n = 0
-
-        try:
-            for s in scores:
-                h = s.get("home", 0) or 0
-                a = s.get("away", 0) or 0
-
-                if h > a:
-                    home_w += 1
-                elif h < a:
-                    away_w += 1
-                else:
-                    draw_w += 1
-
-                if h + a > 2.5:
-                    over += 1
-                else:
-                    under += 1
-
-                if h > 0 and a > 0:
-                    btts_y += 1
-                else:
-                    btts_n += 1
-
-        except Exception as e:
-            logger.info(f"[BetAssistant] Consensus calc error: {e}")
-            return empty
-
-        def pct(n: int) -> float:
-            return round((n / total) * 100, 1) if total else 0.0
-
-        return {
-            "result": {"home": pct(home_w), "draw": pct(draw_w), "away": pct(away_w)},
-            "over_under_2.5": {"over": pct(over), "under": pct(under)},
-            "btts": {"yes": pct(btts_y), "no": pct(btts_n)},
-        }
+        return calc_consensus(scores)
 
     # ── Candidate collection ──────────────────────────────────────────────────
 
@@ -918,13 +757,7 @@ class BetAssistant(BaseStorageManager):
             if date_to and row["datetime"] >= date_to:
                 continue
             url = row.get("result_url")
-            if (
-                pd.isna(url)
-                or not str(url).strip()
-                or str(url).strip().lower() in ("none", "null")
-            ):
-                continue
-            if url in excluded:
+            if not is_valid_url(url) or url in excluded:
                 continue
 
             match_name = f"{row['home']} vs {row['away']}"
@@ -937,16 +770,16 @@ class BetAssistant(BaseStorageManager):
                     odds = float(row.get(odds_col, 0))
                     if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
                         candidates.append(
-                            {
-                                "match": match_name,
-                                "datetime": row["datetime"],
-                                "market": label,
-                                "market_type": m_type,
-                                "consensus": consensus,
-                                "odds": odds,
-                                "result_url": row["result_url"],
-                                "sources": int(row["sources"]),
-                            }
+                            CandidateLeg(
+                                match_name=match_name,
+                                datetime=row["datetime"],
+                                market=label,
+                                market_type=m_type,
+                                consensus=consensus,
+                                odds=odds,
+                                result_url=row["result_url"],
+                                sources=int(row["sources"]),
+                            )
                         )
 
         return candidates
@@ -954,13 +787,13 @@ class BetAssistant(BaseStorageManager):
     # ── Leg selection loop ────────────────────────────────────────────────────
 
     @staticmethod
-    def _select_legs(candidates: list[dict], cfg: BetSlipConfig) -> list[dict]:
-        stop_threshold = _resolve_stop_threshold(cfg)
-        max_legs = _resolve_max_legs(cfg)
+    def _select_legs(candidates: list[CandidateLeg], cfg: BetSlipConfig) -> list[CandidateLeg]:
+        stop_threshold = resolve_stop_threshold(cfg)
+        max_legs = resolve_max_legs(cfg)
         min_legs = max(1, int(cfg.target_legs * cfg.min_legs_fill_ratio))
-        max_sources = max((c["sources"] for c in candidates), default=1)
+        max_sources = max((c.sources for c in candidates), default=1)
 
-        selected: list[dict] = []
+        selected: list[CandidateLeg] = []
         seen_matches: set = set()
         total_odds: float = 1.0
 
@@ -975,28 +808,25 @@ class BetAssistant(BaseStorageManager):
             remaining_legs = max(1, cfg.target_legs - len(selected))
             ideal_per_leg = remaining_target ** (1.0 / remaining_legs)
 
-            scored = [
-                {
-                    **c,
-                    **dict(
-                        zip(
-                            ("tier", "score"),
-                            _score_pick(c, ideal_per_leg, max_sources, cfg),
-                        )
-                    ),
-                }
-                for c in candidates
-                if c["match"] not in seen_matches
-            ]
+            scored = []
+            for c in candidates:
+                if c.match_name not in seen_matches:
+                    tier, score = score_pick(c, ideal_per_leg, max_sources, cfg)
+                    scored.append((tier, score, c))
 
             if not scored:
                 break
 
-            scored.sort(key=lambda x: (x["tier"], -x["score"]))
-            best = scored[0]
+            scored.sort(key=lambda x: (x[0], -x[1]))
+            tier, score, best = scored[0]
+            
+            # Populate UI-only fields
+            best.tier = tier
+            best.score = score
+            
             selected.append(best)
-            seen_matches.add(best["match"])
-            total_odds *= best["odds"]
+            seen_matches.add(best.match_name)
+            total_odds *= best.odds
 
         if len(selected) < min_legs:
             return []
@@ -1006,16 +836,27 @@ class BetAssistant(BaseStorageManager):
     # ── DB row → structured slip ──────────────────────────────────────────────
 
     @staticmethod
-    def _rows_to_slips(rows: list) -> list[dict[str, Any]]:
+    def _derive_slip_status(leg_statuses: list[str]) -> Outcome:
         """
-        Group flat SQL rows into nested slip + legs dicts.
+        Derive the overall slip status from a list of leg statuses.
 
-        Slip status derivation:
-            Lost    — any leg is Lost
-            Pending — no Lost leg, but at least one Pending
-            Won     — all legs Won
+        Priority: Lost > Live > Pending > Won
         """
-        slips: dict[int, dict] = {}
+        statuses = set(leg_statuses)
+        if Outcome.LOST in statuses:
+            return Outcome.LOST
+        if Outcome.LIVE in statuses:
+            return Outcome.LIVE
+        if Outcome.PENDING in statuses:
+            return Outcome.PENDING
+        return Outcome.WON
+
+    @staticmethod
+    def _rows_to_slips(rows: list) -> list[BetSlip]:
+        """
+        Group flat SQL rows from the slips+legs JOIN into nested BetSlip objects.
+        """
+        slips: dict[int, BetSlip] = {}
 
         for (
             slip_id,
@@ -1026,43 +867,46 @@ class BetAssistant(BaseStorageManager):
             match,
             dt,
             market,
-            market_type,
+            m_type,
             odds,
             status,
-            result_url,
+            url,
         ) in rows:
             if slip_id not in slips:
-                slips[slip_id] = {
-                    "slip_id": slip_id,
-                    "date_generated": date,
-                    "profile": profile,
-                    "total_odds": total_odds,
-                    "units": units,
-                    "legs": [],
-                    "slip_status": "Won",
-                }
-
-            if match:
-                slips[slip_id]["legs"].append(
-                    {
-                        "match_name": match,
-                        "datetime": datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S"),
-                        "market": market,
-                        "market_type": market_type,
-                        "odds": odds,
-                        "status": status,
-                        "result_url": result_url,
-                    }
+                slips[slip_id] = BetSlip(
+                    slip_id=slip_id,
+                    date_generated=date,
+                    profile=profile,
+                    total_odds=total_odds,
+                    units=units,
+                    legs=[],
                 )
 
-            if status == "Lost":
-                slips[slip_id]["slip_status"] = "Lost"
-            elif status == "Live" and slips[slip_id]["slip_status"] not in ("Lost",):
-                slips[slip_id]["slip_status"] = "Live"
-            elif status == "Pending" and slips[slip_id]["slip_status"] not in (
-                "Lost",
-                "Live",
-            ):
-                slips[slip_id]["slip_status"] = "Pending"
+            if match:
+                leg_dt = None
+                if dt:
+                    try:
+                        leg_dt = datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
+                    except (ValueError, TypeError):
+                        leg_dt = dt
 
-        return list(slips.values())
+                slips[slip_id].legs.append(
+                    BetLeg(
+                        match_name=match,
+                        datetime=leg_dt,
+                        market=market,
+                        market_type=m_type,
+                        odds=odds,
+                        status=status,
+                        result_url=url,
+                    )
+                )
+
+        result = []
+        for slip in slips.values():
+            slip.slip_status = BetAssistant._derive_slip_status(
+                [leg.status for leg in slip.legs]
+            )
+            result.append(slip)
+
+        return result

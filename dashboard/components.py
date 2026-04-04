@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from bet_framework.core.types import Outcome
+
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import dash_table, dcc, html
@@ -532,8 +534,8 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
     total_odds = 1.0
     tier2_count = 0
     for s in selections:
-        total_odds *= s.get("odds", 1.0)
-        if s.get("tier", 1) == 2:
+        total_odds *= s.odds
+        if s.tier == 2:
             tier2_count += 1
 
     drift_badge = (
@@ -567,12 +569,12 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
 
     cards = []
     for pick in selections:
-        consensus = pick["consensus"]
+        consensus = pick.consensus
         consensus_color = (
             "success" if consensus >= 80 else "warning" if consensus >= 60 else "danger"
         )
-        tier = pick.get("tier", 1)
-        score = pick.get("score", 0.0)
+        tier = pick.tier
+        score = pick.score
 
         tier_badge = dbc.Badge(
             "✓ Balanced" if tier == 1 else "⚠ Drift",
@@ -586,7 +588,7 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
             text_color="dark",
             style={"fontSize": FONT_SIZE_XS},
         )
-        is_duplicate = pending_urls and pick["result_url"] in pending_urls
+        is_duplicate = pending_urls and pick.result_url in pending_urls
         card = dbc.Col(
             dbc.Card(
                 [
@@ -611,15 +613,15 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
                                         html.Div(
                                             [
                                                 html.H6(
-                                                    pick["match"],
+                                                    pick.match_name,
                                                     className="fw-bold text-dark mb-0",
                                                     style={"fontSize": "0.95rem"},
                                                 ),
                                                 html.Small(
-                                                    pick["datetime"].strftime(
+                                                    pd.to_datetime(pick.datetime).strftime(
                                                         "%a %d %b, %H:%M"
                                                     )
-                                                    if pd.notna(pick["datetime"])
+                                                    if pd.notna(pick.datetime)
                                                     else "",
                                                     className="text-muted",
                                                     style={"fontSize": FONT_SIZE_XS},
@@ -633,7 +635,7 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
                                             html.I(className="fas fa-times"),
                                             id={
                                                 "type": "exclude-btn",
-                                                "index": pick["result_url"],
+                                                "index": pick.result_url,
                                             },
                                             color="link",
                                             size="sm",
@@ -649,13 +651,13 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
                                 [
                                     dbc.Col(
                                         html.Span(
-                                            pick["market"], className="fw-bold fs-6"
+                                            pick.market, className="fw-bold fs-6"
                                         ),
                                         width=8,
                                     ),
                                     dbc.Col(
                                         dbc.Badge(
-                                            f"@{pick['odds']:.2f}",
+                                            f"@{pick.odds:.2f}",
                                             color="primary",
                                             className="fs-6 float-end",
                                         ),
@@ -678,7 +680,7 @@ def render_bet_preview(selections: list, pending_urls: set = None) -> Any:
                                         style={"fontSize": FONT_SIZE_XS},
                                     ),
                                     html.Small(
-                                        f"Sources: {pick.get('sources', 0)}",
+                                        f"Sources: {pick.sources}",
                                         className="text-muted me-2",
                                         style={"fontSize": FONT_SIZE_XS},
                                     ),
@@ -773,20 +775,18 @@ def render_slip_card(
     """
     live_data = live_data or {}
 
-    status_style = STATUS_STYLES.get(slip["slip_status"], STATUS_STYLES_DEFAULT)
-    hdr_bg = status_style["bg"]
-    status_style["text"]
-    badge_col = status_style["badge"]
+    hdr_bg = STATUS_STYLES.get(slip.slip_status, STATUS_STYLES_DEFAULT)["bg"]
+    badge_col = STATUS_STYLES.get(slip.slip_status, STATUS_STYLES_DEFAULT)["badge"]
 
     leg_rows = []
-    for leg in slip["legs"]:
-        leg_status = leg["status"]
+    for leg in slip.legs:
+        leg_status = leg.status
         icon_cls = LEG_ICON.get(leg_status, LEG_ICON_DEFAULT)
 
         # ── Live match overlay ─────────────────────────────────────────────
-        live_info = live_data.get(leg["match_name"])
+        live_info = live_data.get(leg.match_name)
         live_badges = []
-        if live_info and leg_status == "Live":
+        if live_info and leg_status == Outcome.LIVE:
             if live_info.get("score"):
                 live_badges.append(
                     html.Span(
@@ -809,14 +809,13 @@ def render_slip_card(
                         },
                     )
                 )
-
         match_cell = html.Div(
             [
                 html.Div(
                     [
                         html.A(
-                            leg["match_name"],
-                            href=leg["result_url"],
+                            leg.match_name,
+                            href=leg.result_url,
                             target="_blank",
                             className="fw-medium text-decoration-none",
                             style={"fontSize": FONT_SIZE_MD, "color": COLORS["accent"]},
@@ -826,8 +825,8 @@ def render_slip_card(
                     className="d-flex align-items-center flex-wrap gap-1",
                 ),
                 html.Small(
-                    leg["datetime"].strftime("%a %d %b, %H:%M")
-                    if pd.notna(leg["datetime"])
+                    pd.to_datetime(leg.datetime).strftime("%a %d %b, %H:%M")
+                    if pd.notna(leg.datetime)
                     else "",
                     className="text-muted",
                     style={"fontSize": FONT_SIZE_XS},
@@ -845,11 +844,11 @@ def render_slip_card(
                     ),
                     dbc.Col(match_cell, width=6),
                     dbc.Col(
-                        html.Span(leg["market"], style={"fontSize": "0.8rem"}), width=3
+                        html.Span(leg.market, style={"fontSize": "0.8rem"}), width=3
                     ),
                     dbc.Col(
                         html.Span(
-                            f"@{leg['odds']:.2f}",
+                            f"@{leg.odds:.2f}",
                             className="fw-bold text-end",
                             style={"fontSize": FONT_SIZE_MD},
                         ),
@@ -860,7 +859,8 @@ def render_slip_card(
                 className="py-2 border-bottom align-items-center g-0",
             )
         )
-    all_pending = all(leg["status"] == "Pending" for leg in slip["legs"])
+
+    all_pending = all(leg.status == Outcome.PENDING for leg in slip.legs)
     return dbc.Card(
         [
             dbc.CardHeader(
@@ -868,25 +868,25 @@ def render_slip_card(
                     dbc.Row(
                         [
                             dbc.Col(
-                                html.Strong(f"Date: {slip['date_generated']}"), width=3
+                                html.Strong(f"Date: {slip.date_generated}"), width=3
                             ),
                             dbc.Col(
                                 html.Span(
-                                    f"Profile: {slip['profile'].upper()}",
+                                    f"Profile: {slip.profile.upper()}",
                                     className="fw-bold",
                                 ),
                                 width=3,
                             ),
                             dbc.Col(
                                 html.Span(
-                                    f"Units: {slip['units']}",
+                                    f"Units: {slip.units}",
                                     className="fw-bold text-info",
                                 ),
                                 width=1,
                             ),
                             dbc.Col(
                                 html.Span(
-                                    f"Total Odds: @{slip['total_odds']:.2f}",
+                                    f"Total Odds: @{slip.total_odds:.2f}",
                                     className="fw-bold",
                                 ),
                                 width=2,
@@ -894,7 +894,7 @@ def render_slip_card(
                             ),
                             dbc.Col(
                                 dbc.Badge(
-                                    slip["slip_status"],
+                                    slip.slip_status,
                                     color=badge_col,
                                     className="float-end",
                                 ),
@@ -905,7 +905,7 @@ def render_slip_card(
                                     html.I(className="fas fa-trash-alt"),
                                     id={
                                         "type": "delete-slip-btn",
-                                        "index": slip["slip_id"],
+                                        "index": slip.slip_id,
                                     },
                                     color="danger",
                                     size="sm",
