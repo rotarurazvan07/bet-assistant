@@ -422,6 +422,9 @@ class BetAssistant(BaseStorageManager):
             slip_id = cursor.lastrowid
 
             for leg in legs:
+                # Store market value as string, not enum representation
+                market_value = leg.market.value if hasattr(leg.market, 'value') else str(leg.market)
+                market_type_value = leg.market_type.value if hasattr(leg.market_type, 'value') else str(leg.market_type) if leg.market_type else None
                 self.conn.execute(
                     """INSERT INTO legs
                     (slip_id, match_name, match_datetime, market, market_type, odds, result_url)
@@ -430,8 +433,8 @@ class BetAssistant(BaseStorageManager):
                         slip_id,
                         leg.match_name,
                         coerce_datetime_str(leg.datetime),
-                        leg.market,
-                        leg.market_type,
+                        market_value,
+                        market_type_value,
                         leg.odds,
                         leg.result_url,
                     ),
