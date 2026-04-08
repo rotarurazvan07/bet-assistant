@@ -2,7 +2,7 @@ import client from './client';
 import type {
     BuilderConfig, PreviewResult,
     ProfilesMap, Profile,
-    SlipsPage, BetSlip, CandidateLeg,
+    SlipsPage, BetSlip, CandidateLeg, ManualLegIn,
     AnalyticsData,
     ServicesData,
 } from '../types';
@@ -70,7 +70,7 @@ export async function fetchSlips(params: {
     return res.data;
 }
 
-export async function addSlip(profile: string, legs: CandidateLeg[], units: number): Promise<number> {
+export async function addSlip(profile: string, legs: ManualLegIn[], units: number): Promise<number> {
     const res = await client.post<{ slip_id: number }>('/slips', { profile, legs, units });
     return res.data.slip_id;
 }

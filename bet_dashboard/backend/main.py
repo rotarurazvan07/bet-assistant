@@ -24,9 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from logic import AppLogic  # noqa: E402
-from ws import ws_manager  # noqa: E402
-from routers import matches, builder, profiles, slips, analytics, services, system  # noqa: E402
+from bet_dashboard.backend.logic import AppLogic  # noqa: E402
+from bet_dashboard.backend.ws import ws_manager  # noqa: E402
+from bet_dashboard.backend.routers import matches, builder, profiles, slips, analytics, services, system  # noqa: E402
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -25,7 +25,7 @@ from dashboard.logic import DashboardLogic  # noqa: E402
 from dashboard.services import TickerService  # noqa: E402
 from scrape_kit import SettingsManager, configure  # noqa: E402
 
-from ws import ws_manager  # noqa: E402
+from .ws import ws_manager  # noqa: E402
 
 # ── BetSlipConfig field helpers ───────────────────────────────────────────────
 

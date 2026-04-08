@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 
 # Add _is_empty function here
 
+
 def _is_empty(value) -> bool:
     """Return True for None, NaN, or empty/whitespace string."""
     if value is None:
@@ -27,6 +28,7 @@ def _is_empty(value) -> bool:
     if isinstance(value, str) and not value.strip():
         return True
     return False
+
 
 class MatchesManager(BufferedStorageManager):
     """
@@ -195,7 +197,9 @@ class MatchesManager(BufferedStorageManager):
                         )
                         changed = True
 
-                if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
+                if not _is_empty(match.result_url) and _is_empty(
+                    found.get("result_url")
+                ):
                     self._buffer.at[idx, "result_url"] = match.result_url
                     changed = True
 

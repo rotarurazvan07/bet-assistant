@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from schemas import ProfileIn
+from ..schemas import ProfileIn
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 

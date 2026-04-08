@@ -25,8 +25,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                 profile: profileFilter === 'all' ? undefined : profileFilter,
                 date_from: filters.dateFrom || undefined,
                 date_to: filters.dateTo || undefined,
-                hide_settled: hideSettled ? 'true' : 'false',
-                live_only: liveOnly ? 'true' : 'false',
+                hide_settled: hideSettled,
+                live_only: liveOnly,
             });
             setData(d);
             // Update local live data from the slip legs that have live status
@@ -47,6 +47,13 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     }, [profileFilter, filters, hideSettled, liveOnly, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
+
+    // Update live data when WebSocket pushes new live_data
+    useEffect(() => {
+        if (externalLiveData && Object.keys(externalLiveData).length > 0) {
+            setLocalLiveData(externalLiveData);
+        }
+    }, [externalLiveData]);
 
     async function handleValidate() {
         setStatus('Validating…');

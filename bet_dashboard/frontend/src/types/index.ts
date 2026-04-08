@@ -76,6 +76,14 @@ export type ProfilesMap = Record<string, Profile>;
 
 // ── Slips ─────────────────────────────────────────────────────────────────────
 
+export interface ManualLegIn {
+    match_name: string;
+    market: string;
+    odds: number;
+    result_url?: string | null;
+    datetime?: string | null;
+}
+
 export interface BetLeg {
     match_name: string; datetime: string | null;
     market: string; market_type: string | null;

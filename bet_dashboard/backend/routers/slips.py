@@ -6,7 +6,8 @@ from fastapi import APIRouter, Request
 
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
-from schemas import SlipIn
+from bet_framework.core.utils import is_valid_url
+from ..schemas import ManualLegIn, SlipIn
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
 
@@ -20,6 +21,68 @@ def _enum_or_str(val):
     if hasattr(val, 'value'):
         return val.value
     return str(val)
+
+
+ALLOWED_MARKETS = {"1", "X", "2", "Over 2.5", "Under 2.5", "BTTS Yes", "BTTS No"}
+
+
+def validate_manual_leg(leg: dict, logic) -> dict:
+    """
+    Validate a single manual leg dict against the current match DataFrame.
+
+    Parameters
+    ----------
+    leg : dict
+        The leg data to validate.
+    logic : AppLogic
+        The application logic instance providing access to match data.
+
+    Returns
+    -------
+    {"valid": True} on success or {"valid": False, "error": str} on failure.
+    """
+    # 1 — match existence (fuzzy search on home/away)
+    match_name = leg.get("match_name", "")
+    df = logic.match_df
+    # If match_name contains " - ", treat as "home - away" and match both sides
+    if " - " in match_name:
+        home_part, away_part = match_name.split(" - ", 1)
+        match_row = df[
+            (df["home"].str.contains(home_part.strip(), case=False, na=False))
+            & (df["away"].str.contains(away_part.strip(), case=False, na=False))
+        ]
+    else:
+        match_row = df[
+            (df["home"].str.contains(match_name, case=False, na=False))
+            | (df["away"].str.contains(match_name, case=False, na=False))
+        ]
+    if match_row.empty:
+        return {"valid": False, "error": f"Match not found: {match_name}"}
+
+    # 2 — market allow-list
+    market_raw = leg.get("market", "")
+    market = market_raw.value if hasattr(market_raw, "value") else str(market_raw)
+    if market not in ALLOWED_MARKETS:
+        return {
+            "valid": False,
+            "error": f"Invalid market '{market}'. Allowed: {sorted(ALLOWED_MARKETS)}",
+        }
+
+    # 3 — odds sanity
+    odds = leg.get("odds")
+    try:
+        odds_val = float(odds)
+        if odds_val <= 0:
+            raise ValueError()
+    except (TypeError, ValueError):
+        return {"valid": False, "error": f"Invalid odds: {odds}"}
+
+    # 4 — optional URL format
+    url = leg.get("result_url")
+    if url and not is_valid_url(url):
+        return {"valid": False, "error": f"Invalid result_url: {url}"}
+
+    return {"valid": True}
 
 def _leg_to_dict(leg) -> dict:
     return {
@@ -80,6 +143,29 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
     )
 
 
+@router.post("")
+def add_slip(request: Request, body: SlipIn):
+    app = _get(request)
+    logic = app.logic
+
+    # Validate every leg
+    for leg in body.legs:
+        leg_dict = leg.dict()
+        result = validate_manual_leg(leg_dict, logic)
+        if not result["valid"]:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=result["error"])
+
+    # Convert to CandidateLeg objects
+    legs = [_dict_to_candidate_leg(leg.dict()) for leg in body.legs]
+
+    # Default profile to "manual" if not provided (already defaulted in schema)
+    profile = body.profile or "manual"
+
+    slip_id = app.save_slip_and_broadcast(profile, legs, body.units)
+    return {"slip_id": slip_id}
+
+
 @router.get("")
 def get_slips(
     request: Request,
@@ -131,12 +217,23 @@ def get_slips(
     }
 
 
-@router.post("")
-def add_slip(request: Request, body: SlipIn):
-    app = _get(request)
-    legs = [_dict_to_candidate_leg(leg) for leg in body.legs]
-    slip_id = app.save_slip_and_broadcast(body.profile, legs, body.units)
-    return {"slip_id": slip_id}
+
+
+@router.post("/validate_manual")
+def validate_manual(request: Request, legs: list[ManualLegIn]):
+    """
+    Validate a list of manual leg payloads without creating a slip.
+    Returns per-leg validation results and an overall `all_valid` flag.
+    """
+    logic = _get(request).logic
+    results = []
+    for leg in legs:
+        leg_dict = leg.dict()
+        result = validate_manual_leg(leg_dict, logic)
+        results.append(result)
+
+    all_valid = all(r["valid"] for r in results)
+    return {"legs": results, "all_valid": all_valid}
 
 
 @router.delete("/{slip_id}")

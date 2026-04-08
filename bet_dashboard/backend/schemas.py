@@ -64,9 +64,17 @@ class ProfileIn(BaseModel):
 
 # ── Slips ─────────────────────────────────────────────────────────────────────
 
+class ManualLegIn(BaseModel):
+    match_name: str
+    market: str
+    odds: float
+    result_url: str | None = None
+    datetime: str | None = None
+
+
 class SlipIn(BaseModel):
-    profile: str
-    legs: list[dict]
+    profile: str = "manual"
+    legs: list[ManualLegIn]
     units: float = 1.0
 
 
