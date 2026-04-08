@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime
 
 import pandas as pd
@@ -15,6 +16,17 @@ from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
 
+# Add _is_empty function here
+
+def _is_empty(value) -> bool:
+    """Return True for None, NaN, or empty/whitespace string."""
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False
 
 class MatchesManager(BufferedStorageManager):
     """
@@ -144,7 +156,7 @@ class MatchesManager(BufferedStorageManager):
             if found is not None:
                 changed = False
 
-                if match.predictions:
+                if not _is_empty(match.predictions):
                     ex = self.deserialize_json(found.get("predictions_scores")) or []
                     ex_src = {s.get("source") for s in ex if s.get("source")}
                     for s in match.predictions:
@@ -155,7 +167,7 @@ class MatchesManager(BufferedStorageManager):
                     if changed:
                         self._buffer.at[idx, "predictions_scores"] = json.dumps(ex)
 
-                if match.datetime:
+                if not _is_empty(match.datetime):
                     try:
                         ex_dt = datetime.fromisoformat(found["datetime"])
                         if (
@@ -170,7 +182,7 @@ class MatchesManager(BufferedStorageManager):
                     except Exception:
                         pass
 
-                if match.odds:
+                if not _is_empty(match.odds):
                     cur = self.deserialize_json(found.get("odds")) or {}
                     patch = {
                         k: v
@@ -183,7 +195,7 @@ class MatchesManager(BufferedStorageManager):
                         )
                         changed = True
 
-                if match.result_url and not found.get("result_url"):
+                if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
                     self._buffer.at[idx, "result_url"] = match.result_url
                     changed = True
 

@@ -334,7 +334,7 @@ def mode_generate_slips(
         slip_id = assistant.save_slip(name, legs, units)
         total_odds = 1.0
         for leg in legs:
-            logger.info(f"  ⚽ {leg.match_name} ({leg.market}) @ {leg.odds:.2f}")
+            logger.info(f"  ⚽ {leg.match_name} ({leg.market.value}) @ {leg.odds:.2f}")
             total_odds *= leg.odds
         logger.info(
             f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)"
