@@ -662,20 +662,11 @@ class SoccerVistaFinder(BaseMatchFinder):
             soup = BeautifulSoup(html, "html.parser")
             if html:
                 try:
-                    league_urls += [
-                        opt["value"]
-                        for opt in soup.find("select", id="tournamentPage").find_all(
-                            "option"
-                        )
-                    ]
+                    league_urls += [opt["value"] for opt in soup.find("select", id="tournamentPage").find_all("option")]
                 except AttributeError:
                     logger.info(f"Can't parse: {link}")
 
-        league_urls = [
-            SOCCERVISTA_URL + url
-            for url in league_urls
-            if not any(ex in url for ex in EXCLUDED)
-        ]
+        league_urls = [SOCCERVISTA_URL + url for url in league_urls if not any(ex in url for ex in EXCLUDED)]
 
         logger.info(f"{len(league_urls)} leagues to scrape")
         return league_urls
@@ -691,9 +682,7 @@ class SoccerVistaFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         try:
             soup = BeautifulSoup(html, "html.parser")
-            container = soup.find(
-                "h2", string=lambda t: t and "Upcoming Predictions" in t
-            )
+            container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)
             matches = container.parent.find("tbody").find_all("tr") if container else []
 
             for match_tr in matches:
@@ -732,8 +721,7 @@ class SoccerVistaFinder(BaseMatchFinder):
                         datetime=match_datetime,
                         predictions=scores,
                         odds=None,
-                        result_url=SOCCERVISTA_URL
-                        + match_tr.find("a").get("href").replace("/fr/", "/"),
+                        result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
                     )
                 )
 

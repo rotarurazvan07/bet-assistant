@@ -48,8 +48,10 @@ def get_matches(
 
     if df.empty:
         return {
-            "total": 0, "page": page,
-            "page_size": page_size, "total_pages": 1,
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 1,
             "matches": [],
         }
 
@@ -64,20 +66,32 @@ def get_matches(
 
     if df.empty:
         return {
-            "total": 0, "page": page,
-            "page_size": page_size, "total_pages": 1,
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 1,
             "matches": [],
         }
 
-    valid = {"datetime", "home", "away", "sources", "cons_home", "cons_draw",
-             "cons_away", "cons_over", "cons_under", "cons_btts_yes"}
+    valid = {
+        "datetime",
+        "home",
+        "away",
+        "sources",
+        "cons_home",
+        "cons_draw",
+        "cons_away",
+        "cons_over",
+        "cons_under",
+        "cons_btts_yes",
+    }
     col = sort_by if sort_by in valid and sort_by in df.columns else "datetime"
     df = df.sort_values(col, ascending=(sort_dir != "desc"), na_position="last")
 
     total = len(df)
     total_pages = max(1, math.ceil(total / page_size))
     start = (page - 1) * page_size
-    rows = [_row_to_dict(r) for r in df.iloc[start: start + page_size].to_dict("records")]
+    rows = [_row_to_dict(r) for r in df.iloc[start : start + page_size].to_dict("records")]
 
     return {
         "total": total,

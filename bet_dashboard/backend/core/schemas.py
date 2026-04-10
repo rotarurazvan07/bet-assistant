@@ -1,8 +1,9 @@
 from __future__ import annotations
+
 from pydantic import BaseModel
 
-
 # ── Builder ───────────────────────────────────────────────────────────────────
+
 
 class BetSlipConfigIn(BaseModel):
     target_odds: float = 3.0
@@ -45,6 +46,7 @@ class PreviewOut(BaseModel):
 
 # ── Profiles ──────────────────────────────────────────────────────────────────
 
+
 class ProfileIn(BaseModel):
     name: str
     target_odds: float = 3.0
@@ -63,6 +65,7 @@ class ProfileIn(BaseModel):
 
 
 # ── Slips ─────────────────────────────────────────────────────────────────────
+
 
 class ManualLegIn(BaseModel):
     match_name: str
@@ -99,6 +102,7 @@ class BetSlipOut(BaseModel):
 
 
 # ── Services ──────────────────────────────────────────────────────────────────
+
 
 class ServicesSettingsIn(BaseModel):
     pull_hour: int

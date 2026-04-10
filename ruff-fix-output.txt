@@ -1,0 +1,304 @@
+bet_crawler/crawl.py:15:89: E501 Line too long (113 > 88)
+bet_crawler/crawl.py:33:1: E402 Module level import not at top of file
+bet_crawler/crawl.py:115:90: E501 Line too long (100 > 88)
+bet_crawler/crawl.py:117:88: E501 Line too long (113 > 88)
+bet_crawler/crawl.py:129:89: E501 Line too long (112 > 88)
+bet_crawler/crawl.py:167:89: E501 Line too long (92 > 88)
+bet_crawler/crawl.py:174:89: E501 Line too long (99 > 88)
+bet_crawler/crawl.py:189:5: C901 `mode_merge` is too complex (16 > 10)
+bet_crawler/crawl.py:196:89: E501 Line too long (92 > 88)
+bet_crawler/crawl.py:228:89: E501 Line too long (109 > 88)
+bet_crawler/crawl.py:271:89: E501 Line too long (93 > 88)
+bet_crawler/crawl.py:321:88: E501 Line too long (93 > 88)
+bet_crawler/crawl.py:343:88: E501 Line too long (133 > 88)
+bet_crawler/crawl.py:347:88: E501 Line too long (103 > 88)
+bet_crawler/crawl.py:351:89: E501 Line too long (110 > 88)
+bet_crawler/crawl.py:394:89: E501 Line too long (94 > 88)
+bet_crawler/crawl.py:399:89: E501 Line too long (103 > 88)
+bet_crawler/crawl.py:404:89: E501 Line too long (108 > 88)
+bet_crawler/crawl.py:409:89: E501 Line too long (122 > 88)
+bet_crawler/finders/BaseMatchFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/BaseMatchFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/BaseMatchFinder.py:7:1: E402 Module level import not at top of file
+bet_crawler/finders/BaseMatchFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/BaseMatchFinder.py:9:1: E402 Module level import not at top of file
+bet_crawler/finders/BaseMatchFinder.py:92:89: E501 Line too long (105 > 88)
+bet_crawler/finders/BaseMatchFinder.py:94:89: E501 Line too long (95 > 88)
+bet_crawler/finders/BaseMatchFinder.py:95:89: E501 Line too long (110 > 88)
+bet_crawler/finders/BaseMatchFinder.py:98:89: E501 Line too long (170 > 88)
+bet_crawler/finders/BaseMatchFinder.py:118:89: E501 Line too long (103 > 88)
+bet_crawler/finders/EaglePredictFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/EaglePredictFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/EaglePredictFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/EaglePredictFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/EaglePredictFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/EaglePredictFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/EaglePredictFinder.py:30:9: C901 `_parse_page` is too complex (19 > 10)
+bet_crawler/finders/EaglePredictFinder.py:120:17: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/EaglePredictFinder.py:125:25: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/FootballBettingTipsFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/FootballBettingTipsFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/FootballBettingTipsFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/FootballBettingTipsFinder.py:9:1: E402 Module level import not at top of file
+bet_crawler/finders/FootballBettingTipsFinder.py:11:1: E402 Module level import not at top of file
+bet_crawler/finders/FootballBettingTipsFinder.py:11:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/FootballBettingTipsFinder.py:13:1: E402 Module level import not at top of file
+bet_crawler/finders/FootballBettingTipsFinder.py:27:89: E501 Line too long (98 > 88)
+bet_crawler/finders/FootballBettingTipsFinder.py:31:89: E501 Line too long (95 > 88)
+bet_crawler/finders/FootballBettingTipsFinder.py:44:89: E501 Line too long (98 > 88)
+bet_crawler/finders/FootballBettingTipsFinder.py:53:89: E501 Line too long (103 > 88)
+bet_crawler/finders/FootballBettingTipsFinder.py:54:25: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/FootballBettingTipsFinder.py:61:28: F405 `Odds` may be undefined, or defined from star imports
+bet_crawler/finders/FootballBettingTipsFinder.py:66:17: E722 Do not use bare `except`
+bet_crawler/finders/FootballBettingTipsFinder.py:70:21: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/ForebetFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/ForebetFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/ForebetFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/ForebetFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/ForebetFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/ForebetFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/ForebetFinder.py:39:89: E501 Line too long (105 > 88)
+bet_crawler/finders/ForebetFinder.py:40:89: E501 Line too long (110 > 88)
+bet_crawler/finders/ForebetFinder.py:48:89: E501 Line too long (97 > 88)
+bet_crawler/finders/ForebetFinder.py:51:89: E501 Line too long (94 > 88)
+bet_crawler/finders/ForebetFinder.py:59:89: E501 Line too long (104 > 88)
+bet_crawler/finders/ForebetFinder.py:60:89: E501 Line too long (101 > 88)
+bet_crawler/finders/ForebetFinder.py:62:89: E501 Line too long (108 > 88)
+bet_crawler/finders/ForebetFinder.py:63:89: E501 Line too long (107 > 88)
+bet_crawler/finders/ForebetFinder.py:66:89: E501 Line too long (93 > 88)
+bet_crawler/finders/ForebetFinder.py:71:89: E501 Line too long (124 > 88)
+bet_crawler/finders/ForebetFinder.py:72:89: E501 Line too long (119 > 88)
+bet_crawler/finders/ForebetFinder.py:73:89: E501 Line too long (168 > 88)
+bet_crawler/finders/ForebetFinder.py:75:89: E501 Line too long (96 > 88)
+bet_crawler/finders/ForebetFinder.py:76:89: E501 Line too long (102 > 88)
+bet_crawler/finders/ForebetFinder.py:77:89: E501 Line too long (139 > 88)
+bet_crawler/finders/ForebetFinder.py:81:89: E501 Line too long (102 > 88)
+bet_crawler/finders/ForebetFinder.py:94:89: E501 Line too long (115 > 88)
+bet_crawler/finders/ForebetFinder.py:97:89: E501 Line too long (101 > 88)
+bet_crawler/finders/ForebetFinder.py:100:89: E501 Line too long (124 > 88)
+bet_crawler/finders/ForebetFinder.py:106:89: E501 Line too long (101 > 88)
+bet_crawler/finders/ForebetFinder.py:109:89: E501 Line too long (127 > 88)
+bet_crawler/finders/ForebetFinder.py:133:89: E501 Line too long (104 > 88)
+bet_crawler/finders/ForebetFinder.py:134:89: E501 Line too long (104 > 88)
+bet_crawler/finders/ForebetFinder.py:143:89: E501 Line too long (89 > 88)
+bet_crawler/finders/ForebetFinder.py:144:89: E501 Line too long (89 > 88)
+bet_crawler/finders/ForebetFinder.py:145:32: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/ForebetFinder.py:147:89: E501 Line too long (103 > 88)
+bet_crawler/finders/ForebetFinder.py:148:24: F405 `Odds` may be undefined, or defined from star imports
+bet_crawler/finders/ForebetFinder.py:149:89: E501 Line too long (90 > 88)
+bet_crawler/finders/ForebetFinder.py:150:89: E501 Line too long (90 > 88)
+bet_crawler/finders/ForebetFinder.py:151:89: E501 Line too long (90 > 88)
+bet_crawler/finders/ForebetFinder.py:158:32: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/ForebetFinder.py:158:89: E501 Line too long (90 > 88)
+bet_crawler/finders/LegitPredictFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/LegitPredictFinder.py:7:1: E402 Module level import not at top of file
+bet_crawler/finders/LegitPredictFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/LegitPredictFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/LegitPredictFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/LegitPredictFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/LegitPredictFinder.py:24:89: E501 Line too long (115 > 88)
+bet_crawler/finders/LegitPredictFinder.py:43:89: E501 Line too long (104 > 88)
+bet_crawler/finders/LegitPredictFinder.py:47:25: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/LegitPredictFinder.py:58:32: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/OneMillionPredictionsFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/OneMillionPredictionsFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/OneMillionPredictionsFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/OneMillionPredictionsFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/OneMillionPredictionsFinder.py:58:29: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/OneMillionPredictionsFinder.py:66:40: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/OneMillionPredictionsFinder.py:66:89: E501 Line too long (94 > 88)
+bet_crawler/finders/OneMillionPredictionsFinder.py:68:17: PERF203 `try`-`except` within a loop incurs performance overhead
+bet_crawler/finders/PredictzFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/PredictzFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/PredictzFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/PredictzFinder.py:9:1: E402 Module level import not at top of file
+bet_crawler/finders/PredictzFinder.py:11:1: E402 Module level import not at top of file
+bet_crawler/finders/PredictzFinder.py:11:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/PredictzFinder.py:13:1: E402 Module level import not at top of file
+bet_crawler/finders/PredictzFinder.py:46:89: E501 Line too long (120 > 88)
+bet_crawler/finders/PredictzFinder.py:71:89: E501 Line too long (91 > 88)
+bet_crawler/finders/PredictzFinder.py:84:25: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/PredictzFinder.py:92:32: F405 `Odds` may be undefined, or defined from star imports
+bet_crawler/finders/PredictzFinder.py:104:36: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/PredictzFinder.py:104:89: E501 Line too long (93 > 88)
+bet_crawler/finders/ScorePredictorFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/ScorePredictorFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/ScorePredictorFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/ScorePredictorFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/ScorePredictorFinder.py:61:89: E501 Line too long (89 > 88)
+bet_crawler/finders/ScorePredictorFinder.py:63:89: E501 Line too long (111 > 88)
+bet_crawler/finders/ScorePredictorFinder.py:72:21: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/ScorePredictorFinder.py:79:32: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/SoccerVistaFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/SoccerVistaFinder.py:7:1: E402 Module level import not at top of file
+bet_crawler/finders/SoccerVistaFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/SoccerVistaFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/SoccerVistaFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/SoccerVistaFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/SoccerVistaFinder.py:665:89: E501 Line too long (120 > 88)
+bet_crawler/finders/SoccerVistaFinder.py:669:89: E501 Line too long (109 > 88)
+bet_crawler/finders/SoccerVistaFinder.py:685:89: E501 Line too long (91 > 88)
+bet_crawler/finders/SoccerVistaFinder.py:710:21: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/SoccerVistaFinder.py:718:21: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/SoccerVistaFinder.py:724:89: E501 Line too long (105 > 88)
+bet_crawler/finders/VitibetFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/VitibetFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/VitibetFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/VitibetFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/VitibetFinder.py:77:89: E501 Line too long (93 > 88)
+bet_crawler/finders/VitibetFinder.py:86:25: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/VitibetFinder.py:93:25: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/WhoScoredFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/WhoScoredFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/WhoScoredFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/WhoScoredFinder.py:9:1: E402 Module level import not at top of file
+bet_crawler/finders/WhoScoredFinder.py:11:1: E402 Module level import not at top of file
+bet_crawler/finders/WhoScoredFinder.py:11:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/WhoScoredFinder.py:13:1: E402 Module level import not at top of file
+bet_crawler/finders/WhoScoredFinder.py:33:89: E501 Line too long (97 > 88)
+bet_crawler/finders/WhoScoredFinder.py:62:89: E501 Line too long (93 > 88)
+bet_crawler/finders/WhoScoredFinder.py:69:17: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/WhoScoredFinder.py:75:28: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/WinDrawWinFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/WinDrawWinFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/WinDrawWinFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/WinDrawWinFinder.py:9:1: E402 Module level import not at top of file
+bet_crawler/finders/WinDrawWinFinder.py:11:1: E402 Module level import not at top of file
+bet_crawler/finders/WinDrawWinFinder.py:11:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/WinDrawWinFinder.py:13:1: E402 Module level import not at top of file
+bet_crawler/finders/WinDrawWinFinder.py:29:89: E501 Line too long (90 > 88)
+bet_crawler/finders/WinDrawWinFinder.py:60:89: E501 Line too long (92 > 88)
+bet_crawler/finders/WinDrawWinFinder.py:61:89: E501 Line too long (92 > 88)
+bet_crawler/finders/WinDrawWinFinder.py:62:89: E501 Line too long (92 > 88)
+bet_crawler/finders/WinDrawWinFinder.py:74:36: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/WinDrawWinFinder.py:80:28: F405 `Odds` may be undefined, or defined from star imports
+bet_crawler/finders/WinDrawWinFinder.py:90:36: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/WinDrawWinFinder.py:90:89: E501 Line too long (96 > 88)
+bet_crawler/finders/xGScoreFinder.py:5:1: E402 Module level import not at top of file
+bet_crawler/finders/xGScoreFinder.py:6:1: E402 Module level import not at top of file
+bet_crawler/finders/xGScoreFinder.py:8:1: E402 Module level import not at top of file
+bet_crawler/finders/xGScoreFinder.py:10:1: E402 Module level import not at top of file
+bet_crawler/finders/xGScoreFinder.py:10:1: F403 `from bet_framework.core.Match import *` used; unable to detect undefined names
+bet_crawler/finders/xGScoreFinder.py:12:1: E402 Module level import not at top of file
+bet_crawler/finders/xGScoreFinder.py:38:89: E501 Line too long (114 > 88)
+bet_crawler/finders/xGScoreFinder.py:39:89: E501 Line too long (93 > 88)
+bet_crawler/finders/xGScoreFinder.py:41:89: E501 Line too long (90 > 88)
+bet_crawler/finders/xGScoreFinder.py:66:89: E501 Line too long (121 > 88)
+bet_crawler/finders/xGScoreFinder.py:67:89: E501 Line too long (122 > 88)
+bet_crawler/finders/xGScoreFinder.py:71:89: E501 Line too long (106 > 88)
+bet_crawler/finders/xGScoreFinder.py:82:89: E501 Line too long (102 > 88)
+bet_crawler/finders/xGScoreFinder.py:83:32: F405 `Score` may be undefined, or defined from star imports
+bet_crawler/finders/xGScoreFinder.py:83:89: E501 Line too long (103 > 88)
+bet_crawler/finders/xGScoreFinder.py:86:32: F405 `Match` may be undefined, or defined from star imports
+bet_crawler/finders/xGScoreFinder.py:86:89: E501 Line too long (94 > 88)
+bet_crawler/finders/xGScoreFinder.py:88:13: PERF203 `try`-`except` within a loop incurs performance overhead
+bet_dashboard/backend/core/config_helpers.py:14:89: E501 Line too long (95 > 88)
+bet_dashboard/backend/core/logic.py:196:89: E501 Line too long (108 > 88)
+bet_dashboard/backend/core/logic.py:208:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+bet_dashboard/backend/core/logic.py:224:89: E501 Line too long (89 > 88)
+bet_dashboard/backend/core/logic.py:228:57: F821 Undefined name `CandidateLeg`
+bet_dashboard/backend/core/logic.py:229:89: E501 Line too long (96 > 88)
+bet_dashboard/backend/core/logic.py:291:89: E501 Line too long (90 > 88)
+bet_dashboard/backend/core/logic.py:359:89: E501 Line too long (90 > 88)
+bet_dashboard/backend/core/logic.py:407:89: E501 Line too long (95 > 88)
+bet_dashboard/backend/core/logic.py:409:89: E501 Line too long (94 > 88)
+bet_dashboard/backend/core/logic.py:464:13: PERF401 Use a list comprehension to create a transformed list
+bet_dashboard/backend/core/logic.py:471:89: E501 Line too long (105 > 88)
+bet_dashboard/backend/core/logic.py:557:89: E501 Line too long (94 > 88)
+bet_dashboard/backend/core/ticker_service.py:21:89: E501 Line too long (101 > 88)
+bet_dashboard/backend/core/ticker_service.py:52:89: E501 Line too long (106 > 88)
+bet_dashboard/backend/core/ticker_service.py:63:89: E501 Line too long (94 > 88)
+bet_dashboard/backend/core/ticker_service.py:70:89: E501 Line too long (90 > 88)
+bet_dashboard/backend/core/ws.py:40:13: PERF203 `try`-`except` within a loop incurs performance overhead
+bet_dashboard/backend/main.py:47:89: E501 Line too long (94 > 88)
+bet_dashboard/backend/routers/analytics.py:104:89: E501 Line too long (98 > 88)
+bet_dashboard/backend/routers/analytics.py:152:89: E501 Line too long (138 > 88)
+bet_dashboard/backend/routers/builder.py:55:89: E501 Line too long (116 > 88)
+bet_dashboard/backend/routers/builder.py:94:89: E501 Line too long (127 > 88)
+bet_dashboard/backend/routers/matches.py:60:89: E501 Line too long (124 > 88)
+bet_dashboard/backend/routers/matches.py:94:89: E501 Line too long (91 > 88)
+bet_dashboard/backend/routers/slips.py:210:89: E501 Line too long (95 > 88)
+bet_dashboard/backend/routers/slips.py:213:89: E501 Line too long (94 > 88)
+bet_framework/BetAssistant.py:34:89: E501 Line too long (95 > 88)
+bet_framework/BetAssistant.py:91:5: C901 `_parse_match_result_html` is too complex (16 > 10)
+bet_framework/BetAssistant.py:271:89: E501 Line too long (89 > 88)
+bet_framework/BetAssistant.py:299:13: PERF203 `try`-`except` within a loop incurs performance overhead
+bet_framework/BetAssistant.py:329:89: E501 Line too long (106 > 88)
+bet_framework/BetAssistant.py:338:89: E501 Line too long (90 > 88)
+bet_framework/BetAssistant.py:362:89: E501 Line too long (105 > 88)
+bet_framework/BetAssistant.py:411:89: E501 Line too long (101 > 88)
+bet_framework/BetAssistant.py:418:89: E501 Line too long (100 > 88)
+bet_framework/BetAssistant.py:428:89: E501 Line too long (96 > 88)
+bet_framework/BetAssistant.py:458:89: E501 Line too long (103 > 88)
+bet_framework/BetAssistant.py:531:89: E501 Line too long (90 > 88)
+bet_framework/BetAssistant.py:620:16: F821 Undefined name `derive_slip_status`
+bet_framework/BetAssistant.py:633:89: E501 Line too long (92 > 88)
+bet_framework/BetAssistant.py:663:9: C901 `validate_slips` is too complex (11 > 10)
+bet_framework/BetAssistant.py:667:89: E501 Line too long (118 > 88)
+bet_framework/BetAssistant.py:691:89: E501 Line too long (110 > 88)
+bet_framework/BetAssistant.py:729:89: E501 Line too long (94 > 88)
+bet_framework/BetAssistant.py:750:89: E501 Line too long (95 > 88)
+bet_framework/BetAssistant.py:791:89: E501 Line too long (95 > 88)
+bet_framework/BetAssistant.py:802:89: E501 Line too long (92 > 88)
+bet_framework/BetAssistant.py:905:89: E501 Line too long (98 > 88)
+bet_framework/MatchesManager.py:42:89: E501 Line too long (97 > 88)
+bet_framework/MatchesManager.py:62:89: E501 Line too long (94 > 88)
+bet_framework/MatchesManager.py:63:89: E501 Line too long (100 > 88)
+bet_framework/MatchesManager.py:64:89: E501 Line too long (100 > 88)
+bet_framework/MatchesManager.py:69:89: E501 Line too long (90 > 88)
+bet_framework/MatchesManager.py:76:89: E501 Line too long (98 > 88)
+bet_framework/MatchesManager.py:111:89: E501 Line too long (89 > 88)
+bet_framework/MatchesManager.py:116:13: PERF203 `try`-`except` within a loop incurs performance overhead
+bet_framework/MatchesManager.py:121:9: C901 `add_match` is too complex (16 > 10)
+bet_framework/MatchesManager.py:129:89: E501 Line too long (126 > 88)
+bet_framework/MatchesManager.py:131:89: E501 Line too long (92 > 88)
+bet_framework/MatchesManager.py:132:89: E501 Line too long (101 > 88)
+bet_framework/MatchesManager.py:152:89: E501 Line too long (126 > 88)
+bet_framework/MatchesManager.py:153:89: E501 Line too long (89 > 88)
+bet_framework/MatchesManager.py:160:89: E501 Line too long (113 > 88)
+bet_framework/MatchesManager.py:162:89: E501 Line too long (92 > 88)
+bet_framework/MatchesManager.py:165:89: E501 Line too long (90 > 88)
+bet_framework/MatchesManager.py:179:89: E501 Line too long (102 > 88)
+bet_framework/MatchesManager.py:182:89: E501 Line too long (92 > 88)
+bet_framework/MatchesManager.py:214:89: E501 Line too long (95 > 88)
+bet_framework/MatchesManager.py:242:89: E501 Line too long (112 > 88)
+bet_framework/core/Match.py:81:89: E501 Line too long (108 > 88)
+bet_framework/core/Slip.py:78:89: E501 Line too long (100 > 88)
+bet_framework/core/outcomes.py:32:5: C901 `determine_outcome` is too complex (11 > 10)
+bet_framework/core/outcomes.py:34:89: E501 Line too long (96 > 88)
+bet_framework/core/scoring.py:72:89: E501 Line too long (93 > 88)
+bet_framework/core/scoring.py:116:89: E501 Line too long (91 > 88)
+tests/test_bet_assistant.py:56:13: PERF401 Use a list comprehension to create a transformed list
+tests/test_bet_assistant.py:288:14: B017 Do not assert blind exception: `Exception`
+tests/test_bet_assistant.py:292:89: E501 Line too long (90 > 88)
+tests/test_bet_assistant.py:293:89: E501 Line too long (91 > 88)
+tests/test_bet_assistant.py:294:89: E501 Line too long (91 > 88)
+tests/test_bet_assistant.py:297:89: E501 Line too long (90 > 88)
+tests/test_bet_assistant.py:298:89: E501 Line too long (91 > 88)
+tests/test_bet_assistant.py:301:89: E501 Line too long (90 > 88)
+tests/test_bet_assistant.py:302:89: E501 Line too long (91 > 88)
+tests/test_bet_assistant.py:305:89: E501 Line too long (100 > 88)
+tests/test_bet_assistant.py:306:89: E501 Line too long (101 > 88)
+tests/test_bet_assistant.py:309:89: E501 Line too long (101 > 88)
+tests/test_bet_assistant.py:310:89: E501 Line too long (102 > 88)
+tests/test_bet_assistant.py:313:89: E501 Line too long (92 > 88)
+tests/test_bet_assistant.py:314:89: E501 Line too long (93 > 88)
+tests/test_bet_assistant.py:317:89: E501 Line too long (91 > 88)
+tests/test_bet_assistant.py:318:89: E501 Line too long (92 > 88)
+tests/test_bet_assistant.py:643:89: E501 Line too long (97 > 88)
+tests/test_bet_assistant.py:981:89: E501 Line too long (100 > 88)
+tests/test_matches_manager.py:69:89: E501 Line too long (95 > 88)
+tests/test_matches_manager.py:76:89: E501 Line too long (141 > 88)
+tests/test_matches_manager.py:96:89: E501 Line too long (92 > 88)
+tests/test_matches_manager.py:114:89: E501 Line too long (97 > 88)
+tests/test_matches_manager.py:148:89: E501 Line too long (90 > 88)
+tests/test_matches_manager.py:158:89: E501 Line too long (100 > 88)
+tests/test_matches_manager.py:353:89: E501 Line too long (90 > 88)
+tests/test_matches_manager.py:371:89: E501 Line too long (104 > 88)
+tests/test_matches_manager.py:587:89: E501 Line too long (89 > 88)
+tests/test_validate_slips.py:15:89: E501 Line too long (110 > 88)
+tests/test_validate_slips.py:37:89: E501 Line too long (89 > 88)
+tests/test_validate_slips.py:38:89: E501 Line too long (114 > 88)
+tests/test_validate_slips.py:46:89: E501 Line too long (115 > 88)
+tests/test_validate_slips.py:113:89: E501 Line too long (93 > 88)
+Found 308 errors (5 fixed, 303 remaining).

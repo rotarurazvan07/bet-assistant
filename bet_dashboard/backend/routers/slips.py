@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
 
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
-from core.schemas import ManualLegIn, SlipIn
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
 
@@ -18,7 +18,7 @@ def _get(request: Request):
 
 def _enum_or_str(val):
     """Extract value from enum or return string representation."""
-    if hasattr(val, 'value'):
+    if hasattr(val, "value"):
         return val.value
     return str(val)
 
@@ -50,7 +50,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
         separator = " - "
     elif " vs " in match_name:
         separator = " vs "
-    
+
     if separator:
         home_part, away_part = match_name.split(separator, 1)
         match_row = df[
@@ -91,12 +91,15 @@ def validate_manual_leg(leg: dict, logic) -> dict:
 
     return {"valid": True}
 
+
 def _leg_to_dict(leg) -> dict:
     return {
         "match_name": leg.match_name,
         "datetime": leg.datetime.isoformat()
-            if hasattr(leg.datetime, "isoformat")
-            else str(leg.datetime) if leg.datetime else None,
+        if hasattr(leg.datetime, "isoformat")
+        else str(leg.datetime)
+        if leg.datetime
+        else None,
         "market": _enum_or_str(leg.market),
         "market_type": _enum_or_str(leg.market_type) if leg.market_type else None,
         "odds": leg.odds,
@@ -108,10 +111,7 @@ def _leg_to_dict(leg) -> dict:
 def _slip_to_dict(slip) -> dict:
     # Handle slip_status as enum or string
     status_val = slip.slip_status
-    if hasattr(status_val, 'value'):
-        status_val = status_val.value
-    else:
-        status_val = str(status_val)
+    status_val = status_val.value if hasattr(status_val, "value") else str(status_val)
 
     return {
         "slip_id": slip.slip_id,
@@ -161,6 +161,7 @@ def add_slip(request: Request, body: SlipIn):
         result = validate_manual_leg(leg_dict, logic)
         if not result["valid"]:
             from fastapi import HTTPException
+
             raise HTTPException(status_code=400, detail=result["error"])
 
     # Convert to CandidateLeg objects
@@ -187,7 +188,7 @@ def get_slips(
     prof = None if profile in (None, "all") else profile
 
     # Coerce query params to booleans
-    def to_bool(val):
+    def to_bool(val) -> bool:
         if val is None:
             return False
         return str(val).lower() in ("true", "1", "yes", "on")
@@ -199,22 +200,17 @@ def get_slips(
 
     # Helper to get status string from enum or string
     def status_str(val):
-        if hasattr(val, 'value'):
+        if hasattr(val, "value"):
             return val.value
         return str(val)
 
     if hide_settled_bool:
         slips = [s for s in slips if status_str(s.slip_status) not in ("Won", "Lost")]
     if live_only_bool:
-        slips = [
-            s for s in slips
-            if any(status_str(leg.status) in ("Live") for leg in s.legs)
-        ]
+        slips = [s for s in slips if any(status_str(leg.status) in ("Live") for leg in s.legs)]
 
     stats = logic.stats(prof, date_from or None, date_to or None)
-    profile_names = sorted(
-        p.stem for p in Path(app.config_path + "/profiles").glob("*.yaml")
-    )
+    profile_names = sorted(p.stem for p in Path(app.config_path + "/profiles").glob("*.yaml"))
     profile_names.append("manual")
 
     return {
@@ -222,8 +218,6 @@ def get_slips(
         "stats": stats,
         "profiles": profile_names,
     }
-
-
 
 
 @router.post("/validate_manual")

@@ -268,9 +268,7 @@ class BetAssistant(BaseStorageManager):
                 odds = row.get("odds") or {}
                 scores = row.get("scores") or []
                 cons_data = calc_consensus(scores)
-                n_sources = len(
-                    {s.get("source", "") for s in scores if s.get("source")}
-                )
+                n_sources = len({s.get("source", "") for s in scores if s.get("source")})
 
                 rows.append(
                     {
@@ -328,18 +326,16 @@ class BetAssistant(BaseStorageManager):
         out = self._df.copy()
 
         if search_text:
-            mask = out["home"].str.contains(search_text, case=False, na=False) | out[
-                "away"
-            ].str.contains(search_text, case=False, na=False)
+            mask = out["home"].str.contains(search_text, case=False, na=False) | out["away"].str.contains(
+                search_text, case=False, na=False
+            )
             out = out[mask]
 
         if date_from:
             out = out[out["datetime"] >= pd.to_datetime(date_from)]
 
         if date_to:
-            end = (
-                pd.to_datetime(date_to) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-            )
+            end = pd.to_datetime(date_to) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
             out = out[out["datetime"] <= end]
 
         if min_sources and min_sources > 1:
@@ -363,11 +359,7 @@ class BetAssistant(BaseStorageManager):
         if self._df.empty:
             return []
 
-        cfg = (
-            get_profile(profile_or_config)
-            if isinstance(profile_or_config, str)
-            else profile_or_config
-        )
+        cfg = get_profile(profile_or_config) if isinstance(profile_or_config, str) else profile_or_config
 
         if extra_excluded_urls:
             current = list(cfg.excluded_urls or [])
@@ -423,11 +415,7 @@ class BetAssistant(BaseStorageManager):
 
             for leg in legs:
                 # Store market value as string, not enum representation
-                market_value = (
-                    leg.market.value
-                    if hasattr(leg.market, "value")
-                    else str(leg.market)
-                )
+                market_value = leg.market.value if hasattr(leg.market, "value") else str(leg.market)
                 market_type_value = (
                     leg.market_type.value
                     if hasattr(leg.market_type, "value")
@@ -540,9 +528,7 @@ class BetAssistant(BaseStorageManager):
         h, a = parse_score(score)
         outcome = determine_outcome(h, a, market, market_type)
         self.update_leg(leg_id, outcome)
-        logger.info(
-            f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})"
-        )
+        logger.info(f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})")
         return outcome
 
     def score_match(
@@ -702,9 +688,7 @@ class BetAssistant(BaseStorageManager):
                 base_info = _parse_match_result_html(html, url)
 
                 for leg_id, market, market_type, match_name in url_to_legs[url]:
-                    outcome_info = self.process_leg_result(
-                        leg_id, base_info, market, market_type, match_name
-                    )
+                    outcome_info = self.process_leg_result(leg_id, base_info, market, market_type, match_name)
                     if not outcome_info:
                         continue
 
@@ -742,9 +726,7 @@ class BetAssistant(BaseStorageManager):
     def update_leg(self, leg_id: int, status: str) -> None:
         """Manually override a leg outcome ('Won', 'Lost', or 'Pending')."""
         with self.db_lock:
-            self.conn.execute(
-                "UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id)
-            )
+            self.conn.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
             self.conn.commit()
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -765,11 +747,7 @@ class BetAssistant(BaseStorageManager):
         # now       = pd.Timestamp.now()
         # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
         date_from = pd.to_datetime(cfg.date_from) if cfg.date_from else None
-        date_to = (
-            (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1))
-            if cfg.date_to
-            else None
-        )
+        date_to = (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1)) if cfg.date_to else None
         excluded = set(cfg.excluded_urls or [])
         markets = cfg.included_markets
 
@@ -810,9 +788,7 @@ class BetAssistant(BaseStorageManager):
     # ── Leg selection loop ────────────────────────────────────────────────────
 
     @staticmethod
-    def _select_legs(
-        candidates: list[CandidateLeg], cfg: BetSlipConfig
-    ) -> list[CandidateLeg]:
+    def _select_legs(candidates: list[CandidateLeg], cfg: BetSlipConfig) -> list[CandidateLeg]:
         stop_threshold = resolve_stop_threshold(cfg)
         max_legs = resolve_max_legs(cfg)
         min_legs = max(1, int(cfg.target_legs * cfg.min_legs_fill_ratio))
@@ -823,10 +799,7 @@ class BetAssistant(BaseStorageManager):
         total_odds: float = 1.0
 
         while len(selected) < max_legs:
-            if (
-                total_odds >= cfg.target_odds * stop_threshold
-                and len(selected) >= min_legs
-            ):
+            if total_odds >= cfg.target_odds * stop_threshold and len(selected) >= min_legs:
                 break
 
             remaining_target = cfg.target_odds / total_odds
@@ -929,9 +902,7 @@ class BetAssistant(BaseStorageManager):
 
         result = []
         for slip in slips.values():
-            slip.slip_status = BetAssistant._derive_slip_status(
-                [leg.status for leg in slip.legs]
-            )
+            slip.slip_status = BetAssistant._derive_slip_status([leg.status for leg in slip.legs])
             result.append(slip)
 
         return result

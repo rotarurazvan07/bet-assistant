@@ -69,11 +69,7 @@ def score_consensus(consensus: float, cfg: BetSlipConfig) -> float:
     cfg.consensus_floor maps to 0.0; 100 % maps to 1.0.
     """
     span = 100.0 - cfg.consensus_floor
-    return (
-        1.0
-        if span <= 0
-        else max(0.0, min(1.0, (consensus - cfg.consensus_floor) / span))
-    )
+    return 1.0 if span <= 0 else max(0.0, min(1.0, (consensus - cfg.consensus_floor) / span))
 
 
 def score_sources(sources: int, max_sources: int) -> float:
@@ -117,8 +113,6 @@ def score_pick(
     s_score = score_sources(opt.sources, max_sources)
     b_score = score_balance(opt.odds, ideal_odds, tolerance)
 
-    quality = (
-        cfg.consensus_vs_sources * c_score + (1 - cfg.consensus_vs_sources) * s_score
-    )
+    quality = cfg.consensus_vs_sources * c_score + (1 - cfg.consensus_vs_sources) * s_score
     final = cfg.quality_vs_balance * quality + (1 - cfg.quality_vs_balance) * b_score
     return tier, round(final, 6)

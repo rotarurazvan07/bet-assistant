@@ -63,16 +63,8 @@ class xGScoreFinder(BaseMatchFinder):
         all_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
         for anchor in all_anchors:
             try:
-                home_team = (
-                    anchor.find("a", class_="xgs-category-forecast-fixture_teams")
-                    .find_all("span")[0]
-                    .get_text()
-                )
-                away_team = (
-                    anchor.find("a", class_="xgs-category-forecast-fixture_teams")
-                    .find_all("span")[-1]
-                    .get_text()
-                )
+                home_team = anchor.find("a", class_="xgs-category-forecast-fixture_teams").find_all("span")[0].get_text()
+                away_team = anchor.find("a", class_="xgs-category-forecast-fixture_teams").find_all("span")[-1].get_text()
                 match_datetime = min(
                     (
                         datetime.strptime(
@@ -87,19 +79,11 @@ class xGScoreFinder(BaseMatchFinder):
                     ),
                     key=lambda d: abs(d - datetime.now()),
                 )
-                score_text = anchor.find(
-                    "div", class_="xgs-category-forecast-fixture_bet"
-                ).get_text()
-                predictions = [
-                    Score(
-                        XGSCORE_NAME, score_text.split("-")[0], score_text.split("-")[1]
-                    )
-                ]
+                score_text = anchor.find("div", class_="xgs-category-forecast-fixture_bet").get_text()
+                predictions = [Score(XGSCORE_NAME, score_text.split("-")[0], score_text.split("-")[1])]
                 odds = None
 
-                self.add_match(
-                    Match(home_team, away_team, match_datetime, predictions, odds)
-                )
+                self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
 
             except Exception as e:
                 logger.info(f"SKIPPED: Parse error - {e}")

@@ -63,9 +63,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         ]
                         odds = None
 
-                        self.add_match(
-                            Match(home_team, away_team, dt_obj, predictions, odds)
-                        )
+                        self.add_match(Match(home_team, away_team, dt_obj, predictions, odds))
 
                 except Exception as e:
                     logger.info(f"SKIPPED [{url}]: {e}")

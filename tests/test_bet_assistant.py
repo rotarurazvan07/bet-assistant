@@ -289,70 +289,33 @@ class TestOutcomeFunctions:
             parse_score("invalid")
 
     def test_determine_outcome_home_win(self):
-        assert (
-            determine_outcome(2, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
-        )
-        assert (
-            determine_outcome(2, 1, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
-        )
-        assert (
-            determine_outcome(2, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
-        )
+        assert determine_outcome(2, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(2, 1, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
+        assert determine_outcome(2, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
 
     def test_determine_outcome_draw(self):
-        assert (
-            determine_outcome(1, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
-        )
-        assert (
-            determine_outcome(1, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
-        )
+        assert determine_outcome(1, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(1, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
 
     def test_determine_outcome_away_win(self):
-        assert (
-            determine_outcome(0, 2, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
-        )
-        assert (
-            determine_outcome(0, 2, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
-        )
+        assert determine_outcome(0, 2, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(0, 2, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
 
     def test_determine_outcome_over_25(self):
-        assert (
-            determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
-            == Outcome.WON
-        )
-        assert (
-            determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
-            == Outcome.LOST
-        )
+        assert determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
+        assert determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
     def test_determine_outcome_under_25(self):
-        assert (
-            determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25)
-            == Outcome.WON
-        )
-        assert (
-            determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25)
-            == Outcome.LOST
-        )
+        assert determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
+        assert determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
     def test_determine_outcome_btts_yes(self):
-        assert (
-            determine_outcome(1, 1, MarketLabel.BTTS_YES, MarketType.BTTS)
-            == Outcome.WON
-        )
-        assert (
-            determine_outcome(1, 0, MarketLabel.BTTS_YES, MarketType.BTTS)
-            == Outcome.LOST
-        )
+        assert determine_outcome(1, 1, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.WON
+        assert determine_outcome(1, 0, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.LOST
 
     def test_determine_outcome_btts_no(self):
-        assert (
-            determine_outcome(1, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
-        )
-        assert (
-            determine_outcome(2, 1, MarketLabel.BTTS_NO, MarketType.BTTS)
-            == Outcome.LOST
-        )
+        assert determine_outcome(1, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
+        assert determine_outcome(2, 1, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.LOST
 
     def test_determine_outcome_unknown_market_type(self):
         assert determine_outcome(1, 0, "?", "unknown_type") == Outcome.PENDING
@@ -677,9 +640,7 @@ class TestUpdateLeg:
         ba.save_slip("p", legs)
         rows = ba.fetch_rows("SELECT leg_id FROM legs LIMIT 1")
         ba.update_leg(rows[0]["leg_id"], Outcome.LOST)
-        updated = ba.fetch_rows(
-            "SELECT status FROM legs WHERE leg_id = ?", (rows[0]["leg_id"],)
-        )
+        updated = ba.fetch_rows("SELECT status FROM legs WHERE leg_id = ?", (rows[0]["leg_id"],))
         assert updated[0]["status"] == Outcome.LOST
 
 
@@ -1017,9 +978,7 @@ class TestBetAssistantScenarios:
         """Save a slip, manually settle all legs, verify slip status transitions."""
         with BetAssistant(str(tmp_path / "settle.db")) as ba:
             ba.load_matches(make_matches_df(5))
-            legs = ba.build_slip(
-                BetSlipConfig(target_odds=2.0, target_legs=2, consensus_floor=0.0)
-            )
+            legs = ba.build_slip(BetSlipConfig(target_odds=2.0, target_legs=2, consensus_floor=0.0))
             if legs:
                 ba.save_slip("test", legs)
                 all_legs = ba.fetch_rows("SELECT leg_id FROM legs")

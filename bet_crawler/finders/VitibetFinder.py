@@ -74,9 +74,7 @@ class VitibetFinder(BaseMatchFinder):
                     if tds[5].get_text() == "?" or tds[7].get_text() == "?":
                         continue
 
-                    today = datetime.now().replace(
-                        hour=0, minute=0, second=0, microsecond=0
-                    )
+                    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                     day, month = map(int, tds[0].get_text().split("."))
                     candidate = datetime(today.year, month, day)
                     if candidate - today > timedelta(days=300):

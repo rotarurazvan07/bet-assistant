@@ -36,12 +36,8 @@ class ForebetFinder(BaseMatchFinder):
         max_attempts = 2
         for attempt in range(1, max_attempts + 1):
             try:
-                with browser(
-                    solve_cloudflare=True, interactive=True, disable_resources=True
-                ) as session:
-                    logger.info(
-                        f"Attempt {attempt}/{max_attempts}: Loading predictions page (Cloudflare)..."
-                    )
+                with browser(solve_cloudflare=True, interactive=True, disable_resources=True) as session:
+                    logger.info(f"Attempt {attempt}/{max_attempts}: Loading predictions page (Cloudflare)...")
                     # More stable wait_until strategy for heavy ad pages
                     session.fetch(
                         FOREBET_ALL_PREDICTIONS_URL,
@@ -52,9 +48,7 @@ class ForebetFinder(BaseMatchFinder):
                     # Now wait for the actual content to appear (Cloudflare solving happens here)
                     logger.info("Solving challenges and waiting for content...")
                     session.wait_for_selector("div#body-main", timeout=60000)
-                    session.wait_for_function(
-                        "typeof ltodrows === 'function'", timeout=30000
-                    )
+                    session.wait_for_function("typeof ltodrows === 'function'", timeout=30000)
 
                     logger.info("Expanding matches via smart-click...")
                     successful_clicks = 0
@@ -63,19 +57,15 @@ class ForebetFinder(BaseMatchFinder):
                     while successful_clicks < 100:
                         try:
                             # Scroll all the way to the bottom to trigger generic dynamic load listeners
-                            session.execute_script(
-                                "window.scrollTo(0, document.body.scrollHeight);"
-                            )
+                            session.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                             time.sleep(2)
                             # Then scroll slightly up so the button area is definitely in view for the click
-                            session.execute_script(
-                                "window.scrollTo(0, document.body.scrollHeight - 300);"
-                            )
+                            session.execute_script("window.scrollTo(0, document.body.scrollHeight - 300);")
                             time.sleep(1)
 
                             # Try multiple times to find the button if it's currently loading
                             clicked = False
-                            for retry in range(3):
+                            for _retry in range(3):
                                 clicked = session.execute_script("""
                                     (function() {
                                         // Forebet's clickable element is typically a span inside 'mrows' or with 'ltodrows'
@@ -140,16 +130,8 @@ class ForebetFinder(BaseMatchFinder):
 
         for anchor in all_anchors:
             try:
-                home_team = (
-                    anchor.find("div", class_="tnms")
-                    .find("span", class_="homeTeam")
-                    .get_text()
-                )
-                away_team = (
-                    anchor.find("div", class_="tnms")
-                    .find("span", class_="awayTeam")
-                    .get_text()
-                )
+                home_team = anchor.find("div", class_="tnms").find("span", class_="homeTeam").get_text()
+                away_team = anchor.find("div", class_="tnms").find("span", class_="awayTeam").get_text()
 
                 if anchor.find("div", class_="scoreLnk").get_text().strip():
                     logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
@@ -158,37 +140,22 @@ class ForebetFinder(BaseMatchFinder):
                 match_date = anchor.find("span", class_="date_bah").get_text()
                 match_date = datetime.strptime(match_date, "%d/%m/%Y %H:%M")
 
-                home = float(
-                    anchor.find("div", class_="ex_sc").get_text().split("-")[0]
-                )
-                away = float(
-                    anchor.find("div", class_="ex_sc").get_text().split("-")[1]
-                )
+                home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
+                away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
                 predictions = [Score(FOREBET_NAME, home, away)]
 
-                odds_tags = [
-                    o.get_text()
-                    for o in anchor.find("div", class_="haodd").find_all("span")
-                ]
+                odds_tags = [o.get_text() for o in anchor.find("div", class_="haodd").find_all("span")]
                 odds = Odds(
-                    home=float(odds_tags[0])
-                    if odds_tags[0] not in ("", " - ")
-                    else None,
-                    draw=float(odds_tags[1])
-                    if odds_tags[1] not in ("", " - ")
-                    else None,
-                    away=float(odds_tags[2])
-                    if odds_tags[2] not in ("", " - ")
-                    else None,
+                    home=float(odds_tags[0]) if odds_tags[0] not in ("", " - ") else None,
+                    draw=float(odds_tags[1]) if odds_tags[1] not in ("", " - ") else None,
+                    away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
                     over=None,
                     under=None,
                     btts_y=None,
                     btts_n=None,
                 )
 
-                self.add_match(
-                    Match(home_team, away_team, match_date, predictions, odds)
-                )
+                self.add_match(Match(home_team, away_team, match_date, predictions, odds))
 
             except Exception as e:
                 logger.info(f"SKIPPED: Parse error - {e}")

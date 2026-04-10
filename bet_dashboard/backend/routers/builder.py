@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import math
 
+from core.schemas import BetSlipConfigIn, ExcludeUrlIn
 from fastapi import APIRouter, Request
 
 from bet_framework.core.Slip import BetSlipConfig
-from core.schemas import BetSlipConfigIn, ExcludeUrlIn
 
 router = APIRouter(prefix="/api/builder", tags=["builder"])
 
@@ -47,10 +47,12 @@ def preview(request: Request, body: BetSlipConfigIn):
             {
                 "match_name": leg.match_name,
                 "datetime": leg.datetime.isoformat()
-                    if hasattr(leg.datetime, "isoformat")
-                    else str(leg.datetime) if leg.datetime else None,
+                if hasattr(leg.datetime, "isoformat")
+                else str(leg.datetime)
+                if leg.datetime
+                else None,
                 "market": leg.market.value,
-                "market_type": leg.market_type.value if hasattr(leg.market_type, 'value') else str(leg.market_type),
+                "market_type": leg.market_type.value if hasattr(leg.market_type, "value") else str(leg.market_type),
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,
@@ -85,19 +87,23 @@ def get_excluded_details(request: Request):
         match_row = matches[matches["result_url"] == url]
         if not match_row.empty:
             row = match_row.iloc[0]
-            details.append({
-                "url": url,
-                "match_name": f"{row['home']} vs {row['away']}",
-                "datetime": row["datetime"].isoformat() if hasattr(row["datetime"], "isoformat") else str(row["datetime"]),
-                "reason": "Manually excluded",
-            })
+            details.append(
+                {
+                    "url": url,
+                    "match_name": f"{row['home']} vs {row['away']}",
+                    "datetime": row["datetime"].isoformat() if hasattr(row["datetime"], "isoformat") else str(row["datetime"]),
+                    "reason": "Manually excluded",
+                }
+            )
         else:
-            details.append({
-                "url": url,
-                "match_name": url.split("/")[-1] if url else "Unknown",
-                "datetime": None,
-                "reason": "Manually excluded",
-            })
+            details.append(
+                {
+                    "url": url,
+                    "match_name": url.split("/")[-1] if url else "Unknown",
+                    "datetime": None,
+                    "reason": "Manually excluded",
+                }
+            )
 
     return {"excluded": details}
 

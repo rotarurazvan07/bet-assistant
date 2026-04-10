@@ -18,9 +18,7 @@ def _daemon(fn, name: str) -> threading.Thread:
 
 
 class TickerService:
-    def __init__(
-        self, name: str, on_tick: Callable, interval: int = None, hour: int = None
-    ) -> None:
+    def __init__(self, name: str, on_tick: Callable, interval: int = None, hour: int = None) -> None:
         self.name = name
         self.on_tick = on_tick
         self.interval = interval
@@ -51,9 +49,7 @@ class TickerService:
             if self.hour is not None:
                 wait = _seconds_until(self.hour)
                 if not self._force_run:
-                    print(
-                        f"[{self.name.capitalize()}] Sleeping for {wait:.1f}s until {self.hour:02d}:00"
-                    )
+                    print(f"[{self.name.capitalize()}] Sleeping for {wait:.1f}s until {self.hour:02d}:00")
             else:
                 wait = self.interval or 60
 
@@ -71,9 +67,7 @@ class TickerService:
             try:
                 self.on_tick()
                 if self.hour is not None and not self._force_run:
-                    print(
-                        f"[{self.name.capitalize()}] Done at {datetime.now():%H:%M:%S}"
-                    )
+                    print(f"[{self.name.capitalize()}] Done at {datetime.now():%H:%M:%S}")
                 elif self._force_run:
                     print(f"[{self.name.capitalize()}] Forced manual run complete.")
             except Exception as exc:

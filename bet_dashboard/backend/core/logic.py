@@ -5,14 +5,14 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
-from bet_framework.MatchesManager import MatchesManager
-from bet_framework.core.types import Outcome
+from core.config_helpers import _yaml_to_config, ensure_default_profiles
+from core.ticker_service import TickerService
+from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
 
-from core.ws import ws_manager
-from core.ticker_service import TickerService
-from core.config_helpers import _yaml_to_config, ensure_default_profiles
+from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.core.types import Outcome
+from bet_framework.MatchesManager import MatchesManager
 
 
 class AppLogic:
@@ -52,15 +52,18 @@ class AppLogic:
         svc_cfg = self._settings.get("services") or {}
         self._services: dict[str, TickerService] = {
             "puller": TickerService(
-                "puller", self._do_pull,
+                "puller",
+                self._do_pull,
                 hour=int(svc_cfg.get("pull_hour", 6)),
             ),
             "generator": TickerService(
-                "generator", self._do_generate,
+                "generator",
+                self._do_generate,
                 hour=int(svc_cfg.get("generate_hour", 8)),
             ),
             "verifier": TickerService(
-                "verifier", self._do_verify,
+                "verifier",
+                self._do_verify,
                 interval=60,
             ),
         }
@@ -86,10 +89,12 @@ class AppLogic:
 
     def _broadcast_matches_updated(self) -> None:
         """Broadcast matches updated event."""
-        ws_manager.broadcast_sync({
-            "event": "matches_updated",
-            "timestamp": self.last_pull_timestamp,
-        })
+        ws_manager.broadcast_sync(
+            {
+                "event": "matches_updated",
+                "timestamp": self.last_pull_timestamp,
+            }
+        )
 
     # ── TickerService callbacks ───────────────────────────────────────────────
 
@@ -158,7 +163,7 @@ class AppLogic:
             return "Unknown"
 
     @property
-    def logic(self) -> "AppLogic":
+    def logic(self) -> AppLogic:
         """Return self for backward compatibility with routers."""
         return self
 
@@ -188,9 +193,7 @@ class AppLogic:
         date_to: str | None = None,
     ) -> pd.DataFrame:
         """Return a filtered view of the loaded match DataFrame."""
-        return self._assistant.filter_matches(
-            search_text=search_text, date_from=date_from, date_to=date_to
-        )
+        return self._assistant.filter_matches(search_text=search_text, date_from=date_from, date_to=date_to)
 
     def pull_matches_db(self, matches_db_path: str) -> str:
         import urllib.error
@@ -353,9 +356,7 @@ class AppLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled_slips = [
-            s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)
-        ]
+        settled_slips = [s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)]
 
         settled_slips.sort(key=lambda x: x.date_generated)
 
@@ -403,13 +404,9 @@ class AppLogic:
                     "net_profit": round(profit, 2),
                     "cumulative_profit": round(cum_profit, 2),
                     "cumulative_bet": round(cum_bet, 2),
-                    "roi_percentage": round(
-                        (cum_profit / cum_bet * 100) if cum_bet else 0, 2
-                    ),
+                    "roi_percentage": round((cum_profit / cum_bet * 100) if cum_bet else 0, 2),
                     "win_rate": round(
-                        (cum_won_count / cum_settled_count * 100)
-                        if cum_settled_count
-                        else 0,
+                        (cum_won_count / cum_settled_count * 100) if cum_settled_count else 0,
                         2,
                     ),
                 }
@@ -471,9 +468,7 @@ class AppLogic:
                     "units": s.units,
                     "status": s.slip_status,
                     "profit": round(
-                        (s.total_odds * s.units - s.units)
-                        if s.slip_status == Outcome.WON
-                        else -s.units,
+                        (s.total_odds * s.units - s.units) if s.slip_status == Outcome.WON else -s.units,
                         2,
                     ),
                 }
@@ -535,12 +530,14 @@ class AppLogic:
         toggles[name] = new_state
         cfg["toggles"] = toggles
         self._settings.write("services", cfg)
-        ws_manager.broadcast_sync({
-            "event": "service_toggled",
-            "name": name,
-            "enabled": new_state,
-            "timestamp": datetime.now().isoformat(),
-        })
+        ws_manager.broadcast_sync(
+            {
+                "event": "service_toggled",
+                "name": name,
+                "enabled": new_state,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
         return new_state
 
     def save_service_settings(self, pull_hour: int, generate_hour: int) -> None:

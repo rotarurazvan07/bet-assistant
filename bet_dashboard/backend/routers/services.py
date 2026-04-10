@@ -2,16 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Request
-
 from core.schemas import ServicesSettingsIn
+from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/services", tags=["services"])
 
 _DESCRIPTIONS = {
-    "puller":    "Downloads the latest matches database from GitHub Releases",
+    "puller": "Downloads the latest matches database from GitHub Releases",
     "generator": "Runs all active betting profiles and creates new slips",
-    "verifier":  "Checks live scores and settles pending legs every 60 s",
+    "verifier": "Checks live scores and settles pending legs every 60 s",
 }
 
 

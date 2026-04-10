@@ -13,7 +13,7 @@ def _add_rolling_win_rate(history: list[dict], window: int = 10) -> list[dict]:
     """Augment each history record with rolling_win_rate over the last N slips."""
     for i, record in enumerate(history):
         start = max(0, i - window + 1)
-        segment = history[start: i + 1]
+        segment = history[start : i + 1]
         total = sum(r["slips_count"] for r in segment)
         if not total:
             record["rolling_win_rate"] = None
@@ -27,7 +27,7 @@ def _add_rolling_win_rate(history: list[dict], window: int = 10) -> list[dict]:
 
 def _get_status_value(status) -> str:
     """Get the string value from an enum or string status."""
-    if hasattr(status, 'value'):
+    if hasattr(status, "value"):
         return status.value
     return str(status)
 
@@ -39,7 +39,7 @@ def _odds_distribution(slips) -> list[dict]:
         (2.00, 3.00, "2.0–3.0"),
         (3.00, 5.00, "3.0–5.0"),
         (5.00, 10.0, "5.0–10.0"),
-        (10.0, 999,  "10.0+"),
+        (10.0, 999, "10.0+"),
     ]
     settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
     result = []
@@ -48,13 +48,15 @@ def _odds_distribution(slips) -> list[dict]:
         if not batch:
             continue
         wins = sum(1 for s in batch if _get_status_value(s.slip_status) == "Won")
-        result.append({
-            "range": label,
-            "count": len(batch),
-            "wins": wins,
-            "losses": len(batch) - wins,
-            "win_rate": round((wins / len(batch)) * 100, 1),
-        })
+        result.append(
+            {
+                "range": label,
+                "count": len(batch),
+                "wins": wins,
+                "losses": len(batch) - wins,
+                "win_rate": round((wins / len(batch)) * 100, 1),
+            }
+        )
     return result
 
 
@@ -146,14 +148,16 @@ def get_analytics(
     scatter = _profile_scatter(all_slips)
     odds = _odds_distribution(slips)
 
-    print(f"[Analytics] pnl_by_market: {len(pnl)} markets, profile_scatter: {len(scatter)} profiles, odds_distribution: {len(odds)} buckets")
+    print(
+        f"[Analytics] pnl_by_market: {len(pnl)} markets, profile_scatter: {len(scatter)} profiles, odds_distribution: {len(odds)} buckets"
+    )
 
     return {
-        "history":         history,
+        "history": history,
         "market_accuracy": logic.market_accuracy(prof, df_, dt_),
-        "pnl_by_market":   pnl,
+        "pnl_by_market": pnl,
         "odds_distribution": odds,
-        "correlation":     logic.correlation_data(prof, df_, dt_),
+        "correlation": logic.correlation_data(prof, df_, dt_),
         "profile_scatter": scatter,
-        "stats":           logic.stats(prof, df_, dt_),
+        "stats": logic.stats(prof, df_, dt_),
     }

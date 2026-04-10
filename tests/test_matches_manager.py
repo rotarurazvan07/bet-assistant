@@ -66,9 +66,7 @@ def make_chunk_db(path, matches):
         )
     """)
     for m in matches:
-        preds_json = (
-            json.dumps([s.__dict__ for s in m.predictions]) if m.predictions else None
-        )
+        preds_json = json.dumps([s.__dict__ for s in m.predictions]) if m.predictions else None
         odds_json = None
         if m.odds:
             from dataclasses import asdict
@@ -95,9 +93,7 @@ def make_chunk_db(path, matches):
 @pytest.fixture
 def mm(tmp_path):
     """MatchesManager with similarity engine enabled."""
-    manager = MatchesManager(
-        str(tmp_path / "test.db"), similarity_config=SIMILARITY_CONFIG
-    )
+    manager = MatchesManager(str(tmp_path / "test.db"), similarity_config=SIMILARITY_CONFIG)
     yield manager
     with contextlib.suppress(Exception):
         manager.close()
@@ -115,9 +111,7 @@ def mm_no_sim(tmp_path):
 @pytest.fixture
 def populated_mm(tmp_path):
     """MatchesManager pre-loaded with 3 matches."""
-    manager = MatchesManager(
-        str(tmp_path / "populated.db"), similarity_config=SIMILARITY_CONFIG
-    )
+    manager = MatchesManager(str(tmp_path / "populated.db"), similarity_config=SIMILARITY_CONFIG)
     manager.add_match(make_match("Arsenal", "Chelsea", DT_BASE, [Score("src_a", 2, 1)]))
     manager.add_match(
         make_match(
@@ -151,9 +145,7 @@ class TestInit:
         mm.close()
 
     def test_normal_with_similarity_engine(self, tmp_path):
-        mm = MatchesManager(
-            str(tmp_path / "sim.db"), similarity_config=SIMILARITY_CONFIG
-        )
+        mm = MatchesManager(str(tmp_path / "sim.db"), similarity_config=SIMILARITY_CONFIG)
         assert mm.similarity_engine is not None
         mm.close()
 
@@ -163,9 +155,7 @@ class TestInit:
         mm.close()
 
     def test_edge_empty_db_has_matches_table(self, mm):
-        rows = mm.fetch_rows(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='matches'"
-        )
+        rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='table' AND name='matches'")
         assert len(rows) == 1
 
 
@@ -360,9 +350,7 @@ class TestFlush:
         mm.add_match(make_match("Flush", "Test"))
         mm.flush()
         # Read from disk directly
-        rows = mm.fetch_rows(
-            "SELECT * FROM matches WHERE home_team_name = ?", ("Flush",)
-        )
+        rows = mm.fetch_rows("SELECT * FROM matches WHERE home_team_name = ?", ("Flush",))
         assert len(rows) == 1
 
     def test_normal_flush_clears_dirty_flag(self, mm):
@@ -380,9 +368,7 @@ class TestFlush:
         mm.add_match(make_match("A", "B"))
         mm.flush()
         # Verify indexes still exist
-        rows = mm.fetch_rows(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'"
-        )
+        rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
         index_names = [r["name"] for r in rows]
         assert "idx_datetime" in index_names
         assert "idx_home_team" in index_names
@@ -598,11 +584,7 @@ class TestMatchesManagerScenarios:
         )
         make_chunk_db(
             chunk_dir / "chunk2.db",
-            [
-                make_match(
-                    "Manchester United FC", "Liverpool", preds=[Score("s2", 1, 1)]
-                )
-            ],
+            [make_match("Manchester United FC", "Liverpool", preds=[Score("s2", 1, 1)])],
         )
         mm.merge_databases(str(chunk_dir))
         buf = mm.ensure_buffer()

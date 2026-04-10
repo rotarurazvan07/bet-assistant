@@ -21,10 +21,7 @@ class LegitPredictFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        urls = [
-            f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}"
-            for i in range(7)
-        ]
+        urls = [f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}" for i in range(7)]
         logger.info(f"{len(urls)} urls to scrape")
         return urls
 
@@ -43,11 +40,7 @@ class LegitPredictFinder(BaseMatchFinder):
                 return
             dt_obj = datetime.strptime(url.split("dt=")[-1], "%d-%m-%Y")
             soup = BeautifulSoup(html, "html.parser")
-            matches_trs = (
-                soup.find("div", class_="content nopaddingsmall")
-                .find("tbody")
-                .find_all("tr")
-            )
+            matches_trs = soup.find("div", class_="content nopaddingsmall").find("tbody").find_all("tr")
             for tr in matches_trs:
                 home_team = tr.find_all("td")[2].text.strip().split("VS")[0].strip()
                 away_team = tr.find_all("td")[2].text.strip().split("VS")[1].strip()

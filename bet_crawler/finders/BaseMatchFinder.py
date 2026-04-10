@@ -89,16 +89,10 @@ class BaseMatchFinder:
             if not force:
                 reason = self.skip_match_by_patterns(match.home_team, match.away_team)
                 if reason:
-                    logger.info(
-                        f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})"
-                    )
+                    logger.info(f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})")
                     return False
-                if match.datetime is not None and not self.validate_match_date(
-                    match.datetime
-                ):
-                    logger.info(
-                        f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})"
-                    )
+                if match.datetime is not None and not self.validate_match_date(match.datetime):
+                    logger.info(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
                     return False
             logger.info(
                 f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
@@ -121,8 +115,7 @@ class BaseMatchFinder:
             (
                 reason
                 for pattern, reason in patterns
-                if re.search(pattern, home_team_name, re.I)
-                or re.search(pattern, away_team_name, re.I)
+                if re.search(pattern, home_team_name, re.I) or re.search(pattern, away_team_name, re.I)
             ),
             None,
         )

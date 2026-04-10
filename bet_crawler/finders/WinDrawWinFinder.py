@@ -26,9 +26,7 @@ class WinDrawWinFinder(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = (
-            next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
-        )
+        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
         league_urls = []
         for tr in all_trs[start:]:
             anchors = tr.find_all("a")
@@ -59,15 +57,11 @@ class WinDrawWinFinder(BaseMatchFinder):
             for match_div in matches_div.contents[2:]:
                 try:
                     if match_div.has_attr("class") and "wttrdt" in match_div["class"]:
-                        date_str = re.sub(
-                            r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text()
+                        date_str = re.sub(r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text())
+                        date_str = date_str.replace("Today, ", "").replace("Tomorrow, ", "")
+                        current_date = datetime.strptime(date_str, "%A, %B %d, %Y").replace(
+                            hour=0, minute=0, second=0, microsecond=0
                         )
-                        date_str = date_str.replace("Today, ", "").replace(
-                            "Tomorrow, ", ""
-                        )
-                        current_date = datetime.strptime(
-                            date_str, "%A, %B %d, %Y"
-                        ).replace(hour=0, minute=0, second=0, microsecond=0)
                         continue
 
                     inner = match_div.contents[:-1]
@@ -93,9 +87,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                         btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
                     )
 
-                    self.add_match(
-                        Match(home_team, away_team, current_date, predictions, odds)
-                    )
+                    self.add_match(Match(home_team, away_team, current_date, predictions, odds))
 
                 except Exception as e:
                     logger.info(f"SKIPPED [{url}]: {e}")

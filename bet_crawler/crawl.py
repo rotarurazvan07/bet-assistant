@@ -112,13 +112,9 @@ def mode_prepare_scrape(runner: str, config_dir: str) -> None:
                     if new_urls:
                         urls.extend(new_urls)
                         break
-                    logger.warning(
-                        f"⚠️  No URLs found for {cls.__name__} (attempt {attempt + 1}/3)"
-                    )
+                    logger.warning(f"⚠️  No URLs found for {cls.__name__} (attempt {attempt + 1}/3)")
                 except Exception as e:
-                    logger.error(
-                        f"❌ Error in {cls.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}"
-                    )
+                    logger.error(f"❌ Error in {cls.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}")
 
                 if attempt < 2:
                     import time
@@ -129,10 +125,8 @@ def mode_prepare_scrape(runner: str, config_dir: str) -> None:
     random.shuffle(urls)
 
     # Log unique domains
-    unique_domains = sorted(list({urlparse(u).netloc for u in urls if u}))
-    logger.info(
-        f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}"
-    )
+    unique_domains = sorted({urlparse(u).netloc for u in urls if u})
+    logger.info(f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}")
 
     max_runners = MAX_CHUNK_SIZE[runner]
     chunk_size = max(20, math.ceil(len(urls) / max_runners))
@@ -170,18 +164,14 @@ def mode_scrape(db_path: str, urls_str: str, config_dir: str) -> None:
 
     # Initialize SettingsManager locally
     sm = SettingsManager(config_dir)
-    matches_manager = MatchesManager(
-        db_path, similarity_config=sm.get("similarity_config")
-    )
+    matches_manager = MatchesManager(db_path, similarity_config=sm.get("similarity_config"))
     matches_manager.reset_matches_db()
 
     def _on_match(match) -> None:
         matches_manager.add_match(match)
 
     for i, (domain_key, group_urls) in enumerate(groups.items()):
-        logger.info(
-            f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)..."
-        )
+        logger.info(f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)...")
         try:
             crawler = get_crawler_class(group_urls[0])(_on_match)
             crawler.get_matches(group_urls)
@@ -203,9 +193,7 @@ def mode_merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
 
     # Initialize SettingsManager locally
     sm = SettingsManager(config_dir)
-    matches_manager = MatchesManager(
-        db_path, similarity_config=sm.get("similarity_config")
-    )
+    matches_manager = MatchesManager(db_path, similarity_config=sm.get("similarity_config"))
     matches_manager.reset_matches_db()
     matches_manager.merge_databases(chunks_dir)
     matches_df = matches_manager.fetch_matches()
@@ -237,11 +225,7 @@ def mode_merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
     logger.info("  " + "MERGE SUMMARY".center(26))
     logger.info("  " + "=" * 26)
     logger.info(f"  Unique Matches: {matches_count}")
-    chunk_files = [
-        f
-        for f in os.listdir(chunks_dir)
-        if f.endswith(".db") and f != os.path.basename(db_path)
-    ]
+    chunk_files = [f for f in os.listdir(chunks_dir) if f.endswith(".db") and f != os.path.basename(db_path)]
     logger.info(f"  Chunks scanned: {len(chunk_files)}")
 
     # Sort and print sorted sources
@@ -260,7 +244,7 @@ def mode_merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
 
     # Map sources back to runner sets to validate if all expected runners contributed
     seen_runners = set()
-    for source in source_to_matches.keys():
+    for source in source_to_matches:
         for runner_name, crawlers in _RUNNER_SETS.items():
             if source in crawlers:
                 seen_runners.add(runner_name)
@@ -284,9 +268,7 @@ def mode_merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def mode_generate_slips(
-    matches_db_path: str, slips_db_path: str, profile_path: str
-) -> None:
+def mode_generate_slips(matches_db_path: str, slips_db_path: str, profile_path: str) -> None:
     """
     Load matches and generate slips for the profile defined in the given YAML file.
     """
@@ -336,9 +318,7 @@ def mode_generate_slips(
         for leg in legs:
             logger.info(f"  ⚽ {leg.match_name} ({leg.market.value}) @ {leg.odds:.2f}")
             total_odds *= leg.odds
-        logger.info(
-            f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)"
-        )
+        logger.info(f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)")
 
     assistant.close()
 
@@ -364,15 +344,11 @@ def mode_validate_slips(slips_db_path: str) -> None:
     )
 
     for item in result["live"]:
-        logger.info(
-            f"  🟡 {item['match_name']} ({item['market']})  {item['score']}  {item['minute']}"
-        )
+        logger.info(f"  🟡 {item['match_name']} ({item['market']})  {item['score']}  {item['minute']}")
 
     for item in result["settled"]:
         icon = "✅" if item["outcome"] == "Won" else "❌"
-        logger.info(
-            f"  {icon} {item['match_name']} ({item['market']})  {item['score']}  → {item['outcome']}"
-        )
+        logger.info(f"  {icon} {item['match_name']} ({item['market']})  {item['score']}  → {item['outcome']}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -415,30 +391,22 @@ if __name__ == "__main__":
 
     if args.mode == "prepare-scrape":
         if not args.runners or not args.config_dir:
-            build_parser().error(
-                "--runners and --config_dir are required for prepare-scrape"
-            )
+            build_parser().error("--runners and --config_dir are required for prepare-scrape")
         mode_prepare_scrape(args.runners, args.config_dir)
 
     elif args.mode == "scrape":
         if not args.urls or not args.matches_db_path or not args.config_dir:
-            build_parser().error(
-                "--urls, --matches_db_path, and --config_dir are required for scrape"
-            )
+            build_parser().error("--urls, --matches_db_path, and --config_dir are required for scrape")
         mode_scrape(args.matches_db_path, args.urls, args.config_dir)
 
     elif args.mode == "merge":
         if not args.matches_db_path or not args.chunks_dir or not args.config_dir:
-            build_parser().error(
-                "--matches_db_path, --chunks_dir, and --config_dir are required for merge"
-            )
+            build_parser().error("--matches_db_path, --chunks_dir, and --config_dir are required for merge")
         mode_merge(args.matches_db_path, args.chunks_dir, args.config_dir)
 
     elif args.mode == "generate-slips":
         if not args.matches_db_path or not args.slips_db_path or not args.profile_path:
-            build_parser().error(
-                "--matches_db_path, --slips_db_path, and --profile_path are required for generate-slips"
-            )
+            build_parser().error("--matches_db_path, --slips_db_path, and --profile_path are required for generate-slips")
         mode_generate_slips(args.matches_db_path, args.slips_db_path, args.profile_path)
 
     elif args.mode == "validate-slips":

@@ -78,9 +78,7 @@ class Match:
         return {
             "home_team": self.home_team,
             "away_team": self.away_team,
-            "datetime": self.datetime.isoformat()
-            if isinstance(self.datetime, datetime)
-            else self.datetime,
+            "datetime": self.datetime.isoformat() if isinstance(self.datetime, datetime) else self.datetime,
             "predictions": self.predictions,
             "odds": asdict(self.odds) if self.odds else None,
             "result_url": self.result_url if self.result_url else None,

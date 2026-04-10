@@ -25,9 +25,7 @@ def _is_empty(value) -> bool:
         return True
     if isinstance(value, float) and math.isnan(value):
         return True
-    if isinstance(value, str) and not value.strip():
-        return True
-    return False
+    return bool(isinstance(value, str) and not value.strip())
 
 
 class MatchesManager(BufferedStorageManager):
@@ -41,9 +39,7 @@ class MatchesManager(BufferedStorageManager):
 
     def __init__(self, db_path: str, similarity_config: dict | None = None) -> None:
         if similarity_config:
-            self.similarity_engine: SimilarityEngine | None = SimilarityEngine(
-                similarity_config
-            )
+            self.similarity_engine: SimilarityEngine | None = SimilarityEngine(similarity_config)
         else:
             self.similarity_engine = None
         super().__init__(db_path, "matches")
@@ -63,31 +59,21 @@ class MatchesManager(BufferedStorageManager):
                     result_url         TEXT
                 )
             """)
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_datetime  ON matches(datetime)"
-            )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)"
-            )
-            self.conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)"
-            )
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_datetime  ON matches(datetime)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)")
             self.conn.commit()
 
     # ── Similarity search inside the buffer ───────────────────────────────────
 
-    def _find(
-        self, home: str, away: str, dt: datetime
-    ) -> tuple[dict | None, int | None]:
+    def _find(self, home: str, away: str, dt: datetime) -> tuple[dict | None, int | None]:
         buf = self.ensure_buffer()
         if self.similarity_engine is None or buf.empty:
             return None, None
 
         target = pd.Timestamp(dt.date().isoformat())
         dates = pd.to_datetime(buf["datetime"].str[:10], errors="coerce")
-        mask = (dates >= target - pd.Timedelta(days=1)) & (
-            dates <= target + pd.Timedelta(days=1)
-        )
+        mask = (dates >= target - pd.Timedelta(days=1)) & (dates <= target + pd.Timedelta(days=1))
 
         best, best_idx, max_score = None, None, -1.0
         for idx, row in buf[mask].iterrows():
@@ -122,8 +108,7 @@ class MatchesManager(BufferedStorageManager):
                         "home_name": row["home_team_name"],
                         "away_name": row["away_team_name"],
                         "datetime": datetime.fromisoformat(row["datetime"]),
-                        "scores": self.deserialize_json(row["predictions_scores"])
-                        or [],
+                        "scores": self.deserialize_json(row["predictions_scores"]) or [],
                         "odds": self.deserialize_json(row["odds"]),
                         "result_url": row["result_url"],
                     }
@@ -141,18 +126,10 @@ class MatchesManager(BufferedStorageManager):
             # Source-collision guard
             if found is not None and match.predictions:
                 ex_src = {
-                    s.get("source")
-                    for s in (
-                        self.deserialize_json(found.get("predictions_scores")) or []
-                    )
-                    if s.get("source")
+                    s.get("source") for s in (self.deserialize_json(found.get("predictions_scores")) or []) if s.get("source")
                 }
-                if not {s.source for s in match.predictions if s.source}.isdisjoint(
-                    ex_src
-                ):
-                    logger.warning(
-                        f"Source collision — skip {match.home_team} vs {match.away_team}"
-                    )
+                if not {s.source for s in match.predictions if s.source}.isdisjoint(ex_src):
+                    logger.warning(f"Source collision — skip {match.home_team} vs {match.away_team}")
                     found = None
 
             if found is not None:
@@ -172,34 +149,20 @@ class MatchesManager(BufferedStorageManager):
                 if not _is_empty(match.datetime):
                     try:
                         ex_dt = datetime.fromisoformat(found["datetime"])
-                        if (
-                            ex_dt.hour == 0
-                            and ex_dt.minute == 0
-                            and (match.datetime.hour != 0 or match.datetime.minute != 0)
-                        ):
-                            self._buffer.at[idx, "datetime"] = (
-                                match.datetime.isoformat()
-                            )
+                        if ex_dt.hour == 0 and ex_dt.minute == 0 and (match.datetime.hour != 0 or match.datetime.minute != 0):
+                            self._buffer.at[idx, "datetime"] = match.datetime.isoformat()
                             changed = True
                     except Exception:
                         pass
 
                 if not _is_empty(match.odds):
                     cur = self.deserialize_json(found.get("odds")) or {}
-                    patch = {
-                        k: v
-                        for k, v in asdict(match.odds).items()
-                        if cur.get(k) is None and v is not None
-                    }
+                    patch = {k: v for k, v in asdict(match.odds).items() if cur.get(k) is None and v is not None}
                     if patch:
-                        self._buffer.at[idx, "odds"] = self.serialize_json(
-                            {**cur, **patch}
-                        )
+                        self._buffer.at[idx, "odds"] = self.serialize_json({**cur, **patch})
                         changed = True
 
-                if not _is_empty(match.result_url) and _is_empty(
-                    found.get("result_url")
-                ):
+                if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
                     self._buffer.at[idx, "result_url"] = match.result_url
                     changed = True
 
@@ -213,14 +176,10 @@ class MatchesManager(BufferedStorageManager):
                     "home_team_name": match.home_team,
                     "away_team_name": match.away_team,
                     "datetime": match.datetime.isoformat(),
-                    "predictions_scores": self.serialize_json(
-                        [s.__dict__ for s in match.predictions]
-                    )
+                    "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
                     if match.predictions
                     else None,
-                    "odds": self.serialize_json(asdict(match.odds))
-                    if match.odds
-                    else None,
+                    "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
                     "result_url": match.result_url,
                 }
             )
@@ -252,9 +211,7 @@ class MatchesManager(BufferedStorageManager):
                         home_team=row["home_team_name"],
                         away_team=row["away_team_name"],
                         datetime=datetime.fromisoformat(row["datetime"]),
-                        predictions=[
-                            Score(**s) for s in json.loads(row["predictions_scores"])
-                        ]
+                        predictions=[Score(**s) for s in json.loads(row["predictions_scores"])]
                         if row["predictions_scores"]
                         else [],
                         odds=Odds(**json.loads(row["odds"])) if row["odds"] else None,
@@ -282,6 +239,4 @@ class MatchesManager(BufferedStorageManager):
             flush_every_rows=5000,
         )
         self.flush()
-        logger.info(
-            f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing)."
-        )
+        logger.info(f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing).")

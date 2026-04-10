@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-
 from core.ws import ws_manager
+from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 
 router = APIRouter(tags=["system"])
 
@@ -36,7 +35,7 @@ def get_status(request: Request):
 
 
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     await ws_manager.connect(websocket)
     try:
         while True:

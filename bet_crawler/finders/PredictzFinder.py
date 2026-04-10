@@ -43,11 +43,7 @@ class PredictzFinder(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
         league_urls = []
         for optgroup in soup.find(class_="dd nav-select").find_all("optgroup")[6:]:
-            league_urls += [
-                opt.get("value")
-                for opt in optgroup.find_all("option")
-                if opt.get("value") not in EXCLUDED
-            ]
+            league_urls += [opt.get("value") for opt in optgroup.find_all("option") if opt.get("value") not in EXCLUDED]
 
         logger.info(f"{len(league_urls)} leagues to scrape")
         return league_urls
@@ -72,9 +68,7 @@ class PredictzFinder(BaseMatchFinder):
             for entry in soup.find_all(class_="pzcnth"):
                 if entry.find("h2"):
                     date_str = entry.find("h2").get_text()
-                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(
-                        ",", ""
-                    )
+                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
                     match_datetime = next(
                         dt
                         for y in range(datetime.now().year - 1, datetime.now().year + 2)
@@ -107,9 +101,7 @@ class PredictzFinder(BaseMatchFinder):
                     except (AttributeError, IndexError):
                         odds = None
 
-                    self.add_match(
-                        Match(home_team, away_team, match_datetime, scores, odds)
-                    )
+                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
