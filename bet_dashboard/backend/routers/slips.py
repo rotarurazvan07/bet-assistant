@@ -44,14 +44,21 @@ def validate_manual_leg(leg: dict, logic) -> dict:
     # 1 — match existence (fuzzy search on home/away)
     match_name = leg.get("match_name", "")
     df = logic.match_df
-    # If match_name contains " - ", treat as "home - away" and match both sides
+    # Try to split by known separators to match both home and away precisely
+    separator = None
     if " - " in match_name:
-        home_part, away_part = match_name.split(" - ", 1)
+        separator = " - "
+    elif " vs " in match_name:
+        separator = " vs "
+    
+    if separator:
+        home_part, away_part = match_name.split(separator, 1)
         match_row = df[
             (df["home"].str.contains(home_part.strip(), case=False, na=False))
             & (df["away"].str.contains(away_part.strip(), case=False, na=False))
         ]
     else:
+        # Fallback: fuzzy search in either home or away
         match_row = df[
             (df["home"].str.contains(match_name, case=False, na=False))
             | (df["away"].str.contains(match_name, case=False, na=False))
