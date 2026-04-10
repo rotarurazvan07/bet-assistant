@@ -1,12 +1,16 @@
 """
 Bet Assistant — FastAPI Backend
-================================
+===============================
 Run from bet_dashboard/backend/:
 
     export MATCHES_DB_PATH=../../final_matches.db
     export SLIPS_DB_PATH=../../slips.db
     export CONFIG_PATH=../../config
     uvicorn main:app --reload --port 8000
+
+Or using Docker Compose (recommended):
+
+    docker compose -f setup/compose.yaml up -d
 """
 from __future__ import annotations
 
@@ -16,17 +20,19 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-# ── Repo root ─────────────────────────────────────────────────────────────────
-# This file lives at bet_dashboard/backend/main.py
-# Repo root is three levels up so bet_framework / dashboard / scrape_kit are importable
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+# Add the backend directory to Python path so 'core' and 'routers' can be imported
+# when running from the backend directory or via uvicorn main:app
+backend_dir = Path(__file__).resolve().parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from bet_dashboard.backend.core.logic import AppLogic  # noqa: E402
-from bet_dashboard.backend.core.ws import ws_manager  # noqa: E402
-from bet_dashboard.backend.routers import matches, builder, profiles, slips, analytics, services, system  # noqa: E402
+from core.logic import AppLogic  # noqa: E402
+from core.ws import ws_manager  # noqa: E402
+from routers import matches, builder, profiles, slips, analytics, services, system  # noqa: E402
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,4 +86,4 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("bet_dashboard.backend.main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

@@ -5,7 +5,7 @@ import math
 from fastapi import APIRouter, Request
 
 from bet_framework.core.Slip import BetSlipConfig
-from ..core.schemas import BetSlipConfigIn, ExcludeUrlIn
+from core.schemas import BetSlipConfigIn, ExcludeUrlIn
 
 router = APIRouter(prefix="/api/builder", tags=["builder"])
 

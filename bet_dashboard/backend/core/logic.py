@@ -1,15 +1,8 @@
 from __future__ import annotations
 
 import os
-import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Any
-
-# ── Repo root on sys.path ─────────────────────────────────────────────────────
-# main.py is at bet_dashboard/backend/main.py
-# Repo root is three levels up: backend/ → bet_dashboard/ → repo root
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import pandas as pd
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
@@ -17,9 +10,9 @@ from bet_framework.MatchesManager import MatchesManager
 from bet_framework.core.types import Outcome
 from scrape_kit import SettingsManager, configure
 
-from .ws import ws_manager
-from .ticker_service import TickerService
-from .config_helpers import _yaml_to_config, ensure_default_profiles
+from core.ws import ws_manager
+from core.ticker_service import TickerService
+from core.config_helpers import _yaml_to_config, ensure_default_profiles
 
 
 class AppLogic:

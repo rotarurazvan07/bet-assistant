@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request
 
-from ..core.schemas import ServicesSettingsIn
+from core.schemas import ServicesSettingsIn
 
 router = APIRouter(prefix="/api/services", tags=["services"])
 

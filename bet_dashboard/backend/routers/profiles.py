@@ -3,8 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from bet_framework.core.Slip import BetSlipConfig
-from ..core.schemas import ProfileIn
-from ..core.config_helpers import _config_to_yaml_dict
+from core.schemas import ProfileIn
+from core.config_helpers import _config_to_yaml_dict
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
