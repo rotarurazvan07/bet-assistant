@@ -117,5 +117,5 @@ def test_validate_slips_skips_processed(ba):
 
     with patch("bet_framework.BetAssistant.scrape") as mock_scrape:
         report = ba.validate_slips()
-        assert report["checked"] == 0
+        assert report.checked == 0
         assert mock_scrape.call_count == 0
