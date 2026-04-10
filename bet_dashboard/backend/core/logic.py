@@ -74,12 +74,15 @@ class AppLogic:
 
     # ── Broadcast helper ───────────────────────────────────────────────────────
 
-    def _broadcast_slips_updated(self) -> None:
+    def _broadcast_slips_updated(self, live_data: dict | None = None) -> None:
         """Broadcast slips updated event."""
-        ws_manager.broadcast_sync({
+        payload = {
             "event": "slips_updated",
             "timestamp": datetime.now().isoformat(),
-        })
+        }
+        if live_data:
+            payload["live_data"] = live_data
+        ws_manager.broadcast_sync(payload)
 
     def _broadcast_matches_updated(self) -> None:
         """Broadcast matches updated event."""
@@ -109,7 +112,6 @@ class AppLogic:
     def _do_verify(self) -> None:
         try:
             result = self.validate_slips()
-            # Include live data in the broadcast
             live_data = {
                 item.match_name: {
                     "score": item.score,
@@ -117,11 +119,7 @@ class AppLogic:
                 }
                 for item in result.live
             }
-            ws_manager.broadcast_sync({
-                "event": "slips_updated",
-                "timestamp": datetime.now().isoformat(),
-                "live_data": live_data,
-            })
+            self._broadcast_slips_updated(live_data)
         except Exception as exc:
             print(f"[Verifier] ERROR: {exc}")
 
@@ -490,7 +488,14 @@ class AppLogic:
 
     def validate_and_broadcast(self) -> Any:
         result = self.validate_slips()
-        self._broadcast_slips_updated()
+        live_data = {
+            item.match_name: {
+                "score": item.score,
+                "minute": item.minute,
+            }
+            for item in result.live
+        }
+        self._broadcast_slips_updated(live_data)
         return result
 
     def generate_and_broadcast(self) -> dict:
