@@ -30,7 +30,7 @@ jobs:
           pip install -r setup/requirements-scrape.txt
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: scrapling install
+        run: source venv/bin/activate & scrapling install
       - name: Generate Matrix
         id: set-matrix
         run: |
@@ -60,7 +60,7 @@ jobs:
           pip install -r setup/requirements-scrape.txt
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: scrapling install
+        run: source venv/bin/activate & scrapling install
       - name: Run Scraper
         run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
       - name: Upload
@@ -98,7 +98,7 @@ jobs:
           pip install -r setup/requirements-scrape.txt
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: scrapling install
+        run: source venv/bin/activate & scrapling install
       - name: Generate Matrix
         id: set-matrix
         run: |
@@ -135,7 +135,7 @@ jobs:
           pip install -r setup/requirements-scrape.txt
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: scrapling install
+        run: source venv/bin/activate & scrapling install
       - name: Run Scraper
         run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
       - name: Upload
