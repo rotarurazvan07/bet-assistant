@@ -11,10 +11,23 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Python configuration
   PYTHON_VERSION: "3.10"
+  
+  # Source directories (space-separated for tools like mypy, radon, etc.)
   SRC_DIR: "bet_crawler bet_dashboard/backend bet_framework"
   TEST_DIR: "tests"
+  
+  # Coverage threshold
   COVERAGE_FAIL_UNDER: "80"
+  
+  # Requirements files (template - customize these for your project)
+  REQUIREMENTS_FILES: |
+    bet_dashboard/backend/requirements.txt
+    setup/requirements-scrape.txt
+  
+  # Additional install commands (e.g., scrapling install, playwright install)
+  POST_INSTALL_CMDS: "scrapling install"
 
 jobs:
   # ── 1. AUTO-FIX ───────────────────────────────────────────────────────────
@@ -43,26 +56,32 @@ jobs:
 
       - name: autoflake — remove unused imports and variables
         run: |
+          # Process all source and test directories
           autoflake --in-place --recursive             --remove-all-unused-imports --remove-unused-variables             --exclude .venv,__pycache__             $SRC_DIR $TEST_DIR
 
       - name: pyupgrade — modernise syntax to Python 3.10+
         run: |
+          # Process all source and test directories
           find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py310-plus || true
 
       - name: autotyping — infer trivial return type annotations
         run: |
+          # Process all source directories
           python -m autotyping --none-return --scalar-return --bool-param             $SRC_DIR
 
       - name: isort — sort imports
         run: |
+          # Process all source and test directories
           isort --profile black --line-length 127             $SRC_DIR $TEST_DIR
 
       - name: ruff format
         run: |
+          # Process all source and test directories
           ruff format --line-length 127 --target-version py310             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
+          # Process all source and test directories
           ruff check --select E,F,B,C,SIM,PERF --ignore UP             --fix --unsafe-fixes --output-format=concise             $SRC_DIR $TEST_DIR 2>&1 | tee ruff-fix-output.txt || true
           ruff check --select E,F,B,C,SIM,PERF --ignore UP             --fix --unsafe-fixes --output-format=github             $SRC_DIR $TEST_DIR || true
 
@@ -110,25 +129,41 @@ jobs:
 
       - name: Install project and test deps
         run: |
-          pip install -e .
+          # Install dependencies from requirements files (template-driven)
+          echo "Installing requirements from:"
+          echo "$REQUIREMENTS_FILES"
+          while IFS= read -r req_file; do
+            req_file=$(echo "$req_file" | xargs)  # trim whitespace
+            if [ -n "$req_file" ] && [ -f "$req_file" ]; then
+              echo "Installing $req_file"
+              pip install -r "$req_file"
+            elif [ -n "$req_file" ]; then
+              echo "Warning: Requirements file not found: $req_file"
+            fi
+          done <<< "$REQUIREMENTS_FILES"
+          
+          # Install test dependencies
           pip install pytest pytest-cov pytest-xdist pytest-timeout
+          
+          # Set PYTHONPATH to include source directories for local package imports
+          echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
+          
+          # Run any post-install commands (e.g., scrapling install, playwright install)
+          if [ -n "$POST_INSTALL_CMDS" ]; then
+            echo "Running post-install commands: $POST_INSTALL_CMDS"
+            eval "$POST_INSTALL_CMDS"
+          fi
 
-      - name: Cache Playwright Browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements*.txt', '**/setup.py', '**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install Playwright Browsers (if cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: scrapling install
 
       - name: Run tests
         run: |
-          pytest             --cov=$SRC_DIR             --cov-report=term-missing             --cov-report=xml:coverage.xml             --cov-report=html:htmlcov             --cov-fail-under=$COVERAGE_FAIL_UNDER             --junitxml=test-results.xml             --timeout=60             -n auto -v $TEST_DIR
+          # Build --cov arguments for each directory in SRC_DIR
+          COV_ARGS=""
+          for dir in $SRC_DIR; do
+            COV_ARGS="$COV_ARGS --cov=$dir"
+          done
+          
+          pytest $COV_ARGS             --cov-report=term-missing             --cov-report=xml:coverage.xml             --cov-report=html:htmlcov             --cov-fail-under=$COVERAGE_FAIL_UNDER             --junitxml=test-results.xml             --timeout=60             -n auto -v $TEST_DIR
 
       - name: Upload coverage report
         if: always()
@@ -214,8 +249,30 @@ jobs:
 
       - name: Install audit tools
         run: |
-          pip install -e .
+          # Install dependencies from requirements files (template-driven)
+          echo "Installing requirements from:"
+          echo "$REQUIREMENTS_FILES"
+          while IFS= read -r req_file; do
+            req_file=$(echo "$req_file" | xargs)  # trim whitespace
+            if [ -n "$req_file" ] && [ -f "$req_file" ]; then
+              echo "Installing $req_file"
+              pip install -r "$req_file"
+            elif [ -n "$req_file" ]; then
+              echo "Warning: Requirements file not found: $req_file"
+            fi
+          done <<< "$REQUIREMENTS_FILES"
+          
+          # Install audit tools
           pip install bandit pip-audit radon vulture mypy interrogate
+          
+          # Set PYTHONPATH to include source directories for local package imports
+          echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
+          
+          # Run any post-install commands (e.g., scrapling install, playwright install)
+          if [ -n "$POST_INSTALL_CMDS" ]; then
+            echo "Running post-install commands: $POST_INSTALL_CMDS"
+            eval "$POST_INSTALL_CMDS"
+          fi
 
       - name: Install semgrep (via official action)
         uses: semgrep/semgrep-action@v1
@@ -245,6 +302,7 @@ jobs:
         id: mypy
         run: |
           echo "── Type Checking ─────────────────────────────────────────────"
+          # Run mypy on all source directories at once
           mypy $SRC_DIR             --strict             --ignore-missing-imports             --python-version 3.10             --no-error-summary 2>&1 | tee mypy-output.txt || true
           MYPY_ERRORS=$(grep -c "error:" mypy-output.txt 2>/dev/null || echo "0")
           MYPY_ERRORS=$(echo "$MYPY_ERRORS" | tr -d '[:space:]')
@@ -254,6 +312,8 @@ jobs:
       - name: bandit — security SAST
         id: bandit
         run: |
+          # Run bandit on all source directories at once (for valid JSON)
+          echo "Scanning with bandit..."
           bandit -r $SRC_DIR -ll -ii             --format json --output bandit-report.json || true
           bandit -r $SRC_DIR -ll -ii 2>&1 | tee bandit-output.txt || true
           BANDIT_ISSUES=$(grep -c ">> Issue" bandit-output.txt 2>/dev/null || echo "0")
@@ -283,6 +343,8 @@ jobs:
         id: radon
         run: |
           echo "── Cyclomatic Complexity ────────────────────────────────────"
+          # Run radon on all source directories at once (for valid JSON)
+          echo "Analyzing with radon..."
           radon cc $SRC_DIR             --show-complexity --average --json > radon-cc-report.json || true
           radon cc $SRC_DIR             --min C --show-complexity --average 2>&1 | tee radon-cc-output.txt || true
           echo ""
@@ -306,7 +368,11 @@ jobs:
       - name: vulture — dead code detection
         id: vulture
         run: |
-          vulture $SRC_DIR             --min-confidence 80 | tee vulture-report.txt || true
+          # Run vulture on each directory in SRC_DIR
+          for dir in $SRC_DIR; do
+            echo "Scanning $dir with vulture..."
+            vulture "$dir"             --min-confidence 80 | tee -a vulture-report.txt || true
+          done
           VULTURE_DEAD=$(wc -l < vulture-report.txt 2>/dev/null || echo "0")
           VULTURE_DEAD=$(echo "$VULTURE_DEAD" | tr -d '[:space:]')
           echo "vulture_dead=${VULTURE_DEAD:-0}" >> "$GITHUB_OUTPUT"
@@ -315,7 +381,11 @@ jobs:
       - name: interrogate — docstring coverage
         id: interrogate
         run: |
-          interrogate $SRC_DIR             -v --fail-under=0 2>&1 | tee interrogate-output.txt || true
+          # Run interrogate on each directory in SRC_DIR
+          for dir in $SRC_DIR; do
+            echo "Checking docstring coverage for $dir..."
+            interrogate "$dir"             -v --fail-under=0 2>&1 | tee -a interrogate-output.txt || true
+          done
           INTERROGATE_PCT=$(grep -oP '\d+%' interrogate-output.txt | tail -1 | tr -d '%' || echo "0")
           INTERROGATE_PCT=$(echo "$INTERROGATE_PCT" | tr -d '[:space:]')
           echo "interrogate_pct=${INTERROGATE_PCT:-0}" >> "$GITHUB_OUTPUT"

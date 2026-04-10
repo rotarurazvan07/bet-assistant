@@ -15,12 +15,22 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install dependencies
         run: |
           python3 -m venv venv
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt
-          scrapling install
+      - name: Install Playwright Browsers (if cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: scrapling install
       - name: Generate Matrix
         id: set-matrix
         run: |
@@ -35,12 +45,22 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-actions.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install dependencies
         run: |
           python3 -m venv venv
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt
-          scrapling install
+      - name: Install Playwright Browsers (if cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: scrapling install
       - name: Run Scraper
         run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
       - name: Upload
@@ -56,6 +76,14 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install dependencies
         run: |
           # FIX: Redirect temp space to SD card to bypass small RAM-disk (/tmp)
@@ -68,7 +96,9 @@ jobs:
           fi
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt
-          scrapling install
+      - name: Install Playwright Browsers (if cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: scrapling install
       - name: Generate Matrix
         id: set-matrix
         run: |
@@ -83,6 +113,14 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-local.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install dependencies
         run: |
           # FIX: Redirect temp space to SD card
@@ -95,7 +133,9 @@ jobs:
           fi
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt
-          scrapling install
+      - name: Install Playwright Browsers (if cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: scrapling install
       - name: Run Scraper
         run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
       - name: Upload
