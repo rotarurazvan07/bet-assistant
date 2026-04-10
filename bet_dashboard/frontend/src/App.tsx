@@ -15,7 +15,6 @@ export default function App() {
     // Increment to signal a component it should refetch
     const [matchesRefresh, setMatchesRefresh] = useState(0);
     const [slipsRefresh, setSlipsRefresh] = useState(0);
-    const [servicesRefresh, setServicesRefresh] = useState(0);
     // Live data from WebSocket validation
     const [liveData, setLiveData] = useState<Record<string, { score: string; minute: string }>>({});
 
@@ -40,7 +39,7 @@ export default function App() {
             }
         }, []),
         service_toggled: useCallback(() => {
-            setServicesRefresh(n => n + 1);
+            // Services component doesn't need refresh as it auto-refreshes on toggle
         }, []),
     });
 

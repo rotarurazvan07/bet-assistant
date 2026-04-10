@@ -3,12 +3,11 @@ import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
-    fetchExcluded, fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
+    fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
     type ExcludedMatch
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
 import type { BuilderConfig, ProfilesMap, PreviewResult, CandidateLeg } from '../types';
-import { ALL_MARKETS } from '../types';
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
@@ -48,7 +47,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [preview, setPreview] = useState<PreviewResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState<ProfilesMap>({});
-    const [excluded, setExcluded] = useState<string[]>([]);
     const [excludedDetails, setExcludedDetails] = useState<ExcludedMatch[]>([]);
     const [status, setStatus] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,7 +64,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     // Load profiles + excluded on mount
     useEffect(() => {
         fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
-        fetchExcluded().then(e => setExcluded(e ?? [])).catch(() => setExcluded([]));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }, []);
 
@@ -99,15 +96,13 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line
 
     async function handleExclude(url: string) {
-        const next = await addExcluded(url);
-        setExcluded(next);
+        await addExcluded(url);
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
         triggerPreview(mergedCfg);
     }
 
     async function handleClearExcluded() {
         await clearExcluded();
-        setExcluded([]);
         setExcludedDetails([]);
         triggerPreview(mergedCfg);
     }
@@ -143,7 +138,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }
         // Save cfg without date filters (they are global)
         const { date_from, date_to, ...cfgWithoutDates } = cfg;
-        await saveProfile(clean, { name: clean, ...cfgWithoutDates, units, run_daily_count: runDaily });
+        await saveProfile({ name: clean, ...cfgWithoutDates, units, run_daily_count: runDaily });
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
         setStatus(`✓ Profile '${clean}' saved`);
@@ -258,7 +253,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             legs={preview?.legs ?? []}
                             totalOdds={preview?.total_odds ?? 1}
                             pendingUrls={preview?.pending_urls ?? []}
-                            excludedUrls={excluded}
                             onExclude={handleExclude}
                         />
                     </div>
@@ -310,8 +304,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                                 onClick={() => {
                                                     // Only remove from manual exclusions (not from pending slips)
                                                     if (item.reason === "Manually excluded") {
-                                                        removeExcluded(item.url).then(next => {
-                                                            setExcluded(next);
+                                                        removeExcluded(item.url).then(() => {
                                                             fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
                                                             triggerPreview(mergedCfg);
                                                         });

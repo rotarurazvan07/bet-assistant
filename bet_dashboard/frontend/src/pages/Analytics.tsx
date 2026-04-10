@@ -9,9 +9,6 @@ import { StatCard, SectionHeader } from '../components/ui';
 import type { GlobalFilters } from '../components/Layout';
 import type { AnalyticsData, ProfilesMap } from '../types';
 
-const CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)',
-    'var(--chart-4)', 'var(--chart-5)', 'var(--chart-6)'];
-
 const tooltipStyle = {
     background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
     borderRadius: 8, fontSize: 11, fontFamily: 'JetBrains Mono, monospace',

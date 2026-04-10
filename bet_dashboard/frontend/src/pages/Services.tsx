@@ -10,7 +10,6 @@ export default function Services() {
     const [pullHour, setPullHour] = useState(6);
     const [genHour, setGenHour] = useState(8);
     const [status, setStatus] = useState('');
-    const [loading, setLoading] = useState(false);
 
     const load = useCallback(async () => {
         const d = await fetchServices();
@@ -28,10 +27,8 @@ export default function Services() {
     }
 
     async function handleToggle(name: string) {
-        setLoading(true);
         await toggleService(name);
         await load();
-        setLoading(false);
     }
 
     if (!data) return (

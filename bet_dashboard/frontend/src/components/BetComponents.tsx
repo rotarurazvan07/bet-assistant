@@ -7,7 +7,6 @@ interface PreviewProps {
     legs: CandidateLeg[];
     totalOdds: number;
     pendingUrls: string[];
-    excludedUrls: string[];
     onExclude: (url: string) => void;
 }
 
@@ -27,7 +26,7 @@ function TierBadge({ tier, score }: { tier: number; score: number }) {
     );
 }
 
-export function BetPreview({ legs, totalOdds, pendingUrls, excludedUrls, onExclude }: PreviewProps) {
+export function BetPreview({ legs, totalOdds, pendingUrls, onExclude }: PreviewProps) {
     if (!legs.length) {
         return (
             <div className="text-[12px] font-sans text-center py-8" style={{ color: 'var(--text-muted)' }}>

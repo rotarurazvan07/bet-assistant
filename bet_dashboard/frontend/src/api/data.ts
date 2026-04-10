@@ -2,7 +2,7 @@ import client from './client';
 import type {
     BuilderConfig, PreviewResult,
     ProfilesMap, Profile,
-    SlipsPage, BetSlip, CandidateLeg, ManualLegIn,
+    SlipsPage, ManualLegIn,
     AnalyticsData,
     ServicesData,
 } from '../types';
@@ -52,7 +52,7 @@ export async function fetchProfiles(): Promise<ProfilesMap> {
     return res.data.profiles;
 }
 
-export async function saveProfile(name: string, data: Profile & { name: string }): Promise<void> {
+export async function saveProfile(data: Profile & { name: string }): Promise<void> {
     await client.post('/profiles', data);
 }
 
