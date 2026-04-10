@@ -674,7 +674,7 @@ class BetAssistant(BaseStorageManager):
 
         return None
 
-    def validate_slips(self) -> dict[str, Any]:
+    def validate_slips(self) -> ValidationReport:
         self.reopen_if_changed()
 
         pending = self.fetch_rows(
@@ -695,7 +695,7 @@ class BetAssistant(BaseStorageManager):
 
         urls = list(url_to_legs.keys())
         if not urls:
-            return {"checked": 0, "settled": [], "live": [], "errors": 0}
+            return ValidationReport(checked=0, settled=[], live=[], errors=0)
 
         def _handle_url(url: str, html: str) -> None:
             try:

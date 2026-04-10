@@ -5,18 +5,34 @@ import { StatCard, Toggle } from '../components/ui';
 import type { GlobalFilters } from '../components/Layout';
 import type { SlipsPage, LiveData } from '../types';
 
+const STORAGE_KEY = 'slips_state';
+
 interface Props { filters: GlobalFilters; refreshKey: number; liveData?: LiveData }
 
 export default function Slips({ filters, refreshKey, liveData: externalLiveData }: Props) {
     const [data, setData] = useState<SlipsPage | null>(null);
-    const [profileFilter, setProfileFilter] = useState('all');
-    const [hideSettled, setHideSettled] = useState(false);
-    const [liveOnly, setLiveOnly] = useState(false);
+    const [profileFilter, setProfileFilter] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).profileFilter : 'all';
+    });
+    const [hideSettled, setHideSettled] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).hideSettled : false;
+    });
+    const [liveOnly, setLiveOnly] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).liveOnly : false;
+    });
     // Use external liveData from WebSocket if provided, otherwise use local state
     const [localLiveData, setLocalLiveData] = useState<LiveData>({});
     const liveData = externalLiveData ?? localLiveData;
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
+
+    // Persist state to localStorage
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ profileFilter, hideSettled, liveOnly }));
+    }, [profileFilter, hideSettled, liveOnly]);
 
     const load = useCallback(async () => {
         setLoading(true);

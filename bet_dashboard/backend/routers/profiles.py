@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ..schemas import ProfileIn
+from bet_framework.core.Slip import BetSlipConfig
+from ..core.schemas import ProfileIn
+from ..core.config_helpers import _config_to_yaml_dict
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
@@ -25,25 +27,24 @@ def save_profile(request: Request, body: ProfileIn):
     if not name:
         raise HTTPException(400, "Invalid profile name")
 
-    data = {
-        "target_odds": body.target_odds,
-        "target_legs": body.target_legs,
-        "max_legs_overflow": body.max_legs_overflow,
-        "consensus_floor": body.consensus_floor,
-        "min_odds": body.min_odds,
-        "tolerance_factor": body.tolerance_factor,
-        "stop_threshold": body.stop_threshold,
-        "min_legs_fill_ratio": body.min_legs_fill_ratio,
-        "quality_vs_balance": body.quality_vs_balance,
-        "consensus_vs_sources": body.consensus_vs_sources,
-        "included_markets": body.included_markets,
-        "units": body.units,
-        "run_daily_count": body.run_daily_count,
-        # Runtime-only — always None in stored profiles
-        "date_from": None,
-        "date_to": None,
-        "excluded_urls": None,
-    }
+    # Use shared helper to convert ProfileIn to YAML dict
+    data = _config_to_yaml_dict(
+        BetSlipConfig(
+            target_odds=body.target_odds,
+            target_legs=body.target_legs,
+            max_legs_overflow=body.max_legs_overflow,
+            consensus_floor=body.consensus_floor,
+            min_odds=body.min_odds,
+            tolerance_factor=body.tolerance_factor,
+            stop_threshold=body.stop_threshold,
+            min_legs_fill_ratio=body.min_legs_fill_ratio,
+            quality_vs_balance=body.quality_vs_balance,
+            consensus_vs_sources=body.consensus_vs_sources,
+            included_markets=body.included_markets,
+        ),
+        units=body.units,
+        run_daily_count=body.run_daily_count,
+    )
     app.settings.write(name, data, subpath="profiles")
     return {"name": name, "data": data}
 

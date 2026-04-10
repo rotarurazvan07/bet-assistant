@@ -23,30 +23,68 @@ const COLS = [
 ];
 
 const PAGE_SIZE = 40;
+const STORAGE_KEY = 'betting_tips_state';
 
 interface Props { filters: GlobalFilters; refreshKey: number }
 
 export default function BettingTips({ filters, refreshKey }: Props) {
-    const { minConsensus } = filters;
     const [data, setData] = useState<MatchesPage | null>(null);
-    const [page, setPage] = useState(1);
-    const [sortBy, setSortBy] = useState('datetime');
-    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
     const [loading, setLoading] = useState(false);
     const topRef = useRef<HTMLDivElement>(null);
 
-    // Slip builder state
-    const [pendingLegs, setPendingLegs] = useState<CandidateLeg[]>([]);
+    // Slip builder state - persist pending legs
+    const [pendingLegs, setPendingLegs] = useState<CandidateLeg[]>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            return parsed.pendingLegs || [];
+        }
+        return [];
+    });
 
-    // Reset to page 1 on filter / sort / external refresh change
-    useEffect(() => { setPage(1); }, [filters.search, filters.dateFrom, filters.dateTo, minConsensus, sortBy, sortDir, refreshKey]);
+    // Local filter state with localStorage persistence
+    const [search, setSearch] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).search : '';
+    });
+    const [minConsensus, setMinConsensus] = useState<number | null>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).minConsensus : null;
+    });
+    const [page, setPage] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).page : 1;
+    });
+    const [sortBy, setSortBy] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).sortBy : 'datetime';
+    });
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).sortDir : 'asc';
+    });
+
+    // Persist state to localStorage
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            search,
+            minConsensus,
+            page,
+            sortBy,
+            sortDir,
+            pendingLegs
+        }));
+    }, [search, minConsensus, page, sortBy, sortDir, pendingLegs]);
+
+    // Reset to page 1 on global filter or external refresh change
+    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey]);
 
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
         fetchMatches({
             page, page_size: PAGE_SIZE,
-            search: filters.search || undefined,
+            search: search || undefined,
             date_from: filters.dateFrom || undefined,
             date_to: filters.dateTo || undefined,
             sort_by: sortBy,
@@ -61,7 +99,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 }
             });
         return () => { cancelled = true; };
-    }, [page, filters, minConsensus, sortBy, sortDir, refreshKey]);
+    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, sortBy, sortDir, refreshKey]);
 
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -127,8 +165,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         <div ref={topRef} className="flex gap-4">
             {/* Main content - Table */}
             <div className="flex-1">
-                {/* Header */}
-                <div className="flex items-baseline justify-between mb-4">
+                {/* Header + Local Filters */}
+                <div className="flex items-baseline justify-between mb-4 flex-wrap gap-3">
                     <div>
                         <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
                             Betting Tips
@@ -139,11 +177,38 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                             </p>
                         )}
                     </div>
-                    {loading && (
-                        <span className="text-[11px] font-mono animate-pulse" style={{ color: 'var(--text-muted)' }}>
-                            Loading…
-                        </span>
-                    )}
+                    <div className="flex items-center gap-3">
+                        {/* Search - Local filter */}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-mono tracking-widest uppercase"
+                                style={{ color: 'var(--text-muted)' }}>Search</span>
+                            <input
+                                className="field w-52"
+                                placeholder="Filter by team…"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                            />
+                        </div>
+                        {/* Consensus filter - Local filter */}
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-mono tracking-widest uppercase"
+                                style={{ color: 'var(--text-muted)' }}>Min Consensus</span>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    value={minConsensus ?? 0}
+                                    onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
+                                    className="w-32"
+                                />
+                                <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
+                                    {minConsensus !== null ? `${minConsensus}%` : 'Any'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Empty state */}

@@ -1,4 +1,4 @@
-name: Build and Publish Multi-Arch Image
+name: Build and Publish Dashboard Images
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  OWNER: ${{ github.repository_owner }}
 
 jobs:
   build-and-push:
@@ -19,15 +19,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Set up QEMU (Allows building for ARM64 on an AMD64 runner)
+      # Required for linux/arm64 cross-compilation on an amd64 runner
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
-      # 2. Set up Docker Buildx (Required for multi-platform builds)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 3. Log in to GitHub Container Registry
       - name: Log in to the Container Registry
         uses: docker/login-action@v3
         with:
@@ -35,14 +33,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. Build and push for both Raspberry Pi (arm64) and PC (amd64)
-      - name: Build and push Docker image
+      # ── Backend ────────────────────────────────────────────────────────────
+      # Build context must be the REPO ROOT so bet_framework/ is in scope
+      - name: Build and push — backend
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: bet_dashboard/backend/Dockerfile
           push: true
-          # This line is the magic that fixes your 'platform mismatch' error
           platforms: linux/amd64,linux/arm64
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          # Provenance can sometimes cause issues with older Docker versions on Pi
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/bet-assistant-backend:latest
           provenance: false
+          cache-from: type=gha,scope=backend
+          cache-to:   type=gha,mode=max,scope=backend
+
+      # ── Frontend ───────────────────────────────────────────────────────────
+      # Build context is the frontend folder only
+      - name: Build and push — frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: bet_dashboard/frontend
+          file: bet_dashboard/frontend/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/bet-assistant-frontend:latest
+          provenance: false
+          cache-from: type=gha,scope=frontend
+          cache-to:   type=gha,mode=max,scope=frontend

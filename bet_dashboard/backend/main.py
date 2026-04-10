@@ -24,8 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from bet_dashboard.backend.logic import AppLogic  # noqa: E402
-from bet_dashboard.backend.ws import ws_manager  # noqa: E402
+from bet_dashboard.backend.core.logic import AppLogic  # noqa: E402
+from bet_dashboard.backend.core.ws import ws_manager  # noqa: E402
 from bet_dashboard.backend.routers import matches, builder, profiles, slips, analytics, services, system  # noqa: E402
 
 @asynccontextmanager
@@ -38,9 +38,9 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    matches_db = os.getenv("MATCHES_DB_PATH", "final_matches.db")
-    slips_db   = os.getenv("SLIPS_DB_PATH",   "slips.db")
-    config_dir = os.getenv("CONFIG_PATH",      "config")
+    matches_db = os.getenv("MATCHES_DB_PATH", "bet_dashboard/workspace/data/final_matches.db")
+    slips_db   = os.getenv("SLIPS_DB_PATH",   "bet_dashboard/workspace/data/slips.db")
+    config_dir = os.getenv("CONFIG_PATH",     "bet_dashboard/workspace/config")
 
     app = FastAPI(
         title="Bet Assistant API",

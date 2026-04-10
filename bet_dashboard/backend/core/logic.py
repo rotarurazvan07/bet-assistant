@@ -1,84 +1,194 @@
-"""
-dashboard/logic.py
-══════════════════
-DashboardLogic — pure business layer.
-
-Wraps BetAssistant (slip storage, building, validation, stats) together with
-MatchesManager (match data source).  The dashboard UI classes never touch
-BetAssistant or MatchesManager directly.
-
-Public API
-──────────
-  refresh_data(db_path)            Load / reload matches from the source DB.
-  filter_matches(search, from, to) Filtered match DataFrame view.
-  build_slip(cfg)                  Build a bet slip from a BetSlipConfig.
-  save_slip(profile, legs, units)  Persist a slip; return slip_id.
-  validate_slips()                 Scrape live results; return validation summary.
-  get_slips(profile)               All slips (+ legs) optionally filtered.
-  stats(profile)                   Aggregate stats dict.
-  balance_history(profile)         Chronological settled slip list.
-  get_settled_legs(profile)        Flat list of settled leg dicts with result_url.
-  match_df                         Property: current match DataFrame (read-only).
-"""
-
 from __future__ import annotations
 
 import os
+import sys
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
+# ── Repo root on sys.path ─────────────────────────────────────────────────────
+# main.py is at bet_dashboard/backend/main.py
+# Repo root is three levels up: backend/ → bet_dashboard/ → repo root
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 import pandas as pd
-
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
-from bet_framework.core.types import Outcome
 from bet_framework.MatchesManager import MatchesManager
+from bet_framework.core.types import Outcome
+from scrape_kit import SettingsManager, configure
+
+from .ws import ws_manager
+from .ticker_service import TickerService
+from .config_helpers import _yaml_to_config, ensure_default_profiles
 
 
-class DashboardLogic:
+class AppLogic:
     """
-    Mediator between the Dash UI and the BetAssistant + MatchesManager.
+    Unified application logic combining DashboardLogic and service orchestration.
 
-    All state lives here (server-side singleton). Callbacks only read from
-    this object — they never own data in client-side dcc.Stores.
-
-    The ``slips_version`` counter is bumped on slip/status changes.
-    The ``matches_version`` counter is bumped on match data changes.
-    Lightweight polling callbacks detect changes without re-querying.
+    Lifecycle:
+        1. Created at startup → starts TickerService daemon threads
+        2. Lifespan sets event loop on ws_manager so broadcast_sync works
+        3. TickerServices call _do_pull / _do_generate / _do_verify → broadcast events
+        4. API routes call delegating methods that broadcast after state changes
     """
 
-    def __init__(self, matches_db_path: str, slips_db_path: str) -> None:
+    def __init__(
+        self,
+        matches_db_path: str,
+        slips_db_path: str,
+        config_path: str,
+    ) -> None:
         self._matches_db_path = matches_db_path
         self._slips_db_path = slips_db_path
+        self._config_path = config_path
+
+        configure(config_path)
+        self._settings = SettingsManager(config_path)
+        ensure_default_profiles(config_path + "/profiles", self._settings)
+
+        # Initialize core assistants
         self._assistant = BetAssistant(slips_db_path)
         self._matches_manager = MatchesManager(matches_db_path)
-        self.slips_version = 0  # bumped on slip/status changes
-        self.matches_version = 0  # bumped on match data changes
+        self._manual_excluded: set[str] = set()
 
-        # Caches for heavy operations
-        self._filter_cache_key = None
-        self._filter_cache_df = None
-        self._build_slip_cache = {}
-
-        # Pre-load match data so it's ready before any browser connects
+        # Pre-load match data
         self.refresh_data()
+
+        # Initialize services
+        svc_cfg = self._settings.get("services") or {}
+        self._services: dict[str, TickerService] = {
+            "puller": TickerService(
+                "puller", self._do_pull,
+                hour=int(svc_cfg.get("pull_hour", 6)),
+            ),
+            "generator": TickerService(
+                "generator", self._do_generate,
+                hour=int(svc_cfg.get("generate_hour", 8)),
+            ),
+            "verifier": TickerService(
+                "verifier", self._do_verify,
+                interval=60,
+            ),
+        }
+
+        # Apply any saved toggle states
+        toggles = svc_cfg.get("toggles", {})
+        for name, enabled in toggles.items():
+            svc = self._services.get(name)
+            if svc and hasattr(svc, "set_enabled"):
+                svc.set_enabled(enabled)
+
+    # ── Broadcast helper ───────────────────────────────────────────────────────
+
+    def _broadcast_slips_updated(self) -> None:
+        """Broadcast slips updated event."""
+        ws_manager.broadcast_sync({
+            "event": "slips_updated",
+            "timestamp": datetime.now().isoformat(),
+        })
+
+    def _broadcast_matches_updated(self) -> None:
+        """Broadcast matches updated event."""
+        ws_manager.broadcast_sync({
+            "event": "matches_updated",
+            "timestamp": self.last_pull_timestamp,
+        })
+
+    # ── TickerService callbacks ───────────────────────────────────────────────
+
+    def _do_pull(self) -> None:
+        try:
+            self.pull_matches_db(self._matches_db_path)
+            self._broadcast_matches_updated()
+        except Exception as exc:
+            print(f"[Puller] ERROR: {exc}")
+
+    def _do_generate(self) -> None:
+        try:
+            profiles = self._get_active_profiles()
+            if profiles:
+                self.generate_slips(profiles)
+            self._broadcast_slips_updated()
+        except Exception as exc:
+            print(f"[Generator] ERROR: {exc}")
+
+    def _do_verify(self) -> None:
+        try:
+            result = self.validate_slips()
+            # Include live data in the broadcast
+            live_data = {
+                item.match_name: {
+                    "score": item.score,
+                    "minute": item.minute,
+                }
+                for item in result.live
+            }
+            ws_manager.broadcast_sync({
+                "event": "slips_updated",
+                "timestamp": datetime.now().isoformat(),
+                "live_data": live_data,
+            })
+        except Exception as exc:
+            print(f"[Verifier] ERROR: {exc}")
+
+    # ── Manual excluded URLs (server-lifetime) ────────────────────────────────
+
+    def add_excluded(self, url: str) -> None:
+        self._manual_excluded.add(url)
+
+    def remove_excluded(self, url: str) -> None:
+        self._manual_excluded.discard(url)
+
+    def clear_excluded(self) -> None:
+        self._manual_excluded.clear()
+
+    def get_manual_excluded(self) -> list[str]:
+        return sorted(self._manual_excluded)
+
+    def _combined_excluded(self) -> list[str]:
+        """Merge manual exclusions + DB exclusions (pending legs)."""
+        return list(self._manual_excluded | set(self.get_excluded_urls()))
+
+    # ── Properties ────────────────────────────────────────────────────────────
+
+    @property
+    def match_df(self) -> pd.DataFrame:
+        """Current match DataFrame (read-only reference)."""
+        return self._assistant._df
+
+    @property
+    def last_pull_timestamp(self) -> str:
+        """Returns the last modification time of the matches database."""
+        try:
+            mtime = os.path.getmtime(self._matches_db_path)
+            return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return "Unknown"
+
+    @property
+    def logic(self) -> "AppLogic":
+        """Return self for backward compatibility with routers."""
+        return self
+
+    @property
+    def services(self) -> dict[str, TickerService]:
+        return self._services
+
+    @property
+    def settings(self) -> SettingsManager:
+        return self._settings
+
+    @property
+    def config_path(self) -> str:
+        return self._config_path
 
     # ── Match data ────────────────────────────────────────────────────────────
 
     def refresh_data(self) -> pd.DataFrame:
         raw_df = self._matches_manager.fetch_matches()
         self._assistant.load_matches(raw_df)
-        self.bump_matches_version()
         return self._assistant._df.copy()
-
-    def bump_slips_version(self) -> None:
-        """Manually increment the slips version to trigger UI refreshes."""
-        self.slips_version += 1
-
-    def bump_matches_version(self) -> None:
-        """Increment the matches version to trigger match data UI refreshes."""
-        self.matches_version += 1
-        self._filter_cache_key = None
-        self._filter_cache_df = None
-        self._build_slip_cache.clear()
 
     def filter_matches(
         self,
@@ -87,16 +197,9 @@ class DashboardLogic:
         date_to: str | None = None,
     ) -> pd.DataFrame:
         """Return a filtered view of the loaded match DataFrame."""
-        key = (search_text, date_from, date_to)
-        if self._filter_cache_key == key and self._filter_cache_df is not None:
-            return self._filter_cache_df
-
-        df = self._assistant.filter_matches(
+        return self._assistant.filter_matches(
             search_text=search_text, date_from=date_from, date_to=date_to
         )
-        self._filter_cache_key = key
-        self._filter_cache_df = df
-        return df
 
     def pull_matches_db(self, matches_db_path: str) -> str:
         import urllib.error
@@ -113,22 +216,6 @@ class DashboardLogic:
         self.refresh_data()
         return "Pull successful"
 
-    @property
-    def last_pull_timestamp(self) -> str:
-        """Returns the last modification time of the matches database."""
-        try:
-            mtime = os.path.getmtime(self._matches_db_path)
-            from datetime import datetime
-
-            return datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
-        except Exception:
-            return "Unknown"
-
-    @property
-    def match_df(self) -> pd.DataFrame:
-        """Current match DataFrame (read-only reference)."""
-        return self._assistant._df
-
     # ── Slip building ─────────────────────────────────────────────────────────
 
     def build_slip(
@@ -142,18 +229,11 @@ class DashboardLogic:
         Returns list of leg dicts:
             match, market, market_type, consensus, odds, result_url, sources, tier, score
         """
-        cfg_hash = repr(cfg)
-        key = (cfg_hash, tuple(extra_excluded_urls) if extra_excluded_urls else None)
+        return self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
 
-        if getattr(self, "_build_slip_cache", None) is None:
-            self._build_slip_cache = {}
-
-        if key in self._build_slip_cache:
-            return self._build_slip_cache[key]
-
-        res = self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
-        self._build_slip_cache[key] = res
-        return res
+    def build_preview(self, cfg: BetSlipConfig) -> list[CandidateLeg]:
+        # Only use manual exclusions for preview - pending slip matches should show with warning
+        return self.build_slip(cfg, extra_excluded_urls=list(self._manual_excluded))
 
     def generate_slips(self, profiles: dict[str, tuple]) -> dict[str, Any]:
         """
@@ -161,7 +241,7 @@ class DashboardLogic:
 
         Parameters
         ----------
-        profiles : {profile_name: (BetSlipConfig, units)}
+        profiles : {profile_name: (BetSlipConfig, units, count)}
         """
         results = {}
         for name, (cfg, units, count) in profiles.items():
@@ -173,7 +253,6 @@ class DashboardLogic:
                 slip_id = self._assistant.save_slip(name, legs, units)
                 results[name] = results.get(name, [])
                 results[name].append(slip_id)
-        self.bump_slips_version()
         return results
 
     # ── Slip persistence ──────────────────────────────────────────────────────
@@ -186,7 +265,6 @@ class DashboardLogic:
     ) -> int:
         """Persist a bet slip; return the new slip_id."""
         slip_id = self._assistant.save_slip(profile, legs, units)
-        self.bump_slips_version()
         return slip_id
 
     # ── Validation ────────────────────────────────────────────────────────────
@@ -205,7 +283,6 @@ class DashboardLogic:
         }
         """
         result = self._assistant.validate_slips()
-        self.bump_slips_version()
         return result
 
     # ── Slip retrieval ────────────────────────────────────────────────────────
@@ -215,7 +292,7 @@ class DashboardLogic:
         profile: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
-    ) -> list[BetSlip]:
+    ) -> list[Any]:
         """
         Return all slips with their legs, optionally filtered by profile and date horizon.
         """
@@ -243,7 +320,10 @@ class DashboardLogic:
 
     def delete_slip(self, slip_id: int) -> None:
         self._assistant.delete_slip(slip_id)
-        self.bump_slips_version()
+
+    def get_excluded_urls(self) -> list[str]:
+        """URLs that must be excluded from new slip generation."""
+        return self._assistant.get_excluded_urls()
 
     # ── Statistics ────────────────────────────────────────────────────────────
 
@@ -274,6 +354,7 @@ class DashboardLogic:
         }
 
     # ── Analytics ─────────────────────────────────────────────────────────────
+
     def daily_summary(
         self,
         profile: str | None = None,
@@ -408,8 +489,77 @@ class DashboardLogic:
             )
         return data
 
-    # ── Profile helpers ───────────────────────────────────────────────────────
+    # ── Builder ───────────────────────────────────────────────────────────────
 
-    def get_excluded_urls(self) -> list[str]:
-        """URLs that must be excluded from new slip generation."""
-        return self._assistant.get_excluded_urls()
+    # build_preview is already defined above
+
+    # ── Slips (with broadcast) ────────────────────────────────────────────────
+
+    def validate_and_broadcast(self) -> Any:
+        result = self.validate_slips()
+        self._broadcast_slips_updated()
+        return result
+
+    def generate_and_broadcast(self) -> dict:
+        profiles = self._get_active_profiles()
+        result: dict = {}
+        if profiles:
+            result = self.generate_slips(profiles)
+        self._broadcast_slips_updated()
+        return result
+
+    def save_slip_and_broadcast(self, profile: str, legs: list, units: float) -> int:
+        slip_id = self.save_slip(profile, legs, units)
+        self._broadcast_slips_updated()
+        return slip_id
+
+    def delete_slip_and_broadcast(self, slip_id: int) -> None:
+        self.delete_slip(slip_id)
+        self._broadcast_slips_updated()
+
+    def pull_and_broadcast(self) -> str:
+        msg = self.pull_matches_db(self._matches_db_path)
+        self._broadcast_matches_updated()
+        return msg
+
+    # ── Services ──────────────────────────────────────────────────────────────
+
+    def toggle_service(self, name: str) -> bool:
+        svc = self._services.get(name)
+        if not svc:
+            return False
+        new_state = not getattr(svc, "enabled", True)
+        if hasattr(svc, "set_enabled"):
+            svc.set_enabled(new_state)
+        # Persist toggle state
+        cfg = self._settings.get("services") or {}
+        toggles = cfg.get("toggles", {})
+        toggles[name] = new_state
+        cfg["toggles"] = toggles
+        self._settings.write("services", cfg)
+        ws_manager.broadcast_sync({
+            "event": "service_toggled",
+            "name": name,
+            "enabled": new_state,
+            "timestamp": datetime.now().isoformat(),
+        })
+        return new_state
+
+    def save_service_settings(self, pull_hour: int, generate_hour: int) -> None:
+        cfg = self._settings.get("services") or {}
+        cfg["pull_hour"] = pull_hour
+        cfg["generate_hour"] = generate_hour
+        self._settings.write("services", cfg)
+        self._services["puller"].update_config(hour=pull_hour, trigger_now=False)
+        self._services["generator"].update_config(hour=generate_hour, trigger_now=False)
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _get_active_profiles(self) -> dict[str, tuple]:
+        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count)}."""
+        profiles_raw = self._settings.get("profiles") or {}
+        return {
+            name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 1))
+            for name, cfg in profiles_raw.items()
+            if cfg.get("run_daily_count")
+        }

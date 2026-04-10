@@ -11,10 +11,8 @@ const LINKS = [
 ];
 
 export interface GlobalFilters {
-    search: string;
     dateFrom: string;
     dateTo: string;
-    minConsensus: number | null;
 }
 
 interface Props {
@@ -26,18 +24,14 @@ interface Props {
 
 export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated }: Props) {
     const location = useLocation();
-    const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
-    const [minConsensus, setMinConsensus] = useState<number | null>(null);
     const [pulling, setPulling] = useState(false);
 
     const showFilters = location.pathname === '/' ||
         location.pathname === '/builder' ||
         location.pathname === '/slips' ||
         location.pathname === '/analytics';
-
-    const showConsensusFilter = location.pathname === '/';
 
     async function handlePull() {
         setPulling(true);
@@ -116,19 +110,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                     className="sticky top-[52px] z-40">
                     <div className="max-w-[1480px] mx-auto px-5 py-2.5 flex items-center gap-6">
 
-                        {/* Search */}
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-muted)' }}>Search</span>
-                            <input
-                                className="field w-52"
-                                placeholder="Filter by team…"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div>
-
-                        {/* Date range */}
+                        {/* Date range - GLOBAL FILTER */}
                         <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-mono tracking-widest uppercase"
                                 style={{ color: 'var(--text-muted)' }}>Time Horizon</span>
@@ -141,35 +123,13 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                             </div>
                         </div>
 
-                        {/* Consensus filter - only on Betting Tips page */}
-                        {showConsensusFilter && (
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-mono tracking-widest uppercase"
-                                    style={{ color: 'var(--text-muted)' }}>Min Consensus</span>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={100}
-                                        step={5}
-                                        value={minConsensus ?? 0}
-                                        onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
-                                        className="w-32"
-                                    />
-                                    <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-                                        {minConsensus !== null ? `${minConsensus}%` : 'Any'}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-
                     </div>
                 </div>
             )}
 
             {/* ── Page content ──────────────────────────────────────────────────── */}
             <main className="flex-1 max-w-[1480px] mx-auto w-full px-5 py-6">
-                {children({ search, dateFrom, dateTo, minConsensus })}
+                {children({ dateFrom, dateTo })}
             </main>
         </div>
     );

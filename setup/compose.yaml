@@ -1,30 +1,62 @@
+name: bet-assistant-dashboard
+
 services:
-  bet-dashboard:
-    image: ghcr.io/rotarurazvan07/bet-assistant:latest
-    container_name: bet-dashboard
-    restart: always
+  backend:
+    build:
+      context: .
+      dockerfile: bet_dashboard/backend/Dockerfile
+    image: ghcr.io/rotarurazvan07/bet-assistant-backend:latest
+    container_name: bet-backend
+    restart: unless-stopped
     environment:
-      - REPO=rotarurazvan07/bet-assistant
-    command: >
+      - MATCHES_DB_PATH=/app/workspace/data/matches.db
+      - SLIPS_DB_PATH=/app/workspace/data/slips.db
+      - CONFIG_PATH=/app/workspace/config
+      - PYTHONPATH=/app
+    command:
       sh -c "mkdir -p /app/workspace/config && mkdir -p /app/workspace/data &&
              cp -r /app/config/. /app/workspace/config/ &&
-             python -m dashboard.app --matches_db_path /app/workspace/data/final_matches.db --slips_db_path /app/workspace/data/slips.db --config_path /app/workspace/config --no-debug"
-    ports:
-      - "8050:8050"
+             uvicorn main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./workspace:/app/workspace
       - /etc/localtime:/etc/localtime:ro
+    expose:
+      - "8000"
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "com.centurylinklabs.watchtower.scope=bet-stack"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/filters')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: ghcr.io/rotarurazvan07/bet-assistant-frontend:latest
+    container_name: bet-frontend
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+    volumes:
+      - ./workspace:/app/workspace
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      backend:
+        condition: service_healthy
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
 
   bet-updater:
     image: containrrr/watchtower:1.7.1
-    platform: linux/arm64
     container_name: bet-updater
     restart: always
     environment:
       - DOCKER_API_VERSION=1.44
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup --scope bet-stack
+    command: --interval 300 --cleanup --scope bet-stack --label-enable

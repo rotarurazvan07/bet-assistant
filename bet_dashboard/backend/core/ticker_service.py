@@ -1,9 +1,3 @@
-"""
-dashboard/service.py
-"""
-
-from __future__ import annotations
-
 import threading
 from collections.abc import Callable
 from datetime import datetime, timedelta

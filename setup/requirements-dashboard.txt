@@ -1,7 +1,0 @@
-dash
-dash_bootstrap_components
-beautifulsoup4
-waitress
-flask-compress
-pandas
-git+https://github.com/rotarurazvan07/scrape-kit.git

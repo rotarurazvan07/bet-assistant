@@ -123,12 +123,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: |
-            setup/requirements-dashboard.txt
             setup/requirements-scrape.txt
 
       - name: Install dependencies
         run: |
-          pip install -r setup/requirements-dashboard.txt
           pip install -r setup/requirements-scrape.txt
           pip install pytest pytest-cov pytest-xdist pytest-timeout
 
@@ -183,12 +181,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
           cache-dependency-path: |
-            setup/requirements-dashboard.txt
             setup/requirements-scrape.txt
 
       - name: Install dependencies and audit tools
         run: |
-          pip install -r setup/requirements-dashboard.txt
           pip install -r setup/requirements-scrape.txt
           pip install bandit pip-audit radon vulture
 

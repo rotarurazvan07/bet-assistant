@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
-from ..schemas import ManualLegIn, SlipIn
+from ..core.schemas import ManualLegIn, SlipIn
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
 

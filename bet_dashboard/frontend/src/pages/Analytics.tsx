@@ -28,13 +28,23 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
     );
 }
 
+const STORAGE_KEY = 'analytics_state';
+
 interface Props { filters: GlobalFilters; refreshKey: number }
 
 export default function Analytics({ filters, refreshKey }: Props) {
     const [data, setData] = useState<AnalyticsData | null>(null);
-    const [profile, setProfile] = useState('all');
+    const [profile, setProfile] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).profile : 'all';
+    });
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState<ProfilesMap>({});
+
+    // Persist profile to localStorage
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile }));
+    }, [profile]);
 
     // Load profiles on mount
     useEffect(() => {

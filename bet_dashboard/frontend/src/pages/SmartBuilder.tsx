@@ -20,18 +20,48 @@ const DEFAULT_CFG: BuilderConfig = {
 
 interface Props { filters: GlobalFilters; refreshKey: number }
 
+const STORAGE_KEY = 'smart_builder_state';
+
 export default function SmartBuilder({ filters, refreshKey }: Props) {
-    const [cfg, setCfg] = useState<BuilderConfig>(DEFAULT_CFG);
+    // Load persisted state from localStorage
+    const [cfg, setCfg] = useState<BuilderConfig>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            return { ...DEFAULT_CFG, ...parsed.cfg };
+        }
+        return DEFAULT_CFG;
+    });
+    const [activeName, setActiveName] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).activeName : 'manual';
+    });
+    const [units, setUnits] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).units : 1.0;
+    });
+    const [runDaily, setRunDaily] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).runDaily : 0;
+    });
+
     const [preview, setPreview] = useState<PreviewResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState<ProfilesMap>({});
-    const [activeName, setActiveName] = useState('manual');
-    const [units, setUnits] = useState(1.0);
-    const [runDaily, setRunDaily] = useState(0);
     const [excluded, setExcluded] = useState<string[]>([]);
     const [excludedDetails, setExcludedDetails] = useState<ExcludedMatch[]>([]);
     const [status, setStatus] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Persist state to localStorage
+    useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            cfg: { ...cfg, date_from: null, date_to: null }, // Don't persist global date filters (use null)
+            activeName,
+            units,
+            runDaily
+        }));
+    }, [cfg, activeName, units, runDaily]);
 
     // Load profiles + excluded on mount
     useEffect(() => {
@@ -40,12 +70,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }, []);
 
-    // Merge global date filters into cfg and trigger preview
-    useEffect(() => {
-        const newCfg = { ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null };
-        setCfg(newCfg);
-        triggerPreview(newCfg);
-    }, [filters.dateFrom, filters.dateTo]); // eslint-disable-line
+    // Compute merged config with global date filters (for preview only)
+    const mergedCfg = { ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null };
 
     // Debounced preview — 350ms after any config change
     const triggerPreview = useCallback((config: BuilderConfig) => {
@@ -66,24 +92,24 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     function handleCfgChange(next: BuilderConfig) {
         setCfg(next);
         setActiveName('manual');
-        triggerPreview(next);
+        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
 
-    // Trigger preview when refreshKey changes (new matches loaded)
-    useEffect(() => { triggerPreview(cfg); }, [refreshKey]); // eslint-disable-line
+    // Trigger preview when refreshKey or global filters change
+    useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line
 
     async function handleExclude(url: string) {
         const next = await addExcluded(url);
         setExcluded(next);
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
-        triggerPreview(cfg);
+        triggerPreview(mergedCfg);
     }
 
     async function handleClearExcluded() {
         await clearExcluded();
         setExcluded([]);
         setExcludedDetails([]);
-        triggerPreview(cfg);
+        triggerPreview(mergedCfg);
     }
 
     function loadProfile(name: string, data: any) {
@@ -99,14 +125,15 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
             quality_vs_balance: data.quality_vs_balance ?? 0.5,
             consensus_vs_sources: data.consensus_vs_sources ?? 0.5,
-            date_from: filters.dateFrom || null,
-            date_to: filters.dateTo || null,
+            // Don't store date filters in profile - they are global
+            date_from: null,
+            date_to: null,
         };
         setCfg(next);
         setActiveName(name);
         setUnits(data.units ?? 1);
         setRunDaily(data.run_daily_count ?? 0);
-        triggerPreview(next);
+        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
 
     async function handleSaveProfile() {
@@ -114,7 +141,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         if (!clean || clean === 'manual') {
             setStatus('Enter a profile name first.'); return;
         }
-        await saveProfile(clean, { name: clean, ...cfg, units, run_daily_count: runDaily });
+        // Save cfg without date filters (they are global)
+        const { date_from, date_to, ...cfgWithoutDates } = cfg;
+        await saveProfile(clean, { name: clean, ...cfgWithoutDates, units, run_daily_count: runDaily });
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
         setStatus(`✓ Profile '${clean}' saved`);
@@ -136,7 +165,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         const id = await addSlip(activeName, preview.legs as unknown as CandidateLeg[], units);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
         // Re-trigger preview to show "in pending slip" warnings
-        triggerPreview(cfg);
+        triggerPreview(mergedCfg);
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }
 
@@ -284,7 +313,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                                         removeExcluded(item.url).then(next => {
                                                             setExcluded(next);
                                                             fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
-                                                            triggerPreview(cfg);
+                                                            triggerPreview(mergedCfg);
                                                         });
                                                     }
                                                 }}
