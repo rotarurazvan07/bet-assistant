@@ -1,26 +1,23 @@
 bet_crawler/crawl.py:15:89: E501 Line too long (113 > 88)
-bet_crawler/crawl.py:33:1: E402 Module level import not at top of file
-bet_crawler/crawl.py:115:90: E501 Line too long (100 > 88)
-bet_crawler/crawl.py:117:88: E501 Line too long (113 > 88)
-bet_crawler/crawl.py:129:89: E501 Line too long (112 > 88)
-bet_crawler/crawl.py:167:89: E501 Line too long (92 > 88)
-bet_crawler/crawl.py:174:89: E501 Line too long (99 > 88)
-bet_crawler/crawl.py:199:71: F821 Undefined name `pd`
-bet_crawler/crawl.py:202:89: E501 Line too long (92 > 88)
-bet_crawler/crawl.py:210:41: F821 Undefined name `pd`
-bet_crawler/crawl.py:210:89: E501 Line too long (93 > 88)
-bet_crawler/crawl.py:214:89: E501 Line too long (109 > 88)
-bet_crawler/crawl.py:222:39: F821 Undefined name `pd`
-bet_crawler/crawl.py:271:89: E501 Line too long (93 > 88)
-bet_crawler/crawl.py:301:89: E501 Line too long (93 > 88)
-bet_crawler/crawl.py:351:88: E501 Line too long (93 > 88)
-bet_crawler/crawl.py:373:88: E501 Line too long (133 > 88)
-bet_crawler/crawl.py:377:88: E501 Line too long (103 > 88)
-bet_crawler/crawl.py:381:89: E501 Line too long (110 > 88)
-bet_crawler/crawl.py:424:89: E501 Line too long (94 > 88)
-bet_crawler/crawl.py:429:89: E501 Line too long (103 > 88)
-bet_crawler/crawl.py:434:89: E501 Line too long (108 > 88)
-bet_crawler/crawl.py:439:89: E501 Line too long (122 > 88)
+bet_crawler/crawl.py:34:1: E402 Module level import not at top of file
+bet_crawler/crawl.py:116:90: E501 Line too long (100 > 88)
+bet_crawler/crawl.py:118:88: E501 Line too long (113 > 88)
+bet_crawler/crawl.py:130:89: E501 Line too long (112 > 88)
+bet_crawler/crawl.py:168:89: E501 Line too long (92 > 88)
+bet_crawler/crawl.py:175:89: E501 Line too long (99 > 88)
+bet_crawler/crawl.py:203:89: E501 Line too long (92 > 88)
+bet_crawler/crawl.py:211:89: E501 Line too long (93 > 88)
+bet_crawler/crawl.py:215:89: E501 Line too long (109 > 88)
+bet_crawler/crawl.py:272:89: E501 Line too long (93 > 88)
+bet_crawler/crawl.py:302:89: E501 Line too long (93 > 88)
+bet_crawler/crawl.py:352:88: E501 Line too long (93 > 88)
+bet_crawler/crawl.py:374:88: E501 Line too long (133 > 88)
+bet_crawler/crawl.py:378:88: E501 Line too long (103 > 88)
+bet_crawler/crawl.py:382:89: E501 Line too long (110 > 88)
+bet_crawler/crawl.py:425:89: E501 Line too long (94 > 88)
+bet_crawler/crawl.py:430:89: E501 Line too long (103 > 88)
+bet_crawler/crawl.py:435:89: E501 Line too long (108 > 88)
+bet_crawler/crawl.py:440:89: E501 Line too long (122 > 88)
 bet_crawler/finders/BaseMatchFinder.py:5:1: E402 Module level import not at top of file
 bet_crawler/finders/BaseMatchFinder.py:6:1: E402 Module level import not at top of file
 bet_crawler/finders/BaseMatchFinder.py:7:1: E402 Module level import not at top of file
@@ -312,4 +309,4 @@ tests/test_validate_slips.py:37:89: E501 Line too long (89 > 88)
 tests/test_validate_slips.py:38:89: E501 Line too long (114 > 88)
 tests/test_validate_slips.py:46:89: E501 Line too long (115 > 88)
 tests/test_validate_slips.py:113:89: E501 Line too long (93 > 88)
-Found 314 errors.
+Found 311 errors.

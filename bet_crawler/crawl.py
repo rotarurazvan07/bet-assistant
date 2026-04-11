@@ -25,8 +25,8 @@ import sys
 from collections import defaultdict
 from contextlib import redirect_stdout
 from urllib.parse import urlparse
-import pandas as pd
 
+import pandas as pd
 from scrape_kit import SettingsManager, configure, get_logger
 
 logger = get_logger(__name__)
