@@ -7,7 +7,7 @@ import {
     type ExcludedMatch
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
-import type { BuilderConfig, ProfilesMap, PreviewResult, CandidateLeg } from '../types';
+import type { BuilderConfig, ProfilesMap, PreviewResult, ManualLegIn } from '../types';
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
@@ -157,7 +157,37 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         if (!preview?.legs.length) {
             setStatus('No legs in preview.'); return;
         }
-        const id = await addSlip(activeName, preview.legs as unknown as CandidateLeg[], units);
+
+        // Filter legs that have all required fields and valid result_url
+        const validLegs = preview.legs.filter(leg =>
+            leg.odds != null && leg.odds > 0 &&
+            leg.consensus != null && leg.consensus > 0 &&
+            leg.sources != null && leg.sources >= 0 &&
+            leg.datetime != null &&
+            leg.match_name &&
+            leg.market &&
+            leg.market_type &&
+            leg.result_url
+        );
+
+        if (validLegs.length !== preview.legs.length) {
+            setStatus(`Skipped ${preview.legs.length - validLegs.length} legs missing required data`);
+            return;
+        }
+
+        // Transform to ManualLegIn (required by backend)
+        const manualLegs: ManualLegIn[] = validLegs.map(leg => ({
+            match_name: leg.match_name,
+            market: leg.market,
+            market_type: leg.market_type,
+            odds: leg.odds,
+            result_url: leg.result_url!,
+            datetime: leg.datetime!,
+            consensus: leg.consensus,
+            sources: leg.sources,
+        }));
+
+        const id = await addSlip(activeName, manualLegs, units);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
         // Re-trigger preview to show "in pending slip" warnings
         triggerPreview(mergedCfg);

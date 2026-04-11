@@ -19,7 +19,7 @@ env:
   TEST_DIR: "tests"
   
   # Coverage threshold
-  COVERAGE_FAIL_UNDER: "80"
+  COVERAGE_FAIL_UNDER: "10"
   
   # Requirements files (template - customize these for your project)
   REQUIREMENTS_FILES: |

@@ -159,8 +159,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 market: leg.market,
                 market_type: leg.market_type,
                 odds: leg.odds,
-                result_url: leg.result_url,
-                datetime: leg.datetime,
+                result_url: leg.result_url!,
+                datetime: leg.datetime!,
                 consensus: leg.consensus,
                 sources: leg.sources,
             }));
