@@ -87,4 +87,7 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    # Make host binding configurable via HOST env var (default to 127.0.0.1 for security)
+    # B104: Avoid hardcoded bind to all interfaces
+    host = os.getenv("HOST", "127.0.0.1")
+    uvicorn.run("main:app", host=host, port=8000, reload=False)

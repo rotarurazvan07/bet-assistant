@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import os
+import urllib.error
+import urllib.request
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import pandas as pd
 from core.config_helpers import _yaml_to_config, ensure_default_profiles
@@ -196,11 +199,13 @@ class AppLogic:
         return self._assistant.filter_matches(search_text=search_text, date_from=date_from, date_to=date_to)
 
     def pull_matches_db(self, matches_db_path: str) -> str:
-        import urllib.error
-        import urllib.request
-
         repo = os.environ.get("REPO", "rotarurazvan07/bet-assistant")
         url = f"https://github.com/{repo}/releases/download/latest-db/final_matches.db"
+
+        # Validate URL scheme to prevent file:// or other dangerous schemes (B310)
+        parsed = urlparse(url)
+        if parsed.scheme not in ("https", "http"):
+            raise ValueError(f"Only HTTPS/HTTP URLs are allowed, got: {parsed.scheme}")
 
         try:
             urllib.request.urlretrieve(url, matches_db_path)

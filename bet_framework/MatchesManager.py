@@ -119,6 +119,10 @@ class MatchesManager(BufferedStorageManager):
 
     @time_profiler
     def add_match(self, match: Match) -> int | None:
+        """Add or update a match in the buffer.
+
+        Returns the index of the match in the buffer, or None on error.
+        """
         try:
             self.ensure_buffer()
             found, idx = self._find(match.home_team, match.away_team, match.datetime)
@@ -132,62 +136,89 @@ class MatchesManager(BufferedStorageManager):
                     logger.warning(f"Source collision — skip {match.home_team} vs {match.away_team}")
                     found = None
 
-            if found is not None:
-                changed = False
+            if found is None:
+                return self._insert_new_match(match)
 
-                if not _is_empty(match.predictions):
-                    ex = self.deserialize_json(found.get("predictions_scores")) or []
-                    ex_src = {s.get("source") for s in ex if s.get("source")}
-                    for s in match.predictions:
-                        if s.source not in ex_src:
-                            ex.append(s.__dict__)
-                            ex_src.add(s.source)
-                            changed = True
-                    if changed:
-                        self._buffer.at[idx, "predictions_scores"] = json.dumps(ex)
-
-                if not _is_empty(match.datetime):
-                    try:
-                        ex_dt = datetime.fromisoformat(found["datetime"])
-                        if ex_dt.hour == 0 and ex_dt.minute == 0 and (match.datetime.hour != 0 or match.datetime.minute != 0):
-                            self._buffer.at[idx, "datetime"] = match.datetime.isoformat()
-                            changed = True
-                    except Exception:
-                        pass
-
-                if not _is_empty(match.odds):
-                    cur = self.deserialize_json(found.get("odds")) or {}
-                    patch = {k: v for k, v in asdict(match.odds).items() if cur.get(k) is None and v is not None}
-                    if patch:
-                        self._buffer.at[idx, "odds"] = self.serialize_json({**cur, **patch})
-                        changed = True
-
-                if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
-                    self._buffer.at[idx, "result_url"] = match.result_url
-                    changed = True
-
-                if changed:
-                    self._dirty = True
-                return idx
-
-            # New row — lands directly in self._buffer via parent insert()
-            self.insert(
-                {
-                    "home_team_name": match.home_team,
-                    "away_team_name": match.away_team,
-                    "datetime": match.datetime.isoformat(),
-                    "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
-                    if match.predictions
-                    else None,
-                    "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
-                    "result_url": match.result_url,
-                }
-            )
-            return len(self._buffer) - 1
+            # Update existing match
+            changed = self._update_existing_match(match, found, idx)
+            if changed:
+                self._dirty = True
+            return idx
 
         except Exception as exc:
             logger.error(f"add_match error: {exc}")
             return None
+
+    def _insert_new_match(self, match: Match) -> int:
+        """Insert a new match into the buffer."""
+        self.insert(
+            {
+                "home_team_name": match.home_team,
+                "away_team_name": match.away_team,
+                "datetime": match.datetime.isoformat(),
+                "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
+                if match.predictions
+                else None,
+                "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
+                "result_url": match.result_url,
+            }
+        )
+        return len(self._buffer) - 1
+
+    def _update_existing_match(self, match: Match, found: dict, idx: int) -> bool:
+        """Update an existing match in the buffer. Returns True if changes were made."""
+        changed = False
+
+        if not _is_empty(match.predictions):
+            changed = self._update_predictions(match, found, idx) or changed
+
+        if not _is_empty(match.datetime):
+            changed = self._update_datetime(match, found, idx) or changed
+
+        if not _is_empty(match.odds):
+            changed = self._update_odds(match, found, idx) or changed
+
+        if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
+            self._buffer.at[idx, "result_url"] = match.result_url
+            changed = True
+
+        return changed
+
+    def _update_predictions(self, match: Match, found: dict, idx: int) -> bool:
+        """Merge predictions from the new match into existing ones. Returns True if changed."""
+        ex = self.deserialize_json(found.get("predictions_scores")) or []
+        ex_src = {s.get("source") for s in ex if s.get("source")}
+        changed = False
+
+        for s in match.predictions:
+            if s.source not in ex_src:
+                ex.append(s.__dict__)
+                ex_src.add(s.source)
+                changed = True
+
+        if changed:
+            self._buffer.at[idx, "predictions_scores"] = json.dumps(ex)
+        return changed
+
+    def _update_datetime(self, match: Match, found: dict, idx: int) -> bool:
+        """Update datetime if existing has midnight time and new has specific time. Returns True if changed."""
+        try:
+            ex_dt = datetime.fromisoformat(found["datetime"])
+            if ex_dt.hour == 0 and ex_dt.minute == 0 and (match.datetime.hour != 0 or match.datetime.minute != 0):
+                self._buffer.at[idx, "datetime"] = match.datetime.isoformat()
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _update_odds(self, match: Match, found: dict, idx: int) -> bool:
+        """Merge odds from the new match into existing ones. Returns True if changed."""
+        cur = self.deserialize_json(found.get("odds")) or {}
+        patch = {k: v for k, v in asdict(match.odds).items() if cur.get(k) is None and v is not None}
+        if patch:
+            self._buffer.at[idx, "odds"] = self.serialize_json({**cur, **patch})
+            return True
+        return False
 
     def reset_matches_db(self) -> None:
         self.clear_database("matches")  # clears buffer + dirty flag (inherited)

@@ -45,29 +45,45 @@ def determine_outcome(home: int, away: int, market: str, market_type: str) -> Ou
     -------
     Outcome.WON | Outcome.LOST | Outcome.PENDING
     """
-    if market_type == MarketType.RESULT:
-        if market == MarketLabel.HOME and home > away:
-            return Outcome.WON
-        if market == MarketLabel.AWAY and away > home:
-            return Outcome.WON
-        if market == MarketLabel.DRAW and home == away:
-            return Outcome.WON
-        return Outcome.LOST
+    handlers = {
+        MarketType.RESULT: _handle_result_market,
+        MarketType.BTTS: _handle_btts_market,
+        MarketType.OVER_UNDER_25: _handle_over_under_market,
+    }
 
-    if market_type == MarketType.BTTS:
-        scored = home > 0 and away > 0
-        if market == MarketLabel.BTTS_YES and scored:
-            return Outcome.WON
-        if market == MarketLabel.BTTS_NO and not scored:
-            return Outcome.WON
-        return Outcome.LOST
-
-    if market_type == MarketType.OVER_UNDER_25:
-        total = home + away
-        if market == MarketLabel.OVER_25 and total >= 3:
-            return Outcome.WON
-        if market == MarketLabel.UNDER_25 and total < 3:
-            return Outcome.WON
-        return Outcome.LOST
+    handler = handlers.get(market_type)
+    if handler:
+        return handler(home, away, market)
 
     return Outcome.PENDING
+
+
+def _handle_result_market(home: int, away: int, market: str) -> Outcome:
+    """Handle 1X2 (result) market outcomes."""
+    if market == MarketLabel.HOME and home > away:
+        return Outcome.WON
+    if market == MarketLabel.AWAY and away > home:
+        return Outcome.WON
+    if market == MarketLabel.DRAW and home == away:
+        return Outcome.WON
+    return Outcome.LOST
+
+
+def _handle_btts_market(home: int, away: int, market: str) -> Outcome:
+    """Handle Both Teams To Score (BTTS) market outcomes."""
+    scored = home > 0 and away > 0
+    if market == MarketLabel.BTTS_YES and scored:
+        return Outcome.WON
+    if market == MarketLabel.BTTS_NO and not scored:
+        return Outcome.WON
+    return Outcome.LOST
+
+
+def _handle_over_under_market(home: int, away: int, market: str) -> Outcome:
+    """Handle Over/Under 2.5 goals market outcomes."""
+    total = home + away
+    if market == MarketLabel.OVER_25 and total >= 3:
+        return Outcome.WON
+    if market == MarketLabel.UNDER_25 and total < 3:
+        return Outcome.WON
+    return Outcome.LOST
