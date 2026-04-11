@@ -127,17 +127,17 @@ def _slip_to_dict(slip) -> dict:
 def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
     market_str = d.get("market")
     mtype_str = d.get("market_type")
-    
+
     if not market_str:
         raise ValueError("market is required")
     if not mtype_str:
         raise ValueError("market_type is required")
-    
+
     try:
         market = MarketLabel(market_str)
     except ValueError:
         market = market_str
-    
+
     try:
         market_type = MarketType(mtype_str)
     except ValueError as e:
@@ -148,7 +148,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
     for field in required_fields:
         if field not in d or d[field] is None:
             raise ValueError(f"{field} is required")
-    
+
     # Validate odds is positive
     try:
         odds_val = float(d["odds"])
@@ -156,7 +156,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
             raise ValueError("odds must be positive")
     except (TypeError, ValueError) as e:
         raise ValueError(f"Invalid odds: {d['odds']}") from e
-    
+
     # Validate consensus is a valid percentage
     try:
         consensus_val = float(d["consensus"])
@@ -164,7 +164,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
             raise ValueError("consensus must be between 0 and 100")
     except (TypeError, ValueError) as e:
         raise ValueError(f"Invalid consensus: {d['consensus']}") from e
-    
+
     # Validate sources is a non-negative integer
     try:
         sources_val = int(d["sources"])
