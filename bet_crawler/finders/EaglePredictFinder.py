@@ -86,8 +86,18 @@ class EaglePredictFinder(BaseMatchFinder):
     def _get_month_mapping(self) -> dict[str, int]:
         """Return mapping of month abbreviations to numbers."""
         return {
-            "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-            "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+            "Jan": 1,
+            "Feb": 2,
+            "Mar": 3,
+            "Apr": 4,
+            "May": 5,
+            "Jun": 6,
+            "Jul": 7,
+            "Aug": 8,
+            "Sep": 9,
+            "Oct": 10,
+            "Nov": 11,
+            "Dec": 12,
         }
 
     def _extract_date(self, text: str, months: dict[str, int]) -> tuple[int, int, int] | None:

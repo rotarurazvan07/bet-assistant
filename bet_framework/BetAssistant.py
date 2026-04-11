@@ -146,7 +146,6 @@ def _determine_match_status(status_text: str, soup: BeautifulSoup) -> tuple[bool
     Returns: (is_finished, is_live, minute)
     """
     is_finished = MatchStatus.FT in status_text or MatchStatus.FINISHED in status_text
-    minute = ""
     minute_rx = re.compile(r"(\d+'|HT)")
 
     # Check status_text for minute
