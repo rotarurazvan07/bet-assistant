@@ -125,26 +125,63 @@ def _slip_to_dict(slip) -> dict:
 
 
 def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
-    market_str = d.get("market", "1")
-    mtype_str = d.get("market_type", "result")
+    market_str = d.get("market")
+    mtype_str = d.get("market_type")
+    
+    if not market_str:
+        raise ValueError("market is required")
+    if not mtype_str:
+        raise ValueError("market_type is required")
+    
     try:
         market = MarketLabel(market_str)
     except ValueError:
         market = market_str
+    
     try:
         market_type = MarketType(mtype_str)
-    except ValueError:
-        market_type = MarketType.RESULT
+    except ValueError as e:
+        raise ValueError(f"Invalid market_type '{mtype_str}'. Must be one of: {[mt.value for mt in MarketType]}") from e
+
+    # Required fields - raise if missing
+    required_fields = ["match_name", "odds", "result_url", "consensus", "sources"]
+    for field in required_fields:
+        if field not in d or d[field] is None:
+            raise ValueError(f"{field} is required")
+    
+    # Validate odds is positive
+    try:
+        odds_val = float(d["odds"])
+        if odds_val <= 0:
+            raise ValueError("odds must be positive")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid odds: {d['odds']}") from e
+    
+    # Validate consensus is a valid percentage
+    try:
+        consensus_val = float(d["consensus"])
+        if consensus_val < 0 or consensus_val > 100:
+            raise ValueError("consensus must be between 0 and 100")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid consensus: {d['consensus']}") from e
+    
+    # Validate sources is a non-negative integer
+    try:
+        sources_val = int(d["sources"])
+        if sources_val < 0:
+            raise ValueError("sources must be non-negative")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid sources: {d['sources']}") from e
 
     return CandidateLeg(
         match_name=d["match_name"],
         datetime=d.get("datetime"),
         market=market,
         market_type=market_type,
-        consensus=d.get("consensus", 0.0),
-        odds=d["odds"],
-        result_url=d.get("result_url"),
-        sources=d.get("sources", 0),
+        consensus=consensus_val,
+        odds=odds_val,
+        result_url=d["result_url"],
+        sources=sources_val,
         tier=d.get("tier", 1),
         score=d.get("score", 0.0),
     )

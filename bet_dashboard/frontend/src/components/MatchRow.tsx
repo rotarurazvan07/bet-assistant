@@ -56,11 +56,13 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
 
     const matchName = `${match.home} - ${match.away}`;
 
-    // Helper to build CandidateLeg (returns null if odds, consensus, or result_url invalid)
+    // Helper to build CandidateLeg (returns null if odds, consensus, result_url, datetime, or sources invalid)
     function buildLeg(market: string, marketType: string, consensus: number, odds: number | null | undefined): CandidateLeg | null {
         if (odds == null || odds <= 0) return null;
         if (consensus == null || consensus <= 0) return null;
         if (!match.result_url || match.result_url.trim() === '') return null;
+        if (!match.datetime) return null; // datetime required
+        if (match.sources == null) return null; // sources required
         return {
             match_name: matchName,
             datetime: match.datetime,
@@ -74,6 +76,17 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             score: 0,
         };
     }
+
+    // Map market display labels to their correct market_type enum values
+    const marketTypeMap: Record<string, string> = {
+        '1': 'result',
+        'X': 'result',
+        '2': 'result',
+        'Over 2.5': 'over_under_2.5',
+        'Under 2.5': 'over_under_2.5',
+        'BTTS Yes': 'btts',
+        'BTTS No': 'btts',
+    };
 
     const hasResultUrl = match.result_url != null && match.result_url.trim() !== '';
     const rowStyle = { borderColor: 'var(--border)', opacity: hasResultUrl ? 1 : 0.25 };
@@ -110,7 +123,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_home}
                 odds={match.odds_home}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('1', '1', match.cons_home, match.odds_home);
+                    const leg = buildLeg('1', marketTypeMap['1'], match.cons_home, match.odds_home);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />
@@ -118,7 +131,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_draw}
                 odds={match.odds_draw}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('X', 'X', match.cons_draw, match.odds_draw);
+                    const leg = buildLeg('X', marketTypeMap['X'], match.cons_draw, match.odds_draw);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />
@@ -126,7 +139,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_away}
                 odds={match.odds_away}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('2', '2', match.cons_away, match.odds_away);
+                    const leg = buildLeg('2', marketTypeMap['2'], match.cons_away, match.odds_away);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />
@@ -134,7 +147,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_over}
                 odds={match.odds_over}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('Over 2.5', 'Over 2.5', match.cons_over, match.odds_over);
+                    const leg = buildLeg('Over 2.5', marketTypeMap['Over 2.5'], match.cons_over, match.odds_over);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />
@@ -142,7 +155,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_under}
                 odds={match.odds_under}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('Under 2.5', 'Under 2.5', match.cons_under, match.odds_under);
+                    const leg = buildLeg('Under 2.5', marketTypeMap['Under 2.5'], match.cons_under, match.odds_under);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />
@@ -150,7 +163,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_btts_yes}
                 odds={match.odds_btts_yes}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('BTTS Yes', 'BTTS Yes', match.cons_btts_yes, match.odds_btts_yes);
+                    const leg = buildLeg('BTTS Yes', marketTypeMap['BTTS Yes'], match.cons_btts_yes, match.odds_btts_yes);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />
@@ -158,7 +171,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
                 pct={match.cons_btts_no}
                 odds={match.odds_btts_no}
                 onClick={onCellClick ? () => {
-                    const leg = buildLeg('BTTS No', 'BTTS No', match.cons_btts_no, match.odds_btts_no);
+                    const leg = buildLeg('BTTS No', marketTypeMap['BTTS No'], match.cons_btts_no, match.odds_btts_no);
                     if (leg) onCellClick(leg);
                 } : undefined}
             />

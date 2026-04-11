@@ -144,13 +144,25 @@ export default function BettingTips({ filters, refreshKey }: Props) {
 
         // Transform legs to match backend ManualLegIn schema
         const manualLegs: ManualLegIn[] = pendingLegs
-            .filter(leg => leg.odds != null && leg.odds > 0 && leg.consensus != null && leg.consensus > 0)
+            .filter(leg =>
+                leg.odds != null && leg.odds > 0 &&
+                leg.consensus != null && leg.consensus > 0 &&
+                leg.sources != null && leg.sources >= 0 &&
+                leg.datetime != null &&
+                leg.match_name &&
+                leg.market &&
+                leg.market_type &&
+                leg.result_url
+            )
             .map(leg => ({
                 match_name: leg.match_name,
                 market: leg.market,
+                market_type: leg.market_type,
                 odds: leg.odds,
                 result_url: leg.result_url,
                 datetime: leg.datetime,
+                consensus: leg.consensus,
+                sources: leg.sources,
             }));
         try {
             await addSlip('manual', manualLegs, units);

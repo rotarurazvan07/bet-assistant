@@ -1010,3 +1010,32 @@ class TestBetAssistantScenarios:
                 # URLs from deleted slip should no longer be excluded
                 legs2 = ba.build_slip_auto_exclude("medium_risk")
                 assert isinstance(legs2, list)
+
+    def test_scenario_manual_slip_with_btts_preserves_market_type(self, tmp_path):
+        """Manual slips (from BettingTips/SmartBuilder) must preserve market_type for BTTS."""
+        from bet_framework.core.Slip import CandidateLeg
+
+        with BetAssistant(str(tmp_path / "btts_market_type.db")) as ba:
+            ba.load_matches(make_matches_df(1))
+
+            # Create a BTTS Yes leg
+            leg = CandidateLeg(
+                match_name="Home_0 vs Away_0",
+                datetime=DT_BASE,
+                market=MarketLabel.BTTS_YES,
+                market_type=MarketType.BTTS,
+                odds=1.90,
+                result_url="https://example.com/match/0",
+                consensus=80.0,
+                sources=3,
+            )
+
+            # Save as manual slip (simulates BettingTips/SmartBuilder flow)
+            slip_id = ba.save_slip("manual", [leg])
+
+            # Verify market_type was saved correctly
+            rows = ba.fetch_rows("SELECT market, market_type FROM legs WHERE slip_id = ?", (slip_id,))
+            assert len(rows) == 1
+            market, market_type = rows[0]
+            assert market == "BTTS Yes"
+            assert market_type == "btts"

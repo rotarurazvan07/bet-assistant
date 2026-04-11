@@ -79,9 +79,12 @@ export type ProfilesMap = Record<string, Profile>;
 export interface ManualLegIn {
     match_name: string;
     market: string;
+    market_type: string;
     odds: number;
-    result_url?: string | null;
-    datetime?: string | null;
+    result_url: string;
+    datetime: string;  // ISO format datetime, required
+    consensus: number;  // 0-100 percentage
+    sources: number;  // number of sources
 }
 
 export interface BetLeg {

@@ -29,7 +29,7 @@ class CandidateLegOut(BaseModel):
     match_name: str
     datetime: str | None = None
     market: str
-    market_type: str
+    market_type: str  # Must match the market category (result, over_under_2.5, btts)
     consensus: float
     odds: float
     result_url: str | None = None
@@ -70,9 +70,12 @@ class ProfileIn(BaseModel):
 class ManualLegIn(BaseModel):
     match_name: str
     market: str
+    market_type: str
     odds: float
-    result_url: str | None = None
-    datetime: str | None = None
+    result_url: str
+    datetime: str  # ISO format datetime, required for filtering/sorting
+    consensus: float  # 0-100 percentage, required for scoring
+    sources: int  # number of sources, required for scoring
 
 
 class SlipIn(BaseModel):

@@ -39,10 +39,10 @@ class CandidateLeg:
     datetime: Any  # pandas.Timestamp or datetime
     market: MarketLabel
     market_type: MarketType
-    consensus: float
+    consensus: float  # Must be provided, no default
     odds: float
     result_url: str
-    sources: int
+    sources: int  # Must be provided, no default
     tier: int = 1  # UI only: 1=balanced, 2=drift
     score: float = 0.0  # UI only: quality score
 
