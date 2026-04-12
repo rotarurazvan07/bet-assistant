@@ -186,7 +186,7 @@ class BetSlipConfig:
 
     # Advanced
     consensus_shrinkage_k: float | None = None
-    min_source_edge: float = 0.0
+    min_source_edge: float | None = None
     max_single_leg_odds: float | None = None
     tol_lower: float | None = None
     tol_upper: float | None = None
@@ -212,7 +212,8 @@ class BetSlipConfig:
         # Advanced validation
         if self.consensus_shrinkage_k is not None:
             self.consensus_shrinkage_k = max(1.0, min(10.0, self.consensus_shrinkage_k))
-        self.min_source_edge = max(0.0, min(0.50, self.min_source_edge))
+        if self.min_source_edge is not None:
+            self.min_source_edge = max(0.0, min(0.50, self.min_source_edge))
         if self.max_single_leg_odds is not None:
             self.max_single_leg_odds = max(1.0, min(10.0, self.max_single_leg_odds))
         if self.tol_lower is not None:
@@ -228,45 +229,106 @@ class BetSlipConfig:
 # ── Built-in risk profiles ────────────────────────────────────────────────────
 
 PROFILES: dict[str, BetSlipConfig] = {
-    # Short-odds doubles — tight balance, high confidence
+    # ── Low Risk: Conservative Doubles ────────────────────────────────────
+    # Strategy: Short-odds doubles built from the highest-consensus picks.
+    # Prioritises market balance over individual pick quality to ensure
+    # diversification.  Tight tolerance band keeps per-leg odds very close
+    # to the ideal split, and a strict stop threshold prevents overshooting.
+    # Only core 1X2 + BTTS markets — no Over/Under volatility.
     "low_risk": BetSlipConfig(
         target_odds=2.0,
         target_legs=2,
-        consensus_floor=65.0,
-        min_odds=1.10,
-        quality_vs_balance=0.35,
-        consensus_vs_sources=0.60,
-        tolerance_factor=0.20,
-        stop_threshold=0.95,
-        min_legs_fill_ratio=0.80,
-        included_markets=["1", "2", "X", "BTTS Yes", "BTTS No"],
+        max_legs_overflow=0,          # never add a 3rd leg
+        consensus_floor=70.0,         # only near-certain picks
+        min_odds=1.10,                # filter out dead-cert noisy legs
+        tolerance_factor=0.15,        # very tight band around ideal odds
+        stop_threshold=0.92,          # stop early if 92 % of target reached
+        min_legs_fill_ratio=1.00,     # must fill both legs, no shortcuts
+        quality_vs_balance=0.30,      # lean towards balanced market spread
+        consensus_vs_sources=0.70,    # within quality, favour raw consensus %
+        consensus_shrinkage_k=5.0,    # moderate shrinkage to reward multi-source
+        min_source_edge=0.05,         # small edge floor above implied prob
+        max_single_leg_odds=2.00,     # cap any single leg at 2.00
+        balance_decay="gaussian",     # smooth penalty for market imbalance
+        min_pick_quality=0.30,        # reject any pick below 0.30 quality
+        included_markets=[],
     ),
-    # Balanced 3-leg accumulator
+
+    # ── Medium Risk: Balanced Treble ──────────────────────────────────────
+    # Strategy: A well-rounded 3-leg accumulator.  Equal weighting between
+    # quality and balance ensures diversified-yet-strong selections.
+    # Uses the default auto-derived tolerance and stop conditions,
+    # relying on the engine's internal heuristics for a "set and forget" build.
+    # All markets are eligible for maximum candidate pool depth.
     "medium_risk": BetSlipConfig(
         target_odds=5.0,
         target_legs=3,
-        consensus_floor=50.0,
-        quality_vs_balance=0.50,
-        consensus_vs_sources=0.50,
+        max_legs_overflow=1,          # allow upgrade to 4-fold if quality is there
+        consensus_floor=55.0,         # moderate agreement threshold
+        min_odds=1.05,                # keep the default light filter
+        tolerance_factor=0.25,        # balanced band
+        stop_threshold=0.90,          # slightly looser stop than low risk
+        min_legs_fill_ratio=0.70,     # ok to stop at 2/3 legs if odds met
+        quality_vs_balance=0.50,      # perfectly neutral
+        consensus_vs_sources=0.50,    # perfectly neutral
+        min_source_edge=0.02,         # small edge to weed out pure noise
+        max_single_leg_odds=3.50,     # standard single-leg cap
+        balance_decay="linear",       # simple linear decay
+        min_pick_quality=0.20,        # standard quality floor
     ),
-    # Longer accumulator, quality over odds precision
+
+    # ── High Risk: Long Accumulator ───────────────────────────────────────
+    # Strategy: A 5-leg accumulator chasing 15x odds.  Shifts scoring
+    # heavily towards quality — we want the best individual picks
+    # regardless of market distribution.  Wider tolerance and lower
+    # consensus allow the engine to source from a broader candidate pool.
+    # Gaussian balance decay softens the diversification penalty so that
+    # two strong picks from the same market aren't harshly penalised.
     "high_risk": BetSlipConfig(
         target_odds=15.0,
         target_legs=5,
-        consensus_floor=50.0,
-        quality_vs_balance=0.70,
-        consensus_vs_sources=0.50,
-        min_legs_fill_ratio=0.60,
+        max_legs_overflow=2,          # up to 7-fold for long accumulators
+        consensus_floor=50.0,         # accept even 50/50 split picks
+        min_odds=1.05,                # keep near-certs available for glue legs
+        tolerance_factor=0.40,        # wide band — flexible per-leg odds
+        stop_threshold=0.85,          # stop much earlier if odds climb fast
+        min_legs_fill_ratio=0.60,     # can stop at 3/5 legs
+        quality_vs_balance=0.75,      # lean hard into individual pick quality
+        consensus_vs_sources=0.45,    # slightly favour source count
+        consensus_shrinkage_k=2.0,    # lighter shrinkage — trust raw signal
+        min_source_edge=None,         # no minimum edge — cast widest net
+        max_single_leg_odds=5.00,     # higher cap for juicier individual legs
+        balance_decay="gaussian",     # softer imbalance penalty
+        min_pick_quality=0.15,        # lower floor — accept borderline picks
     ),
-    # Well-sourced picks with a minimum price floor
+
+    # ── Value Hunter: Source-Heavy Mid Accumulator ────────────────────────
+    # Strategy: A 4-leg build targeting 8x.  Scoring is deliberately biased
+    # towards source diversity over raw consensus — this profile trusts
+    # picks that appear across many independent scrapers, even if no single
+    # source shows overwhelming confidence.  Higher min_odds filters out
+    # short-priced legs, ensuring every selection carries meaningful value.
+    # Asymmetric tolerance (auto-derived from tolerance_factor with
+    # tol_upper = factor * 0.6) naturally flattens the upside band,
+    # preventing the engine from overloading on speculative longshots.
     "value_hunter": BetSlipConfig(
         target_odds=8.0,
         target_legs=4,
-        consensus_floor=52.0,
-        min_odds=1.30,
-        quality_vs_balance=0.65,
-        consensus_vs_sources=0.30,
-        min_legs_fill_ratio=0.65,
+        max_legs_overflow=1,          # allow 5-fold if math works out
+        consensus_floor=52.0,         # low floor — rely on source breadth
+        min_odds=1.30,                # firm price floor — no dead certs
+        tolerance_factor=0.30,        # moderate band
+        tol_lower=0.35,               # slightly wider downside tolerance
+        tol_upper=0.20,               # tighter upside — cap longshots
+        stop_threshold=0.88,          # stop when close enough
+        min_legs_fill_ratio=0.75,     # need at least 3/4 legs filled
+        quality_vs_balance=0.60,      # lean towards quality, but keep balance
+        consensus_vs_sources=0.25,    # heavily favour source count
+        consensus_shrinkage_k=4.0,    # strong shrinkage — reward multi-source
+        min_source_edge=0.08,         # meaningful edge requirement
+        max_single_leg_odds=4.00,     # moderate ceiling
+        balance_decay="linear",       # simple linear decay
+        min_pick_quality=0.25,        # moderate quality floor
     ),
 }
 

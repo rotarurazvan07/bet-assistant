@@ -1,37 +1,92 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
-// ── Tooltip ──────────────────────────────────────────────────────────────────
+// ── Tooltip with Portal (Ignores parent overflow) ─────────────────────────────
 
-export function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+interface TooltipProps {
+  text: string;
+  children: React.ReactNode;
+  align?: 'left' | 'right' | 'center';
+}
+
+export function Tooltip({ text, align = 'center', children }: TooltipProps) {
   const [visible, setVisible] = useState(false);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  // Update position when showing
+  useEffect(() => {
+    if (visible && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+  }, [visible]);
+
   return (
-    <span className="relative inline-flex items-center" style={{ cursor: 'default' }}
+    <span
+      ref={triggerRef}
+      className="relative inline-flex items-center"
+      style={{ cursor: 'default' }}
       onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}>
+      onMouseLeave={() => setVisible(false)}
+    >
       {children}
-      {visible && (
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50
-                         text-[11px] font-sans leading-snug rounded px-2 py-1.5
-                         pointer-events-none whitespace-pre-wrap max-w-[240px]"
+
+      {visible && createPortal(
+        <div
+          className="fixed z-[9999] pointer-events-none fade-in"
           style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-strong)',
-            color: 'var(--text-secondary)',
-            boxShadow: '0 4px 12px rgba(0,0,0,.6)',
-          }}>
-          {text}
-        </span>
+            top: coords.top - 10, // 10px gap
+            left: coords.left + (coords.width / 2),
+            transform: `translate(-50%, -100%)`, // Position above center
+          }}
+        >
+          <div className={`relative px-4 py-3 rounded-xl border shadow-2xl transition-all duration-200 
+                           w-max max-w-[340px] min-w-[200px] font-sans text-[12px] leading-relaxed`}
+            style={{
+              background: 'rgba(5,8,15,0.98)',
+              backdropFilter: 'blur(16px)',
+              borderColor: 'rgba(255,255,255,0.18)',
+              color: 'var(--text-bright)',
+              boxShadow: '0 12px 60px rgba(0,0,0,0.95)',
+              textAlign: 'center',
+              // Manual alignment shift within the portal relative to the center anchor
+              marginLeft: align === 'right' ? '-140px' : align === 'left' ? '140px' : '0'
+            }}>
+            {text}
+
+            {/* Pointer arrow */}
+            <div className="absolute -bottom-1.5 w-3 h-3 rotate-45 border-b border-r"
+              style={{
+                left: align === 'right' ? 'calc(100% - 24px + 140px)' : align === 'left' ? 'calc(24px - 140px)' : '50%',
+                marginLeft: '-6px',
+                background: 'rgba(5,8,15,0.98)',
+                borderColor: 'rgba(255,255,255,0.18)'
+              }}
+            />
+          </div>
+        </div>,
+        document.body
       )}
     </span>
   );
 }
 
-export function TooltipIcon({ text }: { text: string }) {
+export function TooltipIcon({ text, align = 'center' }: { text: string; align?: 'left' | 'right' | 'center' }) {
   return (
-    <Tooltip text={text}>
-      <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full
-                       text-[9px] font-bold ml-1 cursor-help"
-        style={{ border: '1px solid var(--text-secondary)', color: 'var(--text-secondary)' }}>
+    <Tooltip text={text} align={align}>
+      <span className="inline-flex items-center justify-center w-4 h-4 rounded-full
+                       text-[10px] font-bold ml-1 cursor-help transition-all duration-150
+                       hover:scale-110 active:scale-95"
+        style={{
+          border: '1px solid rgba(255,255,255,.3)',
+          color: 'var(--text-muted)',
+          background: 'rgba(255,255,255,.03)'
+        }}>
         ?
       </span>
     </Tooltip>

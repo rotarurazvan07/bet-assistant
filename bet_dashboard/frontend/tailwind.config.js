@@ -22,7 +22,7 @@ export default {
             fontFamily: {
                 sans: ['"Inter"', 'system-ui', 'sans-serif'],
                 mono: ['"JetBrains Mono"', 'monospace'],
-                display: ['"Syne"', 'system-ui', 'sans-serif'],
+                display: ['"Outfit"', 'system-ui', 'sans-serif'],
             },
             boxShadow: {
                 card: '0 1px 3px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04)',

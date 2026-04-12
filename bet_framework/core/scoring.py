@@ -10,9 +10,13 @@ Public surface
   resolve_tolerance(cfg)                         → float
   resolve_stop_threshold(cfg)                    → float
   resolve_max_legs(cfg)                          → int
+  resolve_shrinkage_k(cfg)                       → float
+  resolve_max_single_leg_odds(cfg)               → float
+  resolve_min_pick_quality(cfg)                  → float
+  resolve_min_source_edge(cfg)                   → float
   score_consensus(consensus, cfg)                → float
   score_sources(sources, max_sources)            → float
-  score_balance(odds, ideal, tolerance)          → float
+  score_balance(odds, ideal, tolerance, cfg)     → float
   score_pick(opt, ideal_odds, max_sources, cfg)  → (int, float)
 """
 
@@ -61,6 +65,26 @@ def resolve_max_legs(cfg: BetSlipConfig) -> int:
     return cfg.target_legs + 2
 
 
+def resolve_shrinkage_k(cfg: BetSlipConfig) -> float:
+    """Return the consensus shrinkage factor. Auto = 3.0."""
+    return cfg.consensus_shrinkage_k if cfg.consensus_shrinkage_k is not None else 3.0
+
+
+def resolve_max_single_leg_odds(cfg: BetSlipConfig) -> float:
+    """Return the maximum allowed odds for any single leg. Auto = 3.5."""
+    return cfg.max_single_leg_odds if cfg.max_single_leg_odds is not None else 3.5
+
+
+def resolve_min_pick_quality(cfg: BetSlipConfig) -> float:
+    """Return the minimum quality score threshold. Auto = 0.20."""
+    return cfg.min_pick_quality if cfg.min_pick_quality is not None else 0.20
+
+
+def resolve_min_source_edge(cfg: BetSlipConfig) -> float:
+    """Return the minimum edge floor. Auto = 0.0."""
+    return cfg.min_source_edge if cfg.min_source_edge is not None else 0.0
+
+
 # ── Individual scoring axes ───────────────────────────────────────────────────
 
 
@@ -103,7 +127,8 @@ def score_balance(odds: float, ideal: float, tolerance: float, cfg: BetSlipConfi
     if odds < ideal:
         tol = cfg.tol_lower if cfg.tol_lower is not None else tolerance
     else:
-        tol = cfg.tol_upper if cfg.tol_upper is not None else tolerance
+        # Defaults to 60% of base tolerance for over-shooting (tighter)
+        tol = cfg.tol_upper if cfg.tol_upper is not None else (tolerance * 0.6)
 
     deviation = abs(odds - ideal) / ideal
 
@@ -114,7 +139,7 @@ def score_balance(odds: float, ideal: float, tolerance: float, cfg: BetSlipConfi
         return min(1.0, score)
     else:
         # Linear decay: max(0.0, 1.0 - deviation/tol)
-        return max(0.0, 1.0 - (deviation / tolerance))
+        return max(0.0, 1.0 - (deviation / tol))
 
 
 # ── Composite scorer ──────────────────────────────────────────────────────────
@@ -140,19 +165,27 @@ def score_pick(
     (min_source_edge, max_single_leg_odds). It does not apply those filters itself.
     """
     tolerance = resolve_tolerance(cfg)
+    shrinkage_k = resolve_shrinkage_k(cfg)
+    max_leg_odds = resolve_max_single_leg_odds(cfg)
 
-    # Apply consensus adjustment if k is set
+    # Apply consensus adjustment
     consensus = opt.consensus
-    if cfg.consensus_shrinkage_k is not None:
-        consensus = adjusted_consensus(consensus, opt.sources, cfg.consensus_shrinkage_k)
+    consensus = adjusted_consensus(consensus, opt.sources, shrinkage_k)
 
     # Check max_single_leg_odds filter (hard gate)
-    if cfg.max_single_leg_odds is not None and opt.odds > cfg.max_single_leg_odds:
+    if opt.odds > max_leg_odds:
         # Return lowest possible score to effectively reject
         return 2, 0.0
 
-    deviation = abs(opt.odds - ideal_odds) / ideal_odds
-    tier = 1 if deviation <= tolerance else 2
+    deviation_signed = (opt.odds - ideal_odds) / ideal_odds
+    
+    # Resolve active tolerance for tier assessment
+    if deviation_signed < 0:
+        active_tol = cfg.tol_lower if cfg.tol_lower is not None else tolerance
+    else:
+        active_tol = cfg.tol_upper if cfg.tol_upper is not None else (tolerance * 0.6)
+        
+    tier = 1 if abs(deviation_signed) <= active_tol else 2
 
     c_score = score_consensus(consensus, cfg)
     s_score = score_sources(opt.sources, max_sources)

@@ -76,7 +76,9 @@ export interface Profile {
     included_markets: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
     min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
-    units: number; run_daily_count: number;
+    units: number;
+    target_payout?: number | null;
+    run_daily_count: number;
     date_from?: null; date_to?: null; excluded_urls?: null;
     // Advanced
     consensus_shrinkage_k: number | null;

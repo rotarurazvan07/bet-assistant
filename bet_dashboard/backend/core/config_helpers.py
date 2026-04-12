@@ -18,12 +18,14 @@ def _yaml_to_config(data: dict) -> BetSlipConfig:
 def _config_to_yaml_dict(
     cfg: BetSlipConfig,
     units: float = 1.0,
+    target_payout: float | None = None,
     run_daily_count: int = 0,
 ) -> dict:
     d = asdict(cfg)
     for k in _RUNTIME_ONLY:
         d[k] = None
     d["units"] = units
+    d["target_payout"] = target_payout
     d["run_daily_count"] = run_daily_count
     return d
 

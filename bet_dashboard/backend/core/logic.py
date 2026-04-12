@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import urllib.error
 import urllib.request
@@ -240,16 +241,24 @@ class AppLogic:
 
         Parameters
         ----------
-        profiles : {profile_name: (BetSlipConfig, units, count)}
+        profiles : {profile_name: (BetSlipConfig, units, count, target_payout)}
         """
         results = {}
-        for name, (cfg, units, count) in profiles.items():
+        for name, (cfg, units, count, target_payout) in profiles.items():
             for _ in range(count):
                 legs = self._assistant.build_slip_auto_exclude(cfg)
                 if not legs:
                     break
 
-                slip_id = self._assistant.save_slip(name, legs, units)
+                # Dynamic units calculation if target_payout is set
+                final_units = units
+                if target_payout and target_payout > 0:
+                    total_odds = math.prod(leg.odds for leg in legs)
+                    if total_odds > 0:
+                        # Round to 1 decimal place to match dashboard convention
+                        final_units = round(target_payout / total_odds, 1) or 0.1
+
+                slip_id = self._assistant.save_slip(name, legs, final_units)
                 results[name] = results.get(name, [])
                 results[name].append(slip_id)
         return results
@@ -556,10 +565,15 @@ class AppLogic:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     def _get_active_profiles(self) -> dict[str, tuple]:
-        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count)}."""
+        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
         profiles_raw = self._settings.get("profiles") or {}
         return {
-            name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 1))
+            name: (
+                _yaml_to_config(cfg),
+                cfg.get("units", 1.0),
+                cfg.get("run_daily_count", 0),
+                cfg.get("target_payout")
+            )
             for name, cfg in profiles_raw.items()
             if cfg.get("run_daily_count")
         }

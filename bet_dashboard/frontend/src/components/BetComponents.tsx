@@ -26,11 +26,14 @@ function TierBadge({ tier, score }: { tier: number; score: number }) {
     );
 }
 
-export function BetPreview({ legs, totalOdds, pendingUrls, onExclude }: PreviewProps) {
+export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
     if (!legs.length) {
         return (
-            <div className="text-[12px] font-sans text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                No matches meet the current criteria.
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <span className="text-3xl opacity-30">🎯</span>
+                <p className="text-[13px] font-sans" style={{ color: 'var(--text-muted)' }}>
+                    No matches meet the current criteria.
+                </p>
             </div>
         );
     }
@@ -39,90 +42,145 @@ export function BetPreview({ legs, totalOdds, pendingUrls, onExclude }: PreviewP
 
     return (
         <div className="fade-in">
-            {/* Summary bar */}
-            <div className="flex items-center gap-6 mb-4 px-3 py-2.5 rounded-lg"
-                style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-                <div>
-                    <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Total Odds </span>
-                    <span className="font-display font-bold text-xl" style={{ color: 'var(--accent)' }}>
-                        @{totalOdds.toFixed(2)}
-                    </span>
-                </div>
-                <div>
-                    <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Legs </span>
-                    <span className="font-mono font-bold text-base" style={{ color: 'var(--text-bright)' }}>
-                        {legs.length}
-                    </span>
-                </div>
-                {outOfBand > 0 && (
+            {/* Leg count + out-of-band badge */}
+            {outOfBand > 0 && (
+                <div className="flex items-center gap-3 mb-4">
                     <span className="badge" style={{ background: 'var(--pend-bg)', color: 'var(--pending)' }}>
                         {outOfBand} out-of-band
                     </span>
-                )}
-            </div>
+                </div>
+            )}
 
-            {/* Leg cards */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            {/* Match Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {legs.map((leg, i) => {
                     const isDupe = pendingUrls.includes(leg.result_url ?? '');
-                    const consColor = leg.consensus >= 80 ? 'var(--win)'
-                        : leg.consensus >= 60 ? 'var(--pending)'
-                            : 'var(--loss)';
+                    const consColor = leg.consensus >= 80 ? '#10B981'
+                        : leg.consensus >= 60 ? '#F59E0B'
+                            : '#EF4444';
                     const consWidth = `${leg.consensus}%`;
+
+                    // Parse team names from "Team A - Team B" format
+                    const teams = leg.match_name.split(' - ');
+                    const teamA = teams[0] || leg.match_name;
+                    const teamB = teams[1] || '';
+
                     const dt = leg.datetime
                         ? new Date(leg.datetime).toLocaleString('en-GB', {
-                            weekday: 'short', day: '2-digit', month: 'short',
+                            day: '2-digit', month: 'short',
                             hour: '2-digit', minute: '2-digit'
                         })
                         : '';
 
                     return (
-                        <div key={i} className="rounded-lg p-3 fade-in"
+                        <div key={i}
+                            className="group rounded-xl overflow-hidden fade-in transition-all duration-300 cursor-default"
                             style={{
-                                background: 'var(--bg-raised)',
-                                border: `1px solid ${isDupe ? 'var(--pending)' : 'var(--border)'}`,
-                            }}>
+                                background: 'linear-gradient(180deg, rgba(24,36,58,.8) 0%, rgba(13,19,33,.9) 100%)',
+                                border: `1px solid ${isDupe ? 'var(--pending)' : 'rgba(255,255,255,.06)'}`,
+                                boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+                                transform: 'translateY(0)',
+                            }}
+                            onMouseEnter={e => {
+                                e.currentTarget.style.transform = 'translateY(-4px)';
+                                e.currentTarget.style.boxShadow = '0 12px 40px rgba(61,123,255,.1), 0 4px 12px rgba(0,0,0,.4)';
+                                e.currentTarget.style.borderColor = 'rgba(61,123,255,.2)';
+                            }}
+                            onMouseLeave={e => {
+                                e.currentTarget.style.transform = 'translateY(0)';
+                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,.3)';
+                                e.currentTarget.style.borderColor = isDupe ? 'var(--pending)' : 'rgba(255,255,255,.06)';
+                            }}
+                        >
+                            {/* Dupe warning strip */}
                             {isDupe && (
-                                <div className="text-[10px] font-mono mb-2 px-2 py-1 rounded"
-                                    style={{ background: 'var(--pend-bg)', color: 'var(--pending)' }}>
-                                    ⚠ Already in a pending slip
+                                <div className="text-[9px] font-mono px-3 py-1.5 text-center"
+                                    style={{ background: 'rgba(245,158,11,.1)', color: 'var(--pending)' }}>
+                                    ⚠ In pending slip
                                 </div>
                             )}
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                                <div>
-                                    <p className="font-sans font-bold text-[15px]" style={{ color: 'var(--text-bright)' }}>
-                                        {leg.match_name}
-                                    </p>
-                                    <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>{dt}</p>
+
+                            {/* Card Content */}
+                            <div className="p-4">
+                                {/* Top: Teams + Date + Exclude */}
+                                <div className="flex items-start justify-between gap-1.5 mb-3">
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-sans font-bold text-[13px] leading-tight truncate"
+                                            style={{ color: 'var(--text-bright)' }}>
+                                            {teamA}
+                                        </p>
+                                        {teamB && (
+                                            <>
+                                                <span className="text-[9px] font-mono block my-0.5"
+                                                    style={{ color: 'var(--text-muted)' }}>vs</span>
+                                                <p className="font-sans font-bold text-[13px] leading-tight truncate"
+                                                    style={{ color: 'var(--text-bright)' }}>
+                                                    {teamB}
+                                                </p>
+                                            </>
+                                        )}
+                                        {dt && (
+                                            <p className="text-[10px] font-mono mt-1.5"
+                                                style={{ color: 'var(--text-muted)' }}>{dt}</p>
+                                        )}
+                                    </div>
+                                    <button
+                                        className="btn-icon shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                                        onClick={() => leg.result_url && onExclude(leg.result_url)}
+                                        style={{ width: 24, height: 24, marginTop: -2 }}
+                                    >
+                                        <span style={{ fontSize: 11, color: 'var(--loss)' }}>✕</span>
+                                    </button>
                                 </div>
-                                <button className="btn-icon shrink-0" onClick={() => leg.result_url && onExclude(leg.result_url)}>
-                                    <span style={{ fontSize: 12 }}>✕</span>
-                                </button>
-                            </div>
 
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="font-display font-bold text-base px-3 py-1 rounded-full"
-                                    style={{
-                                        background: 'var(--bg-card)',
-                                        border: '2px solid var(--accent)',
-                                        color: 'var(--accent)'
-                                    }}>
-                                    {leg.market} @{leg.odds.toFixed(2)}
-                                </span>
-                            </div>
+                                {/* Middle: Market + Odds Badge */}
+                                <div className="flex justify-center mb-4">
+                                    <span className="font-display font-bold text-sm px-4 py-1.5 rounded-full
+                                                     transition-all duration-200"
+                                        style={{
+                                            background: 'linear-gradient(135deg, rgba(61,123,255,.12) 0%, rgba(37,99,235,.08) 100%)',
+                                            border: '1.5px solid var(--accent)',
+                                            color: 'var(--accent)',
+                                            boxShadow: '0 0 16px rgba(61,123,255,.1)',
+                                        }}>
+                                        {leg.market} <span style={{ opacity: 0.7, margin: '0 3px' }}>·</span> @{leg.odds.toFixed(2)}
+                                    </span>
+                                </div>
 
-                            {/* Consensus bar */}
-                            <div className="h-1 rounded-full mb-1.5 overflow-hidden"
-                                style={{ background: 'var(--bg-card)' }}>
-                                <div className="h-full rounded-full transition-all duration-300"
-                                    style={{ width: consWidth, background: consColor }} />
-                            </div>
+                                {/* Bottom: Consensus + Tier */}
+                                <div className="space-y-2">
+                                    {/* Consensus text */}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-mono"
+                                            style={{ color: 'var(--text-muted)' }}>
+                                            Consensus
+                                        </span>
+                                        <span className="text-[11px] font-mono font-medium"
+                                            style={{ color: consColor }}>
+                                            {leg.consensus}%
+                                        </span>
+                                    </div>
 
-                            <div className="flex items-center justify-between">
-                                <span className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
-                                    Consensus: {leg.consensus}% · Sources: {leg.sources}
-                                </span>
-                                <TierBadge tier={leg.tier} score={leg.score} />
+                                    {/* Progress bar */}
+                                    <div className="h-1.5 rounded-full overflow-hidden"
+                                        style={{ background: 'rgba(255,255,255,.04)' }}>
+                                        <div className="h-full rounded-full transition-all duration-500 ease-out"
+                                            style={{
+                                                width: consWidth,
+                                                background: `linear-gradient(90deg, ${consColor}cc, ${consColor})`,
+                                                boxShadow: `0 0 8px ${consColor}44`,
+                                            }} />
+                                    </div>
+
+                                    {/* Tier + Sources */}
+                                    <div className="flex items-center justify-between pt-1">
+                                        <TierBadge tier={leg.tier} score={leg.score} />
+                                        <span className="text-[9px] font-mono"
+                                            style={{ color: 'var(--text-muted)' }}>
+                                            {leg.sources} src{leg.sources !== 1 ? 's' : ''}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );

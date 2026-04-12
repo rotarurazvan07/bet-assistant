@@ -51,6 +51,7 @@ def save_profile(request: Request, body: ProfileIn):
             min_pick_quality=body.min_pick_quality,
         ),
         units=body.units,
+        target_payout=body.target_payout,
         run_daily_count=body.run_daily_count,
     )
     app.settings.write(name, data, subpath="profiles")

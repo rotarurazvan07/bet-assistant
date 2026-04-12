@@ -396,71 +396,86 @@ export default function Analytics({ filters, refreshKey }: Props) {
             <SectionHeader icon="◎" title="Market Statistics" />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
 
-                {/* P&L by Market */}
-                <ChartCard title="Net Profit Contribution by Market">
-                    {(
-                        <ResponsiveContainer width="100%" height={250}>
-                            <BarChart data={data.pnl_by_market} layout="vertical"
-                                margin={{ left: 5, right: 20, top: 5, bottom: 0 }}>
-                                <CartesianGrid
-                                    stroke="var(--border)"
-                                    strokeDasharray="4 4"
-                                    vertical={false}
-                                    strokeOpacity={0.4}
-                                />
-                                <XAxis
-                                    type="number"
-                                    tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
-                                    tickLine={false}
-                                    unit=" U"
-                                    tickFormatter={(value) => `${value} U`}
-                                    axisLine={{ stroke: 'var(--border)', strokeWidth: 1 }}
-                                />
-                                <YAxis
-                                    type="category"
-                                    dataKey="market"
-                                    width={65}
-                                    tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
-                                    tickLine={false}
-                                    axisLine={false}
-                                />
-                                <Tooltip
-                                    contentStyle={enhancedTooltipStyle}
-                                    content={({ active, payload }) => {
-                                        if (!active || !payload?.length) return null;
-                                        const data = payload[0].payload;
-                                        return (
-                                            <div style={enhancedTooltipStyle}>
-                                                <p style={{ color: 'var(--text-bright)', marginBottom: 6, fontSize: 11, fontWeight: 'bold' }}>
-                                                    {data.market}
-                                                </p>
-                                                <p style={{ margin: '3px 0' }}>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>Net Profit: </span>
-                                                    <span style={{
-                                                        color: data.net_profit >= 0 ? 'var(--win)' : 'var(--loss)',
-                                                        fontWeight: 'bold'
-                                                    }}>
-                                                        {data.net_profit >= 0 ? '+' : ''}{data.net_profit.toFixed(2)} U
-                                                    </span>
-                                                </p>
-                                                <p style={{ margin: '3px 0' }}>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>Won/Lost: </span>
-                                                    <span style={{ fontWeight: 'bold' }}>{data.won} / {data.lost}</span>
-                                                </p>
-                                            </div>
-                                        );
-                                    }}
-                                />
-                                <ReferenceLine x={0} stroke="var(--border-strong)" strokeDasharray="4 2" />
-                                <Bar dataKey="net_profit" name="Net Profit (U)" radius={[0, 3, 3, 0]}>
-                                    {data.pnl_by_market.map((entry, i) => (
-                                        <Cell key={i}
-                                            fill={entry.net_profit >= 0 ? 'var(--chart-2)' : 'var(--chart-4)'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    )}
+                {/* Market Hit Rate — Accuracy % per market */}
+                <ChartCard title="Market Hit Rate (Win %)">
+                    {(() => {
+                        // Compute per-market accuracy directly from market_accuracy data
+                        const hitData = (data.market_accuracy ?? []).map(m => ({
+                            market: m.market,
+                            hit_rate: m.total > 0 ? Math.round((m.won / m.total) * 100 * 10) / 10 : 0,
+                            count: m.total,
+                            won: m.won,
+                            lost: m.lost,
+                        })).sort((a, b) => b.hit_rate - a.hit_rate);
+                        return (
+                            <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={hitData} layout="vertical"
+                                    margin={{ left: 5, right: 20, top: 5, bottom: 0 }}>
+                                    <CartesianGrid
+                                        stroke="var(--border)"
+                                        strokeDasharray="4 4"
+                                        vertical={false}
+                                        strokeOpacity={0.4}
+                                    />
+                                    <XAxis
+                                        type="number"
+                                        tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                        tickLine={false}
+                                        domain={[0, 100]}
+                                        unit="%"
+                                        tickFormatter={(value) => `${value}%`}
+                                        axisLine={{ stroke: 'var(--border)', strokeWidth: 1 }}
+                                    />
+                                    <YAxis
+                                        type="category"
+                                        dataKey="market"
+                                        width={80}
+                                        tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                        tickLine={false}
+                                        axisLine={false}
+                                    />
+                                    <Tooltip
+                                        contentStyle={enhancedTooltipStyle}
+                                        content={({ active, payload }) => {
+                                            if (!active || !payload?.length) return null;
+                                            const d = payload[0].payload;
+                                            return (
+                                                <div style={enhancedTooltipStyle}>
+                                                    <p style={{ color: 'var(--text-bright)', marginBottom: 6, fontSize: 11, fontWeight: 'bold' }}>
+                                                        {d.market}
+                                                    </p>
+                                                    <p style={{ margin: '3px 0' }}>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>Hit Rate: </span>
+                                                        <span style={{
+                                                            color: d.hit_rate >= 50 ? 'var(--win)' : 'var(--loss)',
+                                                            fontWeight: 'bold'
+                                                        }}>
+                                                            {d.hit_rate.toFixed(1)}%
+                                                        </span>
+                                                    </p>
+                                                    <p style={{ margin: '3px 0' }}>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>Won/Lost: </span>
+                                                        <span style={{ fontWeight: 'bold' }}>{d.won} / {d.lost}</span>
+                                                    </p>
+                                                    <p style={{ margin: '3px 0' }}>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>Sample: </span>
+                                                        <span style={{ fontWeight: 'bold' }}>{d.count} legs</span>
+                                                    </p>
+                                                </div>
+                                            );
+                                        }}
+                                    />
+                                    <ReferenceLine x={50} stroke="var(--border-strong)" strokeDasharray="4 2" />
+                                    <Bar dataKey="hit_rate" name="Hit Rate %" radius={[0, 3, 3, 0]}>
+                                        {hitData.map((entry, i) => (
+                                            <Cell key={i}
+                                                fill={entry.hit_rate >= 50 ? 'var(--chart-2)' : 'var(--chart-4)'} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        );
+                    })()}
                 </ChartCard>
 
                 {/* Market Accuracy (Won vs Lost stacked) */}

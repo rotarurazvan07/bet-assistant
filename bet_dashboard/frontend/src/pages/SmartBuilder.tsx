@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
+import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
@@ -15,9 +16,8 @@ const DEFAULT_CFG: BuilderConfig = {
     tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
     date_from: null, date_to: null,
-    // Advanced
     consensus_shrinkage_k: null,
-    min_source_edge: 0,
+    min_source_edge: null,
     max_single_leg_odds: null,
     tol_lower: null,
     tol_upper: null,
@@ -52,6 +52,12 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         return saved ? JSON.parse(saved).runDaily : 0;
     });
 
+    // New: Target Payout logic
+    const [targetPayout, setTargetPayout] = useState(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? (JSON.parse(saved).targetPayout ?? 0) : 0;
+    });
+
     const [preview, setPreview] = useState<PreviewResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState<ProfilesMap>({});
@@ -62,12 +68,13 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     // Persist state to localStorage
     useEffect(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            cfg: { ...cfg, date_from: null, date_to: null }, // Don't persist global date filters (use null)
+            cfg: { ...cfg, date_from: null, date_to: null },
             activeName,
             units,
-            runDaily
+            runDaily,
+            targetPayout
         }));
-    }, [cfg, activeName, units, runDaily]);
+    }, [cfg, activeName, units, runDaily, targetPayout]);
 
     // Load profiles + excluded on mount
     useEffect(() => {
@@ -87,7 +94,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 const result = await fetchPreview(config);
                 setPreview(result);
             } catch {
-                // Set empty preview on error
                 setPreview({ legs: [], total_odds: 1, pending_urls: [] });
             }
             finally { setLoading(false); }
@@ -102,6 +108,26 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
     // Trigger preview when refreshKey or global filters change
     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line
+
+    // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
+    useEffect(() => {
+        if (targetPayout > 0) {
+            // Priority 1: Actual odds from the builder preview
+            // Priority 2: Fallback to the requested target odds (if no legs found yet)
+            const currentOdds = (preview?.legs && preview.legs.length > 0)
+                ? (preview.total_odds || 1)
+                : (cfg.target_odds || 1);
+
+            const calculated = targetPayout / currentOdds;
+
+            // Round to 1 decimal place to match stepper system
+            const finalUnits = Math.round(calculated * 10) / 10 || 0.1;
+
+            if (finalUnits !== units) {
+                setUnits(finalUnits);
+            }
+        }
+    }, [targetPayout, preview?.total_odds, preview?.legs.length, cfg.target_odds, units]);
 
     async function handleExclude(url: string) {
         await addExcluded(url);
@@ -128,12 +154,10 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
             quality_vs_balance: data.quality_vs_balance ?? 0.5,
             consensus_vs_sources: data.consensus_vs_sources ?? 0.5,
-            // Don't store date filters in profile - they are global
             date_from: null,
             date_to: null,
-            // Advanced
             consensus_shrinkage_k: data.consensus_shrinkage_k ?? null,
-            min_source_edge: data.min_source_edge ?? 0,
+            min_source_edge: data.min_source_edge ?? null,
             max_single_leg_odds: data.max_single_leg_odds ?? null,
             tol_lower: data.tol_lower ?? null,
             tol_upper: data.tol_upper ?? null,
@@ -144,6 +168,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setActiveName(name);
         setUnits(data.units ?? 1);
         setRunDaily(data.run_daily_count ?? 0);
+        setTargetPayout(data.target_payout ?? 0);
         triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
 
@@ -152,9 +177,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         if (!clean || clean === 'manual') {
             setStatus('Enter a profile name first.'); return;
         }
-        // Save cfg without date filters (they are global)
         const { date_from, date_to, ...cfgWithoutDates } = cfg;
-        await saveProfile({ name: clean, ...cfgWithoutDates, units, run_daily_count: runDaily });
+        await saveProfile({ name: clean, ...cfgWithoutDates, units, target_payout: targetPayout, run_daily_count: runDaily });
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
         setStatus(`✓ Profile '${clean}' saved`);
@@ -174,7 +198,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             setStatus('No legs in preview.'); return;
         }
 
-        // Filter legs that have all required fields and valid result_url
         const validLegs = preview.legs.filter(leg =>
             leg.odds != null && leg.odds > 0 &&
             leg.consensus != null && leg.consensus > 0 &&
@@ -191,7 +214,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             return;
         }
 
-        // Transform to ManualLegIn (required by backend)
         const manualLegs: ManualLegIn[] = validLegs.map(leg => ({
             match_name: leg.match_name,
             market: leg.market,
@@ -205,96 +227,144 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
         const id = await addSlip(activeName, manualLegs, units);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
-        // Re-trigger preview to show "in pending slip" warnings
         triggerPreview(mergedCfg);
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }
 
     return (
-        <div className="flex gap-6">
-            {/* ── Left panel ────────────────────────────────────────────────────── */}
-            <div className="w-80 shrink-0">
-                <div className="card p-4">
-                    {/* Profiles */}
-                    <div className="mb-4">
-                        <span className="text-[10px] font-mono tracking-widest uppercase"
-                            style={{ color: 'var(--text-muted)' }}>Profiles</span>
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                            {Object.keys(profiles).map(name => (
-                                <button key={name}
-                                    className="text-[10px] font-mono uppercase px-2 py-0.5 rounded transition-colors"
-                                    style={{
-                                        background: activeName === name ? 'var(--accent)' : 'var(--bg-raised)',
-                                        border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border-strong)'}`,
-                                        color: activeName === name ? '#fff' : 'var(--text-secondary)',
-                                    }}
-                                    onClick={() => loadProfile(name, profiles[name])}>
-                                    {name}
-                                </button>
-                            ))}
-                            {!Object.keys(profiles).length && (
-                                <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                                    No saved profiles yet
-                                </span>
-                            )}
+        <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 min-h-screen">
+            {/* ── Left Sidebar — Responsive width ─────────────────────────────── */}
+            <div className="w-full xl:w-[350px] 2xl:w-[400px] shrink-0">
+                <div className="sticky top-4 space-y-4">
+                    <div className="rounded-xl overflow-hidden"
+                        style={{
+                            background: 'linear-gradient(180deg, rgba(5,8,15,.95) 0%, rgba(13,19,33,.9) 100%)',
+                            border: '1px solid rgba(255,255,255,.05)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,.4)',
+                        }}>
+                        <div className="px-5 pt-5 pb-4"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="text-sm">👤</span>
+                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
+                                    style={{ color: 'var(--text-muted)' }}>Profiles</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {Object.keys(profiles).map(name => (
+                                    <button key={name}
+                                        className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-lg transition-all duration-200"
+                                        style={{
+                                            background: activeName === name
+                                                ? 'linear-gradient(135deg, var(--accent) 0%, #2563EB 100%)'
+                                                : 'rgba(19,28,46,.6)',
+                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'rgba(255,255,255,.06)'}`,
+                                            color: activeName === name ? '#fff' : 'var(--text-secondary)',
+                                            boxShadow: activeName === name ? '0 2px 12px rgba(61,123,255,.2)' : 'none',
+                                        }}
+                                        onClick={() => loadProfile(name, profiles[name])}>
+                                        {name}
+                                    </button>
+                                ))}
+                                {!Object.keys(profiles).length && (
+                                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                        No saved profiles yet
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                    </div>
-
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                        <BuilderPanel cfg={cfg} onChange={handleCfgChange} />
+                        <div className="px-3 py-4">
+                            <BuilderPanel cfg={cfg} onChange={handleCfgChange} />
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* ── Right panel ───────────────────────────────────────────────────── */}
+            {/* ── Main Content — Flexible ─────────────────────────────────────── */}
             <div className="flex-1 min-w-0">
-                {/* Management bar */}
-                <div className="card px-4 py-3 mb-4">
+                {/* Top Header / Management Bar */}
+                <div className="rounded-xl px-5 py-3.5 mb-5"
+                    style={{
+                        background: 'linear-gradient(180deg, rgba(24,36,58,.6) 0%, rgba(13,19,33,.6) 100%)',
+                        border: '1px solid rgba(255,255,255,.05)',
+                        backdropFilter: 'blur(10px)',
+                    }}>
                     <div className="flex items-center gap-3 flex-wrap">
                         <input className="field w-40" placeholder="profile name"
                             value={activeName} onChange={e => setActiveName(e.target.value)} />
                         <button className="btn-primary" onClick={handleSaveProfile}>Save</button>
                         <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
 
-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Units</span>
-                            <input className="field w-16" type="number" min={0.1} step={0.1}
-                                value={units} onChange={e => setUnits(+e.target.value)} />
+                        {/* Units & Target Payout */}
+                        <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'rgba(255,255,255,.08)' }}>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Units</span>
+                                <input className="field w-16" type="number" min={0.1} step={0.1}
+                                    disabled={targetPayout > 0}
+                                    style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
+                                    value={units} onChange={e => setUnits(+e.target.value)} />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Target Payout</span>
+                                <input className="field w-20" type="number" min={0} step={5}
+                                    placeholder="Off"
+                                    value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
+                            </div>
                         </div>
 
                         <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
                         <button className="btn-ghost" onClick={handleClearExcluded}>Reset excluded</button>
 
-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
+                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'rgba(255,255,255,.08)' }}>
                             <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Run Daily</span>
                             <input className="field w-16" type="number" min={0} step={1}
                                 value={runDaily} onChange={e => setRunDaily(+e.target.value)} />
                         </div>
 
                         {status && (
-                            <span className="text-[11px] font-mono ml-auto" style={{ color: 'var(--accent)' }}>
+                            <span className="text-[11px] font-mono ml-auto px-3 py-1 rounded-lg"
+                                style={{
+                                    color: 'var(--accent)',
+                                    background: 'rgba(61,123,255,.08)',
+                                }}>
                                 {status}
                             </span>
                         )}
                     </div>
                 </div>
 
-                {/* Live preview */}
-                <div className="card p-4">
-                    <div className="flex items-center gap-2 mb-4">
-                        <span className="w-1.5 h-1.5 rounded-full animate-pulse"
-                            style={{ background: 'var(--accent)' }} />
-                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                {/* Analytics Dashboard */}
+                <AnalyticsDashboard
+                    legs={preview?.legs ?? []}
+                    totalOdds={preview?.total_odds ?? 1}
+                />
+
+                {/* Live Preview */}
+                <div className="rounded-xl p-5"
+                    style={{
+                        background: 'linear-gradient(180deg, rgba(24,36,58,.4) 0%, rgba(13,19,33,.3) 100%)',
+                        border: '1px solid rgba(255,255,255,.04)',
+                    }}>
+                    <div className="flex items-center gap-2.5 mb-5">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                                style={{ background: 'var(--accent)' }} />
+                            <span className="relative inline-flex rounded-full h-2 w-2"
+                                style={{ background: 'var(--accent)' }} />
+                        </span>
+                        <span className="text-[10px] font-mono tracking-[0.15em] uppercase"
                             style={{ color: 'var(--text-secondary)' }}>
                             Live Preview — updates with every config change
                         </span>
                         {loading && (
-                            <span className="ml-auto text-[10px] font-mono animate-pulse"
-                                style={{ color: 'var(--text-secondary)' }}>building…</span>
+                            <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
+                                style={{
+                                    color: 'var(--accent)',
+                                    background: 'rgba(61,123,255,.08)',
+                                }}>building…</span>
                         )}
                     </div>
 
-                    <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .15s' }}>
+                    <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .2s ease' }}>
                         <BetPreview
                             legs={preview?.legs ?? []}
                             totalOdds={preview?.total_odds ?? 1}
@@ -306,17 +376,24 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
                 {/* Excluded matches as cards */}
                 {(excludedDetails?.length ?? 0) > 0 && (
-                    <div className="card p-4 mt-4 fade-in">
-                        <div className="flex items-center justify-between mb-3">
-                            <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-secondary)' }}>
-                                Excluded Matches ({excludedDetails.length})
-                            </span>
+                    <div className="rounded-xl p-5 mt-5 fade-in"
+                        style={{
+                            background: 'linear-gradient(180deg, rgba(24,36,58,.3) 0%, rgba(13,19,33,.2) 100%)',
+                            border: '1px solid rgba(255,255,255,.04)',
+                        }}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm">🚫</span>
+                                <span className="text-[10px] font-mono tracking-[0.15em] uppercase"
+                                    style={{ color: 'var(--text-secondary)' }}>
+                                    Excluded Matches ({excludedDetails.length})
+                                </span>
+                            </div>
                             <button className="btn-ghost text-[10px]" onClick={handleClearExcluded}>
                                 Clear All
                             </button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {excludedDetails.map((item, i) => {
                                 const dt = item.datetime
                                     ? new Date(item.datetime).toLocaleString('en-GB', {
@@ -324,10 +401,10 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                     })
                                     : '';
                                 return (
-                                    <div key={i} className="rounded-lg p-3"
+                                    <div key={i} className="rounded-lg p-3 group transition-all duration-200"
                                         style={{
-                                            background: 'var(--bg-raised)',
-                                            border: '1px solid var(--border)',
+                                            background: 'rgba(13,19,33,.6)',
+                                            border: '1px solid rgba(255,255,255,.05)',
                                         }}>
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex-1 min-w-0">
@@ -337,7 +414,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                                 </p>
                                                 {dt && (
                                                     <p className="text-[10px] font-mono mt-0.5"
-                                                        style={{ color: 'var(--text-secondary)' }}>
+                                                        style={{ color: 'var(--text-muted)' }}>
                                                         {dt}
                                                     </p>
                                                 )}
@@ -346,9 +423,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                                     {item.reason}
                                                 </p>
                                             </div>
-                                            <button className="btn-icon shrink-0"
+                                            <button className="btn-icon shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                                                 onClick={() => {
-                                                    // Only remove from manual exclusions (not from pending slips)
                                                     if (item.reason === "Manually excluded") {
                                                         removeExcluded(item.url).then(() => {
                                                             fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
@@ -357,7 +433,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                                     }
                                                 }}
                                                 title={item.reason === "Manually excluded" ? "Remove from manual exclusions" : "Cannot remove - in pending slip"}
-                                                style={{ opacity: item.reason === "Manually excluded" ? 1 : 0.3, cursor: item.reason === "Manually excluded" ? 'pointer' : 'not-allowed' }}>
+                                                style={{ opacity: item.reason === "Manually excluded" ? undefined : 0.3, cursor: item.reason === "Manually excluded" ? 'pointer' : 'not-allowed' }}>
                                                 <span style={{ fontSize: 12 }}>✕</span>
                                             </button>
                                         </div>

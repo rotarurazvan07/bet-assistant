@@ -21,7 +21,7 @@ class BetSlipConfigIn(BaseModel):
     date_to: str | None = None
     # Advanced
     consensus_shrinkage_k: float | None = None
-    min_source_edge: float = 0.0
+    min_source_edge: float | None = None
     max_single_leg_odds: float | None = None
     tol_lower: float | None = None
     tol_upper: float | None = None
@@ -69,10 +69,11 @@ class ProfileIn(BaseModel):
     consensus_vs_sources: float = 0.5
     included_markets: list[str] | None = None
     units: float = 1.0
+    target_payout: float | None = None
     run_daily_count: int = 0
     # Advanced
     consensus_shrinkage_k: float | None = None
-    min_source_edge: float = 0.0
+    min_source_edge: float | None = None
     max_single_leg_odds: float | None = None
     tol_lower: float | None = None
     tol_upper: float | None = None

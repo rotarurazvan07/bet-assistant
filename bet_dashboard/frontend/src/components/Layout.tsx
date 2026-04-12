@@ -107,27 +107,27 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             {/* ── Global filters ────────────────────────────────────────────────── */}
             {showFilters && (
                 <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-                    <div className="w-full px-2 py-2.5 flex items-center gap-6">
+                    <div className="w-full px-2 py-3 flex flex-col items-center gap-2">
 
-                        {/* Date range - GLOBAL FILTER */}
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-secondary)' }}>Time Horizon</span>
-                            <div className="flex items-center gap-2">
-                                <input className="field w-36" type="date"
-                                    value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                                <span style={{ color: 'var(--text-secondary)' }} className="text-xs">→</span>
-                                <input className="field w-36" type="date"
-                                    value={dateTo} onChange={e => setDateTo(e.target.value)} />
-                            </div>
+                        {/* Label centered on top */}
+                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                            style={{ color: 'var(--text-secondary)' }}>Time Horizon</span>
+
+                        {/* Date pickers row */}
+                        <div className="flex items-center gap-3">
+                            <input className="field w-44" type="date"
+                                value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                            <span style={{ color: 'var(--text-secondary)' }} className="text-xs font-mono">→</span>
+                            <input className="field w-44" type="date"
+                                value={dateTo} onChange={e => setDateTo(e.target.value)} />
                         </div>
 
                     </div>
                 </div>
             )}
 
-            {/* ── Page content ──────────────────────────────────────────────────── */}
-            <main className="flex-1 w-full px-2 py-6">
+            {/* ── Page content — Fills available width ──────────────────────────── */}
+            <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
                 {children({ dateFrom, dateTo })}
             </main>
         </div>
