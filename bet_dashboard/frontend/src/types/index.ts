@@ -38,6 +38,14 @@ export interface BuilderConfig {
     consensus_vs_sources: number; // 0-1
     date_from: string | null;
     date_to: string | null;
+    // Advanced
+    consensus_shrinkage_k: number | null;
+    min_source_edge: number;
+    max_single_leg_odds: number | null;
+    tol_lower: number | null;
+    tol_upper: number | null;
+    balance_decay: 'linear' | 'gaussian';
+    min_pick_quality: number | null;
 }
 
 export interface CandidateLeg {
@@ -70,6 +78,14 @@ export interface Profile {
     min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
     units: number; run_daily_count: number;
     date_from?: null; date_to?: null; excluded_urls?: null;
+    // Advanced
+    consensus_shrinkage_k: number | null;
+    min_source_edge: number;
+    max_single_leg_odds: number | null;
+    tol_lower: number | null;
+    tol_upper: number | null;
+    balance_decay: 'linear' | 'gaussian';
+    min_pick_quality: number | null;
 }
 
 export type ProfilesMap = Record<string, Profile>;

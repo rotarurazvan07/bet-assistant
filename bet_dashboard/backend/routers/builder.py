@@ -29,6 +29,14 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
         included_markets=body.included_markets,
         date_from=body.date_from,
         date_to=body.date_to,
+        # Advanced
+        consensus_shrinkage_k=body.consensus_shrinkage_k,
+        min_source_edge=body.min_source_edge,
+        max_single_leg_odds=body.max_single_leg_odds,
+        tol_lower=body.tol_lower,
+        tol_upper=body.tol_upper,
+        balance_decay=body.balance_decay,
+        min_pick_quality=body.min_pick_quality,
     )
 
 

@@ -126,8 +126,8 @@ class TestBetSlipConfig:
     def test_edge_clamping_target_legs(self):
         cfg_low = BetSlipConfig(target_legs=-1)
         assert cfg_low.target_legs == 1
-        cfg_high = BetSlipConfig(target_legs=99)
-        assert cfg_high.target_legs == 10
+        cfg_high = BetSlipConfig(target_legs=101)
+        assert cfg_high.target_legs == 100
 
     def test_edge_clamping_consensus_floor(self):
         cfg = BetSlipConfig(consensus_floor=200.0)
@@ -248,14 +248,17 @@ class TestScoringFunctions:
         assert score_sources(5, 10) == 0.5
 
     def test_score_balance_perfect_match(self):
-        assert score_balance(1.50, 1.50, 0.20) == 1.0
+        cfg = BetSlipConfig()
+        assert score_balance(1.50, 1.50, 0.20, cfg) == 1.0
 
     def test_score_balance_at_edge(self):
         # deviation = |1.80 - 1.50| / 1.50 = 0.20, tolerance 0.20 → score 0.0
-        assert score_balance(1.80, 1.50, 0.20) == pytest.approx(0.0)
+        cfg = BetSlipConfig()
+        assert score_balance(1.80, 1.50, 0.20, cfg) == pytest.approx(0.0)
 
     def test_score_balance_beyond_edge(self):
-        assert score_balance(3.00, 1.50, 0.20) == 0.0
+        cfg = BetSlipConfig()
+        assert score_balance(3.00, 1.50, 0.20, cfg) == 0.0
 
     def test_score_pick_returns_tier_and_score(self):
         opt = CandidateLeg(

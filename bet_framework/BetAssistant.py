@@ -791,6 +791,12 @@ class BetAssistant(BaseStorageManager):
                     consensus = float(row.get(cons_col, 0))
                     odds = float(row.get(odds_col, 0))
                     if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
+                        # Apply min_source_edge hard filter
+                        if cfg.min_source_edge > 0.0:
+                            implied_prob = 1.0 / odds
+                            source_edge = (consensus / 100.0) - implied_prob
+                            if source_edge < cfg.min_source_edge:
+                                continue
                         candidates.append(
                             CandidateLeg(
                                 match_name=match_name,
@@ -838,6 +844,29 @@ class BetAssistant(BaseStorageManager):
 
             scored.sort(key=lambda x: (x[0], -x[1]))
             tier, score, best = scored[0]
+
+            # Quality floor stop condition: check if best candidate's quality score is too low
+            # We need to extract the quality component separately. For simplicity, we'll
+            # approximate quality by checking if final score is below threshold, but note
+            # that this includes balance component. A more precise implementation would
+            # require refactoring score_pick to return quality separately.
+            # However, per spec: "check if best candidate's quality score < min_pick_quality"
+            # Since quality is part of final score, and balance can be 0-1, we need to
+            # compute quality separately or use a heuristic.
+            # Let's compute quality score for the best candidate to check against min_pick_quality.
+            if cfg.min_pick_quality is not None and cfg.min_pick_quality > 0.0:
+                # Recompute quality component for the best candidate
+                from bet_framework.core.scoring import score_consensus, score_sources
+                consensus_val = best.consensus
+                if cfg.consensus_shrinkage_k is not None:
+                    from bet_framework.core.scoring import adjusted_consensus
+                    consensus_val = adjusted_consensus(consensus_val, best.sources, cfg.consensus_shrinkage_k)
+                c_score = score_consensus(consensus_val, cfg)
+                s_score = score_sources(best.sources, max_sources)
+                quality_score = cfg.consensus_vs_sources * c_score + (1 - cfg.consensus_vs_sources) * s_score
+                if quality_score < cfg.min_pick_quality:
+                    # Stop building - no high-quality picks remaining
+                    break
 
             # Populate UI-only fields
             best.tier = tier

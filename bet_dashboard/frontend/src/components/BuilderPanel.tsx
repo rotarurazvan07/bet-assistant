@@ -127,8 +127,8 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
                     value={cfg.target_odds}
                     onChange={e => up('target_odds', +e.target.value)} />
             </Row>
-            <Row label="Target Legs" tip="Desired number of selections (1–10).">
-                <input className="field w-20" type="number" min={1} max={10} step={1}
+            <Row label="Target Legs" tip="Desired number of selections (1–100).">
+                <input className="field w-20" type="number" min={1} max={100} step={1}
                     value={cfg.target_legs}
                     onChange={e => up('target_legs', +e.target.value)} />
             </Row>
@@ -224,6 +224,64 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
                 left="Sources" right="Consensus"
                 value={cfg.consensus_vs_sources}
                 onChange={v => up('consensus_vs_sources', v)} />
+
+            <SectionLabel>Advanced</SectionLabel>
+            <NullableRow label="Consensus Shrinkage k"
+                tip="Weight factor for source-weighted consensus adjustment. Auto = 3.0."
+                enabled={cfg.consensus_shrinkage_k !== null}
+                onToggle={v => up('consensus_shrinkage_k', v ? 3.0 : null)}>
+                <div className="flex items-center gap-3">
+                    <input type="range" className="flex-1" min={1} max={10} step={0.5}
+                        value={cfg.consensus_shrinkage_k ?? 3}
+                        onChange={e => up('consensus_shrinkage_k', +e.target.value)} />
+                    <span className="font-mono text-[11px] w-10 text-right" style={{ color: 'var(--accent)' }}>
+                        {cfg.consensus_shrinkage_k?.toFixed(1) ?? '3.0'}
+                    </span>
+                </div>
+            </NullableRow>
+            <Row label="Min Source Edge" tip="Minimum edge over implied probability (hard filter).">
+                <div className="flex items-center gap-3">
+                    <input type="range" className="flex-1" min={0} max={50} step={1}
+                        value={cfg.min_source_edge * 100}
+                        onChange={e => up('min_source_edge', +e.target.value / 100)} />
+                    <span className="font-mono text-[11px] w-10 text-right" style={{ color: 'var(--accent)' }}>
+                        {(cfg.min_source_edge * 100).toFixed(0)}%
+                    </span>
+                </div>
+            </Row>
+            <NullableRow label="Max Single Leg Odds"
+                tip="Maximum odds for any single leg. Auto = 3.5."
+                enabled={cfg.max_single_leg_odds !== null}
+                onToggle={v => up('max_single_leg_odds', v ? 3.5 : null)}>
+                <div className="flex items-center gap-3">
+                    <input type="range" className="flex-1" min={10} max={100} step={5}
+                        value={(cfg.max_single_leg_odds ?? 3.5) * 10}
+                        onChange={e => up('max_single_leg_odds', +e.target.value / 10)} />
+                    <span className="font-mono text-[11px] w-10 text-right" style={{ color: 'var(--accent)' }}>
+                        {(cfg.max_single_leg_odds ?? 3.5).toFixed(1)}
+                    </span>
+                </div>
+            </NullableRow>
+            <Row label="Balance Decay">
+                <select className="field w-32" value={cfg.balance_decay}
+                    onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}>
+                    <option value="linear">Linear</option>
+                    <option value="gaussian">Gaussian</option>
+                </select>
+            </Row>
+            <NullableRow label="Min Pick Quality"
+                tip="Minimum quality score to accept a pick. Auto = 0.20."
+                enabled={cfg.min_pick_quality !== null}
+                onToggle={v => up('min_pick_quality', v ? 0.2 : null)}>
+                <div className="flex items-center gap-3">
+                    <input type="range" className="flex-1" min={0} max={100} step={5}
+                        value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)}
+                        onChange={e => up('min_pick_quality', +e.target.value / 100)} />
+                    <span className="font-mono text-[11px] w-10 text-right" style={{ color: 'var(--accent)' }}>
+                        {(cfg.min_pick_quality ?? 0.2).toFixed(2)}
+                    </span>
+                </div>
+            </NullableRow>
         </div>
     );
 }

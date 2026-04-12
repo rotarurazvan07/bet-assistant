@@ -6,48 +6,48 @@
 
 :root {
   /* ── Backgrounds ──────────────────────────────────────────────────────── */
-  --bg-base:     #05080F;
-  --bg-surface:  #0D1321;
-  --bg-raised:   #131C2E;
-  --bg-card:     #18243A;
-  --bg-hover:    rgba(61,123,255,.06);
-  --bg-active:   rgba(61,123,255,.10);
+  --bg-base: #05080F;
+  --bg-surface: #0D1321;
+  --bg-raised: #131C2E;
+  --bg-card: #18243A;
+  --bg-hover: rgba(61, 123, 255, .06);
+  --bg-active: rgba(61, 123, 255, .10);
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
-  --border:         rgba(255,255,255,.07);
-  --border-strong:  rgba(255,255,255,.12);
-  --border-accent:  rgba(61,123,255,.3);
+  --border: rgba(255, 255, 255, .07);
+  --border-strong: rgba(255, 255, 255, .12);
+  --border-accent: rgba(61, 123, 255, .3);
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
-  --text-primary:   #C9D6F0;
-  --text-secondary: #8896B3;
-  --text-muted:     #4A567A;
-  --text-accent:    #6B9FFF;
-  --text-bright:    #E8EEFF;
+  --text-primary: #C9D6F0;
+  --text-secondary: #b8c1d3;
+  --text-muted: #6a738f;
+  --text-accent: #6B9FFF;
+  --text-bright: #E8EEFF;
 
   /* ── Brand / Accent ───────────────────────────────────────────────────── */
-  --accent:         #3D7BFF;
-  --accent-dark:    #2563EB;
-  --accent-glow:    rgba(61,123,255,.20);
-  --purple:         #7C3AED;
-  --purple-glow:    rgba(124,58,237,.20);
+  --accent: #3D7BFF;
+  --accent-dark: #2563EB;
+  --accent-glow: rgba(61, 123, 255, .20);
+  --purple: #7C3AED;
+  --purple-glow: rgba(124, 58, 237, .20);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
-  --win:     #10B981;
-  --win-bg:  rgba(16,185,129,.12);
-  --loss:    #EF4444;
-  --loss-bg: rgba(239,68,68,.12);
-  --live:    #F43F5E;
-  --live-bg: rgba(244,63,94,.12);
+  --win: #10B981;
+  --win-bg: rgba(16, 185, 129, .12);
+  --loss: #EF4444;
+  --loss-bg: rgba(239, 68, 68, .12);
+  --live: #F43F5E;
+  --live-bg: rgba(244, 63, 94, .12);
   --pending: #F59E0B;
-  --pend-bg: rgba(245,158,11,.12);
+  --pend-bg: rgba(245, 158, 11, .12);
 
   /* ── Consensus cell colors ────────────────────────────────────────────── */
-  --cons-high:    rgba(16,185,129,.18);
+  --cons-high: rgba(16, 185, 129, .18);
   --cons-high-txt: #34D399;
-  --cons-mid:     rgba(245,158,11,.14);
+  --cons-mid: rgba(245, 158, 11, .14);
   --cons-mid-txt: #FBBF24;
-  --cons-low:     rgba(255,255,255,.03);
+  --cons-low: rgba(255, 255, 255, .03);
   --cons-low-txt: #4A567A;
 
   /* ── Chart colors ─────────────────────────────────────────────────────── */
@@ -59,13 +59,13 @@
   --chart-6: #06B6D4;
 
   /* ── Spacing / Radius ─────────────────────────────────────────────────── */
-  --radius-sm:  6px;
-  --radius-md:  10px;
-  --radius-lg:  14px;
-  --radius-xl:  20px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
 
   /* ── Typography ───────────────────────────────────────────────────────── */
-  --font-sans:    'Inter', system-ui, sans-serif;
-  --font-mono:    'JetBrains Mono', monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
   --font-display: 'Syne', system-ui, sans-serif;
 }

@@ -306,10 +306,15 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                                     {leg.market} @{leg.odds.toFixed(2)}
                                 </span>
                                 {live && leg.status === 'Live' && (
-                                    <span className="font-mono text-sm font-bold px-2 py-1 rounded"
-                                        style={{ background: 'rgba(245,158,11,.12)', color: 'var(--pending)' }}>
-                                        {live.minute}
-                                    </span>
+                                    <div className="flex flex-col items-center gap-0.5">
+                                        <span className="font-mono text-sm font-bold px-2 py-1 rounded"
+                                            style={{ background: 'rgba(245,158,11,.12)', color: 'var(--pending)' }}>
+                                            {live.score}
+                                        </span>
+                                        <span className="font-mono text-sm font-bold" style={{ color: 'var(--pending)' }}>
+                                            {live.minute}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                         </div>

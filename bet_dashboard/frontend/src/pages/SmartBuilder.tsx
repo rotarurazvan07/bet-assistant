@@ -15,6 +15,14 @@ const DEFAULT_CFG: BuilderConfig = {
     tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
     date_from: null, date_to: null,
+    // Advanced
+    consensus_shrinkage_k: null,
+    min_source_edge: 0,
+    max_single_leg_odds: null,
+    tol_lower: null,
+    tol_upper: null,
+    balance_decay: 'linear',
+    min_pick_quality: null,
 };
 
 interface Props { filters: GlobalFilters; refreshKey: number }
@@ -123,6 +131,14 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             // Don't store date filters in profile - they are global
             date_from: null,
             date_to: null,
+            // Advanced
+            consensus_shrinkage_k: data.consensus_shrinkage_k ?? null,
+            min_source_edge: data.min_source_edge ?? 0,
+            max_single_leg_odds: data.max_single_leg_odds ?? null,
+            tol_lower: data.tol_lower ?? null,
+            tol_upper: data.tol_upper ?? null,
+            balance_decay: data.balance_decay ?? 'linear',
+            min_pick_quality: data.min_pick_quality ?? null,
         };
         setCfg(next);
         setActiveName(name);

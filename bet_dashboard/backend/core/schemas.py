@@ -19,6 +19,14 @@ class BetSlipConfigIn(BaseModel):
     included_markets: list[str] | None = None
     date_from: str | None = None
     date_to: str | None = None
+    # Advanced
+    consensus_shrinkage_k: float | None = None
+    min_source_edge: float = 0.0
+    max_single_leg_odds: float | None = None
+    tol_lower: float | None = None
+    tol_upper: float | None = None
+    balance_decay: str = "linear"
+    min_pick_quality: float | None = None
 
 
 class ExcludeUrlIn(BaseModel):
@@ -62,6 +70,14 @@ class ProfileIn(BaseModel):
     included_markets: list[str] | None = None
     units: float = 1.0
     run_daily_count: int = 0
+    # Advanced
+    consensus_shrinkage_k: float | None = None
+    min_source_edge: float = 0.0
+    max_single_leg_odds: float | None = None
+    tol_lower: float | None = None
+    tol_upper: float | None = None
+    balance_decay: str = "linear"
+    min_pick_quality: float | None = None
 
 
 # ── Slips ─────────────────────────────────────────────────────────────────────

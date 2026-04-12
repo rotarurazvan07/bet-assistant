@@ -143,6 +143,18 @@ class BetSlipConfig:
     ├─ SCORING ────────────────────────────────────────────────────────────────┤
     │ quality_vs_balance [0–1]  0 = balance only, 1 = quality only.           │
     │ consensus_vs_sources [0–1]  Within quality: 0 = sources, 1 = consensus. │
+    ├─ ADVANCED ────────────────────────────────────────────────────────────────┤
+    │ consensus_shrinkage_k [1.0–10.0] Source-weighted consensus adjustment.    │
+    │                              None = auto (3.0).                          │
+    │ min_source_edge       [0.0–0.50] Minimum edge over implied probability.  │
+    │ max_single_leg_odds   [1.0–10.0] Maximum odds for any single leg.        │
+    │                              None = auto (3.5).                          │
+    │ tol_lower             [0.01–1.00] Lower tolerance band (below ideal).    │
+    │ tol_upper             [0.01–1.00] Upper tolerance band (above ideal).    │
+    │                              None = auto (tol_lower=tol, tol_upper=tol*0.6)│
+    │ balance_decay         ["linear", "gaussian"] Decay function for balance. │
+    │ min_pick_quality      [0.0–1.00] Minimum quality score to accept a pick. │
+    │                              None = auto (0.20).                         │
     └──────────────────────────────────────────────────────────────────────────┘
     """
 
@@ -172,9 +184,18 @@ class BetSlipConfig:
     quality_vs_balance: float = 0.5
     consensus_vs_sources: float = 0.5
 
+    # Advanced
+    consensus_shrinkage_k: float | None = None
+    min_source_edge: float = 0.0
+    max_single_leg_odds: float | None = None
+    tol_lower: float | None = None
+    tol_upper: float | None = None
+    balance_decay: str = "linear"
+    min_pick_quality: float | None = None
+
     def __post_init__(self) -> None:
         self.target_odds = max(1.10, min(1000.0, self.target_odds))
-        self.target_legs = max(1, min(10, self.target_legs))
+        self.target_legs = max(1, min(100, self.target_legs))
         self.consensus_floor = max(0.0, min(100.0, self.consensus_floor))
         self.min_odds = max(1.01, min(10.0, self.min_odds))
         self.min_legs_fill_ratio = max(0.50, min(1.00, self.min_legs_fill_ratio))
@@ -187,6 +208,21 @@ class BetSlipConfig:
             self.stop_threshold = max(0.50, min(1.00, self.stop_threshold))
         if self.max_legs_overflow is not None:
             self.max_legs_overflow = max(0, min(5, self.max_legs_overflow))
+
+        # Advanced validation
+        if self.consensus_shrinkage_k is not None:
+            self.consensus_shrinkage_k = max(1.0, min(10.0, self.consensus_shrinkage_k))
+        self.min_source_edge = max(0.0, min(0.50, self.min_source_edge))
+        if self.max_single_leg_odds is not None:
+            self.max_single_leg_odds = max(1.0, min(10.0, self.max_single_leg_odds))
+        if self.tol_lower is not None:
+            self.tol_lower = max(0.01, min(1.00, self.tol_lower))
+        if self.tol_upper is not None:
+            self.tol_upper = max(0.01, min(1.00, self.tol_upper))
+        if self.balance_decay not in ("linear", "gaussian"):
+            self.balance_decay = "linear"
+        if self.min_pick_quality is not None:
+            self.min_pick_quality = max(0.0, min(1.00, self.min_pick_quality))
 
 
 # ── Built-in risk profiles ────────────────────────────────────────────────────
