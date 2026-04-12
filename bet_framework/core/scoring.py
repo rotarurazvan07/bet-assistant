@@ -67,10 +67,10 @@ def resolve_max_legs(cfg: BetSlipConfig) -> int:
 def adjusted_consensus(consensus: float, sources: int, k: float = 3.0) -> float:
     """
     Apply source-weighted shrinkage to consensus.
-    
+
     Formula: weight = sources / (sources + k)
     Returns: 50.0 + weight * (consensus - 50.0)
-    
+
     This pulls low-source consensus toward 50% (no net edge) while
     high-source consensus remains closer to the raw value.
     """
@@ -96,7 +96,7 @@ def score_balance(odds: float, ideal: float, tolerance: float, cfg: BetSlipConfi
     """
     Score how close a pick's odds are to the ideal per-leg target.
     Perfect match → 1.0 ; at/beyond the tolerance edge → 0.0.
-    
+
     Supports asymmetric tolerance (tol_lower, tol_upper) and Gaussian decay.
     """
     # Determine which tolerance to use based on direction
@@ -104,9 +104,9 @@ def score_balance(odds: float, ideal: float, tolerance: float, cfg: BetSlipConfi
         tol = cfg.tol_lower if cfg.tol_lower is not None else tolerance
     else:
         tol = cfg.tol_upper if cfg.tol_upper is not None else tolerance
-    
+
     deviation = abs(odds - ideal) / ideal
-    
+
     if cfg.balance_decay == "gaussian":
         # Gaussian decay: exp(-0.5 * (deviation/tol)^2)
         # Never exactly 0, smoother falloff
@@ -135,22 +135,22 @@ def score_pick(
     Returns
     -------
     (tier, final_score)  where tier ∈ {1, 2} and final_score ∈ [0.0, 1.0].
-    
+
     Note: This function assumes the candidate has already passed hard filters
     (min_source_edge, max_single_leg_odds). It does not apply those filters itself.
     """
     tolerance = resolve_tolerance(cfg)
-    
+
     # Apply consensus adjustment if k is set
     consensus = opt.consensus
     if cfg.consensus_shrinkage_k is not None:
         consensus = adjusted_consensus(consensus, opt.sources, cfg.consensus_shrinkage_k)
-    
+
     # Check max_single_leg_odds filter (hard gate)
     if cfg.max_single_leg_odds is not None and opt.odds > cfg.max_single_leg_odds:
         # Return lowest possible score to effectively reject
         return 2, 0.0
-    
+
     deviation = abs(opt.odds - ideal_odds) / ideal_odds
     tier = 1 if deviation <= tolerance else 2
 

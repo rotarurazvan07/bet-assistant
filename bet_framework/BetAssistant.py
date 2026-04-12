@@ -857,9 +857,11 @@ class BetAssistant(BaseStorageManager):
             if cfg.min_pick_quality is not None and cfg.min_pick_quality > 0.0:
                 # Recompute quality component for the best candidate
                 from bet_framework.core.scoring import score_consensus, score_sources
+
                 consensus_val = best.consensus
                 if cfg.consensus_shrinkage_k is not None:
                     from bet_framework.core.scoring import adjusted_consensus
+
                     consensus_val = adjusted_consensus(consensus_val, best.sources, cfg.consensus_shrinkage_k)
                 c_score = score_consensus(consensus_val, cfg)
                 s_score = score_sources(best.sources, max_sources)
