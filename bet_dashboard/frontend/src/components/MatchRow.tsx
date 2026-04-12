@@ -12,27 +12,30 @@ function consCell(pct: number, odds: number | null | undefined) {
     return { bg, col, pct, odds };
 }
 
-function Cell({ pct, odds, onClick }: { pct: number; odds: number | null | undefined; onClick?: () => void }) {
+function Cell({ pct, odds, onClick, isActive = false }: { pct: number; odds: number | null | undefined; onClick?: () => void; isActive?: boolean }) {
     const c = consCell(pct, odds);
-    if (!c) return <td className="px-2 py-2 text-center">
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>
+    if (!c) return <td className="px-3 py-3 text-center">
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
     </td>;
     const oddsDisplay = c.odds != null ? c.odds.toFixed(2) : '—';
     return (
-        <td className="px-1 py-1.5 text-center" style={{ minWidth: 52 }}>
+        <td className="px-3 py-3 text-center" style={{ minWidth: 64 }}>
             <div
-                className="rounded px-1 py-0.5 inline-flex flex-col items-center gap-px leading-none cursor-pointer transition-opacity hover:opacity-80"
-                style={{ background: c.bg }}
+                className="rounded px-2 py-1 inline-flex flex-col items-center gap-1 leading-none cursor-pointer transition-opacity hover:opacity-80"
+                style={{
+                    background: isActive ? 'rgba(59, 130, 246, 0.15)' : c.bg,
+                    border: isActive ? '1px solid rgba(59, 130, 246, 0.5)' : 'none'
+                }}
                 onClick={onClick}
                 role="button"
                 tabIndex={0}
                 aria-label={`Select ${pct}% at @${oddsDisplay}`}
             >
-                <span className="font-mono font-bold text-[11px]" style={{ color: c.col }}>
+                <span className="font-mono font-bold text-sm" style={{ color: isActive ? 'var(--accent)' : c.col }}>
                     {c.pct.toFixed(0)}%
                 </span>
                 {c.odds != null && c.odds > 1 && (
-                    <span className="font-mono text-[10px]" style={{ color: c.col, opacity: .8 }}>
+                    <span className="font-mono text-sm" style={{ color: isActive ? 'var(--accent)' : c.col, opacity: isActive ? 1 : 0.8 }}>
                         @{oddsDisplay}
                     </span>
                 )}
@@ -45,9 +48,10 @@ interface Props {
     match: Match;
     index: number;
     onCellClick?: (leg: CandidateLeg) => void;
+    activeMarkets?: Set<string>;
 }
 
-export default function MatchRow({ match, index, onCellClick }: Props) {
+export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set() }: Props) {
     const dt = match.datetime
         ? new Date(match.datetime).toLocaleString('en-GB', {
             day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -89,7 +93,10 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
     };
 
     const hasResultUrl = match.result_url != null && match.result_url.trim() !== '';
-    const rowStyle = { borderColor: 'var(--border)', opacity: hasResultUrl ? 1 : 0.25 };
+    const rowStyle = {
+        borderColor: 'var(--border)',
+        opacity: hasResultUrl ? 1 : 0.25
+    };
 
     return (
         <tr className="border-b transition-colors duration-100 group"
@@ -97,24 +104,24 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             onMouseEnter={e => { if (hasResultUrl) e.currentTarget.style.background = 'var(--bg-hover)'; }}
             onMouseLeave={e => { if (hasResultUrl) e.currentTarget.style.background = 'transparent'; }}>
 
-            <td className="px-3 py-2 font-mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            <td className="px-4 py-3 font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {index}
             </td>
-            <td className="px-3 py-2 font-mono text-[11px]" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+            <td className="px-4 py-3 font-mono text-base" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                 {dt}
             </td>
-            <td className="px-3 py-2">
-                <span className="font-sans text-[13px]" style={{ color: 'var(--text-primary)' }}>
+            <td className="px-4 py-3">
+                <span className="font-sans text-base" style={{ color: 'var(--text-primary)' }}>
                     {match.home}
                 </span>
             </td>
-            <td className="px-3 py-2">
-                <span className="font-sans text-[13px]" style={{ color: 'var(--text-primary)' }}>
+            <td className="px-4 py-3">
+                <span className="font-sans text-base" style={{ color: 'var(--text-primary)' }}>
                     {match.away}
                 </span>
             </td>
-            <td className="px-3 py-2 text-center">
-                <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            <td className="px-4 py-3 text-center">
+                <span className="font-mono text-base" style={{ color: 'var(--text-secondary)' }}>
                     {match.sources}
                 </span>
             </td>
@@ -122,6 +129,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_home}
                 odds={match.odds_home}
+                isActive={activeMarkets.has('1')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('1', marketTypeMap['1'], match.cons_home, match.odds_home);
                     if (leg) onCellClick(leg);
@@ -130,6 +138,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_draw}
                 odds={match.odds_draw}
+                isActive={activeMarkets.has('X')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('X', marketTypeMap['X'], match.cons_draw, match.odds_draw);
                     if (leg) onCellClick(leg);
@@ -138,6 +147,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_away}
                 odds={match.odds_away}
+                isActive={activeMarkets.has('2')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('2', marketTypeMap['2'], match.cons_away, match.odds_away);
                     if (leg) onCellClick(leg);
@@ -146,6 +156,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_over}
                 odds={match.odds_over}
+                isActive={activeMarkets.has('Over 2.5')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('Over 2.5', marketTypeMap['Over 2.5'], match.cons_over, match.odds_over);
                     if (leg) onCellClick(leg);
@@ -154,6 +165,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_under}
                 odds={match.odds_under}
+                isActive={activeMarkets.has('Under 2.5')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('Under 2.5', marketTypeMap['Under 2.5'], match.cons_under, match.odds_under);
                     if (leg) onCellClick(leg);
@@ -162,6 +174,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_btts_yes}
                 odds={match.odds_btts_yes}
+                isActive={activeMarkets.has('BTTS Yes')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('BTTS Yes', marketTypeMap['BTTS Yes'], match.cons_btts_yes, match.odds_btts_yes);
                     if (leg) onCellClick(leg);
@@ -170,6 +183,7 @@ export default function MatchRow({ match, index, onCellClick }: Props) {
             <Cell
                 pct={match.cons_btts_no}
                 odds={match.odds_btts_no}
+                isActive={activeMarkets.has('BTTS No')}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg('BTTS No', marketTypeMap['BTTS No'], match.cons_btts_no, match.odds_btts_no);
                     if (leg) onCellClick(leg);

@@ -217,7 +217,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 </button>
                             ))}
                             {!Object.keys(profiles).length && (
-                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                                     No saved profiles yet
                                 </span>
                             )}
@@ -269,12 +269,12 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         <span className="w-1.5 h-1.5 rounded-full animate-pulse"
                             style={{ background: 'var(--accent)' }} />
                         <span className="text-[10px] font-mono tracking-widest uppercase"
-                            style={{ color: 'var(--text-muted)' }}>
+                            style={{ color: 'var(--text-secondary)' }}>
                             Live Preview — updates with every config change
                         </span>
                         {loading && (
                             <span className="ml-auto text-[10px] font-mono animate-pulse"
-                                style={{ color: 'var(--text-muted)' }}>building…</span>
+                                style={{ color: 'var(--text-secondary)' }}>building…</span>
                         )}
                     </div>
 
@@ -293,7 +293,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                     <div className="card p-4 mt-4 fade-in">
                         <div className="flex items-center justify-between mb-3">
                             <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-muted)' }}>
+                                style={{ color: 'var(--text-secondary)' }}>
                                 Excluded Matches ({excludedDetails.length})
                             </span>
                             <button className="btn-ghost text-[10px]" onClick={handleClearExcluded}>
@@ -316,12 +316,12 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-sans text-[12px] font-medium truncate"
-                                                    style={{ color: 'var(--text-bright)' }}>
+                                                    style={{ color: 'var(--text-secondary)' }}>
                                                     {item.match_name}
                                                 </p>
                                                 {dt && (
                                                     <p className="text-[10px] font-mono mt-0.5"
-                                                        style={{ color: 'var(--text-muted)' }}>
+                                                        style={{ color: 'var(--text-secondary)' }}>
                                                         {dt}
                                                     </p>
                                                 )}

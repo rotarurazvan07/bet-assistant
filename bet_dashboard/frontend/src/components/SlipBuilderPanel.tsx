@@ -37,7 +37,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                     Slip Builder
                 </h2>
                 <p className="text-[11px] font-mono mt-0.5"
-                    style={{ color: 'var(--text-muted)' }}>
+                    style={{ color: 'var(--text-secondary)' }}>
                     {legs.length} leg{legs.length !== 1 ? 's' : ''} selected
                 </p>
             </div>
@@ -46,10 +46,10 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
             <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
                 {legs.length === 0 ? (
                     <div className="text-center py-8">
-                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                             No legs selected.
                         </p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                             Click a market cell in the table to add a leg.
                         </p>
                     </div>
@@ -66,7 +66,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                                     {leg.match_name}
                                 </p>
                                 <p className="text-[11px] font-mono truncate"
-                                    style={{ color: 'var(--text-muted)' }}>
+                                    style={{ color: 'var(--text-secondary)' }}>
                                     {leg.market} · @{leg.odds != null ? leg.odds.toFixed(2) : '—'} · {leg.consensus.toFixed(0)}%
                                 </p>
                             </div>
@@ -93,13 +93,13 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                     {/* Summary stats */}
                     <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                            <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>Total Odds</span>
+                            <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>Total Odds</span>
                             <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
                                 {totalOdds.toFixed(2)}
                             </span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>Units</span>
+                            <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>Units</span>
                             <input
                                 type="number"
                                 min={1}
@@ -115,7 +115,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                         </div>
                         <div className="flex justify-between items-center pt-1.5 border-t"
                             style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>Potential Win</span>
+                            <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>Potential Win</span>
                             <span className="text-sm font-mono font-bold" style={{ color: 'var(--accent)' }}>
                                 {potentialWin.toFixed(2)}
                             </span>

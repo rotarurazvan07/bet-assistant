@@ -31,7 +31,7 @@ export function TooltipIcon({ text }: { text: string }) {
     <Tooltip text={text}>
       <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full
                        text-[9px] font-bold ml-1 cursor-help"
-        style={{ border: '1px solid var(--text-muted)', color: 'var(--text-muted)' }}>
+        style={{ border: '1px solid var(--text-secondary)', color: 'var(--text-secondary)' }}>
         ?
       </span>
     </Tooltip>
@@ -49,7 +49,7 @@ export function LiveDot({ alive, enabled }: { alive: boolean; enabled: boolean }
           style={{ background: 'var(--win)' }} />
       )}
       <span className="relative block w-2 h-2 rounded-full"
-        style={{ background: active ? 'var(--win)' : 'var(--text-muted)' }} />
+        style={{ background: active ? 'var(--win)' : 'var(--text-secondary)' }} />
     </span>
   );
 }
@@ -70,11 +70,11 @@ export function StatCard({ label, value, sub, positive, negative, accent }: Stat
   return (
     <div className="card px-4 py-3 flex flex-col gap-1">
       <span className="text-[10px] font-mono tracking-widest uppercase"
-        style={{ color: 'var(--text-muted)' }}>{label}</span>
+        style={{ color: 'var(--text-secondary)' }}>{label}</span>
       <span className="font-display font-bold text-2xl leading-none" style={{ color }}>
         {value}
       </span>
-      {sub && <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
+      {sub && <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{sub}</span>}
     </div>
   );
 }
@@ -116,7 +116,7 @@ export function SectionHeader({ icon, title, sub }: { icon?: string; title: stri
       <h2 className="font-display font-bold text-lg" style={{ color: 'var(--text-bright)' }}>
         {title}
       </h2>
-      {sub && <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
+      {sub && <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>{sub}</span>}
     </div>
   );
 }

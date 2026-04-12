@@ -7,9 +7,9 @@ interface Props {
 }
 
 const ICONS: Record<string, string> = {
-  puller:    '⬇',
+  puller: '⬇',
   generator: '✦',
-  verifier:  '⟳',
+  verifier: '⟳',
 };
 
 export default function ServiceCard({ info, onToggle }: Props) {
@@ -21,16 +21,18 @@ export default function ServiceCard({ info, onToggle }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
-                style={{ background: active ? 'rgba(16,185,129,.12)' : 'var(--bg-raised)',
-                         border: `1px solid ${active ? 'rgba(16,185,129,.3)' : 'var(--border)'}` }}>
+            style={{
+              background: active ? 'rgba(16,185,129,.12)' : 'var(--bg-raised)',
+              border: `1px solid ${active ? 'rgba(16,185,129,.3)' : 'var(--border)'}`
+            }}>
             {ICONS[info.name] ?? '●'}
           </span>
           <div>
             <p className="font-display font-bold text-[13px] uppercase tracking-wide"
-               style={{ color: 'var(--text-bright)' }}>
+              style={{ color: 'var(--text-bright)' }}>
               {info.name}
             </p>
-            <p className="text-[11px] font-sans mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-[11px] font-sans mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               {info.description}
             </p>
           </div>
@@ -38,7 +40,7 @@ export default function ServiceCard({ info, onToggle }: Props) {
         <div className="flex items-center gap-2 shrink-0">
           <LiveDot alive={info.alive} enabled={info.enabled} />
           <span className="font-mono text-[10px]"
-                style={{ color: active ? 'var(--win)' : 'var(--text-muted)' }}>
+            style={{ color: active ? 'var(--win)' : 'var(--text-secondary)' }}>
             {active ? 'Running' : 'Stopped'}
           </span>
         </div>
@@ -47,9 +49,9 @@ export default function ServiceCard({ info, onToggle }: Props) {
       {/* Next run */}
       {info.next_run && (
         <div className="flex items-center gap-2 px-3 py-2 rounded"
-             style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
+          style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
           <span className="text-[10px] font-mono tracking-wide uppercase"
-                style={{ color: 'var(--text-muted)' }}>Next run</span>
+            style={{ color: 'var(--text-secondary)' }}>Next run</span>
           <span className="font-mono text-[11px]" style={{ color: 'var(--accent)' }}>
             {info.next_run}
           </span>

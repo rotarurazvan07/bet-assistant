@@ -24,25 +24,25 @@ export default function Pagination({ page, totalPages, onPageChange }: Props) {
   return (
     <div className="flex items-center justify-center gap-1 py-6">
       <button className="btn-ghost px-3 py-1.5 text-xs"
-              disabled={page === 1} onClick={() => onPageChange(page - 1)}>‹</button>
+        disabled={page === 1} onClick={() => onPageChange(page - 1)}>‹</button>
 
       {withGaps.map((p, i) =>
         p === '…'
           ? <span key={`g${i}`} className="w-7 text-center text-xs"
-                  style={{ color: 'var(--text-muted)' }}>…</span>
+            style={{ color: 'var(--text-secondary)' }}>…</span>
           : <button
-              key={p}
-              onClick={() => onPageChange(p as number)}
-              className="w-7 h-7 rounded text-[11px] font-mono transition-colors duration-100"
-              style={p === page
-                ? { background: 'var(--accent)', color: '#fff' }
-                : { color: 'var(--text-secondary)' }
-              }
-            >{p}</button>
+            key={p}
+            onClick={() => onPageChange(p as number)}
+            className="w-7 h-7 rounded text-[11px] font-mono transition-colors duration-100"
+            style={p === page
+              ? { background: 'var(--accent)', color: '#fff' }
+              : { color: 'var(--text-secondary)' }
+            }
+          >{p}</button>
       )}
 
       <button className="btn-ghost px-3 py-1.5 text-xs"
-              disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>›</button>
+        disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>›</button>
     </div>
   );
 }

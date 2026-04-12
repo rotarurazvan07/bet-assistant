@@ -96,6 +96,7 @@ export interface BetLeg {
 export interface BetSlip {
     slip_id: number; date_generated: string; profile: string;
     total_odds: number; units: number; slip_status: string; legs: BetLeg[];
+    net_profit?: number;  // Optional: calculated on backend for settled slips, or client-side
 }
 
 export interface SlipsPage {

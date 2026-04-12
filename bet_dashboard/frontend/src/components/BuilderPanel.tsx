@@ -60,7 +60,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
                     {tip && <TooltipIcon text={tip} />}
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono" style={{ color: !enabled ? 'var(--accent)' : 'var(--text-muted)' }}>Auto</span>
+                    <span className="text-[10px] font-mono" style={{ color: !enabled ? 'var(--accent)' : 'var(--text-secondary)' }}>Auto</span>
                     <label className="relative inline-block w-8 h-4 cursor-pointer">
                         <input type="checkbox" className="sr-only" checked={enabled} onChange={e => onToggle(e.target.checked)} />
                         <span className="block w-full h-full rounded-full transition-colors duration-200"
@@ -68,7 +68,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
                         <span className="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform duration-200"
                             style={{ transform: enabled ? 'translateX(16px)' : 'translateX(0)' }} />
                     </label>
-                    <span className="text-[10px] font-mono" style={{ color: enabled ? 'var(--accent)' : 'var(--text-muted)' }}>Manual</span>
+                    <span className="text-[10px] font-mono" style={{ color: enabled ? 'var(--accent)' : 'var(--text-secondary)' }}>Manual</span>
                 </div>
             </div>
             {enabled && <div className="mt-2">{children}</div>}
@@ -80,7 +80,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     return (
         <div className="mt-4 mb-1 pb-1 border-b" style={{ borderColor: 'var(--border)' }}>
             <span className="text-[10px] font-mono tracking-widest uppercase"
-                style={{ color: 'var(--text-muted)' }}>{children}</span>
+                style={{ color: 'var(--text-secondary)' }}>{children}</span>
         </div>
     );
 }
@@ -152,20 +152,31 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
             </Row>
 
             <SectionLabel>Markets</SectionLabel>
-            <div className="grid grid-cols-4 gap-1.5 py-1">
+            <div className="grid grid-cols-4 gap-2 py-1">
                 {ALL_MARKETS.map(m => {
                     const active = allSelected || (cfg.included_markets ?? []).includes(m);
                     return (
-                        <label key={m} className="flex items-center gap-1.5 cursor-pointer rounded px-2 py-1 transition-colors"
+                        <button
+                            key={m}
+                            type="button"
+                            onClick={() => toggleMarket(m)}
+                            className="px-3 py-1.5 rounded-full text-[11px] font-mono uppercase transition-all duration-200"
                             style={{
-                                background: active ? 'var(--bg-active)' : 'var(--bg-raised)',
-                                border: `1px solid ${active ? 'var(--border-accent)' : 'var(--border)'}`
-                            }}>
-                            <input type="checkbox" checked={active} onChange={() => toggleMarket(m)} />
-                            <span className="text-[11px] font-mono" style={{ color: active ? 'var(--text-accent)' : 'var(--text-muted)' }}>
-                                {m}
-                            </span>
-                        </label>
+                                background: active
+                                    ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+                                    : 'var(--bg-raised)',
+                                color: active ? '#ffffff' : 'var(--text-secondary)',
+                                border: active
+                                    ? '1px solid var(--accent)'
+                                    : '1px solid var(--border)',
+                                boxShadow: active
+                                    ? '0 2px 8px rgba(var(--accent-rgb), 0.25)'
+                                    : 'none',
+                                transform: active ? 'scale(1.02)' : 'scale(1)',
+                            }}
+                        >
+                            {m}
+                        </button>
                     );
                 })}
             </div>

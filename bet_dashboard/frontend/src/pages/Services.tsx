@@ -39,7 +39,7 @@ export default function Services() {
                 </h1>
             </div>
             <div className="card text-center py-16">
-                <p className="font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
+                <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
                     Loading services…
                 </p>
             </div>
@@ -54,7 +54,7 @@ export default function Services() {
                 <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
                     Automation Services
                 </h1>
-                <span className="font-mono text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                <span className="font-mono text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                     Server time: {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
             </div>
@@ -73,7 +73,7 @@ export default function Services() {
                 {/* Scheduler settings */}
                 <div className="card p-4 lg:col-span-3">
                     <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
-                        style={{ color: 'var(--text-muted)' }}>Scheduled Hours</p>
+                        style={{ color: 'var(--text-secondary)' }}>Scheduled Hours</p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
 

@@ -4,7 +4,6 @@ import { addSlip } from '../api/data';
 import type { CandidateLeg, ManualLegIn } from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
-import SlipBuilderPanel from '../components/SlipBuilderPanel';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 
@@ -127,7 +126,17 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             alert('Cannot add leg: Missing result URL for validation');
             return;
         }
-        setPendingLegs(prev => [...prev, leg]);
+        setPendingLegs(prev => {
+            // Check if this leg (by result_url + market) already exists
+            const exists = prev.some(l => l.result_url === leg.result_url && l.market === leg.market);
+            if (exists) {
+                // Remove it (toggle off)
+                return prev.filter(l => !(l.result_url === leg.result_url && l.market === leg.market));
+            } else {
+                // Add it
+                return [...prev, leg];
+            }
+        });
     }
 
     function handleRemoveLeg(index: number) {
@@ -174,119 +183,299 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     }
 
     return (
-        <div ref={topRef} className="flex gap-4">
-            {/* Main content - Table */}
-            <div className="flex-1">
-                {/* Header + Local Filters */}
-                <div className="flex items-baseline justify-between mb-4 flex-wrap gap-3">
-                    <div>
-                        <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
-                            Betting Tips
-                        </h1>
-                        {data && data.total != null && (
-                            <p className="text-[11px] font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                                {data.total.toLocaleString()} matches · page {page} of {data.total_pages}
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {/* Search - Local filter */}
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-muted)' }}>Search</span>
-                            <input
-                                className="field w-52"
-                                placeholder="Filter by team…"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div>
-                        {/* Consensus filter - Local filter */}
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-muted)' }}>Min Consensus</span>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={100}
-                                    step={5}
-                                    value={minConsensus ?? 0}
-                                    onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
-                                    className="w-32"
-                                />
-                                <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
-                                    {minConsensus !== null ? `${minConsensus}%` : 'Any'}
+        <div ref={topRef} style={{
+            height: 'calc(100vh - 120px)',
+            boxSizing: 'border-box',
+        }}>
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '3fr 1fr',
+                gap: '24px',
+                height: '100%',
+                alignItems: 'stretch'
+            }}>
+                {/* Left column - Main content */}
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    overflow: 'hidden'
+                }}>
+                    {/* Header with filters */}
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '0px'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}>
+                            <h2 style={{
+                                margin: 0,
+                                color: 'var(--text-bright)',
+                                fontSize: '1.75rem',
+                                fontWeight: 'bold'
+                            }}>Betting Tips</h2>
+                            {data && data.total != null && (
+                                <span style={{
+                                    fontSize: '14px',
+                                    color: 'var(--text-secondary)',
+                                    marginTop: '4px'
+                                }}>
+                                    {data.total.toLocaleString()} matches · page {page} of {data.total_pages}
                                 </span>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            {/* Search */}
+                            <div>
+                                <input
+                                    type="text"
+                                    placeholder="Filter by team..."
+                                    className="field w-52"
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                />
+                            </div>
+                            {/* Consensus */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>Min Consensus</label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        step={5}
+                                        value={minConsensus ?? 0}
+                                        onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
+                                        className="w-32"
+                                    />
+                                    <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                        {minConsensus !== null ? `${minConsensus}%` : 'Any'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
+
+                    {/* Table container */}
+                    <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        background: '#1e293b',
+                        borderRadius: '8px'
+                    }}>
+                        {!loading && data && data.total === 0 && (
+                            <div className="card text-center py-16 fade-in">
+                                <p className="font-mono text-base" style={{ color: 'var(--text-secondary)' }}>
+                                    No matches available.
+                                </p>
+                                <p className="font-mono text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
+                                    Click "↓ Pull Update" to fetch new data from the server.
+                                </p>
+                            </div>
+                        )}
+
+                        {data && data.total > 0 && (
+                            <div className="card overflow-hidden min-w-0" style={{ height: '100%' }}>
+                                <div className="overflow-auto" style={{ height: '100%' }}>
+                                    <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <th className="px-4 py-3 text-left font-mono text-xs tracking-widest uppercase w-8 sticky top-0 z-10"
+                                                    style={{ color: 'var(--text-secondary)', background: 'var(--bg-raised)' }}>#</th>
+                                                {COLS.map(col => (
+                                                    <th key={col.key}
+                                                        className="px-4 py-3 font-mono text-xs tracking-widest uppercase cursor-pointer select-none sticky top-0 z-10"
+                                                        style={{
+                                                            color: sortBy === col.key ? 'var(--accent)' : 'var(--text-secondary)',
+                                                            background: 'var(--bg-raised)',
+                                                            textAlign: col.wide ? 'left' : 'center'
+                                                        }}
+                                                        onClick={() => handleSort(col.key)}>
+                                                        {col.label}
+                                                        {sortBy === col.key && (
+                                                            <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                                                        )}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {data.matches.map((m, i) => {
+                                                const activeMarkets = new Set(
+                                                    pendingLegs
+                                                        .filter(leg => leg.result_url === m.result_url)
+                                                        .map(leg => leg.market)
+                                                );
+                                                return (
+                                                    <MatchRow
+                                                        key={m.match_id ?? i}
+                                                        match={m}
+                                                        index={(page - 1) * PAGE_SIZE + i + 1}
+                                                        onCellClick={handleCellClick}
+                                                        activeMarkets={activeMarkets}
+                                                    />
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Pagination - outside table */}
+                    {data && data.total > 0 && (
+                        <div style={{ flexShrink: 0 }}>
+                            <Pagination page={page} totalPages={data.total_pages} onPageChange={handlePageChange} />
+                        </div>
+                    )}
                 </div>
 
-                {/* Empty state */}
-                {!loading && data && data.total === 0 && (
-                    <div className="card text-center py-16 fade-in">
-                        <p className="font-mono text-sm" style={{ color: 'var(--text-muted)' }}>
-                            No matches available.
-                        </p>
-                        <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                            Click "↓ Pull Update" to fetch new data from the server.
-                        </p>
-                    </div>
-                )}
-
-                {/* Table */}
-                {data && data.total > 0 && (
-                    <>
-                        <div className="card overflow-x-auto">
-                            <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-                                <thead>
-                                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                        <th className="px-3 py-2.5 text-left font-mono text-[10px] tracking-widest uppercase w-8"
-                                            style={{ color: 'var(--text-muted)', background: 'var(--bg-raised)' }}>#</th>
-                                        {COLS.map(col => (
-                                            <th key={col.key}
-                                                className="px-3 py-2.5 font-mono text-[10px] tracking-widest uppercase cursor-pointer select-none"
-                                                style={{
-                                                    color: sortBy === col.key ? 'var(--accent)' : 'var(--text-muted)',
-                                                    background: 'var(--bg-raised)',
-                                                    textAlign: col.wide ? 'left' : 'center'
-                                                }}
-                                                onClick={() => handleSort(col.key)}>
-                                                {col.label}
-                                                {sortBy === col.key && (
-                                                    <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                                                )}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.matches.map((m, i) => (
-                                        <MatchRow
-                                            key={m.match_id ?? i}
-                                            match={m}
-                                            index={(page - 1) * PAGE_SIZE + i + 1}
-                                            onCellClick={handleCellClick}
-                                        />
-                                    ))}
-                                </tbody>
-                            </table>
+                {/* Right column - Slip Builder */}
+                <div style={{
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0
+                }}>
+                    <div style={{
+                        flex: 1,
+                        background: '#1e293b',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        minHeight: 0,
+                        overflow: 'hidden'
+                    }}>
+                        {/* Header - fixed */}
+                        <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                            <h2 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
+                                Slip Builder
+                            </h2>
+                            <p className="text-sm font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                                {pendingLegs.length} leg{pendingLegs.length !== 1 ? 's' : ''} selected
+                            </p>
                         </div>
+                        {/* Selections - scrollable */}
+                        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2" style={{ minHeight: 0 }}>
+                            {pendingLegs.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
+                                        No legs selected.
+                                    </p>
+                                    <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+                                        Click a market cell in the table to add a leg.
+                                    </p>
+                                </div>
+                            ) : (
+                                pendingLegs.map((leg, idx) => (
+                                    <div
+                                        key={idx}
+                                        className="rounded-lg p-3"
+                                        style={{
+                                            background: 'var(--bg-raised)',
+                                            border: '1px solid var(--border)'
+                                        }}
+                                    >
+                                        <div className="flex items-start justify-between gap-2 mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-sans font-bold text-[15px]" style={{ color: 'var(--text-bright)' }}>
+                                                    {leg.match_name}
+                                                </p>
+                                                <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                                                    {leg.datetime ? new Date(leg.datetime).toLocaleString('en-GB', {
+                                                        weekday: 'short',
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit'
+                                                    }) : 'TBD'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveLeg(idx)}
+                                                className="btn-icon shrink-0"
+                                                style={{ color: 'var(--text-secondary)' }}
+                                                aria-label={`Remove ${leg.match_name} - ${leg.market}`}
+                                            >
+                                                <span style={{ fontSize: 12 }}>✕</span>
+                                            </button>
+                                        </div>
 
-                        <Pagination page={page} totalPages={data.total_pages} onPageChange={handlePageChange} />
-                    </>
-                )}
-            </div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-display font-bold text-base px-3 py-1 rounded-full"
+                                                style={{
+                                                    background: 'var(--bg-card)',
+                                                    border: '2px solid var(--accent)',
+                                                    color: 'var(--accent)'
+                                                }}>
+                                                {leg.market} @{leg.odds != null ? leg.odds.toFixed(2) : '—'}
+                                            </span>
+                                        </div>
 
-            {/* Slip Builder Panel - Permanent side panel */}
-            <div className="sticky top-4 h-fit" style={{ width: 300 }}>
-                <SlipBuilderPanel
-                    legs={pendingLegs}
-                    onRemoveLeg={handleRemoveLeg}
-                    onSubmit={handleAddSlip}
-                />
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                                Consensus: {leg.consensus.toFixed(0)}% · Sources: {leg.sources}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        {/* Footer - fixed */}
+                        {pendingLegs.length > 0 && (
+                            <div className="px-4 py-3 border-t flex-shrink-0" style={{ borderColor: 'var(--border)' }}>
+                                {/* Summary stats */}
+                                <div className="space-y-1.5 mb-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-base font-mono" style={{ color: 'var(--text-secondary)' }}>Total Odds</span>
+                                        <span className="text-base font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                            {pendingLegs.reduce((prod, leg) => prod * (leg.odds || 1), 1).toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-base font-mono" style={{ color: 'var(--text-secondary)' }}>Units</span>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            defaultValue={1}
+                                            className="w-20 px-3 py-2 rounded text-base font-mono text-center"
+                                            style={{
+                                                background: 'var(--bg-input)',
+                                                border: '1px solid var(--border-strong)',
+                                                color: 'var(--text-primary)',
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex justify-between items-center pt-1.5 border-t" style={{ borderColor: 'var(--border)' }}>
+                                        <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>Potential Win</span>
+                                        <span className="text-sm font-mono font-bold" style={{ color: 'var(--accent)' }}>
+                                            {(pendingLegs.reduce((prod, leg) => prod * (leg.odds || 1), 1) * 1).toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleAddSlip(1)}
+                                    className="w-full px-4 py-3 rounded text-base font-mono uppercase tracking-wider transition-opacity hover:opacity-90"
+                                    style={{
+                                        background: 'var(--accent)',
+                                        color: 'var(--text-bright)',
+                                    }}
+                                >
+                                    Add Slip
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
-        </div>
+        </div >
     );
 }

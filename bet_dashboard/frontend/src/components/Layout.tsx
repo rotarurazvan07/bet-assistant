@@ -61,7 +61,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             {/* ── Top bar ──────────────────────────────────────────────────────── */}
             <header style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}
                 className="sticky top-0 z-50">
-                <div className="max-w-[1480px] mx-auto px-5 h-13 flex items-center justify-between gap-8">
+                <div className="w-full px-2 h-13 flex items-center justify-between gap-8">
 
                     {/* Brand */}
                     <div className="flex items-center gap-2.5 shrink-0 select-none">
@@ -90,7 +90,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                     <div className="flex items-center gap-3 shrink-0">
                         {lastPull && (
                             <span className="text-[11px] font-mono hidden md:block"
-                                style={{ color: 'var(--text-muted)' }}>
+                                style={{ color: 'var(--text-secondary)' }}>
                                 {lastPull}
                             </span>
                         )}
@@ -106,18 +106,17 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
 
             {/* ── Global filters ────────────────────────────────────────────────── */}
             {showFilters && (
-                <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}
-                    className="sticky top-[52px] z-40">
-                    <div className="max-w-[1480px] mx-auto px-5 py-2.5 flex items-center gap-6">
+                <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
+                    <div className="w-full px-2 py-2.5 flex items-center gap-6">
 
                         {/* Date range - GLOBAL FILTER */}
                         <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-mono tracking-widest uppercase"
-                                style={{ color: 'var(--text-muted)' }}>Time Horizon</span>
+                                style={{ color: 'var(--text-secondary)' }}>Time Horizon</span>
                             <div className="flex items-center gap-2">
                                 <input className="field w-36" type="date"
                                     value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                                <span style={{ color: 'var(--text-muted)' }} className="text-xs">→</span>
+                                <span style={{ color: 'var(--text-secondary)' }} className="text-xs">→</span>
                                 <input className="field w-36" type="date"
                                     value={dateTo} onChange={e => setDateTo(e.target.value)} />
                             </div>
@@ -128,7 +127,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             )}
 
             {/* ── Page content ──────────────────────────────────────────────────── */}
-            <main className="flex-1 max-w-[1480px] mx-auto w-full px-5 py-6">
+            <main className="flex-1 w-full px-2 py-6">
                 {children({ dateFrom, dateTo })}
             </main>
         </div>

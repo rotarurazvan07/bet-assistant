@@ -31,7 +31,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                     <p className="font-mono text-sm" style={{ color: 'var(--loss)' }}>
                         Something went wrong.
                     </p>
-                    <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                    <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
                         {this.state.error?.message}
                     </p>
                     <button
