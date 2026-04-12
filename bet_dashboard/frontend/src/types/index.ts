@@ -40,7 +40,7 @@ export interface BuilderConfig {
     date_to: string | null;
     // Advanced
     consensus_shrinkage_k: number | null;
-    min_source_edge: number;
+    min_source_edge: number | null;
     max_single_leg_odds: number | null;
     tol_lower: number | null;
     tol_upper: number | null;
@@ -82,7 +82,7 @@ export interface Profile {
     date_from?: null; date_to?: null; excluded_urls?: null;
     // Advanced
     consensus_shrinkage_k: number | null;
-    min_source_edge: number;
+    min_source_edge: number | null;
     max_single_leg_odds: number | null;
     tol_lower: number | null;
     tol_upper: number | null;
