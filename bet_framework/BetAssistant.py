@@ -54,9 +54,9 @@ from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
     resolve_max_legs,
+    resolve_max_single_leg_odds,
     resolve_min_pick_quality,
     resolve_min_source_edge,
-    resolve_max_single_leg_odds,
     resolve_shrinkage_k,
     resolve_stop_threshold,
     score_pick,

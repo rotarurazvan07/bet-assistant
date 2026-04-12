@@ -568,12 +568,7 @@ class AppLogic:
         """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
         profiles_raw = self._settings.get("profiles") or {}
         return {
-            name: (
-                _yaml_to_config(cfg),
-                cfg.get("units", 1.0),
-                cfg.get("run_daily_count", 0),
-                cfg.get("target_payout")
-            )
+            name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 0), cfg.get("target_payout"))
             for name, cfg in profiles_raw.items()
             if cfg.get("run_daily_count")
         }

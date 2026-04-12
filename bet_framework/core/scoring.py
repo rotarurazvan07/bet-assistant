@@ -178,13 +178,13 @@ def score_pick(
         return 2, 0.0
 
     deviation_signed = (opt.odds - ideal_odds) / ideal_odds
-    
+
     # Resolve active tolerance for tier assessment
     if deviation_signed < 0:
         active_tol = cfg.tol_lower if cfg.tol_lower is not None else tolerance
     else:
         active_tol = cfg.tol_upper if cfg.tol_upper is not None else (tolerance * 0.6)
-        
+
     tier = 1 if abs(deviation_signed) <= active_tol else 2
 
     c_score = score_consensus(consensus, cfg)
