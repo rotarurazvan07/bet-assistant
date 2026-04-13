@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { TooltipIcon } from './ui';
+import { BaseCard } from './ui/BaseCard';
+import { BaseDataRow } from './ui/BaseDataRow';
 import type { BuilderConfig } from '../types';
 import { ALL_MARKETS } from '../types';
 
@@ -19,52 +20,49 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
 }) {
     const [open, setOpen] = useState(defaultOpen);
     return (
-        <div className="rounded-xl transition-all duration-200"
-            style={{
-                background: open ? 'rgba(13,19,33,.5)' : 'transparent',
-                border: `1px solid ${open ? 'rgba(255,255,255,.05)' : 'transparent'}`,
-                overflow: open ? 'visible' : 'hidden', // Allow children (tooltips) to overflow when open
-            }}>
-            <button
-                type="button"
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-150"
-                style={{
-                    background: open ? 'rgba(61,123,255,.04)' : 'transparent',
-                    borderBottom: open ? '1px solid rgba(255,255,255,.03)' : 'none'
-                }}
-            >
-                <div className="flex items-center gap-2">
-                    <span className="text-xs opacity-80">{icon}</span>
-                    <span className="text-[11px] font-sans font-semibold tracking-wide uppercase"
-                        style={{ color: open ? 'var(--text-bright)' : 'var(--text-secondary)' }}>
-                        {title}
-                    </span>
-                </div>
-                <svg
-                    className="w-3 h-3 transition-transform duration-300"
+        <div className="space-y-3">
+            <BaseCard status={open ? 'info' : 'default'}>
+                <button
+                    type="button"
+                    onClick={() => setOpen(!open)}
+                    className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-150"
                     style={{
-                        color: 'var(--text-muted)',
-                        transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                        background: open ? 'rgba(61,123,255,.04)' : 'transparent',
+                        borderBottom: open ? '1px solid rgba(255,255,255,.03)' : 'none'
                     }}
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-            <div
-                className="transition-all duration-300 ease-in-out"
-                style={{
-                    maxHeight: open ? '1500px' : '0px',
-                    opacity: open ? 1 : 0,
-                    overflow: open ? 'visible' : 'hidden',
-                    pointerEvents: open ? 'auto' : 'none'
-                }}
-            >
-                <div className="px-4 pb-4 pt-1"
-                    style={{ background: 'rgba(13,19,33,.3)' }}>
-                    {children}
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs opacity-80">{icon}</span>
+                        <span className="text-[11px] font-sans font-semibold tracking-wide uppercase"
+                            style={{ color: open ? 'var(--text-bright)' : 'var(--text-secondary)' }}>
+                            {title}
+                        </span>
+                    </div>
+                    <svg
+                        className="w-3 h-3 transition-transform duration-300"
+                        style={{
+                            color: 'var(--text-muted)',
+                            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+                        }}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+                <div
+                    className="transition-all duration-300 ease-in-out"
+                    style={{
+                        maxHeight: open ? '1500px' : '0px',
+                        opacity: open ? 1 : 0,
+                        overflow: open ? 'visible' : 'hidden',
+                        pointerEvents: open ? 'auto' : 'none'
+                    }}
+                >
+                    <div className="px-4 pb-4 pt-1"
+                        style={{ background: 'rgba(13,19,33,.3)' }}>
+                        {children}
+                    </div>
                 </div>
-            </div>
+            </BaseCard>
         </div>
     );
 }
@@ -73,14 +71,7 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
 
 function Row({ label, tip, children }: { label: string; tip?: string; children: React.ReactNode }) {
     return (
-        <div className="flex items-center justify-between gap-3 py-2.5"
-            style={{ borderBottom: '1px solid rgba(255,255,255,.03)' }}>
-            <div className="flex items-center gap-1 shrink-0">
-                <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                {tip && <TooltipIcon align="left" text={tip} />}
-            </div>
-            <div className="shrink-0">{children}</div>
-        </div>
+        <BaseDataRow label={label} value={children} actions={tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>} />
     );
 }
 
@@ -92,7 +83,7 @@ function SliderWithTicks({ min, max, step, value, onChange, showCenter = false, 
 
     // Choose colors based on which half we are in
     const isLeft = pct <= 50;
-    const thumbColor = dual ? (isLeft ? '#10B981' : '#3D7BFF') : 'var(--accent)';
+    const thumbColor = dual ? (isLeft ? 'var(--win)' : 'var(--accent)') : 'var(--accent)';
     const thumbGlow = dual ? (isLeft ? 'rgba(16,185,129,0.5)' : 'rgba(61,123,255,0.5)') : 'var(--accent-glow)';
 
 
@@ -140,7 +131,7 @@ function SliderRow({ label, tip, value, min, max, step, format, onChange, showCe
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    {tip && <TooltipIcon align="left" text={tip} />}
+                    {tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>}
                 </div>
                 <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded"
                     style={{ color: 'var(--accent)', background: 'rgba(61,123,255,.12)' }}>
@@ -195,7 +186,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    {tip && <TooltipIcon align="left" text={tip} />}
+                    {tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>}
                 </div>
                 <ToggleSwitch enabled={enabled} onToggle={onToggle} />
             </div>
@@ -238,11 +229,11 @@ function DualSlider({ label, left, right, value, onChange, disabled = false }: {
                 </div>
             )}
             <div className={`flex items-center gap-2 ${disabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                <span className="text-[10px] font-mono w-16 text-right shrink-0 font-bold opacity-60" style={{ color: '#10B981' }}>{left}</span>
+                <span className="text-[10px] font-mono w-16 text-right shrink-0 font-bold opacity-60" style={{ color: 'var(--win)' }}>{left}</span>
                 <div className="flex-1">
                     <SliderWithTicks min={0} max={100} step={5} value={value * 100} onChange={v => onChange(v / 100)} showCenter={true} dual={true} disabled={disabled} />
                 </div>
-                <span className="text-[10px] font-mono w-16 shrink-0 font-bold opacity-60" style={{ color: '#3D7BFF' }}>{right}</span>
+                <span className="text-[10px] font-mono w-16 shrink-0 font-bold opacity-60" style={{ color: 'var(--accent)' }}>{right}</span>
             </div>
         </div>
     );

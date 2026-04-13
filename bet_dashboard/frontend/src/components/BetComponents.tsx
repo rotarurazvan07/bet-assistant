@@ -1,5 +1,10 @@
 import type { CandidateLeg, BetSlip, LiveData } from '../types';
 import { useEffect, useMemo } from 'react';
+import { BaseBadge } from './ui/BaseBadge';
+import { formatBetDate } from '../utils/betUtils';
+import { parseTeamNames } from '../utils/teamUtils';
+import { getConsensusColor, getStatusColor, getStatusIcon, getStatusBadge } from '../utils/colorUtils';
+import { calculateNetProfit } from '../utils/calculationUtils';
 
 // ── BetPreview ────────────────────────────────────────────────────────────────
 
@@ -13,12 +18,11 @@ interface PreviewProps {
 function TierBadge({ tier, score }: { tier: number; score: number }) {
     return (
         <div className="flex items-center gap-1">
-            <span className="badge text-[9px]"
-                style={tier === 1
-                    ? { background: 'var(--win-bg)', color: 'var(--win)' }
-                    : { background: 'var(--pend-bg)', color: 'var(--pending)' }}>
-                {tier === 1 ? '✓ Balanced' : '⚠ Drift'}
-            </span>
+            <BaseBadge
+                status={tier === 1 ? 'success' : 'warning'}
+            >
+                {tier === 1 ? '✓ Balanced' : '⚠ Drift'} <span style={{ opacity: 0.7, margin: '0 3px' }}>·</span> {score.toFixed(2)}
+            </BaseBadge>
             <span className="font-mono text-[9px]" style={{ color: 'var(--text-muted)' }}>
                 {score.toFixed(2)}
             </span>
@@ -45,9 +49,9 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
             {/* Leg count + out-of-band badge */}
             {outOfBand > 0 && (
                 <div className="flex items-center gap-3 mb-4">
-                    <span className="badge" style={{ background: 'var(--pend-bg)', color: 'var(--pending)' }}>
+                    <BaseBadge status="warning">
                         {outOfBand} out-of-band
-                    </span>
+                    </BaseBadge>
                 </div>
             )}
 
@@ -55,22 +59,16 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {legs.map((leg, i) => {
                     const isDupe = pendingUrls.includes(leg.result_url ?? '');
-                    const consColor = leg.consensus >= 80 ? '#10B981'
-                        : leg.consensus >= 60 ? '#F59E0B'
-                            : '#EF4444';
+                    const consColor = getConsensusColor(leg.consensus);
                     const consWidth = `${leg.consensus}%`;
 
                     // Parse team names from "Team A - Team B" format
-                    const teams = leg.match_name.split(' - ');
-                    const teamA = teams[0] || leg.match_name;
-                    const teamB = teams[1] || '';
+                    const { teamA, teamB } = parseTeamNames(leg.match_name);
 
-                    const dt = leg.datetime
-                        ? new Date(leg.datetime).toLocaleString('en-GB', {
-                            day: '2-digit', month: 'short',
-                            hour: '2-digit', minute: '2-digit'
-                        })
-                        : '';
+                    const dt = formatBetDate(leg.datetime, {
+                        includeWeekday: false,
+                        includeYear: false
+                    });
 
                     return (
                         <div key={i}
@@ -212,10 +210,7 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
     const hdrBg = slip.slip_status === 'Live' ? 'rgba(61,123,255,.10)' : (HEADER_BG[slip.slip_status] ?? HEADER_BG.Pending);
 
     // Status border colors
-    const statusBorderColor = slip.slip_status === 'Won' ? 'var(--win)'
-        : slip.slip_status === 'Lost' ? 'var(--loss)'
-            : slip.slip_status === 'Live' ? 'var(--accent)'
-                : 'var(--text-muted)';
+    const statusBorderColor = getStatusColor(slip.slip_status);
 
     // Sort legs: live legs first, then others by datetime
     const sortedLegs = useMemo(() => {
@@ -263,37 +258,17 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
             <div className="flex items-center gap-3 px-4 py-3 flex-wrap justify-between"
                 style={{ background: hdrBg, borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <span className="badge text-xs" style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text-secondary)'
-                    }}>
+                    <BaseBadge status="default">
                         {slip.date_generated.split('T')[0]}
-                    </span>
-                    <span className="badge text-xs" style={{
-                        background: 'var(--bg-card)',
-                        border: '1px solid var(--border)',
-                        color: 'var(--text-bright)'
-                    }}>
+                    </BaseBadge>
+                    <BaseBadge status="default">
                         {slip.profile}
-                    </span>
+                    </BaseBadge>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="badge text-xs" style={{
-                        background: slip.slip_status === 'Live' ? 'rgba(61, 123, 255, 0.12)' :
-                            slip.slip_status === 'Won' ? 'rgba(16,185,129,.15)' :
-                                slip.slip_status === 'Lost' ? 'rgba(239,68,68,.15)' : 'var(--bg-raised)',
-                        border: '1px solid',
-                        borderColor: slip.slip_status === 'Live' ? 'var(--accent)' :
-                            slip.slip_status === 'Won' ? 'var(--win)' :
-                                slip.slip_status === 'Lost' ? 'var(--loss)' : 'var(--border)',
-                        color: slip.slip_status === 'Live' ? 'var(--accent)' :
-                            slip.slip_status === 'Won' ? 'var(--win)' :
-                                slip.slip_status === 'Lost' ? 'var(--loss)' : 'var(--text-muted)',
-                        fontWeight: '600'
-                    }}>
+                    <BaseBadge status={getStatusBadge(slip.slip_status)}>
                         {slip.slip_status}
-                    </span>
+                    </BaseBadge>
                     {slip.slip_status === 'Pending' && onDelete && (
                         <button className="btn-icon" onClick={() => onDelete(slip.slip_id)} title="Delete slip">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -311,16 +286,12 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
             <div className="flex-1 p-3 space-y-2">
                 {displayedLegs.map((leg, idx) => {
                     const live = liveData[leg.match_name];
-                    const dt = leg.datetime
-                        ? new Date(leg.datetime).toLocaleString('en-GB', {
-                            weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                        })
-                        : '';
+                    const dt = formatBetDate(leg.datetime, {
+                        includeWeekday: true,
+                        includeYear: false
+                    });
                     // Pick border color based on leg status
-                    const pickBorderColor = leg.status === 'Won' ? 'var(--win)'
-                        : leg.status === 'Lost' ? 'var(--loss)'
-                            : leg.status === 'Live' ? 'var(--pending)'
-                                : 'var(--text-muted)';
+                    const pickBorderColor = getStatusColor(leg.status);
 
                     return (
                         <div key={idx} className="p-2 rounded" style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
@@ -404,15 +375,7 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                 </div>
                 {/* Calculate and show net profit client-side on the right */}
                 {(() => {
-                    // Stake is per slip, not per leg
-                    const totalStake = slip.units;
-                    const potentialReturn = slip.total_odds * slip.units;
-                    let netProfit: number | null = null;
-                    if (slip.slip_status === 'Won') {
-                        netProfit = potentialReturn - totalStake;
-                    } else if (slip.slip_status === 'Lost') {
-                        netProfit = -totalStake;
-                    }
+                    const netProfit = calculateNetProfit(slip.slip_status, slip.total_odds, slip.units);
                     if (netProfit !== null) {
                         const isPositive = netProfit > 0;
                         const color = isPositive ? 'var(--win)' : 'var(--loss)';
@@ -477,16 +440,9 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                     <div className="flex items-center gap-6">
                         <div>
                             <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Status</p>
-                            <span className="badge text-sm" style={{
-                                background: slip.slip_status === 'Live' ? 'rgba(61, 123, 255, 0.12)' :
-                                    slip.slip_status === 'Won' ? 'rgba(16,185,129,.15)' :
-                                        slip.slip_status === 'Lost' ? 'rgba(239,68,68,.15)' : 'var(--bg-raised)',
-                                color: slip.slip_status === 'Live' ? 'var(--accent)' :
-                                    slip.slip_status === 'Won' ? 'var(--win)' :
-                                        slip.slip_status === 'Lost' ? 'var(--loss)' : 'var(--text-muted)'
-                            }}>
+                            <BaseBadge status={getStatusBadge(slip.slip_status)}>
                                 {slip.slip_status}
-                            </span>
+                            </BaseBadge>
                         </div>
                         <div>
                             <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Stake</p>
@@ -502,9 +458,9 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                         </div>
                         {/* Show potential return or net profit in header */}
                         {(() => {
-                            const totalStake = slip.units;
-                            const potentialReturn = slip.total_odds * slip.units;
+                            const netProfit = calculateNetProfit(slip.slip_status, slip.total_odds, slip.units);
                             if (slip.slip_status === 'Pending') {
+                                const potentialReturn = slip.total_odds * slip.units;
                                 return (
                                     <div className="text-right">
                                         <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Potential Return</p>
@@ -513,23 +469,16 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                         </p>
                                     </div>
                                 );
-                            } else if (slip.slip_status === 'Won') {
-                                const netProfit = potentialReturn - totalStake;
+                            } else if (netProfit !== null) {
+                                const isPositive = netProfit > 0;
+                                const color = isPositive ? 'var(--win)' : 'var(--loss)';
                                 return (
                                     <div className="text-right">
-                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Profit</p>
-                                        <p className="text-2xl font-bold" style={{ color: 'var(--win)' }}>
-                                            +{netProfit.toFixed(2)}u
+                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>
+                                            {isPositive ? 'Profit' : 'Loss'}
                                         </p>
-                                    </div>
-                                );
-                            } else if (slip.slip_status === 'Lost') {
-                                const netProfit = -totalStake;
-                                return (
-                                    <div className="text-right">
-                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Loss</p>
-                                        <p className="text-2xl font-bold" style={{ color: 'var(--loss)' }}>
-                                            {netProfit.toFixed(2)}u
+                                        <p className="text-2xl font-bold" style={{ color }}>
+                                            {isPositive ? '+' : ''}{netProfit.toFixed(2)}u
                                         </p>
                                     </div>
                                 );
@@ -543,19 +492,12 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                 <div className="flex-1 overflow-y-auto p-6 space-y-3">
                     {slip.legs.map((leg, i) => {
                         const live = liveData[leg.match_name];
-                        const dt = leg.datetime
-                            ? new Date(leg.datetime).toLocaleString('en-GB', {
-                                weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                            })
-                            : '';
-                        const legStatusColor = leg.status === 'Won' ? 'var(--win)'
-                            : leg.status === 'Lost' ? 'var(--loss)'
-                                : leg.status === 'Live' ? 'var(--pending)'
-                                    : 'var(--text-muted)';
-                        const legStatusIcon = leg.status === 'Won' ? '✓'
-                            : leg.status === 'Lost' ? '✗'
-                                : leg.status === 'Live' ? '●'
-                                    : '◷';
+                        const dt = formatBetDate(leg.datetime, {
+                            includeWeekday: true,
+                            includeYear: false
+                        });
+                        const legStatusColor = getStatusColor(leg.status);
+                        const legStatusIcon = getStatusIcon(leg.status);
 
                         return (
                             <div key={i} className="p-4 rounded-lg flex items-start gap-4"

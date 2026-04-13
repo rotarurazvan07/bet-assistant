@@ -4,7 +4,14 @@ import {
     Radar, ResponsiveContainer
 } from 'recharts';
 import { TooltipIcon } from './ui';
+import { BaseCard } from './ui/BaseCard';
 import type { CandidateLeg } from '../types';
+import {
+    calculateRiskScore,
+    calculateWinProbability,
+    calculateDiversityScore,
+    getRiskLabel
+} from '../utils/calculationUtils';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -15,16 +22,16 @@ interface Props {
 
 // ── Metric Card ───────────────────────────────────────────────────────────────
 
-function MetricCard({ label, value, sub, icon }: {
-    label: string; value: string; sub?: string; icon: string;
-}) {
+interface MetricCardProps {
+    icon: string;
+    label: string;
+    value: string;
+    sub?: string;
+}
+
+function MetricCard({ icon, label, value, sub }: MetricCardProps) {
     return (
-        <div className="flex-1 rounded-xl p-4 relative overflow-hidden group transition-all duration-300"
-            style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.05)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-            }}>
+        <BaseCard className="flex-1 rounded-xl p-4 relative overflow-hidden group transition-all duration-300">
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                 style={{ background: 'radial-gradient(circle at center, rgba(61,123,255,.1) 0%, transparent 80%)' }} />
             <div className="relative">
@@ -40,7 +47,7 @@ function MetricCard({ label, value, sub, icon }: {
                         style={{ color: 'var(--text-secondary)' }}>{sub}</p>
                 )}
             </div>
-        </div>
+        </BaseCard>
     );
 }
 
@@ -50,18 +57,12 @@ function GaugeChart({ riskScore }: { riskScore: number }) {
     const clampedRisk = Math.min(100, Math.max(0, riskScore));
 
     const getColor = (score: number) => {
-        if (score < 30) return '#10B981';
-        if (score < 55) return '#F59E0B';
-        return '#F43F5E';
+        if (score < 30) return 'var(--win)';
+        if (score < 55) return 'var(--pending)';
+        return 'var(--loss)';
     };
 
-    const getRiskLabel = (score: number) => {
-        if (score < 20) return 'Very Safe';
-        if (score < 40) return 'Safe';
-        if (score < 60) return 'Moderate';
-        if (score < 80) return 'Risky';
-        return 'Very Risky';
-    };
+    // getRiskLabel is now imported from calculationUtils
 
     const color = getColor(clampedRisk);
 
@@ -173,15 +174,11 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
         const uniqueMarkets = new Set(legs.map(l => l.market)).size;
         const totalMarkets = 7;
 
-        const oddsRisk = Math.min(100, (Math.log10(Math.max(1, totalOdds)) / 2.3) * 100);
-        const consensusBonus = ((avgConsensus - 50) / 50) * 15;
-        const riskScore = Math.min(100, Math.max(0, oddsRisk - consensusBonus));
+        const riskScore = calculateRiskScore(totalOdds, avgConsensus);
 
-        const winProb = (1 / totalOdds) * 100;
-
-        const radarWinProb = Math.min(100, Math.sqrt(winProb) * 12);
+        const radarWinProb = calculateWinProbability(totalOdds);
         const radarConsensus = Math.max(0, (avgConsensus - 50) * 2);
-        const radarDiversity = (uniqueMarkets / Math.min(totalMarkets, legs.length)) * 100;
+        const radarDiversity = calculateDiversityScore(uniqueMarkets, totalMarkets, legs.length);
         const radarSources = Math.min(100, (avgSources / 4) * 100);
         const radarQuality = Math.min(100, avgScore * 100);
 

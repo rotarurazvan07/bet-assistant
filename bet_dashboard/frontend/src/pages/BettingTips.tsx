@@ -344,31 +344,11 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                     flexDirection: 'column',
                     minHeight: 0
                 }}>
-                    <div style={{
-                        flex: 1,
-                        background: '#1e293b',
-                        borderRadius: '8px',
-                        overflow: 'hidden'
-                    }}>
-                        {pendingLegs.length === 0 ? (
-                            <div className="h-full flex items-center justify-center p-8">
-                                <div className="text-center">
-                                    <p className="text-base" style={{ color: 'var(--text-secondary)' }}>
-                                        No legs selected.
-                                    </p>
-                                    <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-                                        Click a market cell in the table to add a leg.
-                                    </p>
-                                </div>
-                            </div>
-                        ) : (
-                            <SlipBuilderPanel
-                                legs={pendingLegs}
-                                onRemoveLeg={handleRemoveLeg}
-                                onSubmit={handleAddSlip}
-                            />
-                        )}
-                    </div>
+                    <SlipBuilderPanel
+                        legs={pendingLegs}
+                        onRemoveLeg={handleRemoveLeg}
+                        onSubmit={handleAddSlip}
+                    />
                 </div>
             </div>
         </div >
