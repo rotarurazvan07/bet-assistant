@@ -33,13 +33,17 @@
   --purple: #7C3AED;
   --purple-glow: rgba(124, 58, 237, .20);
 
+  /* ── Odds and Stakes Colors ────────────────────────────────────────────────── */
+  --odds-color: #3D7BFF;
+  --stakes-color: #3D7BFF;
+
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   --win: #10B981;
   --win-bg: rgba(16, 185, 129, .12);
   --loss: #EF4444;
   --loss-bg: rgba(239, 68, 68, .12);
-  --live: #F43F5E;
-  --live-bg: rgba(244, 63, 94, .12);
+  --live: #3B82F6;
+  --live-bg: rgba(59, 130, 246, .12);
   --pending: #F59E0B;
   --pend-bg: rgba(245, 158, 11, .12);
 

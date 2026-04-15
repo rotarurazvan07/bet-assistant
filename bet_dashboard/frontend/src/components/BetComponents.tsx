@@ -23,9 +23,6 @@ function TierBadge({ tier, score }: { tier: number; score: number }) {
             >
                 {tier === 1 ? '✓ Balanced' : '⚠ Drift'} <span style={{ opacity: 0.7, margin: '0 3px' }}>·</span> {score.toFixed(2)}
             </BaseBadge>
-            <span className="font-mono text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                {score.toFixed(2)}
-            </span>
         </div>
     );
 }
@@ -141,7 +138,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                             color: 'var(--accent)',
                                             boxShadow: '0 0 16px rgba(61,123,255,.1)',
                                         }}>
-                                        {leg.market} <span style={{ opacity: 0.7, margin: '0 3px' }}>·</span> @{leg.odds.toFixed(2)}
+                                        {leg.market} <span style={{ opacity: 0.7, margin: '0 3px' }}></span>@{leg.odds.toFixed(2)}
                                     </span>
                                 </div>
 
@@ -318,9 +315,9 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                                 {leg.status === 'Live' && (
                                     <span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
                                         <span className="absolute inset-0 rounded-full animate-ping opacity-60"
-                                            style={{ background: 'var(--pending)' }} />
+                                            style={{ background: 'var(--live)' }} />
                                         <span className="relative block w-3 h-3 rounded-full"
-                                            style={{ background: 'var(--pending)' }} />
+                                            style={{ background: 'var(--live)' }} />
                                     </span>
                                 )}
                             </div>
@@ -337,10 +334,10 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                                 {live && leg.status === 'Live' && (
                                     <div className="flex flex-col items-center gap-0.5">
                                         <span className="font-mono text-sm font-bold px-2 py-1 rounded"
-                                            style={{ background: 'rgba(245,158,11,.12)', color: 'var(--pending)' }}>
+                                            style={{ background: 'rgba(245,158,11,.12)', color: 'var(--live)' }}>
                                             {live.score}
                                         </span>
-                                        <span className="font-mono text-sm font-bold" style={{ color: 'var(--pending)' }}>
+                                        <span className="font-mono text-sm font-bold" style={{ color: 'var(--live)' }}>
                                             {live.minute}
                                         </span>
                                     </div>
@@ -368,8 +365,11 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                 style={{ background: 'rgba(0,0,0,0.2)' }}>
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-3 text-sm">
-                        <span className="font-mono" style={{ color: 'var(--text-bright)' }}>
-                            {slip.units}u @ {slip.total_odds.toFixed(2)}
+                        <span className="font-mono" style={{ color: 'var(--stakes-color)' }}>
+                            {slip.units}u
+                        </span>
+                        <span className="font-mono" style={{ color: 'var(--odds-color)' }}>
+                            @ {slip.total_odds.toFixed(2)}
                         </span>
                     </div>
                 </div>
@@ -541,15 +541,15 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                                     border: `2px solid ${legStatusColor}`,
                                                     color: legStatusColor
                                                 }}>
-                                                {leg.market} @{leg.odds.toFixed(2)}
+                                                <span style={{ color: 'var(--stakes-color)' }}>{leg.market}</span> <span style={{ color: 'var(--odds-color)' }}>@{leg.odds.toFixed(2)}</span>
                                             </span>
                                             {live && leg.status === 'Live' && (
                                                 <div className="flex flex-col items-center gap-1">
                                                     <span className="font-mono text-sm font-bold px-3 py-1 rounded"
-                                                        style={{ background: 'rgba(245,158,11,.12)', color: 'var(--pending)' }}>
+                                                        style={{ background: 'rgba(245,158,11,.12)', color: 'var(--live)' }}>
                                                         {live.score}
                                                     </span>
-                                                    <span className="font-mono text-lg font-bold" style={{ color: 'var(--pending)' }}>
+                                                    <span className="font-mono text-lg font-bold" style={{ color: 'var(--live)' }}>
                                                         {live.minute}
                                                     </span>
                                                 </div>

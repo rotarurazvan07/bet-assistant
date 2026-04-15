@@ -47,11 +47,12 @@ export function getStatusIcon(status: string): string {
  * @param status - Status string
  * @returns Badge status type
  */
-export function getStatusBadge(status: string): 'success' | 'error' | 'warning' | 'default' {
+export function getStatusBadge(status: string): 'success' | 'error' | 'warning' | 'default' | 'info' {
     switch (status) {
         case 'Won': return 'success';
         case 'Lost': return 'error';
-        case 'Live': return 'warning';
+        case 'Live': return 'info';
+        case 'Pending': return 'warning';
         default: return 'default';
     }
 }

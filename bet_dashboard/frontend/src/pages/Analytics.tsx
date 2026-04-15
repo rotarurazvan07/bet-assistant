@@ -663,7 +663,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                                 </p>
                                                 <p style={{ margin: '3px 0' }}>
                                                     <span style={{ color: 'var(--text-secondary)' }}>Avg Odds: </span>
-                                                    <span style={{ fontWeight: 'bold' }}>@{d.avg_odds.toFixed(2)}</span>
+                                                    <span style={{ fontWeight: 'bold', color: 'var(--odds-color)' }}>@{d.avg_odds.toFixed(2)}</span>
                                                 </p>
                                                 <p style={{ margin: '3px 0' }}>
                                                     <span style={{ color: 'var(--text-secondary)' }}>Win Rate: </span>
