@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { fetchMatches } from '../api/matches';
-import { addSlip } from '../api/data';
-import type { CandidateLeg, ManualLegIn } from '../types';
+import { addSlip, fetchSlips } from '../api/data';
+import type { CandidateLeg, ManualLegIn, BetLeg } from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import SlipBuilderPanel from '../components/SlipBuilderPanel';
@@ -41,6 +41,36 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         }
         return [];
     });
+
+    // Fetch slips from backend to highlight cells already in slips
+    const [slipSelections, setSlipSelections] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        let cancelled = false;
+        const loadSlips = async () => {
+            try {
+                const slipsData = await fetchSlips({ hide_settled: true });
+                const selections = new Set<string>();
+                slipsData.slips.forEach((slip: any) => {
+                    // Only consider pending or live slips
+                    if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
+                        slip.legs.forEach((leg: BetLeg) => {
+                            if (leg.result_url && leg.market) {
+                                selections.add(`${leg.result_url}|${leg.market}`);
+                            }
+                        });
+                    }
+                });
+                if (!cancelled) {
+                    setSlipSelections(selections);
+                }
+            } catch (error) {
+                console.error('Failed to fetch slips:', error);
+            }
+        };
+        loadSlips();
+        return () => { cancelled = true; };
+    }, [refreshKey]); // Refetch when refreshKey changes
 
     // Local filter state with localStorage persistence
     const [search, setSearch] = useState(() => {
@@ -144,6 +174,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         setPendingLegs(prev => prev.filter((_, i) => i !== index));
     }
 
+    // Refetch slips after successfully adding a slip
     async function handleAddSlip(units: number) {
         // Check if all legs have result_url (required for validation)
         const legsMissingResultUrl = pendingLegs.filter(leg => !leg.result_url || leg.result_url.trim() === '');
@@ -177,6 +208,23 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         try {
             await addSlip('manual', manualLegs, units);
             setPendingLegs([]);
+            // Refresh slip selections after adding
+            try {
+                const slipsData = await fetchSlips({ hide_settled: true });
+                const selections = new Set<string>();
+                slipsData.slips.forEach((slip: any) => {
+                    if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
+                        slip.legs.forEach((leg: BetLeg) => {
+                            if (leg.result_url && leg.market) {
+                                selections.add(`${leg.result_url}|${leg.market}`);
+                            }
+                        });
+                    }
+                });
+                setSlipSelections(selections);
+            } catch (err) {
+                console.error('Failed to refresh slips after add:', err);
+            }
         } catch (error: any) {
             console.error('Failed to add slip:', error.response?.data || error.message);
             alert(`Failed to add slip: ${error.response?.data?.detail || 'Unknown error'}`);
@@ -312,6 +360,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                                         .filter(leg => leg.result_url === m.result_url)
                                                         .map(leg => leg.market)
                                                 );
+                                                const inSlipMarkets = new Set<string>();
+                                                if (m.result_url) {
+                                                    slipSelections.forEach(selection => {
+                                                        const [url, market] = selection.split('|');
+                                                        if (url === m.result_url) {
+                                                            inSlipMarkets.add(market);
+                                                        }
+                                                    });
+                                                }
                                                 return (
                                                     <MatchRow
                                                         key={m.match_id ?? i}
@@ -319,6 +376,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                                         index={(page - 1) * PAGE_SIZE + i + 1}
                                                         onCellClick={handleCellClick}
                                                         activeMarkets={activeMarkets}
+                                                        inSlipMarkets={inSlipMarkets}
                                                     />
                                                 );
                                             })}
