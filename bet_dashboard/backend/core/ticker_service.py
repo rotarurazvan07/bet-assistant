@@ -57,7 +57,6 @@ class TickerService:
             interrupted = self._wake_event.wait(wait)
             self._wake_event.clear()
 
-
             # If interrupted but NOT forced to run now, it just loops to recalculate wait time
             if interrupted and not self._force_run:
                 continue
