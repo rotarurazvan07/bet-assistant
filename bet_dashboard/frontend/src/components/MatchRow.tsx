@@ -24,13 +24,12 @@ interface CellProps {
 function Cell({ pct, odds, onClick, isActive = false, isInSlip = false }: CellProps) {
     const c = consCell(pct, odds);
     if (!c) return <td className="px-3 py-3 text-center">
-        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>
     </td>;
     const oddsDisplay = c.odds != null ? c.odds.toFixed(2) : '—';
     // Determine styling based on states
-    const isHighlighted = isInSlip && !isActive;
-    const bgColor = isInSlip ? 'rgba(239, 68, 68, 0.15)' : (isActive ? 'rgba(59, 130, 246, 0.15)' : c.bg);
-    const borderColor = isInSlip ? '1px solid rgba(239, 68, 68, 0.5)' : (isActive ? '1px solid rgba(59, 130, 246, 0.5)' : 'none');
+    const bgColor = isInSlip ? 'var(--loss-bg)' : (isActive ? 'var(--accent-glow)' : c.bg);
+    const borderColor = isInSlip ? `1px solid var(--loss-border)` : (isActive ? `1px solid var(--border-accent)` : 'none');
     const textColor = isInSlip ? 'var(--loss)' : (isActive ? 'var(--accent)' : c.col);
     return (
         <td className="px-3 py-3 text-center" style={{ minWidth: 64 }}>

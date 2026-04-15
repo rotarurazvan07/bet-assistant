@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { BaseBadge } from './ui/BaseBadge';
 import { formatBetDate } from '../utils/betUtils';
 import { parseTeamNames } from '../utils/teamUtils';
-import { getConsensusColor, getStatusColor, getStatusIcon, getStatusBadge } from '../utils/colorUtils';
+import { getStatusColor, getStatusIcon, getStatusBadge } from '../utils/colorUtils';
 import { calculateNetProfit } from '../utils/calculationUtils';
 
 // ── BetPreview ────────────────────────────────────────────────────────────────
@@ -15,14 +15,47 @@ interface PreviewProps {
     onExclude: (url: string) => void;
 }
 
-function TierBadge({ tier, score }: { tier: number; score: number }) {
+function TierBadge({ tier }: { tier: number; }) {
     return (
         <div className="flex items-center gap-1">
             <BaseBadge
                 status={tier === 1 ? 'success' : 'warning'}
             >
-                {tier === 1 ? '✓ Balanced' : '⚠ Drift'} <span style={{ opacity: 0.7, margin: '0 3px' }}>·</span> {score.toFixed(2)}
+                {tier === 1 ? '✓ Balanced' : '⚠ Drift'}
             </BaseBadge>
+        </div>
+    );
+}
+
+function QualityIndicator({ score }: { score: number }) {
+    const qualityColor = (() => {
+        const clampedScore = Math.max(0, Math.min(1, score));
+        const red = { r: 239, g: 68, b: 68 };
+        const green = { r: 16, g: 185, b: 129 };
+        const r = Math.round(red.r + (green.r - red.r) * clampedScore);
+        const g = Math.round(red.g + (green.g - red.g) * clampedScore);
+        const b = Math.round(red.b + (green.b - red.b) * clampedScore);
+        return `rgb(${r}, ${g}, ${b})`;
+    })();
+
+    return (
+        <div className="flex items-center gap-2">
+            <div className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>
+                Quality
+            </div>
+            <div
+                className="w-4 h-4 rounded-full"
+                style={{
+                    background: qualityColor,
+                    boxShadow: `0 0 6px ${qualityColor}80`
+                }}
+            />
+            <span
+                className="text-sm font-bold font-mono"
+                style={{ color: qualityColor }}
+            >
+                {(score * 100).toFixed(0)}%
+            </span>
         </div>
     );
 }
@@ -32,7 +65,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <span className="text-3xl opacity-30">🎯</span>
-                <p className="text-[13px] font-sans" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-[13px] font-sans" style={{ color: 'var(--text-secondary)' }}>
                     No matches meet the current criteria.
                 </p>
             </div>
@@ -56,8 +89,6 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {legs.map((leg, i) => {
                     const isDupe = pendingUrls.includes(leg.result_url ?? '');
-                    const consColor = getConsensusColor(leg.consensus);
-                    const consWidth = `${leg.consensus}%`;
 
                     // Parse team names from "Team A - Team B" format
                     const { teamA, teamB } = parseTeamNames(leg.match_name);
@@ -71,32 +102,32 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                         <div key={i}
                             className="group rounded-xl overflow-hidden fade-in transition-all duration-300 cursor-default"
                             style={{
-                                background: 'linear-gradient(180deg, rgba(24,36,58,.8) 0%, rgba(13,19,33,.9) 100%)',
-                                border: `1px solid ${isDupe ? 'var(--pending)' : 'rgba(255,255,255,.06)'}`,
-                                boxShadow: '0 2px 8px rgba(0,0,0,.3)',
+                                background: 'var(--bg-card)',
+                                border: `1px solid ${isDupe ? 'var(--pending)' : 'var(--border)'}`,
+                                boxShadow: 'var(--shadow-sm)',
                                 transform: 'translateY(0)',
                             }}
                             onMouseEnter={e => {
                                 e.currentTarget.style.transform = 'translateY(-4px)';
-                                e.currentTarget.style.boxShadow = '0 12px 40px rgba(61,123,255,.1), 0 4px 12px rgba(0,0,0,.4)';
-                                e.currentTarget.style.borderColor = 'rgba(61,123,255,.2)';
+                                e.currentTarget.style.boxShadow = 'var(--accent-glow), var(--shadow-md)';
+                                e.currentTarget.style.borderColor = 'var(--accent)';
                             }}
                             onMouseLeave={e => {
                                 e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,.3)';
-                                e.currentTarget.style.borderColor = isDupe ? 'var(--pending)' : 'rgba(255,255,255,.06)';
+                                e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
+                                e.currentTarget.style.borderColor = isDupe ? 'var(--pending)' : 'var(--border)';
                             }}
                         >
                             {/* Dupe warning strip */}
                             {isDupe && (
                                 <div className="text-[9px] font-mono px-3 py-1.5 text-center"
-                                    style={{ background: 'rgba(245,158,11,.1)', color: 'var(--pending)' }}>
+                                    style={{ background: 'var(--pending-bg)', color: 'var(--pending)' }}>
                                     ⚠ In pending slip
                                 </div>
                             )}
 
                             {/* Card Content */}
-                            <div className="p-4">
+                            <div className="p-4" style={{border: '1px solid var(--border-accent)',}}>
                                 {/* Top: Teams + Date + Exclude */}
                                 <div className="flex items-start justify-between gap-1.5 mb-3">
                                     <div className="min-w-0 flex-1">
@@ -107,7 +138,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                         {teamB && (
                                             <>
                                                 <span className="text-[9px] font-mono block my-0.5"
-                                                    style={{ color: 'var(--text-muted)' }}>vs</span>
+                                                    style={{ color: 'var(--text-secondary)' }}>vs</span>
                                                 <p className="font-sans font-bold text-[13px] leading-tight truncate"
                                                     style={{ color: 'var(--text-bright)' }}>
                                                     {teamB}
@@ -116,7 +147,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                         )}
                                         {dt && (
                                             <p className="text-[10px] font-mono mt-1.5"
-                                                style={{ color: 'var(--text-muted)' }}>{dt}</p>
+                                                style={{ color: 'white' }}>{dt}</p>
                                         )}
                                     </div>
                                     <button
@@ -128,53 +159,24 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                     </button>
                                 </div>
 
-                                {/* Middle: Market + Odds Badge */}
-                                <div className="flex justify-center mb-4">
+                                {/* Middle: Market + Odds Badge - Left aligned */}
+                                <div className="mb-4">
                                     <span className="font-display font-bold text-sm px-4 py-1.5 rounded-full
-                                                     transition-all duration-200"
+                                                     transition-all duration-200 inline-block"
                                         style={{
-                                            background: 'linear-gradient(135deg, rgba(61,123,255,.12) 0%, rgba(37,99,235,.08) 100%)',
-                                            border: '1.5px solid var(--accent)',
+                                            background: 'var(--bg-card)',
+                                            border: `2px solid var(--accent)`,
                                             color: 'var(--accent)',
-                                            boxShadow: '0 0 16px rgba(61,123,255,.1)',
+                                            boxShadow: '0 0 12px var(--accent-glow)',
                                         }}>
                                         {leg.market} <span style={{ opacity: 0.7, margin: '0 3px' }}></span>@{leg.odds.toFixed(2)}
                                     </span>
                                 </div>
 
-                                {/* Bottom: Consensus + Tier */}
-                                <div className="space-y-2">
-                                    {/* Consensus text */}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-mono"
-                                            style={{ color: 'var(--text-muted)' }}>
-                                            Consensus
-                                        </span>
-                                        <span className="text-[11px] font-mono font-medium"
-                                            style={{ color: consColor }}>
-                                            {leg.consensus}%
-                                        </span>
-                                    </div>
-
-                                    {/* Progress bar */}
-                                    <div className="h-1.5 rounded-full overflow-hidden"
-                                        style={{ background: 'rgba(255,255,255,.04)' }}>
-                                        <div className="h-full rounded-full transition-all duration-500 ease-out"
-                                            style={{
-                                                width: consWidth,
-                                                background: `linear-gradient(90deg, ${consColor}cc, ${consColor})`,
-                                                boxShadow: `0 0 8px ${consColor}44`,
-                                            }} />
-                                    </div>
-
-                                    {/* Tier + Sources */}
-                                    <div className="flex items-center justify-between pt-1">
-                                        <TierBadge tier={leg.tier} score={leg.score} />
-                                        <span className="text-[9px] font-mono"
-                                            style={{ color: 'var(--text-muted)' }}>
-                                            {leg.sources} src{leg.sources !== 1 ? 's' : ''}
-                                        </span>
-                                    </div>
+                                {/* Bottom: Quality Indicator + Tier */}
+                                <div className="flex items-center justify-between">
+                                    <QualityIndicator score={leg.score} />
+                                    <TierBadge tier={leg.tier}/>
                                 </div>
                             </div>
                         </div>
@@ -189,13 +191,6 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
 
 // ── SlipCard (Grid Layout) ──────────────────────────────────────────────────────
 
-const HEADER_BG: Record<string, string> = {
-    Won: 'rgba(16,185,129,.08)',
-    Lost: 'rgba(239,68,68,.08)',
-    Live: 'rgba(61,123,255,.10)',
-    Pending: 'var(--bg-raised)',
-};
-
 interface SlipCardProps {
     slip: BetSlip;
     liveData?: LiveData;
@@ -204,7 +199,7 @@ interface SlipCardProps {
 }
 
 export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCardProps & { onCardClick?: () => void }) {
-    const hdrBg = slip.slip_status === 'Live' ? 'rgba(61,123,255,.10)' : (HEADER_BG[slip.slip_status] ?? HEADER_BG.Pending);
+    const hdrBg = slip.slip_status === 'Live' ? 'var(--live-bg)' : (slip.slip_status === 'Won' ? 'var(--win-bg)' : slip.slip_status === 'Lost' ? 'var(--loss-bg)' : 'var(--pending-bg)');
 
     // Status border colors
     const statusBorderColor = getStatusColor(slip.slip_status);
@@ -247,13 +242,13 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
 
     return (
         <div
-            className="flex flex-col rounded-lg overflow-hidden fade-in bg-[#1e293b] border-l-4 cursor-pointer hover:brightness-110 transition-all"
-            style={{ borderLeftColor: statusBorderColor }}
+            className={`flex flex-col rounded-lg overflow-hidden fade-in bg-[var(--bg-card)] border-l-4 cursor-pointer hover:brightness-110 transition-all slip-${slip.slip_status.toLowerCase()}`}
+            style={{ borderLeftColor: statusBorderColor, borderLeftWidth: '4px' }}
             onClick={onCardClick}
         >
             {/* Header */}
             <div className="flex items-center gap-3 px-4 py-3 flex-wrap justify-between"
-                style={{ background: hdrBg, borderBottom: '1px solid var(--border)' }}>
+                style={{ background: hdrBg, borderBottom: `1px solid ${statusBorderColor}33` }}>
                 <div className="flex items-center gap-2 flex-wrap">
                     <BaseBadge status="default">
                         {slip.date_generated.split('T')[0]}
@@ -327,14 +322,14 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                                     style={{
                                         background: 'var(--bg-card)',
                                         border: `2px solid ${pickBorderColor}`,
-                                        color: pickBorderColor
+                                        color: 'white'
                                     }}>
                                     {leg.market} @{leg.odds.toFixed(2)}
                                 </span>
                                 {live && leg.status === 'Live' && (
                                     <div className="flex flex-col items-center gap-0.5">
                                         <span className="font-mono text-sm font-bold px-2 py-1 rounded"
-                                            style={{ background: 'rgba(245,158,11,.12)', color: 'var(--live)' }}>
+                                            style={{ background: 'var(--live-bg)', color: 'var(--live)' }}>
                                             {live.score}
                                         </span>
                                         <span className="font-mono text-sm font-bold" style={{ color: 'var(--live)' }}>
@@ -362,31 +357,51 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
 
             {/* Footer */}
             <div className="p-3 mt-auto flex justify-between items-center rounded-b-lg"
-                style={{ background: 'rgba(0,0,0,0.2)' }}>
+                style={{ background: 'var(--bg-raised)' }}>
                 <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-3 text-sm">
-                        <span className="font-mono" style={{ color: 'var(--stakes-color)' }}>
+                        <span className="font-mono" style={{ color: 'white' }}>
                             {slip.units}u
                         </span>
-                        <span className="font-mono" style={{ color: 'var(--odds-color)' }}>
+                        <span className="font-mono" style={{ color: 'white' }}>
                             @ {slip.total_odds.toFixed(2)}
                         </span>
                     </div>
                 </div>
-                {/* Calculate and show net profit client-side on the right */}
-                {(() => {
-                    const netProfit = calculateNetProfit(slip.slip_status, slip.total_odds, slip.units);
-                    if (netProfit !== null) {
-                        const isPositive = netProfit > 0;
-                        const color = isPositive ? 'var(--win)' : 'var(--loss)';
-                        return (
-                            <span className="font-mono font-bold text-sm" style={{ color }}>
-                                {isPositive ? '+' : ''}{netProfit.toFixed(2)}
-                            </span>
-                        );
-                    }
-                    return null;
-                })()}
+                {/* For pending slips, show time to next match; for won/lost, show profit */}
+                <div className="font-mono font-bold text-sm">
+                    {slip.slip_status === 'Pending' ? (
+                        (() => {
+                            // Find the earliest leg datetime that is in the future
+                            const now = new Date();
+                            const upcomingLegs = slip.legs
+                                .filter(leg => leg.datetime && new Date(leg.datetime) > now)
+                                .map(leg => new Date(leg.datetime!));
+
+                            if (upcomingLegs.length === 0) {
+                                return <span style={{ color: 'var(--text-muted)' }}>no upcoming</span>;
+                            }
+
+                            const nextMatch = new Date(Math.min(...upcomingLegs.map(d => d.getTime())));
+                            const hoursUntil = (nextMatch.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+                            if (hoursUntil < 1) {
+                                const mins = Math.round(hoursUntil * 60);
+                                return <span style={{ color: 'var(--text-primary)' }}>Next match in {mins}m</span>;
+                            }
+
+                            return <span style={{ color: 'var(--text-primary)' }}>Next match in {Math.round(hoursUntil)}h</span>;
+                        })()
+                    ) : (() => {
+                        const netProfit = calculateNetProfit(slip.slip_status, slip.total_odds, slip.units);
+                        if (netProfit !== null) {
+                            const isPositive = netProfit > 0;
+                            const color = isPositive ? 'var(--win)' : 'var(--loss)';
+                            return <span style={{ color }}>{isPositive ? '+' : ''}{netProfit.toFixed(2)}</span>;
+                        }
+                        return null;
+                    })()}
+                </div>
             </div>
         </div>
     );
@@ -439,33 +454,34 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                     </div>
                     <div className="flex items-center gap-6">
                         <div>
-                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Status</p>
+                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Status</p>
                             <BaseBadge status={getStatusBadge(slip.slip_status)}>
                                 {slip.slip_status}
                             </BaseBadge>
                         </div>
                         <div>
-                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Stake</p>
-                            <p className="text-xl font-bold" style={{ color: 'var(--text-bright)' }}>
+                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Stake</p>
+                            <p className="text-xl font-bold" style={{ color: 'white' }}>
                                 {slip.units}u
                             </p>
                         </div>
                         <div>
-                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Total Odds</p>
-                            <p className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>
+                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Total Odds</p>
+                            <p className="text-2xl font-bold" style={{ color: 'white' }}>
                                 @{slip.total_odds.toFixed(2)}
                             </p>
                         </div>
-                        {/* Show potential return or net profit in header */}
+                        {/* Show potential win or net profit in header */}
                         {(() => {
                             const netProfit = calculateNetProfit(slip.slip_status, slip.total_odds, slip.units);
-                            if (slip.slip_status === 'Pending') {
-                                const potentialReturn = slip.total_odds * slip.units;
+                            if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
+                                // Potential Win = (total_odds * units) - units
+                                const potentialWin = slip.total_odds * slip.units - slip.units;
                                 return (
                                     <div className="text-right">
-                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Potential Return</p>
+                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Potential Win</p>
                                         <p className="text-2xl font-bold" style={{ color: 'var(--accent)' }}>
-                                            {potentialReturn.toFixed(2)}u
+                                            {potentialWin.toFixed(2)}u
                                         </p>
                                     </div>
                                 );
@@ -474,7 +490,7 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                 const color = isPositive ? 'var(--win)' : 'var(--loss)';
                                 return (
                                     <div className="text-right">
-                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-muted)' }}>
+                                        <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>
                                             {isPositive ? 'Profit' : 'Loss'}
                                         </p>
                                         <p className="text-2xl font-bold" style={{ color }}>
@@ -539,14 +555,14 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                                 style={{
                                                     background: 'var(--bg-card)',
                                                     border: `2px solid ${legStatusColor}`,
-                                                    color: legStatusColor
+                                                    color: 'white'
                                                 }}>
-                                                <span style={{ color: 'var(--stakes-color)' }}>{leg.market}</span> <span style={{ color: 'var(--odds-color)' }}>@{leg.odds.toFixed(2)}</span>
+                                                {leg.market} @{leg.odds.toFixed(2)}
                                             </span>
                                             {live && leg.status === 'Live' && (
                                                 <div className="flex flex-col items-center gap-1">
                                                     <span className="font-mono text-sm font-bold px-3 py-1 rounded"
-                                                        style={{ background: 'rgba(245,158,11,.12)', color: 'var(--live)' }}>
+                                                        style={{ background: 'var(--live-bg)', color: 'var(--live)' }}>
                                                         {live.score}
                                                     </span>
                                                     <span className="font-mono text-lg font-bold" style={{ color: 'var(--live)' }}>

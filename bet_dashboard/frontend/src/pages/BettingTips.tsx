@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
 import { addSlip, fetchSlips } from '../api/data';
 import type { CandidateLeg, ManualLegIn, BetLeg } from '../types';
@@ -314,8 +314,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
-                        background: '#1e293b',
-                        borderRadius: '8px'
+                        background: 'var(--bg-card)',
+                        borderRadius: 'var(--radius-lg)'
                     }}>
                         {!loading && data && data.total === 0 && (
                             <div className="card text-center py-16 fade-in">

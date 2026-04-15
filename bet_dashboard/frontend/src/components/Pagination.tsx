@@ -35,7 +35,7 @@ export default function Pagination({ page, totalPages, onPageChange }: Props) {
             onClick={() => onPageChange(p as number)}
             className="w-7 h-7 rounded text-[11px] font-mono transition-colors duration-100"
             style={p === page
-              ? { background: 'var(--accent)', color: '#fff' }
+              ? { background: 'var(--accent)', color: 'var(--text-bright)' }
               : { color: 'var(--text-secondary)' }
             }
           >{p}</button>

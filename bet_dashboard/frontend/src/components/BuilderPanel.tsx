@@ -27,8 +27,8 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
                     onClick={() => setOpen(!open)}
                     className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-150"
                     style={{
-                        background: open ? 'rgba(61,123,255,.04)' : 'transparent',
-                        borderBottom: open ? '1px solid rgba(255,255,255,.03)' : 'none'
+                        background: open ? 'var(--accent-glow)' : 'transparent',
+                        borderBottom: open ? '1px solid var(--border)' : 'none'
                     }}
                 >
                     <div className="flex items-center gap-2">
@@ -41,7 +41,7 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
                     <svg
                         className="w-3 h-3 transition-transform duration-300"
                         style={{
-                            color: 'var(--text-muted)',
+                            color: 'var(--text-secondary)',
                             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
                         }}
                         fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -58,7 +58,7 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
                     }}
                 >
                     <div className="px-4 pb-4 pt-1"
-                        style={{ background: 'rgba(13,19,33,.3)' }}>
+                        style={{ background: 'var(--bg-raised)' }}>
                         {children}
                     </div>
                 </div>
@@ -84,12 +84,12 @@ function SliderWithTicks({ min, max, step, value, onChange, showCenter = false, 
     // Choose colors based on which half we are in
     const isLeft = pct <= 50;
     const thumbColor = dual ? (isLeft ? 'var(--win)' : 'var(--accent)') : 'var(--accent)';
-    const thumbGlow = dual ? (isLeft ? 'rgba(16,185,129,0.5)' : 'rgba(61,123,255,0.5)') : 'var(--accent-glow)';
+    const thumbGlow = dual ? (isLeft ? 'var(--win-bg)' : 'var(--accent-glow)') : 'var(--accent-glow)';
 
 
     // In dual mode, the inactive part of the gradient should be softer
     const background = dual
-        ? `linear-gradient(to right, #10B981AA 0%, #10B98144 50%, #3D7BFF44 50%, #3D7BFFAA 100%)`
+        ? `linear-gradient(to right, var(--win) 0%, var(--win-bg) 50%, var(--accent-glow) 50%, var(--accent) 100%)`
         : `linear-gradient(to right, var(--accent) ${pct}%, var(--bg-raised) ${pct}%)`;
 
     return (
@@ -112,8 +112,8 @@ function SliderWithTicks({ min, max, step, value, onChange, showCenter = false, 
                 value={value}
                 disabled={disabled}
                 style={{
-                    background: disabled ? 'rgba(255,255,255,0.05)' : background,
-                    '--thumb-color': disabled ? 'var(--text-muted)' : thumbColor,
+                    background: disabled ? 'var(--bg-raised)' : background,
+                    '--thumb-color': disabled ? 'var(--text-secondary)' : thumbColor,
                     '--thumb-glow': disabled ? 'none' : thumbGlow
                 } as any}
                 onChange={e => onChange(+e.target.value)} />
@@ -127,14 +127,14 @@ function SliderRow({ label, tip, value, min, max, step, format, onChange, showCe
 }) {
     const fmt = format ?? ((v: number) => String(v));
     return (
-        <div className="py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,.03)' }}>
+        <div className="py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
                     {tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>}
                 </div>
                 <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded"
-                    style={{ color: 'var(--accent)', background: 'rgba(61,123,255,.12)' }}>
+                    style={{ color: 'var(--accent)', background: 'var(--accent-glow)' }}>
                     {fmt(value)}
                 </span>
             </div>
@@ -151,29 +151,29 @@ function ToggleSwitch({ enabled, onToggle }: {
     return (
         <div className="flex items-center gap-2">
             <span className="text-[9px] font-mono uppercase font-semibold"
-                style={{ color: !enabled ? 'var(--accent)' : 'var(--text-muted)' }}>Auto</span>
+                style={{ color: !enabled ? 'var(--accent)' : 'var(--text-secondary)' }}>Auto</span>
             <button
                 type="button"
                 onClick={() => onToggle(!enabled)}
                 className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
                 style={{
                     background: enabled
-                        ? 'linear-gradient(135deg, var(--accent) 0%, #2563EB 100%)'
-                        : 'rgba(255,255,255,.08)',
-                    border: `1px solid ${enabled ? 'rgba(61,123,255,.4)' : 'rgba(255,255,255,.1)'}`,
-                    boxShadow: enabled ? '0 0 12px rgba(61,123,255,.4)' : 'none',
+                        ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+                        : 'var(--bg-raised)',
+                    border: `1px solid ${enabled ? 'var(--border-accent)' : 'var(--border)'}`,
+                    boxShadow: enabled ? '0 0 12px var(--accent-glow)' : 'none',
                 }}
             >
                 <span
                     className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
                     style={{
                         left: enabled ? 'calc(100% - 18px)' : '2px',
-                        boxShadow: '0 2px 4px rgba(0,0,0,.4)',
+                        boxShadow: 'var(--shadow-sm)',
                     }}
                 />
             </button>
             <span className="text-[9px] font-mono uppercase font-semibold"
-                style={{ color: enabled ? 'var(--accent)' : 'var(--text-muted)' }}>Set</span>
+                style={{ color: enabled ? 'var(--accent)' : 'var(--text-secondary)' }}>Set</span>
         </div>
     );
 }
@@ -182,7 +182,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
     label: string; tip?: string; enabled: boolean; onToggle: (v: boolean) => void; children: React.ReactNode;
 }) {
     return (
-        <div className="py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,.03)', overflow: 'visible' }}>
+        <div className="py-2.5" style={{ borderBottom: '1px solid var(--border)', overflow: 'visible' }}>
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -222,7 +222,7 @@ function DualSlider({ label, left, right, value, onChange, disabled = false }: {
     disabled?: boolean;
 }) {
     return (
-        <div className="py-3" style={{ borderBottom: '1px solid rgba(255,255,255,.03)' }}>
+        <div className="py-3" style={{ borderBottom: '1px solid var(--border)' }}>
             {label && (
                 <div className="flex items-center gap-1 mb-2">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -305,13 +305,13 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
                                 style={{
                                     background: active
                                         ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
-                                        : 'rgba(255,255,255,.04)',
-                                    color: active ? '#ffffff' : 'var(--text-muted)',
+                                        : 'var(--bg-raised)',
+                                    color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
                                     border: active
-                                        ? '1px solid rgba(61,123,255,.4)'
-                                        : '1px solid rgba(255,255,255,.06)',
+                                        ? '1px solid var(--border-accent)'
+                                        : '1px solid var(--border)',
                                     boxShadow: active
-                                        ? '0 4px 12px rgba(61,123,255,.3)'
+                                        ? '0 4px 12px var(--accent-glow)'
                                         : 'none',
                                 }}
                             >

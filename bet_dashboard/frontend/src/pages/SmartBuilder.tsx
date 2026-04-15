@@ -238,16 +238,16 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 <div className="sticky top-4 space-y-4">
                     <div className="rounded-xl overflow-hidden"
                         style={{
-                            background: 'linear-gradient(180deg, rgba(5,8,15,.95) 0%, rgba(13,19,33,.9) 100%)',
-                            border: '1px solid rgba(255,255,255,.05)',
-                            boxShadow: '0 8px 32px rgba(0,0,0,.4)',
+                            background: 'linear-gradient(180deg, var(--bg-base) 0%, var(--bg-surface) 100%)',
+                            border: '1px solid var(--border)',
+                            boxShadow: 'var(--shadow-lg)',
                         }}>
                         <div className="px-5 pt-5 pb-4"
-                            style={{ borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+                            style={{ borderBottom: '1px solid var(--border)' }}>
                             <div className="flex items-center gap-2 mb-3">
                                 <span className="text-sm">👤</span>
                                 <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
-                                    style={{ color: 'var(--text-muted)' }}>Profiles</span>
+                                    style={{ color: 'var(--text-secondary)' }}>Profiles</span>
                             </div>
                             <div className="flex flex-wrap gap-1.5">
                                 {Object.keys(profiles).map(name => (
@@ -255,18 +255,18 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                         className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-lg transition-all duration-200"
                                         style={{
                                             background: activeName === name
-                                                ? 'linear-gradient(135deg, var(--accent) 0%, #2563EB 100%)'
-                                                : 'rgba(19,28,46,.6)',
-                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'rgba(255,255,255,.06)'}`,
-                                            color: activeName === name ? '#fff' : 'var(--text-secondary)',
-                                            boxShadow: activeName === name ? '0 2px 12px rgba(61,123,255,.2)' : 'none',
+                                                ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+                                                : 'var(--bg-card)',
+                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border)'}`,
+                                            color: activeName === name ? 'var(--text-bright)' : 'var(--text-secondary)',
+                                            boxShadow: activeName === name ? 'var(--accent-glow)' : 'none',
                                         }}
                                         onClick={() => loadProfile(name, profiles[name])}>
                                         {name}
                                     </button>
                                 ))}
                                 {!Object.keys(profiles).length && (
-                                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
                                         No saved profiles yet
                                     </span>
                                 )}
@@ -284,8 +284,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 {/* Top Header / Management Bar */}
                 <div className="rounded-xl px-5 py-3.5 mb-5"
                     style={{
-                        background: 'linear-gradient(180deg, rgba(24,36,58,.6) 0%, rgba(13,19,33,.6) 100%)',
-                        border: '1px solid rgba(255,255,255,.05)',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
                         backdropFilter: 'blur(10px)',
                     }}>
                     <div className="flex items-center gap-3 flex-wrap">
@@ -295,16 +295,16 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
 
                         {/* Units & Target Payout */}
-                        <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'rgba(255,255,255,.08)' }}>
+                        <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Units</span>
+                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Units</span>
                                 <input className="field w-16" type="number" min={0.1} step={0.1}
                                     disabled={targetPayout > 0}
                                     style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
                                     value={units} onChange={e => setUnits(+e.target.value)} />
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Target Payout</span>
+                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
                                 <input className="field w-20" type="number" min={0} step={5}
                                     placeholder="Off"
                                     value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
@@ -314,8 +314,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
                         <button className="btn-ghost" onClick={handleClearExcluded}>Reset excluded</button>
 
-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'rgba(255,255,255,.08)' }}>
-                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>Run Daily</span>
+                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
+                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Run Daily</span>
                             <input className="field w-16" type="number" min={0} step={1}
                                 value={runDaily} onChange={e => setRunDaily(+e.target.value)} />
                         </div>
@@ -324,7 +324,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             <span className="text-[11px] font-mono ml-auto px-3 py-1 rounded-lg"
                                 style={{
                                     color: 'var(--accent)',
-                                    background: 'rgba(61,123,255,.08)',
+                                    background: 'var(--accent-glow)',
                                 }}>
                                 {status}
                             </span>
@@ -341,8 +341,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 {/* Live Preview */}
                 <div className="rounded-xl p-5"
                     style={{
-                        background: 'linear-gradient(180deg, rgba(24,36,58,.4) 0%, rgba(13,19,33,.3) 100%)',
-                        border: '1px solid rgba(255,255,255,.04)',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
                     }}>
                     <div className="flex items-center gap-2.5 mb-5">
                         <span className="relative flex h-2 w-2">
@@ -359,7 +359,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
                                 style={{
                                     color: 'var(--accent)',
-                                    background: 'rgba(61,123,255,.08)',
+                                    background: 'var(--accent-glow)',
                                 }}>building…</span>
                         )}
                     </div>
@@ -378,8 +378,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 {(excludedDetails?.length ?? 0) > 0 && (
                     <div className="rounded-xl p-5 mt-5 fade-in"
                         style={{
-                            background: 'linear-gradient(180deg, rgba(24,36,58,.3) 0%, rgba(13,19,33,.2) 100%)',
-                            border: '1px solid rgba(255,255,255,.04)',
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border)',
                         }}>
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center gap-2">
@@ -403,8 +403,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 return (
                                     <div key={i} className="rounded-lg p-3 group transition-all duration-200"
                                         style={{
-                                            background: 'rgba(13,19,33,.6)',
-                                            border: '1px solid rgba(255,255,255,.05)',
+                                            background: 'var(--bg-card)',
+                                            border: '1px solid var(--border)',
                                         }}>
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex-1 min-w-0">
@@ -414,7 +414,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                                 </p>
                                                 {dt && (
                                                     <p className="text-[10px] font-mono mt-0.5"
-                                                        style={{ color: 'var(--text-muted)' }}>
+                                                        style={{ color: 'var(--text-secondary)' }}>
                                                         {dt}
                                                     </p>
                                                 )}

@@ -23,8 +23,8 @@ export default function ServiceCard({ info, onToggle }: Props) {
       <div className="flex items-center gap-2.5">
         <span className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
           style={{
-            background: active ? 'rgba(16,185,129,.12)' : 'var(--bg-raised)',
-            border: `1px solid ${active ? 'rgba(16,185,129,.3)' : 'var(--border)'}`
+            background: active ? 'var(--win-bg)' : 'var(--bg-raised)',
+            border: `1px solid ${active ? 'var(--win-border)' : 'var(--border)'}`
           }}>
           {ICONS[info.name] ?? '●'}
         </span>

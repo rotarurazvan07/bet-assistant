@@ -24,7 +24,7 @@ export function BaseBadge({
                 };
             case 'warning':
                 return {
-                    background: 'var(--pend-bg)',
+                    background: 'var(--pending-bg)',
                     color: 'var(--pending)',
                     border: '1px solid var(--pending)'
                 };
@@ -42,7 +42,7 @@ export function BaseBadge({
                 };
             default:
                 return {
-                    background: 'rgba(255,255,255,0.05)',
+                    background: 'var(--bg-hover)',
                     color: 'var(--text-secondary)',
                     border: '1px solid var(--border)'
                 };

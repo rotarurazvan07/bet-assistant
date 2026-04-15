@@ -19,9 +19,9 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
         return validOdds.reduce((product, odds) => product * odds, 1);
     }, [legs]);
 
-    // Calculate potential win
+    // Calculate potential win (profit = return - stake)
     const potentialWin = useMemo(() => {
-        return totalOdds * units;
+        return totalOdds * units - units;
     }, [totalOdds, units]);
 
     const handleSubmit = () => {
@@ -48,7 +48,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                     <div className="space-y-1.5 mb-3">
                         <div className="flex justify-between items-center">
                             <span className="text-base font-mono" style={{ color: 'var(--text-secondary)' }}>Total Odds</span>
-                            <span className="text-base font-mono font-bold" style={{ color: 'var(--odds-color)' }}>
+                            <span className="text-base font-mono font-bold" style={{ color: 'var(--text-secondary)' }}>
                                 {totalOdds.toFixed(2)}
                             </span>
                         </div>
@@ -68,8 +68,8 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                             />
                         </div>
                         <div className="flex justify-between items-center pt-1.5 border-t" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-sm font-mono" style={{ color: 'var(--text-secondary)' }}>Potential Win</span>
-                            <span className="text-sm font-mono font-bold" style={{ color: 'var(--stakes-color)' }}>
+                            <span className="text-base font-mono" style={{ color: 'var(--text-secondary)' }}>Potential Win</span>
+                            <span className="text-xl font-mono font-bold" style={{ color: 'var(--accent)' }}>
                                 {potentialWin.toFixed(2)}
                             </span>
                         </div>
@@ -135,7 +135,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
 
                             <div className="flex items-center justify-between mb-2">
                                 <BaseBadge status="info">
-                                    <span style={{ color: 'var(--stakes-color)' }}>{leg.market}</span> <span style={{ color: 'var(--odds-color)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
+                                    <span style={{ color: 'var(--accent)' }}>{leg.market}</span> <span style={{ color: 'var(--accent)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
                                 </BaseBadge>
                             </div>
 

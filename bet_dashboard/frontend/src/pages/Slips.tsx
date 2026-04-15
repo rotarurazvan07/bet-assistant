@@ -208,8 +208,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             {/* Stats row */}
             {stats && (
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-                    <StatCard label="Total Bet" value={`${stats.total_units_bet} U`} accent />
-                    <StatCard label="Gross Return" value={`${stats.gross_return} U`} positive={stats.gross_return > 0} />
+                    <StatCard label="Total Bet" value={`${stats.total_units_bet} U`} />
+                    <StatCard label="Gross Return" value={`${stats.gross_return} U`} />
                     <StatCard label="Net Profit" value={`${stats.net_profit > 0 ? '+' : ''}${stats.net_profit} U`}
                         positive={stats.net_profit > 0} negative={stats.net_profit < 0} />
                     <StatCard label="Win Rate" value={`${stats.win_rate}%`} positive={stats.win_rate > 50} />

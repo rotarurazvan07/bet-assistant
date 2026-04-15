@@ -45,14 +45,14 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
             transform: `translate(-50%, -100%)`, // Position above center
           }}
         >
-          <div className={`relative px-4 py-3 rounded-xl border shadow-2xl transition-all duration-200 
+          <div className={`relative px-4 py-3 rounded-xl border shadow-2xl transition-all duration-200
                            w-max max-w-[340px] min-w-[200px] font-sans text-[12px] leading-relaxed`}
             style={{
-              background: 'rgba(5,8,15,0.98)',
+              background: 'var(--bg-base)',
               backdropFilter: 'blur(16px)',
-              borderColor: 'rgba(255,255,255,0.18)',
+              borderColor: 'var(--border-strong)',
               color: 'var(--text-bright)',
-              boxShadow: '0 12px 60px rgba(0,0,0,0.95)',
+              boxShadow: 'var(--shadow-lg)',
               textAlign: 'center',
               // Manual alignment shift within the portal relative to the center anchor
               marginLeft: align === 'right' ? '-140px' : align === 'left' ? '140px' : '0'
@@ -64,8 +64,8 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
               style={{
                 left: align === 'right' ? 'calc(100% - 24px + 140px)' : align === 'left' ? 'calc(24px - 140px)' : '50%',
                 marginLeft: '-6px',
-                background: 'rgba(5,8,15,0.98)',
-                borderColor: 'rgba(255,255,255,0.18)'
+                background: 'var(--bg-base)',
+                borderColor: 'var(--border-strong)'
               }}
             />
           </div>
@@ -83,9 +83,9 @@ export function TooltipIcon({ text, align = 'center' }: { text: string; align?: 
                        text-[10px] font-bold ml-1 cursor-help transition-all duration-150
                        hover:scale-110 active:scale-95"
         style={{
-          border: '1px solid rgba(255,255,255,.3)',
-          color: 'var(--text-muted)',
-          background: 'rgba(255,255,255,.03)'
+          border: '1px solid var(--border)',
+          color: 'var(--text-secondary)',
+          background: 'var(--bg-hover)'
         }}>
         ?
       </span>
@@ -101,10 +101,10 @@ export function LiveDot({ alive, enabled }: { alive: boolean; enabled: boolean }
     <span className="relative inline-flex items-center justify-center w-2.5 h-2.5">
       {active && (
         <span className="absolute inset-0 rounded-full animate-ping opacity-60"
-          style={{ background: 'var(--win)' }} />
+          style={{ background: 'var(--live)' }} />
       )}
       <span className="relative block w-2 h-2 rounded-full"
-        style={{ background: active ? 'var(--win)' : 'var(--text-secondary)' }} />
+        style={{ background: active ? 'var(--live)' : 'var(--text-secondary)' }} />
     </span>
   );
 }

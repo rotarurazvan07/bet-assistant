@@ -5,26 +5,26 @@
 /**
  * Get color based on consensus percentage
  * @param consensus - Consensus percentage
- * @returns Color hex code
+ * @returns CSS variable reference
  */
 export function getConsensusColor(consensus: number): string {
-    return consensus >= 80 ? '#10B981'  // green-500
-        : consensus >= 60 ? '#F59E0B'    // amber-500
-            : '#EF4444';                    // red-500
+    return consensus >= 80 ? 'var(--cons-high-txt)'
+        : consensus >= 60 ? 'var(--cons-mid-txt)'
+            : 'var(--cons-low-txt)';
 }
 
 /**
  * Get color based on status
  * @param status - Status string
- * @returns Color hex code
+ * @returns CSS variable reference
  */
 export function getStatusColor(status: string): string {
     switch (status) {
-        case 'Won': return '#10B981';    // green-500
-        case 'Lost': return '#EF4444';    // red-500
-        case 'Live': return '#3B82F6';   // blue-500
-        case 'Pending': return '#F59E0B'; // amber-500
-        default: return '#9CA3AF';       // gray-400
+        case 'Won': return 'var(--win)';
+        case 'Lost': return 'var(--loss)';
+        case 'Live': return 'var(--live)';
+        case 'Pending': return 'var(--pending)';
+        default: return 'var(--text-muted)';
     }
 }
 

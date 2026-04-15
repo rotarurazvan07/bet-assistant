@@ -33,12 +33,12 @@ function MetricCard({ icon, label, value, sub }: MetricCardProps) {
     return (
         <BaseCard className="flex-1 rounded-xl p-4 relative overflow-hidden group transition-all duration-300">
             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                style={{ background: 'radial-gradient(circle at center, rgba(61,123,255,.1) 0%, transparent 80%)' }} />
+                style={{ background: 'radial-gradient(circle at center, var(--accent-glow) 0%, transparent 80%)' }} />
             <div className="relative">
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-sm">{icon}</span>
                     <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-bold"
-                        style={{ color: 'var(--text-muted)' }}>{label}</span>
+                        style={{ color: 'var(--text-secondary)' }}>{label}</span>
                 </div>
                 <p className="font-display font-black text-2xl leading-none"
                     style={{ color: 'var(--text-bright)', letterSpacing: '-0.02em' }}>{value}</p>
@@ -71,8 +71,8 @@ function GaugeChart({ riskScore }: { riskScore: number }) {
             <svg viewBox="0 0 200 110" className="w-full h-full drop-shadow-2xl">
                 <defs>
                     <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="rgba(255,255,255,0.02)" />
-                        <stop offset="100%" stopColor="rgba(255,255,255,0.08)" />
+                        <stop offset="0%" stopColor="var(--gauge-track-start)" />
+                        <stop offset="100%" stopColor="var(--gauge-track-end)" />
                     </linearGradient>
                 </defs>
                 {/* Background Track */}
@@ -104,7 +104,7 @@ function GaugeChart({ riskScore }: { riskScore: number }) {
                         {Math.round(clampedRisk)}
                     </p>
                     <p className="font-mono text-[10px] xl:text-[11px] uppercase font-black tracking-[0.4em] mt-2"
-                        style={{ color: 'var(--text-muted)' }}>
+                        style={{ color: 'var(--text-secondary)' }}>
                         {getRiskLabel(clampedRisk)}
                     </p>
                 </div>
@@ -149,7 +149,7 @@ function renderPolarAngleLabel(props: any) {
         <text
             x={x + dx} y={y + dy}
             textAnchor={textAnchor}
-            fill="#8896B3"
+            fill="var(--text-secondary)"
             fontSize={12}
             fontWeight="700"
             fontFamily="'Inter', sans-serif"
@@ -184,6 +184,7 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
 
         return {
             totalOdds, totalLegs: legs.length, avgConsensus: Math.round(avgConsensus),
+            avgSources: avgSources,
             riskScore,
             winProb: radarWinProb,
             marketSpread: radarDiversity,
@@ -210,11 +211,11 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
     return (
         <div className="w-full rounded-2xl p-6 mb-6 fade-in shadow-2xl relative"
             style={{
-                background: 'linear-gradient(180deg, rgba(13,19,33,1) 0%, rgba(24,36,58,.8) 100%)',
-                border: '1px solid rgba(255,255,255,.12)',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
                 backdropFilter: 'blur(30px)',
             }}>
-            <div className="absolute top-0 left-1/4 w-1/2 h-1 bg-accent/20 blur-xl" />
+            <div className="absolute top-0 left-1/4 w-1/2 h-1" style={{ background: 'var(--accent-glow)', filter: 'blur(8px)' }} />
 
             <div className="flex flex-col lg:flex-row items-stretch gap-6 w-full">
                 {/* Left: Metric Cards - Standardized Container */}
@@ -238,6 +239,12 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
                             value={`${metrics.avgConsensus}%`}
                             sub={`across ${legs.length} matches`}
                         />
+                        <MetricCard
+                            icon="📡"
+                            label="Avg Sources"
+                            value={`${metrics.avgSources.toFixed(1)}`}
+                            sub={`per match`}
+                        />
                     </div>
                 </div>
 
@@ -250,14 +257,14 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
                         <div className="absolute top-4 right-4 z-20">
                             <TooltipIcon align="right" text="Risk Index (0-100): Weighted calculation of cumulative odds log-variance and source agreement strength. Proximity to 100 indicates high event volatility." />
                         </div>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 bg-[radial-gradient(circle_at_50%_70%,rgba(61,123,255,0.08)_0%,transparent_80%)]" />
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: 'radial-gradient(circle at 50% 70%, var(--accent-glow) 0%, transparent 80%)' }} />
 
                         <div className="flex-1 w-full flex items-center justify-center">
                             <GaugeChart riskScore={metrics.riskScore} />
                         </div>
 
                         <span className="text-[11px] font-mono tracking-[0.5em] uppercase opacity-40 mt-6 font-black relative z-10"
-                            style={{ color: 'var(--text-muted)' }}>Risk Assessment Gauge</span>
+                            style={{ color: 'var(--text-primary)' }}>Risk Assessment</span>
                     </div>
                 </div>
 
@@ -270,24 +277,24 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
                         <div className="absolute top-4 right-4 z-20">
                             <TooltipIcon align="right" text="Portfolio DNA: Visual summary of slip characteristics. Balanced shapes indicate optimized risk-reward profiles across data sources and markets." />
                         </div>
-                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 bg-[radial-gradient(circle_at_50%_50%,rgba(61,123,255,0.03)_0%,transparent_70%)]" />
+                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style={{ background: 'radial-gradient(circle at 50% 50%, var(--accent-glow) 0%, transparent 70%)' }} />
 
                         <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
                             <ResponsiveContainer width="100%" height="100%">
                                 <RadarChart data={radarData} outerRadius="70%" cx="50%" cy="50%">
-                                    <PolarGrid stroke="rgba(255,255,255,.12)" strokeDasharray="4 4" />
+                                    <PolarGrid stroke="var(--border)" strokeDasharray="4 4" />
                                     <PolarAngleAxis dataKey="axis" tick={renderPolarAngleLabel} tickLine={false} />
                                     <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
                                     <Radar
                                         dataKey="value" stroke="var(--accent)" fill="var(--accent)" fillOpacity={0.3}
                                         strokeWidth={4}
-                                        dot={{ r: 6, fill: 'var(--accent)', stroke: '#0D1321', strokeWidth: 2.5 }}
+                                        dot={{ r: 6, fill: 'var(--accent)', stroke: 'var(--bg-surface)', strokeWidth: 2.5 }}
                                     />
                                 </RadarChart>
                             </ResponsiveContainer>
                         </div>
                         <p className="text-[11px] font-mono tracking-[0.5em] uppercase text-center mt-4 opacity-40 font-black"
-                            style={{ color: 'var(--text-muted)' }}>Portfolio matrix profile</p>
+                            style={{ color: 'var(--text-primary)' }}>Profile Matrix</p>
                     </div>
                 </div>
             </div>

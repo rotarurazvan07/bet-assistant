@@ -204,7 +204,7 @@
   }
 
   .badge-pending {
-    background: var(--pend-bg);
+    background: var(--pending-bg);
     color: var(--pending);
   }
 
@@ -212,6 +212,17 @@
     background: var(--live-bg);
     color: var(--live);
   }
+
+  /* Slip-specific odds/stake colors - applied via parent class */
+  .slip-won .odds-color { color: var(--win); }
+  .slip-lost .odds-color { color: var(--loss); }
+  .slip-live .odds-color { color: var(--live); }
+  .slip-pending .odds-color { color: var(--pending); }
+
+  .slip-won .stake-color { color: var(--win); }
+  .slip-lost .stake-color { color: var(--loss); }
+  .slip-live .stake-color { color: var(--live); }
+  .slip-pending .stake-color { color: var(--pending); }
 
   /* Slider track */
   input[type=range] {

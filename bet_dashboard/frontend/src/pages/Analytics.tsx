@@ -13,7 +13,7 @@ const tooltipStyle = {
     background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
     borderRadius: 8, fontSize: 11, fontFamily: 'JetBrains Mono, monospace',
     color: 'var(--text-secondary)',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    boxShadow: 'var(--shadow-md)',
 };
 
 const enhancedTooltipStyle = {
@@ -124,15 +124,15 @@ export default function Analytics({ filters, refreshKey }: Props) {
             </div>
 
             {/* Stats row */}
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-8">
-                <StatCard label="Total Bet" value={`${stats.total_units_bet} U`} accent />
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+                <StatCard label="Total Bet" value={`${stats.total_units_bet} U`} />
+                <StatCard label="Gross Return" value={`${stats.gross_return} U`} />
                 <StatCard label="Net Profit" value={`${stats.net_profit > 0 ? '+' : ''}${stats.net_profit} U`}
                     positive={stats.net_profit > 0} negative={stats.net_profit < 0} />
                 <StatCard label="Win Rate" value={`${stats.win_rate}%`} positive={stats.win_rate > 50} />
                 <StatCard label="ROI" value={`${stats.roi_percentage}%`}
                     positive={stats.roi_percentage > 0} negative={stats.roi_percentage < 0} />
                 <StatCard label="Settled" value={stats.total_settled} />
-                <StatCard label="Won" value={stats.total_won_count} positive={stats.total_won_count > 0} />
             </div>
 
             {/* ── History ──────────────────────────────────────────────────────── */}

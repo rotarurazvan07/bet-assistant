@@ -33,21 +33,49 @@
   --purple: #7C3AED;
   --purple-glow: rgba(124, 58, 237, .20);
 
-  /* ── Odds and Stakes Colors ────────────────────────────────────────────────── */
-  --odds-color: #3D7BFF;
-  --stakes-color: #3D7BFF;
-
-  /* ── Semantic ─────────────────────────────────────────────────────────── */
+  /* ── Semantic Slip Status Colors ───────────────────────────────────────── */
+  /* Core status colors */
   --win: #10B981;
-  --win-bg: rgba(16, 185, 129, .12);
   --loss: #EF4444;
-  --loss-bg: rgba(239, 68, 68, .12);
   --live: #3B82F6;
-  --live-bg: rgba(59, 130, 246, .12);
   --pending: #F59E0B;
-  --pend-bg: rgba(245, 158, 11, .12);
 
-  /* ── Consensus cell colors ────────────────────────────────────────────── */
+  /* Status background overlays (subtle) */
+  --win-bg: rgba(16, 185, 129, .08);
+  --loss-bg: rgba(239, 68, 68, .08);
+  --live-bg: rgba(59, 130, 246, .10);
+  --pending-bg: rgba(245, 158, 11, .06);
+
+  /* Status border colors */
+  --win-border: rgba(16, 185, 129, .4);
+  --loss-border: rgba(239, 68, 68, .4);
+  --live-border: rgba(59, 130, 246, .4);
+  --pending-border: rgba(245, 158, 11, .3);
+
+  /* Status text colors (for direct use) */
+  --win-text: var(--win);
+  --loss-text: var(--loss);
+  --live-text: var(--live);
+  --pending-text: var(--pending);
+
+  /* ── Context-Aware Odds & Stake Colors ─────────────────────────────────── */
+  /* Default (non-slip context) */
+  --odds-color: var(--accent);
+  --stake-color: var(--text-bright);
+
+  /* Slip-specific (applied via class or data attribute) */
+  --slip-odds-won: var(--win);
+  --slip-odds-lost: var(--loss);
+  --slip-odds-live: var(--live);
+  --slip-odds-pending: var(--pending);
+
+  --slip-stake-won: var(--win);
+  --slip-stake-lost: var(--loss);
+  --slip-stake-live: var(--live);
+  --slip-stake-pending: var(--pending);
+
+  /* ── Consensus Colors ─────────────────────────────────────────────────── */
+  /* Consensus represents quality/agreement level (not slip status) */
   --cons-high: rgba(16, 185, 129, .18);
   --cons-high-txt: #34D399;
   --cons-mid: rgba(245, 158, 11, .14);
@@ -56,12 +84,16 @@
   --cons-low-txt: #4A567A;
 
   /* ── Chart colors ─────────────────────────────────────────────────────── */
-  --chart-1: #3D7BFF;
-  --chart-2: #10B981;
-  --chart-3: #F59E0B;
-  --chart-4: #EF4444;
-  --chart-5: #7C3AED;
+  --chart-1: var(--accent);
+  --chart-2: var(--win);
+  --chart-3: var(--pending);
+  --chart-4: var(--loss);
+  --chart-5: var(--purple);
   --chart-6: #06B6D4;
+
+  /* Gauge track gradient */
+  --gauge-track-start: rgba(255, 255, 255, 0.02);
+  --gauge-track-end: rgba(255, 255, 255, 0.08);
 
   /* ── Spacing / Radius ─────────────────────────────────────────────────── */
   --radius-sm: 6px;
