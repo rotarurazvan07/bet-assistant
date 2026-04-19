@@ -7,6 +7,7 @@ import Pagination from '../components/Pagination';
 import SlipBuilderPanel from '../components/SlipBuilderPanel';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
+import { TooltipIcon } from '../components/ui';
 
 const COLS = [
     { key: 'datetime', label: 'Date' },
@@ -291,7 +292,10 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                             </div>
                             {/* Consensus */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>Min Consensus</label>
+                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                    Min Consensus
+                                    <TooltipIcon text="Minimum agreement percentage required from sources. Only matches with consensus at or above this threshold will be shown." align="right" />
+                                </label>
                                 <div className="flex items-center gap-2">
                                     <input
                                         type="range"

@@ -327,12 +327,12 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                                     {leg.market} @{leg.odds.toFixed(2)}
                                 </span>
                                 {live && leg.status === 'Live' && (
-                                    <div className="flex flex-col items-center gap-0.5">
-                                        <span className="font-mono text-sm font-bold px-2 py-1 rounded"
+                                    <div className="flex flex-col items-center gap-1">
+                                        <span className="font-mono text-lg font-bold px-3 py-2 rounded"
                                             style={{ background: 'var(--live-bg)', color: 'var(--live)' }}>
                                             {live.score}
                                         </span>
-                                        <span className="font-mono text-sm font-bold" style={{ color: 'var(--live)' }}>
+                                        <span className="font-mono text-base font-bold" style={{ color: 'var(--live)' }}>
                                             {live.minute}
                                         </span>
                                     </div>
@@ -560,8 +560,8 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                                 {leg.market} @{leg.odds.toFixed(2)}
                                             </span>
                                             {live && leg.status === 'Live' && (
-                                                <div className="flex flex-col items-center gap-1">
-                                                    <span className="font-mono text-sm font-bold px-3 py-1 rounded"
+                                                <div className="flex flex-col items-center gap-1.5">
+                                                    <span className="font-mono text-xl font-bold px-4 py-2 rounded"
                                                         style={{ background: 'var(--live-bg)', color: 'var(--live)' }}>
                                                         {live.score}
                                                     </span>

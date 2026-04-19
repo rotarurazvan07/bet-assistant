@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchServices, saveServiceSettings, toggleService } from '../api/data';
 import ServiceCard from '../components/ServiceCard';
+import { TooltipIcon } from '../components/ui';
 import type { ServicesData } from '../types';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -82,6 +83,7 @@ export default function Services() {
                             <div className="flex items-center gap-1.5 mb-3">
                                 <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
                                     Pull DB
+                                    <TooltipIcon text="Fetches match data and predictions from external sources. Runs daily at the scheduled hour." align="right" />
                                 </span>
                                 <span className="font-mono text-[10px] px-1.5 py-0.5 rounded"
                                     style={{ background: 'var(--accent)', color: '#fff', opacity: .8 }}>
@@ -110,6 +112,7 @@ export default function Services() {
                             <div className="flex items-center gap-1.5 mb-3">
                                 <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
                                     Generate Slips
+                                    <TooltipIcon text="Creates betting slips based on builder configurations and predictions. Runs daily at the scheduled hour." align="right" />
                                 </span>
                                 <span className="font-mono text-[10px] px-1.5 py-0.5 rounded"
                                     style={{ background: 'var(--purple)', color: '#fff', opacity: .8 }}>

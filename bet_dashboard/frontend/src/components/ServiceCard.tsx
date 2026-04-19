@@ -1,7 +1,7 @@
 import { BaseCard } from './ui/BaseCard';
 import { BaseBadge } from './ui/BaseBadge';
 import type { ServiceInfo } from '../types';
-import { LiveDot } from './ui';
+import { LiveDot, TooltipIcon } from './ui';
 
 interface Props {
   info: ServiceInfo;
@@ -28,15 +28,16 @@ export default function ServiceCard({ info, onToggle }: Props) {
           }}>
           {ICONS[info.name] ?? '●'}
         </span>
-        <div>
+        <div className="flex items-center gap-1.5">
           <p className="font-display font-bold text-[13px] uppercase tracking-wide"
             style={{ color: 'var(--text-bright)' }}>
             {info.name}
           </p>
-          <p className="text-[11px] font-sans mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            {info.description}
-          </p>
+          {getServiceTooltip(info.name)}
         </div>
+        <p className="text-[11px] font-sans mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+          {info.description}
+        </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <LiveDot alive={info.alive} enabled={info.enabled} />
@@ -74,4 +75,15 @@ export default function ServiceCard({ info, onToggle }: Props) {
       </button>
     </BaseCard>
   );
+}
+
+function getServiceTooltip(name: string): React.ReactNode {
+  const tooltips: Record<string, string> = {
+    puller: 'Fetches match data and predictions from external sources. Runs daily at scheduled hour.',
+    generator: 'Creates betting slips based on builder configurations and predictions. Runs daily at scheduled hour.',
+    verifier: 'Validates and settles betting slips by checking match results. Updates slip status and calculates P&L.'
+  };
+
+  const text = tooltips[name] || 'Service description not available.';
+  return <TooltipIcon text={text} align="right" />;
 }

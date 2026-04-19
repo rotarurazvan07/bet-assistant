@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BaseCard } from './ui/BaseCard';
 import { BaseDataRow } from './ui/BaseDataRow';
+import { TooltipIcon } from './ui';
 import type { BuilderConfig } from '../types';
 import { ALL_MARKETS } from '../types';
 
@@ -15,8 +16,8 @@ function set<K extends keyof BuilderConfig>(
 
 // ── Accordion Section ─────────────────────────────────────────────────────────
 
-function AccordionSection({ title, icon, defaultOpen = false, children }: {
-    title: string; icon: string; defaultOpen?: boolean; children: React.ReactNode;
+function AccordionSection({ title, icon, tip, defaultOpen = false, children }: {
+    title: string; icon: string; tip?: string; defaultOpen?: boolean; children: React.ReactNode;
 }) {
     const [open, setOpen] = useState(defaultOpen);
     return (
@@ -33,10 +34,13 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
                 >
                     <div className="flex items-center gap-2">
                         <span className="text-xs opacity-80">{icon}</span>
-                        <span className="text-[11px] font-sans font-semibold tracking-wide uppercase"
-                            style={{ color: open ? 'var(--text-bright)' : 'var(--text-secondary)' }}>
-                            {title}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-sans font-semibold tracking-wide uppercase"
+                                style={{ color: open ? 'var(--text-bright)' : 'var(--text-secondary)' }}>
+                                {title}
+                            </span>
+                            {tip && <TooltipIcon text={tip} align="right" />}
+                        </div>
                     </div>
                     <svg
                         className="w-3 h-3 transition-transform duration-300"
@@ -71,7 +75,11 @@ function AccordionSection({ title, icon, defaultOpen = false, children }: {
 
 function Row({ label, tip, children }: { label: string; tip?: string; children: React.ReactNode }) {
     return (
-        <BaseDataRow label={label} value={children} actions={tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>} />
+        <BaseDataRow
+            label={label}
+            value={children}
+            actions={tip && <TooltipIcon text={tip} align="right" />}
+        />
     );
 }
 
@@ -131,7 +139,7 @@ function SliderRow({ label, tip, value, min, max, step, format, onChange, showCe
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    {tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>}
+                    {tip && <TooltipIcon text={tip} align="right" />}
                 </div>
                 <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded"
                     style={{ color: 'var(--accent)', background: 'var(--accent-glow)' }}>
@@ -186,7 +194,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
             <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    {tip && <span className="text-xs opacity-80 ml-1">ⓘ</span>}
+                    {tip && <TooltipIcon text={tip} align="right" />}
                 </div>
                 <ToggleSwitch enabled={enabled} onToggle={onToggle} />
             </div>
@@ -217,8 +225,8 @@ function InlineSlider({ value, min, max, step, format, onChange, showCenter = fa
 
 // ── Dual Slider ───────────────────────────────────────────────────────────────
 
-function DualSlider({ label, left, right, value, onChange, disabled = false }: {
-    label: string; left: string; right: string; value: number; onChange: (v: number) => void;
+function DualSlider({ label, tip, left, right, value, onChange, disabled = false }: {
+    label: string; tip?: string; left: string; right: string; value: number; onChange: (v: number) => void;
     disabled?: boolean;
 }) {
     return (
@@ -226,6 +234,7 @@ function DualSlider({ label, left, right, value, onChange, disabled = false }: {
             {label && (
                 <div className="flex items-center gap-1 mb-2">
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                    {tip && <TooltipIcon text={tip} align="right" />}
                 </div>
             )}
             <div className={`flex items-center gap-2 ${disabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
@@ -353,14 +362,21 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
             </AccordionSection>
 
             {/* ── Scoring ──────────────────────────────────────────── */}
-            <AccordionSection title="Scoring" icon="📐" defaultOpen={false}>
+            <AccordionSection
+                title="Scoring"
+                icon="📐"
+                tip="Balances quality vs balance and source agreement vs consensus. Adjust sliders to fine-tune selection behavior."
+                defaultOpen={false}
+            >
                 <DualSlider
                     label="Distribution Logic"
+                    tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality."
                     left="Balance" right="Quality"
                     value={cfg.quality_vs_balance}
                     onChange={v => up('quality_vs_balance', v)} />
                 <DualSlider
                     label="Agreement Logic"
+                    tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources."
                     left="Sources" right="Consensus"
                     value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources}
                     disabled={cfg.consensus_floor === 100}
@@ -399,7 +415,8 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
                         format={v => (v / 10).toFixed(1)}
                         onChange={v => up('max_single_leg_odds', v / 10)} />
                 </NullableRow>
-                <Row label="Balance Decay">
+                <Row label="Balance Decay"
+                    tip="Decay method for balancing selections. Linear = steady decay, Gaussian = bell-shaped decay with stronger central weighting.">
                     <select className="field w-28" value={cfg.balance_decay}
                         onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}>
                         <option value="linear">Linear</option>

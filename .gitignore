@@ -237,3 +237,7 @@ dist-ssr
 workspace
 *-shm
 *-wal
+
+bet-assistant.code-workspace
+.agents
+skills-lock.json

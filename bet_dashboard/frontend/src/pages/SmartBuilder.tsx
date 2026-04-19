@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import { TooltipIcon } from '../components/ui';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
@@ -305,6 +306,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             </div>
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
+                                <TooltipIcon text="Automatically calculates units based on desired payout. Enter your target payout amount and the system will determine the required units to achieve it." align="right" />
                                 <input className="field w-20" type="number" min={0} step={5}
                                     placeholder="Off"
                                     value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />

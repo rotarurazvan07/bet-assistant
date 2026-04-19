@@ -56,9 +56,10 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
                             <span className="text-base font-mono" style={{ color: 'var(--text-secondary)' }}>Units</span>
                             <input
                                 type="number"
-                                min={1}
+                                min={0.1}
+                                step={0.1}
                                 value={units}
-                                onChange={e => setUnits(Math.max(1, parseInt(e.target.value || '1', 10)))}
+                                onChange={e => setUnits(Math.max(0.1, parseFloat(e.target.value || '0.1')))}
                                 className="w-20 px-3 py-2 rounded text-base font-mono text-center"
                                 style={{
                                     background: 'var(--bg-input)',

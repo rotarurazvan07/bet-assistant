@@ -5,7 +5,7 @@ import {
     ScatterChart, Scatter, Cell, Legend,
 } from 'recharts';
 import { fetchAnalytics, fetchProfiles } from '../api/data';
-import { StatCard, SectionHeader } from '../components/ui';
+import { StatCard, SectionHeader, TooltipIcon } from '../components/ui';
 import type { GlobalFilters } from '../components/Layout';
 import type { AnalyticsData, ProfilesMap } from '../types';
 
@@ -21,11 +21,14 @@ const enhancedTooltipStyle = {
     padding: '10px 14px',
 };
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+function ChartCard({ title, tip, children }: { title: string; tip?: string; children: React.ReactNode }) {
     return (
         <div className="card p-4">
-            <p className="font-mono text-[11px] tracking-widest uppercase mb-4"
-                style={{ color: 'var(--text-secondary)' }}>{title}</p>
+            <div className="flex items-center gap-2 mb-4">
+                <p className="font-mono text-[11px] tracking-widest uppercase"
+                    style={{ color: 'var(--text-secondary)' }}>{title}</p>
+                {tip && <TooltipIcon text={tip} align="right" />}
+            </div>
             {children}
         </div>
     );
@@ -140,7 +143,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
 
                 {/* Cumulative P&L */}
-                <ChartCard title="Cumulative Net Profit">
+                <ChartCard
+                    title="Cumulative Net Profit"
+                    tip="Shows total net profit accumulated over time. Helps visualize overall performance trend and drawdowns."
+                >
                     <ResponsiveContainer width="100%" height={250}>
                         <LineChart data={data.history ?? []} margin={{ left: 5, right: 10, top: 5, bottom: 0 }}>
                             <CartesianGrid
@@ -196,7 +202,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </ChartCard>
 
                 {/* Cumulative + Rolling Win Rate */}
-                <ChartCard title="Win Rate — Cumulative vs Rolling (10)">
+                <ChartCard
+                    title="Win Rate — Cumulative vs Rolling (10)"
+                    tip="Compares overall win rate (cumulative) with recent performance (10-slip rolling average). Divergence indicates changing performance trends."
+                >
                     <ResponsiveContainer width="100%" height={250}>
                         <LineChart data={data.history ?? []} margin={{ left: 5, right: 10, top: 5, bottom: 0 }}>
                             <CartesianGrid
@@ -272,7 +281,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </ChartCard>
 
                 {/* ROI Over Time */}
-                <ChartCard title="ROI % Over Time">
+                <ChartCard
+                    title="ROI % Over Time"
+                    tip="Return on Investment percentage over time. Measures efficiency of betting strategy - positive ROI indicates profitable strategy."
+                >
                     <ResponsiveContainer width="100%" height={250}>
                         <LineChart data={data.history ?? []} margin={{ left: 5, right: 10, top: 5, bottom: 0 }}>
                             <CartesianGrid
@@ -329,7 +341,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </ChartCard>
 
                 {/* Odds Distribution */}
-                <ChartCard title="Odds Range — Win Rate by Bucket">
+                <ChartCard
+                    title="Odds Range — Win Rate by Bucket"
+                    tip="Groups bets by odds ranges and shows win rate for each bucket. Helps identify which odds ranges perform best."
+                >
                     <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={data.odds_distribution ?? []} margin={{ left: 5, right: 10, top: 5, bottom: 0 }}>
                             <CartesianGrid
@@ -397,7 +412,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
 
                 {/* Market Hit Rate — Accuracy % per market */}
-                <ChartCard title="Market Hit Rate (Win %)">
+                <ChartCard
+                    title="Market Hit Rate (Win %)"
+                    tip="Success rate for each market type (1X2, O/U, BTTS, etc.). Shows which markets you're most accurate in predicting."
+                >
                     {(() => {
                         // Compute per-market accuracy directly from market_accuracy data
                         const hitData = (data.market_accuracy ?? []).map(m => ({
@@ -479,7 +497,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </ChartCard>
 
                 {/* Market Accuracy (Won vs Lost stacked) */}
-                <ChartCard title="Market Accuracy — Won vs Lost">
+                <ChartCard
+                    title="Market Accuracy — Won vs Lost"
+                    tip="Compares won vs lost bets across market types. Stacked bars show volume distribution and accuracy rates per market."
+                >
                     <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={data.market_accuracy ?? []} margin={{ left: 5, right: 10, top: 5, bottom: 0 }}>
                             <CartesianGrid
@@ -545,7 +566,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
 
                 {/* Win rate by legs count */}
-                <ChartCard title="Win Rate by Number of Legs">
+                <ChartCard
+                    title="Win Rate by Number of Legs"
+                    tip="Shows how win rate varies with slip complexity (number of legs). Helps identify optimal slip length for your strategy."
+                >
                     {(() => {
                         const byLegs: Record<number, { total: number; won: number }> = {};
                         (data.correlation ?? []).forEach(r => {
@@ -614,7 +638,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </ChartCard>
 
                 {/* Profile scatter: avg odds vs win rate */}
-                <ChartCard title="Profile — Avg Odds vs Win Rate (bubble = volume)">
+                <ChartCard
+                    title="Profile — Avg Odds vs Win Rate (bubble = volume)"
+                    tip="Scatter plot showing relationship between average odds and win rate. Bubble size represents volume (number of bets). Helps identify your betting profile sweet spot."
+                >
                     {(!data.profile_scatter || data.profile_scatter.length === 0) ? (
                         <div className="text-center py-8">
                             <p className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>

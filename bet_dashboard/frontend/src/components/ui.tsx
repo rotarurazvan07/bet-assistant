@@ -19,12 +19,71 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
     if (visible && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setCoords({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.top,
+        left: rect.left,
         width: rect.width
       });
     }
   }, [visible]);
+
+  // Calculate tooltip position based on alignment
+  const getTooltipStyle = () => {
+    const baseStyle: React.CSSProperties = {
+      position: 'fixed',
+      top: coords.top - 10,
+      zIndex: 9999,
+      pointerEvents: 'none',
+    };
+
+    // Horizontal positioning based on align
+    switch (align) {
+      case 'left':
+        baseStyle.left = coords.left;
+        baseStyle.transform = 'translate(0, -100%)';
+        break;
+      case 'right':
+        baseStyle.left = coords.left + coords.width;
+        baseStyle.transform = 'translate(0, -100%)';
+        break;
+      case 'center':
+      default:
+        baseStyle.left = coords.left + coords.width / 2;
+        baseStyle.transform = 'translate(-50%, -100%)';
+        break;
+    }
+
+    return baseStyle;
+  };
+
+  // Calculate arrow position
+  const getArrowStyle = (): React.CSSProperties => {
+    const arrowStyle: React.CSSProperties = {
+      position: 'absolute',
+      bottom: -6,
+      width: 12,
+      height: 12,
+      transform: 'rotate(45deg)',
+      borderBottom: '1px solid var(--border-strong)',
+      borderRight: '1px solid var(--border-strong)',
+      background: 'var(--bg-base)',
+    };
+
+    switch (align) {
+      case 'left':
+        arrowStyle.left = 12;
+        break;
+      case 'right':
+        arrowStyle.right = 12;
+        break;
+      case 'center':
+      default:
+        arrowStyle.left = '50%';
+        arrowStyle.marginLeft = -6;
+        break;
+    }
+
+    return arrowStyle;
+  };
 
   return (
     <span
@@ -37,14 +96,7 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
       {children}
 
       {visible && createPortal(
-        <div
-          className="fixed z-[9999] pointer-events-none fade-in"
-          style={{
-            top: coords.top - 10, // 10px gap
-            left: coords.left + (coords.width / 2),
-            transform: `translate(-50%, -100%)`, // Position above center
-          }}
-        >
+        <div style={getTooltipStyle()} className="fade-in">
           <div className={`relative px-4 py-3 rounded-xl border shadow-2xl transition-all duration-200
                            w-max max-w-[340px] min-w-[200px] font-sans text-[12px] leading-relaxed`}
             style={{
@@ -54,20 +106,9 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
               color: 'var(--text-bright)',
               boxShadow: 'var(--shadow-lg)',
               textAlign: 'center',
-              // Manual alignment shift within the portal relative to the center anchor
-              marginLeft: align === 'right' ? '-140px' : align === 'left' ? '140px' : '0'
             }}>
             {text}
-
-            {/* Pointer arrow */}
-            <div className="absolute -bottom-1.5 w-3 h-3 rotate-45 border-b border-r"
-              style={{
-                left: align === 'right' ? 'calc(100% - 24px + 140px)' : align === 'left' ? 'calc(24px - 140px)' : '50%',
-                marginLeft: '-6px',
-                background: 'var(--bg-base)',
-                borderColor: 'var(--border-strong)'
-              }}
-            />
+            <div className="absolute -bottom-1.5 w-3 h-3 rotate-45 border-b border-r" style={getArrowStyle()} />
           </div>
         </div>,
         document.body
