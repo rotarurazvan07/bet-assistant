@@ -16,6 +16,7 @@ PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
 MAX_CONCURRENCY = 3
 
+# Non-leagues
 EXCLUDED = [
     "https://www.predictz.com/predictions/england/community-shield/",
     "https://www.predictz.com/predictions/england/fa-cup/",
@@ -43,7 +44,7 @@ class PredictzFinder(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
         league_urls = []
         for optgroup in soup.find(class_="dd nav-select").find_all("optgroup")[6:]:
-            league_urls += [opt.get("value") for opt in optgroup.find_all("option") if opt.get("value") not in EXCLUDED]
+            league_urls += [opt.get("value") for opt in optgroup.find_all("option")]
 
         logger.info(f"{len(league_urls)} leagues to scrape")
         return league_urls

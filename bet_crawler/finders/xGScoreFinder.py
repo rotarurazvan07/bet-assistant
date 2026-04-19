@@ -17,6 +17,10 @@ MAX_CONCURRENCY = 1
 
 
 class xGScoreFinder(BaseMatchFinder):
+    # For interactive browsing finders, TIMEZONE should be set to the server's local timezone
+    # Use dynamic detection to get the actual local timezone of the computer running this code
+    # TIMEZONE = BaseMatchFinder._detect_local_timezone()
+
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
@@ -78,7 +82,7 @@ class xGScoreFinder(BaseMatchFinder):
                         ]
                     ),
                     key=lambda d: abs(d - datetime.now()),
-                )
+                ).replace(hour=0, minute=0, second=0, microsecond=0)
                 score_text = anchor.find("div", class_="xgs-category-forecast-fixture_bet").get_text()
                 predictions = [Score(XGSCORE_NAME, score_text.split("-")[0], score_text.split("-")[1])]
                 odds = None
@@ -86,4 +90,4 @@ class xGScoreFinder(BaseMatchFinder):
                 self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
 
             except Exception as e:
-                logger.info(f"SKIPPED: Parse error - {e}")
+                logger.error(f"SKIPPED: Parse error - {e}")

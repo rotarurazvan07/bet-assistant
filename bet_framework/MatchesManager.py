@@ -175,26 +175,37 @@ class MatchesManager(BufferedStorageManager):
         changed = False
 
         if not _is_empty(match.predictions):
-            changed = self._update_predictions(match, found, idx) or changed
-            if changed:
+            pred_changed = self._update_predictions(match, found, idx)
+            changed = pred_changed or changed
+            if pred_changed:
                 logger.info(
-                    f"Updating predictions for {match.home_team} vs {match.away_team} with new source(s): {[s.source for s in match.predictions if s.source]}"
+                    f"Updating predictions for {match.home_team} vs {match.away_team} "
+                    f"with new source(s): {[s.source for s in match.predictions if s.source]}"
                 )
 
         if not _is_empty(match.datetime):
-            changed = self._update_datetime(match, found, idx) or changed
-            if changed:
+            dt_changed = self._update_datetime(match, found, idx)
+            changed = dt_changed or changed
+            if dt_changed:
                 logger.info(
-                    f"Updating datetime for {match.home_team} vs {match.away_team} from {found.get('datetime')} to {match.datetime}"
+                    f"Updating datetime for {match.home_team} vs {match.away_team} "
+                    f"from {found.get('datetime')} to {match.datetime}"
                 )
 
         if not _is_empty(match.odds):
-            changed = self._update_odds(match, found, idx) or changed
-            if changed:
-                logger.info(f"Updating odds for {match.home_team} vs {match.away_team} with new values: {asdict(match.odds)}")
+            odds_changed = self._update_odds(match, found, idx)
+            changed = odds_changed or changed
+            if odds_changed:
+                logger.info(
+                    f"Updating odds for {match.home_team} vs {match.away_team} "
+                    f"with new values: {asdict(match.odds)}"
+                )
 
         if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
-            logger.info(f"Updating result_url for {match.home_team} vs {match.away_team} from None to {match.result_url}")
+            logger.info(
+                f"Updating result_url for {match.home_team} vs {match.away_team} "
+                f"from None to {match.result_url}"
+            )
             self._buffer.at[idx, "result_url"] = match.result_url
             changed = True
 

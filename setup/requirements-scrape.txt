@@ -1,3 +1,4 @@
 beautifulsoup4
 pandas
+tzlocal
 git+https://github.com/rotarurazvan07/scrape-kit.git

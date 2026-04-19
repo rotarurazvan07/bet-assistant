@@ -17,6 +17,10 @@ MAX_CONCURRENCY = 3
 
 
 class LegitPredictFinder(BaseMatchFinder):
+    # For stealth/interactive browsing finders, TIMEZONE should be set to the server's local timezone
+    # Use dynamic detection to get the actual local timezone of the computer running this code
+    # TIMEZONE = "Etc/GMT-3"
+
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
@@ -41,21 +45,27 @@ class LegitPredictFinder(BaseMatchFinder):
             dt_obj = datetime.strptime(url.split("dt=")[-1], "%d-%m-%Y")
             soup = BeautifulSoup(html, "html.parser")
             matches_trs = soup.find("div", class_="content nopaddingsmall").find("tbody").find_all("tr")
+
             for tr in matches_trs:
-                home_team = tr.find_all("td")[2].text.strip().split("VS")[0].strip()
-                away_team = tr.find_all("td")[2].text.strip().split("VS")[1].strip()
-                score = Score(
-                    LEGITPREDICT_NAME,
-                    int(tr.find_all("td")[3].text.strip().split("-")[0]),
-                    int(tr.find_all("td")[3].text.strip().split("-")[1]),
-                )
+                try:
+                    home_team = tr.find_all("td")[2].text.strip().split("VS")[0].strip()
+                    away_team = tr.find_all("td")[2].text.strip().split("VS")[1].strip()
+                    score = Score(
+                        LEGITPREDICT_NAME,
+                        int(tr.find_all("td")[3].text.strip().split("-")[0]),
+                        int(tr.find_all("td")[3].text.strip().split("-")[1]),
+                    )
 
-                dt_obj = dt_obj.replace(
-                    hour=int(tr.find("td").text.strip().split(":")[0]),
-                    minute=int(tr.find("td").text.strip().split(":")[1]),
-                )
+                    dt_obj = dt_obj.replace(
+                        hour=int(tr.find("td").text.strip().split(":")[0]),
+                        minute=int(tr.find("td").text.strip().split(":")[1]),
+                    ).replace(hour=0, minute=0, second=0, microsecond=0)
 
-                self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
+                    self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
+
+                except Exception as e:
+                    logger.error(f"SKIPPED [{url}]: {e}")
+                    continue
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

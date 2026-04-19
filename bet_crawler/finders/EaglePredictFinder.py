@@ -17,6 +17,8 @@ MAX_CONCURRENCY = 1
 
 
 class EaglePredictFinder(BaseMatchFinder):
+    # TIMEZONE = "Etc/GMT-3"
+
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
@@ -140,7 +142,7 @@ class EaglePredictFinder(BaseMatchFinder):
     def _build_datetime(self, date_tuple: tuple[int, int, int], time_str: str) -> datetime:
         """Build datetime object from date tuple and time string."""
         h, m = map(int, time_str.split(":"))
-        return datetime(date_tuple[0], date_tuple[1], date_tuple[2], h, m)
+        return datetime(date_tuple[0], date_tuple[1], date_tuple[2], 0, 0)
 
     def _create_and_add_match(self, home: str, away: str, dt: datetime, score_match) -> None:
         """Create Match object and add it via callback."""
