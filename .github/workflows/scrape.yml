@@ -15,6 +15,8 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize log file
+        run: 'echo "=== Job: prepare-actions started at $(date) ===" > /tmp/job_log.txt'
       - name: Cache Playwright Browsers
         id: playwright-cache
         uses: actions/cache@v4
@@ -27,15 +29,22 @@ jobs:
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt
+          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: ./venv/bin/scrapling install
+        run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "config")
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "config" 2> >(tee -a /tmp/job_log.txt >&2) | tee -a /tmp/job_log.txt)
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
+      - name: Upload job log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-prepare-actions.txt
+          path: /tmp/job_log.txt
+          retention-days: 7
 
   scrape-actions:
     needs: prepare-actions
@@ -45,6 +54,8 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-actions.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize log file
+        run: 'echo "=== Job: scrape-actions started at $(date) ===" > /tmp/job_log.txt'
       - name: Cache Playwright Browsers
         id: playwright-cache
         uses: actions/cache@v4
@@ -57,17 +68,24 @@ jobs:
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt
+          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: ./venv/bin/scrapling install
+        run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
+        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
+          retention-days: 7
+      - name: Upload job log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-scrape-actions-${{ matrix.db_path }}.txt
+          path: /tmp/job_log.txt
           retention-days: 7
 
   prepare-local:
@@ -76,14 +94,8 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-      - name: Cache Playwright Browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+      - name: Initialize log file
+        run: 'echo "=== Job: prepare-local started at $(date) ===" > /tmp/job_log.txt'
       - name: Install dependencies
         run: |
           # FIX: Redirect temp space to SD card to bypass small RAM-disk (/tmp)
@@ -95,15 +107,19 @@ jobs:
             python3 -m venv venv
           fi
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt
-      - name: Install Playwright Browsers (if cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: ./venv/bin/scrapling install
+          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "config")
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "config" 2> >(tee -a /tmp/job_log.txt >&2) | tee -a /tmp/job_log.txt)
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
+      - name: Upload job log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-prepare-local.txt
+          path: /tmp/job_log.txt
+          retention-days: 7
 
   scrape-local:
     needs: prepare-local
@@ -113,14 +129,8 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-local.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-      - name: Cache Playwright Browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+      - name: Initialize log file
+        run: 'echo "=== Job: scrape-local started at $(date) ===" > /tmp/job_log.txt'
       - name: Install dependencies
         run: |
           # FIX: Redirect temp space to SD card
@@ -132,17 +142,21 @@ jobs:
             python3 -m venv venv
           fi
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt
-      - name: Install Playwright Browsers (if cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: ./venv/bin/scrapling install
+          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config"
+        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
+          retention-days: 7
+      - name: Upload job log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-scrape-local-${{ matrix.db_path }}.txt
+          path: /tmp/job_log.txt
           retention-days: 7
 
   merge:
@@ -150,6 +164,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - name: Initialize log file
+        run: 'echo "=== Job: merge started at $(date) ===" > /tmp/job_log.txt'
       - name: Download all chunks
         uses: actions/download-artifact@v4
         with:
@@ -162,9 +178,9 @@ jobs:
           python-version: '3.10'
       - name: Install dependencies
         run: |
-          pip install -r setup/requirements-scrape.txt
+          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Merge Databases
-        run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "config"
+        run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         with:
@@ -174,3 +190,39 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload job log
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-merge.txt
+          path: /tmp/job_log.txt
+          retention-days: 7
+
+  unify-logs:
+    needs: [prepare-actions, scrape-actions, prepare-local, scrape-local, merge]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download All Logs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: logs-*.txt
+          path: all_logs
+      - name: Create unified log
+        run: |
+          echo "=== UNIFIED LOGS FROM ALL JOBS ===" > unified_log.txt
+          echo "" >> unified_log.txt
+          for log_file in all_logs/logs-*.txt; do
+            if [ -f "$log_file" ]; then
+              echo "=== LOG FILE: $(basename $log_file) ===" >> unified_log.txt
+              cat "$log_file" >> unified_log.txt
+              echo "" >> unified_log.txt
+              echo "=== END OF FILE ===" >> unified_log.txt
+              echo "" >> unified_log.txt
+            fi
+          done
+      - name: Upload unified log
+        uses: actions/upload-artifact@v4
+        with:
+          name: unified-logs
+          path: unified_log.txt
+          retention-days: 30
