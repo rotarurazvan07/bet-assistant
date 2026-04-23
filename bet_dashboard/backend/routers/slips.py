@@ -1,9 +1,22 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+# Add the project root to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
+
+# Import the shared utility
+try:
+    from utils.profile_utils import get_profile_params
+except ImportError:
+    # Fallback if the import doesn't work as expected
+    def get_profile_params(request):
+        profiles = request.query_params.getlist('profiles') or request.query_params.getlist('profiles[]')
+        return profiles if profiles else None
 
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
@@ -214,15 +227,23 @@ def add_slip(request: Request, body: SlipIn):
 @router.get("")
 def get_slips(
     request: Request,
-    profile: str | None = None,
+    profiles: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    hide_settled: str | None = None,
-    live_only: str | None = None,
-):
+    hide_sett) |
     app = _get(request)
     logic = app.logic
-    prof = None if profile in (None, "all") else profile
+
+    # Handle both 'profiles' and 'profiles[]' query parameter names
+    # FastAPI's 'profiles' parameter only catches 'profiles', not 'profiles[]'
+    if profiles is None:
+        # Try to get from 'profiles[]' if 'profiles' was not provided
+        profiles_param = get_profile_params(request)
+        if profiles_param:
+            profiles = profiles_param
+
+    # Normalize: empty list or None means all profiles (pass None to backend)
+    prof = profiles if profiles and len(profiles) > 0 else None
 
     # Coerce query params to booleans
     def to_bool(val) -> bool:
@@ -247,13 +268,18 @@ def get_slips(
         slips = [s for s in slips if any(status_str(leg.status) in ("Live") for leg in s.legs)]
 
     stats = logic.stats(prof, date_from or None, date_to or None)
-    profile_names = sorted(p.stem for p in Path(app.config_path + "/profiles").glob("*.yaml"))
-    profile_names.append("manual")
+
+    # Get only profiles that have slips in the database (including 'manual')
+    all_slips_for_profiles = logic.get_slips(None, date_from or None, date_to or None)
+    profiles_with_slips = sorted(set(slip.profile for slip in all_slips_for_profiles))
+
+    # Ensure 'manual' is always included if there are any manual slips
+    # (get_slips already includes it, but this ensures consistency)
 
     return {
         "slips": [_slip_to_dict(s) for s in slips],
         "stats": stats,
-        "profiles": profile_names,
+        "profiles": profiles_with_slips,
     }
 
 
