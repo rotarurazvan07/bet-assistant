@@ -1,29 +1,28 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Add the project root to the Python path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from fastapi import APIRouter, Request
+
+# Import the shared utility
+try:
+    from utils.profile_utils import get_profile_params
+except ImportError:
+    # Fallback if the import doesn't work as expected
+    def get_profile_params(request):
+        profiles = request.query_params.getlist('profiles') or request.query_params.getlist('profiles[]')
+        return profiles if profiles else None
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
+
 def _get(request: Request):
     return request.app.state.app_logic
-
-
-def _add_rolling_win_rate(history: list[dict], window: int = 10) -> list[dict]:
-    """Augment each history record with rolling_win_rate over the last N slips."""
-    for i, record in enumerate(history):
-        start = max(0, i - window + 1)
-        segment = history[start : i + 1]
-        total = sum(r["slips_count"] for r in segment)
-        if not total:
-            record["rolling_win_rate"] = None
-            continue
-        # daily_summary only has win_rate (cumulative) per day, not won_count directly.
-        # Use net_profit sign as a proxy: positive day = likely win
-        won = sum(1 for r in segment if r.get("net_profit", 0) > 0)
-        record["rolling_win_rate"] = round((won / total) * 100, 1) if total else None
-    return history
-
 
 def _get_status_value(status) -> str:
     """Get the string value from an enum or string status."""
@@ -125,32 +124,45 @@ def _profile_scatter(slips) -> list[dict]:
 @router.get("")
 def get_analytics(
     request: Request,
-    profile: str | None = None,
+    profiles: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
 ):
     logic = _get(request).logic
-    prof = None if profile in (None, "all") else profile
+    
+    # Handle both 'profiles' and 'profiles[]' query parameter names
+    # FastAPI's 'profiles' parameter only catches 'profiles', not 'profiles[]'
+    if profiles is None:
+        # Try to get from 'profiles[]' if 'profiles' was not provided
+        profiles_param = get_profile_params(request)
+        if profiles_param:
+            profiles = profiles_param
+    
+    # Normalize: empty list or None means all profiles (pass None to backend)
+    prof = profiles if profiles and len(profiles) > 0 else None
+
     df_ = date_from or None
     dt_ = date_to or None
 
     history = logic.daily_summary(prof, df_, dt_)
-    history = _add_rolling_win_rate(history)
 
     slips = logic.get_slips(prof, df_, dt_)
     all_slips = logic.get_slips(None, df_, dt_)
 
     # Debug logging
-    print(f"[Analytics] profile={profile}, prof={prof}, date_from={df_}, date_to={dt_}")
+    print(f"[Analytics] profiles={profiles}, prof={prof}, date_from={df_}, date_to={dt_}")
     print(f"[Analytics] slips count: {len(slips)}, all_slips count: {len(all_slips)}")
 
     pnl = _pnl_by_market(slips)
-    scatter = _profile_scatter(all_slips)
+    scatter = _profile_scatter(slips)
     odds = _odds_distribution(slips)
 
     print(
         f"[Analytics] pnl_by_market: {len(pnl)} markets, profile_scatter: {len(scatter)} profiles, odds_distribution: {len(odds)} buckets"
     )
+
+    # Get only profiles that have slips in the database (including 'manual')
+    profiles_with_slips = sorted(set(slip.profile for slip in all_slips))
 
     return {
         "history": history,
@@ -160,4 +172,5 @@ def get_analytics(
         "correlation": logic.correlation_data(prof, df_, dt_),
         "profile_scatter": scatter,
         "stats": logic.stats(prof, df_, dt_),
+        "profiles": profiles_with_slips,
     }
