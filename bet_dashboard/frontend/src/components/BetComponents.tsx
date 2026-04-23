@@ -283,22 +283,19 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                         includeWeekday: true,
                         includeYear: false
                     });
-                    // Pick border color based on leg status
-                    let pickBorderColor = getStatusColor(leg.status);
-                    
-                    // For live pending slips, apply potential outcome color
+                    const legStatusColor = getStatusColor(leg.status);
+
+                    // For live pending slips, compute potential outcome color for market@odds badge only
+                    let marketOddsColor: string;
                     if ((slip.slip_status === 'Pending' || slip.slip_status === 'Live') && leg.status === 'Live') {
                         const potentialColor = getPotentialStatusColor(leg, live?.score);
-                        if (potentialColor) {
-                            pickBorderColor = potentialColor;
-                        }
+                        marketOddsColor = potentialColor || legStatusColor;
+                    } else {
+                        marketOddsColor = legStatusColor;
                     }
 
                     return (
-                        <div key={idx} className="p-2 rounded" style={{ 
-                            background: 'var(--bg-raised)', 
-                            border: `1px solid ${pickBorderColor}` 
-                        }}>
+                        <div key={idx} className="p-2 rounded" style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
                             <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex-1 min-w-0">
                                     {leg.result_url ? (
@@ -333,7 +330,7 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                                 <span className="font-display font-bold text-base px-2.5 py-1 rounded-full"
                                     style={{
                                         background: 'var(--bg-card)',
-                                        border: `2px solid ${pickBorderColor}`,
+                                        border: `2px solid ${marketOddsColor}`,
                                         color: 'white'
                                     }}>
                                     {leg.market} @{leg.odds.toFixed(2)}
@@ -527,6 +524,15 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                         const legStatusColor = getStatusColor(leg.status);
                         const legStatusIcon = getStatusIcon(leg.status);
 
+                        // For live pending slips, compute potential outcome color for market@odds badge only
+                        let marketOddsColor: string;
+                        if ((slip.slip_status === 'Pending' || slip.slip_status === 'Live') && leg.status === 'Live') {
+                            const potentialColor = getPotentialStatusColor(leg, live?.score);
+                            marketOddsColor = potentialColor || legStatusColor;
+                        } else {
+                            marketOddsColor = legStatusColor;
+                        }
+
                         return (
                             <div key={i} className="p-4 rounded-lg flex items-start gap-4"
                                 style={{
@@ -566,7 +572,7 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                             <span className="font-display font-bold text-xl px-4 py-2 rounded-full"
                                                 style={{
                                                     background: 'var(--bg-card)',
-                                                    border: `2px solid ${legStatusColor}`,
+                                                    border: `2px solid ${marketOddsColor}`,
                                                     color: 'white'
                                                 }}>
                                                 {leg.market} @{leg.odds.toFixed(2)}

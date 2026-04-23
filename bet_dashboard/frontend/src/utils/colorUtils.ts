@@ -73,8 +73,8 @@ export function getPotentialStatusColor(leg: { market: string; odds: number; sta
         return '';
     }
 
-    // Parse live score: expected format "X - Y"
-    const scoreMatch = liveScore.match(/(\d+)\s*-\s*(\d+)/);
+    // Parse live score: expected format "X - Y" or "X:Y" or "X  Y"
+    const scoreMatch = liveScore.match(/(\d+)\s*[\-:]\s*(\d+)/);
     if (!scoreMatch) {
         // If we can't parse the score, fallback to odds heuristic
         return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
@@ -87,24 +87,28 @@ export function getPotentialStatusColor(leg: { market: string; odds: number; sta
     const awayLeading = awayScore > homeScore;
     const isTied = homeScore === awayScore;
 
-    // 1X2 markets
-    if (market.includes('1') || market.includes('home') || market.includes('1x2')) {
-        // Home win bet (1)
-        if (homeLeading) return 'var(--potential-win)';
-        if (awayLeading) return 'var(--potential-loss)';
-        // Tied: for 1X2, draw is also an option; treat as neutral or slight edge based on odds
-        return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
-    }
-    if (market.includes('2') || market.includes('away')) {
-        // Away win bet (2)
-        if (awayLeading) return 'var(--potential-win)';
-        if (homeLeading) return 'var(--potential-loss)';
-        return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
-    }
+    // 1X2 markets - check in specific order to avoid overlap
+    // Check for Draw (X) first to avoid matching 'x' in '1x2'
     if (market.includes('x') || market.includes('draw')) {
         // Draw bet (X)
         if (isTied) return 'var(--potential-win)';
         // Not tied means draw won't happen → likely loss
+        return 'var(--potential-loss)';
+    }
+    // Check for Home win (1) - also handles 'home' and '1x2'
+    if (market.includes('1') || market.includes('home') || market.includes('1x2')) {
+        // Home win bet (1)
+        if (homeLeading) return 'var(--potential-win)';
+        if (awayLeading) return 'var(--potential-loss)';
+        // Tied: for home win bet, draw is not a win - check if we're likely to win in regulation
+        // For simplicity, treat tie as potential loss for home win bet
+        return 'var(--potential-loss)';
+    }
+    // Check for Away win (2)
+    if (market.includes('2') || market.includes('away')) {
+        // Away win bet (2)
+        if (awayLeading) return 'var(--potential-win)';
+        if (homeLeading) return 'var(--potential-loss)';
         return 'var(--potential-loss)';
     }
 
