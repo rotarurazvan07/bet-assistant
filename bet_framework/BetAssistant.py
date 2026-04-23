@@ -492,20 +492,20 @@ class BetAssistant(BaseStorageManager):
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
         params: list = []
-        
+
         # Handle profile filtering with support for lists
         if profile:
             if isinstance(profile, list):
                 # Multiple profiles: use IN clause
                 if profile:  # non-empty list
-                    placeholders = ', '.join('?' for _ in profile)
+                    placeholders = ", ".join("?" for _ in profile)
                     query += f" WHERE s.profile IN ({placeholders})"
                     params.extend(profile)
             elif profile != "all":
                 # Single profile
                 query += " WHERE s.profile = ?"
                 params.append(profile)
-        
+
         query += " ORDER BY s.date_generated DESC, s.slip_id DESC"
 
         rows = self.fetch_rows(query, params)

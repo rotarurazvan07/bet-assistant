@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from bet_dashboard.backend.utils.profile_utils import get_profile_params, handle_profile_params
+
+from bet_dashboard.backend.utils.profile_utils import get_profile_params
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
-
 def _get(request: Request):
     return request.app.state.app_logic
+
 
 def _get_status_value(status) -> str:
     """Get the string value from an enum or string status."""
@@ -115,7 +116,7 @@ def get_analytics(
     date_to: str | None = None,
 ):
     logic = _get(request).logic
-    
+
     # Handle both 'profiles' and 'profiles[]' query parameter names
     # FastAPI's 'profiles' parameter only catches 'profiles', not 'profiles[]'
     if profiles is None:
@@ -123,7 +124,7 @@ def get_analytics(
         profiles_param = get_profile_params(request)
         if profiles_param:
             profiles = profiles_param
-    
+
     # Normalize: empty list or None means all profiles (pass None to backend)
     prof = profiles if profiles and len(profiles) > 0 else None
 
@@ -148,7 +149,7 @@ def get_analytics(
     )
 
     # Get only profiles that have slips in the database (including 'manual')
-    profiles_with_slips = sorted(set(slip.profile for slip in all_slips))
+    profiles_with_slips = sorted({slip.profile for slip in all_slips})
 
     return {
         "history": history,

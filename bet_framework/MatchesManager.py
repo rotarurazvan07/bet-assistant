@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 from datetime import datetime
 
 import pandas as pd

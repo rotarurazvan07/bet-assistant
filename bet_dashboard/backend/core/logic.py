@@ -307,7 +307,7 @@ class AppLogic:
         # Normalize "all" to None for backend
         if profile == "all":
             profile = None
-            
+
         # Delegate to BetAssistant which now handles list of profiles efficiently
         slips = self._assistant.get_slips(profile)
 

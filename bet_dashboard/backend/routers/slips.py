@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
-from bet_dashboard.backend.utils.profile_utils import get_profile_params
 
+from bet_dashboard.backend.utils.profile_utils import get_profile_params
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
@@ -259,7 +259,7 @@ def get_slips(
 
     # Get only profiles that have slips in the database (including 'manual')
     all_slips_for_profiles = logic.get_slips(None, date_from or None, date_to or None)
-    profiles_with_slips = sorted(set(slip.profile for slip in all_slips_for_profiles))
+    profiles_with_slips = sorted({slip.profile for slip in all_slips_for_profiles})
 
     # Ensure 'manual' is always included if there are any manual slips
     # (get_slips already includes it, but this ensures consistency)
