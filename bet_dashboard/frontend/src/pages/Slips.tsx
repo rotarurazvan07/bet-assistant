@@ -54,12 +54,6 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
 
     
-        // Update local storage when data is loaded
-        useEffect(() => {
-            if (data?.profiles) {
-                localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify({ profiles: selectedProfiles }));
-            }
-        }, [selectedProfiles, data?.profiles]);
     // Persist filters to Slips-specific storage
     useEffect(() => {
         localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ hideSettled, liveOnly, sortBy }));
