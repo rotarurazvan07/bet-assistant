@@ -63,7 +63,7 @@ export async function deleteProfile(name: string): Promise<void> {
 // ── Slips ────────────────────────────────────────────────────────────────────
 
 export async function fetchSlips(params: {
-    profile?: string; date_from?: string; date_to?: string;
+    profiles?: string[]; date_from?: string; date_to?: string;
     hide_settled?: boolean; live_only?: boolean;
 }): Promise<SlipsPage> {
     const res = await client.get<SlipsPage>('/slips', { params });
@@ -95,7 +95,7 @@ export async function generateSlips(): Promise<{ generated: number; by_profile: 
 // ── Analytics ────────────────────────────────────────────────────────────────
 
 export async function fetchAnalytics(params: {
-    profile?: string; date_from?: string; date_to?: string;
+    profiles?: string[]; date_from?: string; date_to?: string;
 }): Promise<AnalyticsData> {
     const res = await client.get<AnalyticsData>('/analytics', { params });
     return res.data;

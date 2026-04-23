@@ -5,6 +5,7 @@ import { formatBetDate } from '../utils/betUtils';
 import { parseTeamNames } from '../utils/teamUtils';
 import { getStatusColor, getStatusIcon, getStatusBadge } from '../utils/colorUtils';
 import { calculateNetProfit } from '../utils/calculationUtils';
+import { getPotentialStatusColor } from '../utils/colorUtils';
 
 // ── BetPreview ────────────────────────────────────────────────────────────────
 
@@ -283,10 +284,21 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                         includeYear: false
                     });
                     // Pick border color based on leg status
-                    const pickBorderColor = getStatusColor(leg.status);
+                    let pickBorderColor = getStatusColor(leg.status);
+                    
+                    // For live pending slips, apply potential outcome color
+                    if ((slip.slip_status === 'Pending' || slip.slip_status === 'Live') && leg.status === 'Live') {
+                        const potentialColor = getPotentialStatusColor(leg, live?.score);
+                        if (potentialColor) {
+                            pickBorderColor = potentialColor;
+                        }
+                    }
 
                     return (
-                        <div key={idx} className="p-2 rounded" style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
+                        <div key={idx} className="p-2 rounded" style={{ 
+                            background: 'var(--bg-raised)', 
+                            border: `1px solid ${pickBorderColor}` 
+                        }}>
                             <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex-1 min-w-0">
                                     {leg.result_url ? (

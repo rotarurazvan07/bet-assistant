@@ -468,14 +468,21 @@ class BetAssistant(BaseStorageManager):
 
     # ── Slip retrieval ────────────────────────────────────────────────────────
 
-    def get_slips(self, profile: str | None = None) -> list[dict[str, Any]]:
+    def get_slips(self, profile: str | list[str] | None = None) -> list[dict[str, Any]]:
         """
-        Fetch all slips with their legs, optionally filtered by profile.
+        Fetch all slips with their legs, optionally filtered by profile(s).
 
         Slip-level status is derived from leg statuses:
             Lost    — at least one leg is Lost
             Pending — no legs Lost but at least one Pending
             Won     — all legs Won
+
+        Parameters
+        ----------
+        profile : str | list[str] | None
+            - None or "all": return all profiles
+            - str: filter by single profile name
+            - list[str]: filter by multiple profile names (IN clause)
         """
         query = """
             SELECT
@@ -485,9 +492,20 @@ class BetAssistant(BaseStorageManager):
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
         params: list = []
-        if profile and profile != "all":
-            query += " WHERE s.profile = ?"
-            params.append(profile)
+        
+        # Handle profile filtering with support for lists
+        if profile:
+            if isinstance(profile, list):
+                # Multiple profiles: use IN clause
+                if profile:  # non-empty list
+                    placeholders = ', '.join('?' for _ in profile)
+                    query += f" WHERE s.profile IN ({placeholders})"
+                    params.extend(profile)
+            elif profile != "all":
+                # Single profile
+                query += " WHERE s.profile = ?"
+                params.append(profile)
+        
         query += " ORDER BY s.date_generated DESC, s.slip_id DESC"
 
         rows = self.fetch_rows(query, params)
@@ -672,12 +690,9 @@ class BetAssistant(BaseStorageManager):
             except Exception:
                 pass
 
-        if info.status == MatchStatus.FT and outcome_info.outcome in (
-            Outcome.WON,
-            Outcome.LOST,
-        ):
-            self.update_leg(leg_id, outcome_info.outcome)
-            return outcome_info
+            if outcome_info.outcome in (Outcome.WON, Outcome.LOST):
+                self.update_leg(leg_id, outcome_info.outcome)
+                return outcome_info
 
         elif info.status == MatchStatus.LIVE and info.score:
             self.update_leg(leg_id, Outcome.LIVE)

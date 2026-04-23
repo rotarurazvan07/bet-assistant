@@ -16,16 +16,22 @@ from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
 
-# Add _is_empty function here
-
 
 def _is_empty(value) -> bool:
-    """Return True for None, NaN, or empty/whitespace string."""
+    """Return True for None, any NaN/NA/NaT variant, or empty/whitespace string."""
     if value is None:
         return True
-    if isinstance(value, float) and math.isnan(value):
-        return True
-    return bool(isinstance(value, str) and not value.strip())
+    try:
+        if pd.isna(value):
+            return True
+    except (TypeError, ValueError):
+        # pd.isna raises TypeError for non-scalar containers (list, dict, Odds…)
+        pass
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, dict)):
+        return len(value) == 0
+    return False
 
 
 class MatchesManager(BufferedStorageManager):
@@ -223,9 +229,8 @@ class MatchesManager(BufferedStorageManager):
         return False
 
     def _update_odds(self, match: Match, found: dict, idx: int) -> bool:
-        """Merge odds from the new match into existing ones. Returns True if changed."""
         cur = self.deserialize_json(found.get("odds")) or {}
-        patch = {k: v for k, v in asdict(match.odds).items() if cur.get(k) is None and v is not None}
+        patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
         if patch:
             self._buffer.at[idx, "odds"] = self.serialize_json({**cur, **patch})
             return True

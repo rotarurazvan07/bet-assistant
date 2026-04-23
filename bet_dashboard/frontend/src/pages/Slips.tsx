@@ -7,7 +7,6 @@ import type { GlobalFilters } from '../components/Layout';
 import type { SlipsPage, LiveData, BetSlip } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 
-const PROFILES_STORAGE_KEY = 'profile_selector_state';
 const FILTERS_STORAGE_KEY = 'slips_filters_state';
 
 interface Props { filters: GlobalFilters; refreshKey: number; liveData?: LiveData }
@@ -192,7 +191,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             {/* Controls: Sorting, Validation, Generation, Filters */}
             <div className="flex items-center gap-3 flex-wrap mb-5">
                 {/* Sort by dropdown */}
-                <select className="field w-44"
+                <select className="field w-56"
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}>
                     <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>

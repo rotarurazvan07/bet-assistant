@@ -297,16 +297,18 @@ class AppLogic:
 
     def get_slips(
         self,
-        profile: str | None = None,
+        profile: str | list[str] | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[Any]:
         """
         Return all slips with their legs, optionally filtered by profile and date horizon.
         """
+        # Normalize "all" to None for backend
         if profile == "all":
             profile = None
-
+            
+        # Delegate to BetAssistant which now handles list of profiles efficiently
         slips = self._assistant.get_slips(profile)
 
         if date_from:
@@ -337,7 +339,7 @@ class AppLogic:
 
     def stats(
         self,
-        profile: str | None = None,
+        profile: str | list[str] | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> dict[str, Any]:
@@ -365,7 +367,7 @@ class AppLogic:
 
     def daily_summary(
         self,
-        profile: str | None = None,
+        profile: str | list[str] | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
@@ -430,7 +432,7 @@ class AppLogic:
 
     def market_accuracy(
         self,
-        profile: str | None = None,
+        profile: str | list[str] | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
@@ -466,7 +468,7 @@ class AppLogic:
 
     def correlation_data(
         self,
-        profile: str | None = None,
+        profile: str | list[str] | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:

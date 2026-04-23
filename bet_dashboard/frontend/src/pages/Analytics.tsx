@@ -57,8 +57,6 @@ function ChartCard({ title, tip, children }: { title: string; tip?: string; chil
     );
 }
 
-const PROFILES_STORAGE_KEY = 'profile_selector_state';
-
 interface Props { filters: GlobalFilters; refreshKey: number }
 
 export default function Analytics({ filters, refreshKey }: Props) {

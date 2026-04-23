@@ -58,6 +58,13 @@
   --live-text: var(--live);
   --pending-text: var(--pending);
 
+  /* ── Potential Outcome Colors (Live Pending Matches) ─────────────────────────── */
+  /* For live matches that are not yet Won/Lost - indicates likely outcome based on current score */
+  --potential-win: #14B8A6; /* Teal/blue-green blend */
+  --potential-win-bg: rgba(20, 184, 166, 0.1);
+  --potential-loss: #EC4899; /* Pinkish-red/blue blend */
+  --potential-loss-bg: rgba(236, 72, 153, 0.1);
+
   /* ── Context-Aware Odds & Stake Colors ─────────────────────────────────── */
   /* Default (non-slip context) */
   --odds-color: var(--accent);

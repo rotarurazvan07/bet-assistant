@@ -136,7 +136,7 @@ export type LiveData = Record<string, { score: string; minute: string }>;
 export interface HistoryRecord {
     date: string; slips_count: number; units_bet: number;
     net_profit: number; cumulative_profit: number; cumulative_bet: number;
-    roi_percentage: number; win_rate: number; rolling_win_rate: number | null;
+    roi_percentage: number; win_rate: number;
 }
 
 export interface MarketAccuracy {
@@ -169,6 +169,7 @@ export interface AnalyticsData {
     correlation: CorrelationRecord[];
     profile_scatter: ProfileScatterPoint[];
     stats: SlipStats;
+    profiles: string[];
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

@@ -241,3 +241,6 @@ workspace
 bet-assistant.code-workspace
 .agents
 skills-lock.json
+memory-bank
+.aider*
+.clinerules
