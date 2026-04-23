@@ -3,7 +3,7 @@ from __future__ import annotations
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
 
-from bet_dashboard.backend.utils.profile_utils import get_profile_params
+from utils.profile_utils import get_profile_params
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url

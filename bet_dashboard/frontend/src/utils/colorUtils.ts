@@ -68,88 +68,51 @@ export function getStatusBadge(status: string): 'success' | 'error' | 'warning' 
  * @returns CSS variable reference for potential win/loss, or empty string if not applicable
  */
 export function getPotentialStatusColor(leg: { market: string; odds: number; status: string }, liveScore?: string): string {
-    // Only apply for live legs (the caller should ensure slip is pending/live)
     if (leg.status !== 'Live' || !liveScore) {
         return '';
     }
 
-    // Parse live score: expected format "X - Y" or "X:Y" or "X  Y"
     const scoreMatch = liveScore.match(/(\d+)\s*[\-:]\s*(\d+)/);
     if (!scoreMatch) {
-        // If we can't parse the score, fallback to odds heuristic
         return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
     }
 
     const homeScore = parseInt(scoreMatch[1], 10);
     const awayScore = parseInt(scoreMatch[2], 10);
-    const market = leg.market.toLowerCase();
+    const market = leg.market.trim();
     const homeLeading = homeScore > awayScore;
     const awayLeading = awayScore > homeScore;
     const isTied = homeScore === awayScore;
+    const total = homeScore + awayScore;
 
-    // 1X2 markets - check in specific order to avoid overlap
-    // Check for Draw (X) first to avoid matching 'x' in '1x2'
-    if (market.includes('x') || market.includes('draw')) {
-        // Draw bet (X)
-        if (isTied) return 'var(--potential-win)';
-        // Not tied means draw won't happen → likely loss
-        return 'var(--potential-loss)';
-    }
-    // Check for Home win (1) - also handles 'home' and '1x2'
-    if (market.includes('1') || market.includes('home') || market.includes('1x2')) {
-        // Home win bet (1)
-        if (homeLeading) return 'var(--potential-win)';
-        if (awayLeading) return 'var(--potential-loss)';
-        // Tied: for home win bet, draw is not a win - check if we're likely to win in regulation
-        // For simplicity, treat tie as potential loss for home win bet
-        return 'var(--potential-loss)';
-    }
-    // Check for Away win (2)
-    if (market.includes('2') || market.includes('away')) {
-        // Away win bet (2)
-        if (awayLeading) return 'var(--potential-win)';
-        if (homeLeading) return 'var(--potential-loss)';
-        return 'var(--potential-loss)';
-    }
+    // ── 1X2 ──
+    if (market === '1') return homeLeading ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (market === 'X') return isTied    ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (market === '2') return awayLeading ? 'var(--potential-win)' : 'var(--potential-loss)';
 
-    // Over/Under markets
-    if (market.includes('over') || market.includes('over ')) {
-        // Extract the line from market like "Over 2.5"
-        const overMatch = market.match(/over\s*([\d.]+)/i);
-        if (overMatch) {
-            const line = parseFloat(overMatch[1]);
-            const totalScore = homeScore + awayScore;
-            if (totalScore > line) return 'var(--potential-win)';
-            if (totalScore < line) return 'var(--potential-loss)';
-            // Equal: depends on if we are close, but likely loss if line not reached yet
-            return 'var(--potential-loss)';
-        }
-        // Fallback for Over without line
-        return homeLeading || awayLeading ? 'var(--potential-win)' : 'var(--potential-loss)';
-    }
-    if (market.includes('under') || market.includes('under ')) {
-        const underMatch = market.match(/under\s*([\d.]+)/i);
-        if (underMatch) {
-            const line = parseFloat(underMatch[1]);
-            const totalScore = homeScore + awayScore;
-            if (totalScore < line) return 'var(--potential-win)';
-            if (totalScore > line) return 'var(--potential-loss)';
-            return 'var(--potential-loss)';
-        }
-        return homeLeading || awayLeading ? 'var(--potential-loss)' : 'var(--potential-win)';
-    }
-
-    // BTTS markets
-    if (market.includes('btts') || market.includes('both teams')) {
+    // ── BTTS ──
+    if (market === 'BTTS Yes') {
         const bothScored = homeScore > 0 && awayScore > 0;
-        if (market.includes('yes')) {
-            return bothScored ? 'var(--potential-win)' : 'var(--potential-loss)';
-        } else {
-            // BTTS No
-            return bothScored ? 'var(--potential-loss)' : 'var(--potential-win)';
-        }
+        return bothScored ? 'var(--potential-win)' : 'var(--potential-loss)';
+    }
+    if (market === 'BTTS No') {
+        const bothScored = homeScore > 0 && awayScore > 0;
+        return bothScored ? 'var(--potential-loss)' : 'var(--potential-win)';
     }
 
-    // Default heuristic based on odds
+    // ── Over/Under ──
+    const overMatch = market.match(/^Over ([\d.]+)$/);
+    if (overMatch) {
+        const line = parseFloat(overMatch[1]);
+        return total > line ? 'var(--potential-win)' : 'var(--potential-loss)';
+    }
+
+    const underMatch = market.match(/^Under ([\d.]+)$/);
+    if (underMatch) {
+        const line = parseFloat(underMatch[1]);
+        return total < line ? 'var(--potential-win)' : 'var(--potential-loss)';
+    }
+
+    // ── Default ──
     return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
 }
