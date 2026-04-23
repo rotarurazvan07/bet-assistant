@@ -216,7 +216,9 @@ def get_slips(
     profiles: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    hide_sett) |
+    hide_settled: str | None = None,
+    live_only: str | None = None,
+):
     app = _get(request)
     logic = app.logic
 
