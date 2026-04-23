@@ -1,21 +1,7 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Add the project root to the Python path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-
 from fastapi import APIRouter, Request
-
-# Import the shared utility
-try:
-    from utils.profile_utils import get_profile_params
-except ImportError:
-    # Fallback if the import doesn't work as expected
-    def get_profile_params(request):
-        profiles = request.query_params.getlist('profiles') or request.query_params.getlist('profiles[]')
-        return profiles if profiles else None
+from utils.profile_utils import get_profile_params, handle_profile_params
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
