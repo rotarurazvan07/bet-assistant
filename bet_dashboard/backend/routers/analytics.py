@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
-from utils.profile_utils import get_profile_params, handle_profile_params
+from bet_dashboard.backend.utils.profile_utils import get_profile_params, handle_profile_params
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
