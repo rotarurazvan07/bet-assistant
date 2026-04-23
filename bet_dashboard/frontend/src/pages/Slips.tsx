@@ -2,10 +2,13 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { fetchSlips, deleteSlip, validateSlips, generateSlips } from '../api/data';
 import { SlipCard, SlipDetailModal } from '../components/BetComponents';
 import { StatCard, Toggle } from '../components/ui';
+import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
 import type { SlipsPage, LiveData, BetSlip } from '../types';
+import { useProfileSelection } from '../hooks/useProfileSelection';
 
-const STORAGE_KEY = 'slips_state';
+const PROFILES_STORAGE_KEY = 'profile_selector_state';
+const FILTERS_STORAGE_KEY = 'slips_filters_state';
 
 interface Props { filters: GlobalFilters; refreshKey: number; liveData?: LiveData }
 
@@ -13,21 +16,25 @@ type SortOption = 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc
 
 export default function Slips({ filters, refreshKey, liveData: externalLiveData }: Props) {
     const [data, setData] = useState<SlipsPage | null>(null);
-    const [profileFilter, setProfileFilter] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).profileFilter : 'all';
+    
+    // Initialize selectedProfiles from shared storage (persists across Slips/Analytics)
+    const { selectedProfiles, setSelectedProfiles } = useProfileSelection({
+        page: 'slips',
+        allProfiles: data?.profiles ?? []
     });
+    
+    // Initialize filters from Slips-specific storage (persists only for Slips page)
     const [hideSettled, setHideSettled] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
         return saved ? JSON.parse(saved).hideSettled : false;
     });
     const [liveOnly, setLiveOnly] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
         return saved ? JSON.parse(saved).liveOnly : false;
     });
     const [sortBy, setSortBy] = useState<SortOption>(() => {
         try {
-            const saved = localStorage.getItem(STORAGE_KEY);
+            const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed.sortBy && typeof parsed.sortBy === 'string') {
@@ -46,21 +53,34 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     const [status, setStatus] = useState('');
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
 
-    // Persist state to localStorage
+    
+        // Update local storage when data is loaded
+        useEffect(() => {
+            if (data?.profiles) {
+                localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify({ profiles: selectedProfiles }));
+            }
+        }, [selectedProfiles, data?.profiles]);
+    // Persist filters to Slips-specific storage
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ profileFilter, hideSettled, liveOnly, sortBy }));
-    }, [profileFilter, hideSettled, liveOnly, sortBy]);
+        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ hideSettled, liveOnly, sortBy }));
+    }, [hideSettled, liveOnly, sortBy]);
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const d = await fetchSlips({
-                profile: profileFilter === 'all' ? undefined : profileFilter,
+            // If no profiles selected, pass undefined to get all profiles
+            // Otherwise pass the selected profiles array
+            const params: any = {
                 date_from: filters.dateFrom || undefined,
                 date_to: filters.dateTo || undefined,
                 hide_settled: hideSettled,
                 live_only: liveOnly,
-            });
+            };
+            if (selectedProfiles.length > 0) {
+                params.profiles = selectedProfiles;
+            }
+            
+            const d = await fetchSlips(params);
             setData(d);
             // Update local live data from the slip legs that have live status
             const ld: LiveData = {};
@@ -77,7 +97,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             // Set empty state on error
             setData({ slips: [], stats: { total_settled: 0, total_won_count: 0, win_rate: 0, total_units_bet: 0, gross_return: 0, net_profit: 0, roi_percentage: 0 }, profiles: [] });
         } finally { setLoading(false); }
-    }, [profileFilter, filters, hideSettled, liveOnly, refreshKey]);
+    }, [selectedProfiles, filters, hideSettled, liveOnly, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -93,7 +113,10 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
         const result = await validateSlips();
         const ld: LiveData = {};
         result.live_data.forEach(item => {
-            ld[item.match_name] = { score: item.score, minute: item.minute };
+            ld[item.match_name] = {
+                score: item.score,
+                minute: item.minute,
+            };
         });
         setLocalLiveData(ld);
         setStatus(`✓ Checked ${result.checked} · Settled ${result.settled} · Live ${result.live}`);
@@ -152,44 +175,48 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
 
     return (
         <>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
                 <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
                     Slips
                 </h1>
-                <div className="flex items-center gap-3 flex-wrap">
-                    {/* Profile filter */}
-                    <select className="field w-44"
-                        value={profileFilter}
-                        onChange={e => setProfileFilter(e.target.value)}>
-                        <option value="all">All Profiles</option>
-                        {data?.profiles?.map(p => (
-                            <option key={p} value={p}>{p.toUpperCase()}</option>
-                        ))}
-                    </select>
+                {status && (
+                    <span className="text-[11px] font-mono" style={{ color: 'var(--accent)' }}>{status}</span>
+                )}
+            </div>
 
-                    {/* Sort by dropdown */}
-                    <select className="field w-44"
-                        value={sortBy}
-                        onChange={e => setSortBy(e.target.value as SortOption)}>
-                        <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
-                        <option value="net_profit_asc">Sort: Net Profit (Low → High)</option>
-                        <option value="date_desc">Sort: Date (Newest)</option>
-                        <option value="date_asc">Sort: Date (Oldest)</option>
-                        <option value="odds_desc">Sort: Total Odds (High → Low)</option>
-                        <option value="odds_asc">Sort: Total Odds (Low → High)</option>
-                        <option value="stake_desc">Sort: Stake (High → Low)</option>
-                        <option value="stake_asc">Sort: Stake (Low → High)</option>
-                    </select>
+            {/* Profile Selection */}
+            <div className="mb-5">
+                <ProfileSelector
+                    profiles={data?.profiles ?? []}
+                    selectedProfiles={selectedProfiles}
+                    onChange={setSelectedProfiles}
+                    profileData={data}
+                />
+            </div>
 
-                    <button className="btn-ghost" onClick={handleValidate}>✓ Validate Results</button>
-                    <button className="btn-success" onClick={handleGenerate}>✦ Generate Slips</button>
+            {/* Controls: Sorting, Validation, Generation, Filters */}
+            <div className="flex items-center gap-3 flex-wrap mb-5">
+                {/* Sort by dropdown */}
+                <select className="field w-44"
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as SortOption)}>
+                    <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
+                    <option value="net_profit_asc">Sort: Net Profit (Low → High)</option>
+                    <option value="date_desc">Sort: Date (Newest)</option>
+                    <option value="date_asc">Sort: Date (Oldest)</option>
+                    <option value="odds_desc">Sort: Total Odds (High → Low)</option>
+                    <option value="odds_asc">Sort: Total Odds (Low → High)</option>
+                    <option value="stake_desc">Sort: Stake (High → Low)</option>
+                    <option value="stake_asc">Sort: Stake (Low → High)</option>
+                </select>
 
+                <button className="btn-ghost" onClick={handleValidate}>✓ Validate Results</button>
+                <button className="btn-success" onClick={handleGenerate}>✦ Generate Slips</button>
+
+                <div className="flex items-center gap-3 ml-auto">
                     <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />
                     <Toggle checked={liveOnly} onChange={setLiveOnly} label="Live only" />
-
-                    {status && (
-                        <span className="text-[11px] font-mono" style={{ color: 'var(--accent)' }}>{status}</span>
-                    )}
                 </div>
             </div>
 

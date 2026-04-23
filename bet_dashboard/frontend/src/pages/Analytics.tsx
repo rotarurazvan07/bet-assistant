@@ -4,10 +4,12 @@ import {
     XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine,
     ScatterChart, Scatter, Cell, Legend,
 } from 'recharts';
-import { fetchAnalytics, fetchProfiles } from '../api/data';
+import { fetchAnalytics } from '../api/data';
 import { StatCard, SectionHeader, TooltipIcon } from '../components/ui';
+import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { AnalyticsData, ProfilesMap } from '../types';
+import type { AnalyticsData } from '../types';
+import { useProfileSelection } from '../hooks/useProfileSelection';
 
 const tooltipStyle = {
     background: 'var(--bg-card)', border: '1px solid var(--border-strong)',
@@ -20,6 +22,27 @@ const enhancedTooltipStyle = {
     ...tooltipStyle,
     padding: '10px 14px',
 };
+
+// Custom tick component to highlight weekends
+function WeekendTick({ x, y, payload, ...rest }: any) {
+    const date = new Date(payload.value);
+    const isWeekend = date.getDay() === 0 || date.getDay() === 6; // Sunday = 0, Saturday = 6
+
+    return (
+        <text
+            x={x}
+            y={y}
+            {...rest}
+            style={{
+                ...rest.style,
+                fontWeight: isWeekend ? 'bold' : 'normal',
+                fill: isWeekend ? 'var(--text-bright)' : rest.style?.fill || 'var(--text-secondary)'
+            }}
+        >
+            {payload.value}
+        </text>
+    );
+}
 
 function ChartCard({ title, tip, children }: { title: string; tip?: string; children: React.ReactNode }) {
     return (
@@ -34,40 +57,38 @@ function ChartCard({ title, tip, children }: { title: string; tip?: string; chil
     );
 }
 
-const STORAGE_KEY = 'analytics_state';
+const PROFILES_STORAGE_KEY = 'profile_selector_state';
 
 interface Props { filters: GlobalFilters; refreshKey: number }
 
 export default function Analytics({ filters, refreshKey }: Props) {
     const [data, setData] = useState<AnalyticsData | null>(null);
-    const [profile, setProfile] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).profile : 'all';
+    
+    // Initialize selectedProfiles from shared storage (persists across Slips/Analytics)
+    const { selectedProfiles, setSelectedProfiles } = useProfileSelection({
+        page: 'analytics',
+        allProfiles: data?.profiles ?? []
     });
+    
     const [loading, setLoading] = useState(false);
-    const [profiles, setProfiles] = useState<ProfilesMap>({});
-
-    // Persist profile to localStorage
-    useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile }));
-    }, [profile]);
-
-    // Load profiles on mount
-    useEffect(() => {
-        fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
-    }, []);
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const d = await fetchAnalytics({
-                profile: profile === 'all' ? undefined : profile,
+            // If no profiles selected, pass undefined to get all profiles
+            // Otherwise pass the selected profiles array
+            const params: any = {
                 date_from: filters.dateFrom || undefined,
                 date_to: filters.dateTo || undefined,
-            });
+            };
+            if (selectedProfiles.length > 0) {
+                params.profiles = selectedProfiles;
+            }
+            
+            const d = await fetchAnalytics(params);
             // Debug: log analytics response
             console.log('[Analytics] Response:', {
-                profile,
+                profiles: selectedProfiles,
                 history: d.history?.length ?? 0,
                 pnl_by_market: d.pnl_by_market?.length ?? 0,
                 profile_scatter: d.profile_scatter?.length ?? 0,
@@ -81,20 +102,30 @@ export default function Analytics({ filters, refreshKey }: Props) {
             setData({
                 stats: { total_settled: 0, total_won_count: 0, win_rate: 0, total_units_bet: 0, gross_return: 0, net_profit: 0, roi_percentage: 0 },
                 history: [], odds_distribution: [], pnl_by_market: [], market_accuracy: [],
-                correlation: [], profile_scatter: [],
+                correlation: [], profile_scatter: [], profiles: [],
             });
         } finally { setLoading(false); }
-    }, [profile, filters, refreshKey]);
+    }, [selectedProfiles, filters, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
 
     // Empty state - show clean message when no data
     if (!data || !data.stats) return (
         <div>
+            {/* Header */}
             <div className="flex items-center justify-between mb-5">
                 <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
                     Analytics
                 </h1>
+            </div>
+            {/* Profile selection */}
+            <div className="mb-5">
+                <ProfileSelector
+                    profiles={data?.profiles ?? []}
+                    selectedProfiles={selectedProfiles}
+                    onChange={setSelectedProfiles}
+                    profileData={data}
+                />
             </div>
             <div className="card text-center py-16">
                 <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -112,18 +143,21 @@ export default function Analytics({ filters, refreshKey }: Props) {
     return (
         <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
 
-            {/* Header + profile filter */}
+            {/* Header */}
             <div className="flex items-center justify-between mb-5">
                 <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
                     Analytics
                 </h1>
-                <select className="field w-44" value={profile} onChange={e => setProfile(e.target.value)}>
-                    <option value="all">All Profiles</option>
-                    {Object.keys(profiles).map(name => (
-                        <option key={name} value={name}>{name.toUpperCase()}</option>
-                    ))}
-                    <option value="manual">MANUAL</option>
-                </select>
+            </div>
+
+            {/* Profile selection */}
+            <div className="mb-5">
+                <ProfileSelector
+                    profiles={data.profiles}
+                    selectedProfiles={selectedProfiles}
+                    onChange={setSelectedProfiles}
+                    profileData={data}
+                />
             </div>
 
             {/* Stats row */}
@@ -157,7 +191,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                             />
                             <XAxis
                                 dataKey="date"
-                                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                tick={<WeekendTick fill="var(--text-secondary)" fontSize={10} />}
                                 tickLine={false}
                                 axisLine={{ stroke: 'var(--border)', strokeWidth: 1 }}
                             />
@@ -201,10 +235,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                     </ResponsiveContainer>
                 </ChartCard>
 
-                {/* Cumulative + Rolling Win Rate */}
+                {/* Cumulative */}
                 <ChartCard
-                    title="Win Rate — Cumulative vs Rolling (10)"
-                    tip="Compares overall win rate (cumulative) with recent performance (10-slip rolling average). Divergence indicates changing performance trends."
+                    title="Win Rate — Cumulative"
+                    tip="Win Rate — Cumulative"
                 >
                     <ResponsiveContainer width="100%" height={250}>
                         <LineChart data={data.history ?? []} margin={{ left: 5, right: 10, top: 5, bottom: 0 }}>
@@ -216,7 +250,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                             />
                             <XAxis
                                 dataKey="date"
-                                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                tick={<WeekendTick fill="var(--text-secondary)" fontSize={10} />}
                                 tickLine={false}
                                 axisLine={{ stroke: 'var(--border)', strokeWidth: 1 }}
                             />
@@ -225,8 +259,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 tickLine={false}
                                 axisLine={false}
                                 domain={[0, 100]}
-                                unit="%"
-                                tickFormatter={(value) => `${value}%`}
                                 width={45}
                             />
                             <Tooltip
@@ -234,7 +266,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 content={({ active, payload, label }) => {
                                     if (!active || !payload?.length) return null;
                                     const cumWin = payload.find(p => p.dataKey === 'win_rate')?.value;
-                                    const rollWin = payload.find(p => p.dataKey === 'rolling_win_rate')?.value;
                                     return (
                                         <div style={enhancedTooltipStyle}>
                                             <p style={{ color: 'var(--text-bright)', marginBottom: 6, fontSize: 11, fontWeight: 'bold' }}>
@@ -247,13 +278,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                                     <span style={{ fontWeight: 'bold' }}>{Number(cumWin).toFixed(1)}%</span>
                                                 </p>
                                             )}
-                                            {rollWin != null && (
-                                                <p style={{ margin: '3px 0' }}>
-                                                    <span style={{ color: 'var(--chart-3)' }}>●</span>
-                                                    <span style={{ color: 'var(--text-secondary)', marginLeft: 6 }}>Rolling (10): </span>
-                                                    <span style={{ fontWeight: 'bold' }}>{Number(rollWin).toFixed(1)}%</span>
-                                                </p>
-                                            )}
                                         </div>
                                     );
                                 }}
@@ -264,15 +288,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 name="Cumulative Win%"
                                 stroke="var(--chart-1)"
                                 strokeWidth={2}
-                                dot={false}
-                                type="monotone"
-                            />
-                            <Line
-                                dataKey="rolling_win_rate"
-                                name="Rolling Win% (10)"
-                                stroke="var(--chart-3)"
-                                strokeWidth={1.5}
-                                strokeDasharray="5 3"
                                 dot={false}
                                 type="monotone"
                             />
@@ -295,7 +310,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                             />
                             <XAxis
                                 dataKey="date"
-                                tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                tick={<WeekendTick fill="var(--text-secondary)" fontSize={10} />}
                                 tickLine={false}
                                 axisLine={{ stroke: 'var(--border)', strokeWidth: 1 }}
                             />
@@ -303,8 +318,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
                                 tickLine={false}
                                 axisLine={false}
-                                unit="%"
-                                tickFormatter={(value) => `${value}%`}
                                 width={45}
                             />
                             <Tooltip
@@ -363,8 +376,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
                                 tickLine={false}
                                 axisLine={false}
-                                unit="%"
-                                tickFormatter={(value) => `${value}%`}
                                 width={45}
                                 domain={[0, 100]}
                             />
@@ -440,8 +451,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                         tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
                                         tickLine={false}
                                         domain={[0, 100]}
-                                        unit="%"
-                                        tickFormatter={(value) => `${value}%`}
                                         axisLine={{ stroke: 'var(--border)', strokeWidth: 1 }}
                                     />
                                     <YAxis
@@ -600,8 +609,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                         tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
                                         tickLine={false}
                                         axisLine={false}
-                                        unit="%"
-                                        tickFormatter={(value) => `${value}%`}
                                         width={45}
                                         domain={[0, 100]}
                                     />
