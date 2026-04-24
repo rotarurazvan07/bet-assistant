@@ -205,20 +205,18 @@ jobs:
       - name: Download All Logs
         uses: actions/download-artifact@v4
         with:
-          pattern: logs-*.txt
+          pattern: logs-*
           path: all_logs
       - name: Create unified log
         run: |
           echo "=== UNIFIED LOGS FROM ALL JOBS ===" > unified_log.txt
           echo "" >> unified_log.txt
-          for log_file in all_logs/logs-*.txt; do
-            if [ -f "$log_file" ]; then
-              echo "=== LOG FILE: $(basename $log_file) ===" >> unified_log.txt
-              cat "$log_file" >> unified_log.txt
-              echo "" >> unified_log.txt
-              echo "=== END OF FILE ===" >> unified_log.txt
-              echo "" >> unified_log.txt
-            fi
+          find all_logs -type f -name "*.txt" | sort | while read log_file; do
+            echo "=== LOG FILE: $(basename "$log_file") ===" >> unified_log.txt
+            cat "$log_file" >> unified_log.txt
+            echo "" >> unified_log.txt
+            echo "=== END OF FILE ===" >> unified_log.txt
+            echo "" >> unified_log.txt
           done
       - name: Upload unified log
         uses: actions/upload-artifact@v4
