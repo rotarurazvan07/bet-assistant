@@ -78,7 +78,9 @@ class ScorePredictorFinder(BaseMatchFinder):
 
                     # Check if scores are valid integers
                     if not home_score_text.isdigit() or not away_score_text.isdigit():
-                        logger.warning(f"Skipping match {home_team} vs {away_team} on {url} due to invalid score data: '{home_score_text}' - '{away_score_text}'")
+                        logger.warning(
+                            f"Skipping match {home_team} vs {away_team} on {url} due to invalid score data: '{home_score_text}' - '{away_score_text}'"
+                        )
                         continue
 
                     scores = [
@@ -89,7 +91,9 @@ class ScorePredictorFinder(BaseMatchFinder):
                         )
                     ]
 
-                    self.add_match(Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None))
+                    self.add_match(
+                        Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None)
+                    )
 
                 except ValueError as e:
                     # Handle individual match parsing errors

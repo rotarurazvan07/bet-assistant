@@ -20,7 +20,7 @@ SKIP_PATTERNS: list[tuple[str, str]] = [  # TODO false skipping
     (r"\bRes\b", "Reserve team"),
 ]
 
-_LOCAL_TZ = "Europe/Bucharest" # this needs to be set because different datacenter computers can be everywhere.
+_LOCAL_TZ = "Europe/Bucharest"  # this needs to be set because different datacenter computers can be everywhere.
 # CURRENT_TIME is now computed dynamically in validate_match_date to avoid stale time
 # logger.info(f"Detected System Timezone: {_LOCAL_TZ}")
 
@@ -32,6 +32,7 @@ class BaseMatchFinder:
         # Try to use tzlocal if available
         try:
             from tzlocal import get_localzone
+
             return str(get_localzone())
         except:
             logger.warning("tzlocal not available")

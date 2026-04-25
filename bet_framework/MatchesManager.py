@@ -196,16 +196,10 @@ class MatchesManager(BufferedStorageManager):
             odds_changed = self._update_odds(match, found, idx)
             changed = odds_changed or changed
             if odds_changed:
-                logger.info(
-                    f"Updating odds for {match.home_team} vs {match.away_team} "
-                    f"with new values: {asdict(match.odds)}"
-                )
+                logger.info(f"Updating odds for {match.home_team} vs {match.away_team} with new values: {asdict(match.odds)}")
 
         if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
-            logger.info(
-                f"Updating result_url for {match.home_team} vs {match.away_team} "
-                f"from None to {match.result_url}"
-            )
+            logger.info(f"Updating result_url for {match.home_team} vs {match.away_team} from None to {match.result_url}")
             self._buffer.at[idx, "result_url"] = match.result_url
             changed = True
 

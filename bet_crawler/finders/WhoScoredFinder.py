@@ -75,7 +75,11 @@ class WhoScoredFinder(BaseMatchFinder):
                         score[1].get_text(strip=True),
                     )
                 ]
-                self.add_match(Match(home_team, away_team, match_datetime.replace(hour=0, minute=0, second=0, microsecond=0), scores, None))
+                self.add_match(
+                    Match(
+                        home_team, away_team, match_datetime.replace(hour=0, minute=0, second=0, microsecond=0), scores, None
+                    )
+                )
             except Exception as e:
                 logger.error(f"SKIPPED [{url}] WhoScored: Error creating match object: {e}")
                 return

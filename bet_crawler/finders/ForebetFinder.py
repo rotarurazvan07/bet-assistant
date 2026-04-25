@@ -67,7 +67,9 @@ class ForebetFinder(BaseMatchFinder):
                             if clicked:
                                 no_button_streak = 0
                                 successful_clicks += 1
-                                logger.info(f"Clicked expansion button ({successful_clicks}) - matches before load: {count_before}")
+                                logger.info(
+                                    f"Clicked expansion button ({successful_clicks}) - matches before load: {count_before}"
+                                )
 
                                 stable_count = self._wait_for_stable_count(session, count_before)
                                 logger.info(f"Content stabilized at {stable_count} matches")
@@ -116,9 +118,7 @@ class ForebetFinder(BaseMatchFinder):
                 time.sleep(5)
 
     def _get_match_count(self, session) -> int:
-        return session.execute_script(
-            "(function(){ return document.querySelectorAll('div.ex_sc.tabonly').length; })()"
-        )
+        return session.execute_script("(function(){ return document.querySelectorAll('div.ex_sc.tabonly').length; })()")
 
     def _get_last_batch_fingerprint(self, session, count_before: int) -> str | None:
         return session.execute_script(f"""
@@ -183,7 +183,9 @@ class ForebetFinder(BaseMatchFinder):
 
         return False
 
-    def _wait_for_stable_count(self, session, count_before: int, poll_interval: float = 2.0, stable_threshold: int = 3, timeout: float = 45.0) -> int:
+    def _wait_for_stable_count(
+        self, session, count_before: int, poll_interval: float = 2.0, stable_threshold: int = 3, timeout: float = 45.0
+    ) -> int:
         """Poll until match count stops growing."""
         stable_readings = 0
         last_count = count_before

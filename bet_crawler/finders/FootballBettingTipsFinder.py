@@ -41,7 +41,9 @@ class FootballBettingTipsFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         try:
             soup = BeautifulSoup(html, "html.parser")
-            match_datetime = datetime.strptime(soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y").replace(hour=0, minute=0, second=0, microsecond=0)
+            match_datetime = datetime.strptime(soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y").replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
 
             for match_html in soup.find("table", class_="results").find_all("tr"):
                 try:
