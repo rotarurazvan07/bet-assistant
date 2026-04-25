@@ -9,12 +9,12 @@ interface UseProfileSelectionProps {
   allProfiles: string[];
 }
 
-export function useProfileSelection({ page, allProfiles }: UseProfileSelectionProps) {
+export function useProfileSelection({ page }: UseProfileSelectionProps) {
   // Determine which storage key to use based on the page
-  const storageKey = page === 'analytics' 
-    ? ANALYTICS_PROFILES_STORAGE_KEY 
+  const storageKey = page === 'analytics'
+    ? ANALYTICS_PROFILES_STORAGE_KEY
     : SLIPS_PROFILES_STORAGE_KEY;
-  
+
   // Initialize selectedProfiles from page-specific storage
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>(() => {
     const saved = localStorage.getItem(storageKey);
@@ -29,7 +29,7 @@ export function useProfileSelection({ page, allProfiles }: UseProfileSelectionPr
       }
     }
     // Default to all profiles selected
-    return [...allProfiles];
+    return [];
   });
 
   // Persist profiles to page-specific storage

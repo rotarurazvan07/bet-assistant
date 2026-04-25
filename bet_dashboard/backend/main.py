@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    matches_db = os.getenv("MATCHES_DB_PATH", "bet_dashboard/workspace/data/final_matches.db")
+    matches_db = os.getenv("MATCHES_DB_PATH", "bet_dashboard/workspace/data/matches.db")
     slips_db = os.getenv("SLIPS_DB_PATH", "bet_dashboard/workspace/data/slips.db")
     config_dir = os.getenv("CONFIG_PATH", "bet_dashboard/workspace/config")
 

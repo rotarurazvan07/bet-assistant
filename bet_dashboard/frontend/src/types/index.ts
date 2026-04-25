@@ -124,9 +124,24 @@ export interface SlipsPage {
 }
 
 export interface SlipStats {
-    total_settled: number; total_won_count: number; win_rate: number;
+    total_settled: number; total_won_count: number;
+    win_rate: number; implied_win_rate: number; edge: number;
     total_units_bet: number; gross_return: number;
     net_profit: number; roi_percentage: number;
+    avg_odds: number; avg_units: number; units_std: number;
+    pending_count: number; sharpe_ratio: number | null;
+    kelly_suggested_units: number;
+    edge_trend: string;
+    recent_edge_value: number;
+    // New advanced metrics
+    biggest_win_units: number | null;
+    biggest_loss_units: number | null;
+    best_day_pnl: number | null;  // Best single day P&L
+    worst_day_pnl: number | null; // Worst single day P&L
+    current_streak: number;
+    longest_win_streak: number;
+    longest_loss_streak: number;
+    profit_factor: number;
 }
 
 export type LiveData = Record<string, { score: string; minute: string }>;
@@ -148,7 +163,8 @@ export interface PnlByMarket {
 }
 
 export interface OddsDistBucket {
-    range: string; count: number; wins: number; losses: number; win_rate: number;
+    range: string; count: number; wins: number; losses: number;
+    win_rate: number; implied_win_rate: number; avg_odds: number; edge: number;
 }
 
 export interface CorrelationRecord {
@@ -158,7 +174,34 @@ export interface CorrelationRecord {
 
 export interface ProfileScatterPoint {
     profile: string; avg_odds: number; win_rate: number;
-    net_profit: number; volume: number;
+    net_profit: number; volume: number; break_even_win_rate: number;
+}
+
+export interface MarketBreakdown {
+    market: string; legs: number; won: number; lost: number;
+    win_rate: number; implied_win_rate: number; edge: number;
+    avg_odds: number; net_profit: number;
+}
+
+export interface RollingEdgePoint {
+    date: string; rolling_edge: number; rolling_win_rate: number;
+    rolling_implied: number; sample_size: number;
+}
+
+export interface DrawdownPoint {
+    date: string; drawdown: number; peak: number; cumulative_profit: number;
+}
+
+export interface ReturnDistBin {
+    range: string; range_end: string; count: number; is_positive: boolean;
+}
+
+export interface ReturnDistribution {
+    bins: ReturnDistBin[]; mean: number; median: number;
+}
+
+export interface TimePatternItem {
+    key: string; total: number; won: number; win_rate: number;
 }
 
 export interface AnalyticsData {
@@ -170,6 +213,11 @@ export interface AnalyticsData {
     profile_scatter: ProfileScatterPoint[];
     stats: SlipStats;
     profiles: string[];
+    market_breakdown: MarketBreakdown[];
+    rolling_edge: RollingEdgePoint[];
+    drawdown: DrawdownPoint[];
+    return_distribution: ReturnDistribution | null;
+    time_patterns: { day_of_week: TimePatternItem[]; hour: TimePatternItem[] } | null;
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────
