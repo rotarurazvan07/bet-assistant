@@ -182,6 +182,7 @@ jobs:
       - name: Merge Databases
         run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
       - name: Create or Update Release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-db

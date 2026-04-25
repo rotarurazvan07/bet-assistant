@@ -666,7 +666,7 @@ class SoccerVistaFinder(BaseMatchFinder):
                 except AttributeError:
                     logger.info(f"Can't parse: {link}")
 
-        league_urls = [SOCCERVISTA_URL + url for url in league_urls if not any(ex in url for ex in EXCLUDED)]
+        league_urls = [SOCCERVISTA_URL + url for url in league_urls]
 
         logger.info(f"{len(league_urls)} leagues to scrape")
         return league_urls
@@ -686,44 +686,49 @@ class SoccerVistaFinder(BaseMatchFinder):
             matches = container.parent.find("tbody").find_all("tr") if container else []
 
             for match_tr in matches:
-                home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
                 try:
-                    date_str = match_tr.find_all("td")[0].get_text()
-                    match_datetime = min(
-                        (
-                            datetime.strptime(f"{date_str} {y}", "%d %b %Y")
-                            for y in [
-                                datetime.now().year - 1,
-                                datetime.now().year,
-                                datetime.now().year + 1,
-                            ]
-                        ),
-                        key=lambda d: abs(d - datetime.now()),
-                    ).replace(hour=0, minute=0, second=0, microsecond=0)
-                except Exception:
-                    logger.info(f"{home_team} vs {away_team}: Match ongoing")
+                    home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
+                    away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
+                    try:
+                        date_str = match_tr.find_all("td")[0].get_text()
+                        match_datetime = min(
+                            (
+                                datetime.strptime(f"{date_str} {y}", "%d %b %Y")
+                                for y in [
+                                    datetime.now().year - 1,
+                                    datetime.now().year,
+                                    datetime.now().year + 1,
+                                ]
+                            ),
+                            key=lambda d: abs(d - datetime.now()),
+                        ).replace(hour=0, minute=0, second=0, microsecond=0)
+                    except Exception:
+                        logger.info(f"{home_team} vs {away_team}: Match ongoing")
+                        continue
+
+                    score_text = match_tr.find_all("td")[-1].get_text()
+                    scores = [
+                        Score(
+                            SOCCERVISTA_NAME,
+                            int(score_text.split(":")[0]),
+                            int(score_text.split(":")[1]),
+                        )
+                    ]
+
+                    self.add_match(
+                        Match(
+                            home_team=home_team,
+                            away_team=away_team,
+                            datetime=match_datetime,
+                            predictions=scores,
+                            odds=None,
+                            result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
+                        )
+                    )
+
+                except Exception as e:
+                    logger.error(f"SKIPPED [{url}]: {e}")
                     continue
-
-                score_text = match_tr.find_all("td")[-1].get_text()
-                scores = [
-                    Score(
-                        SOCCERVISTA_NAME,
-                        int(score_text.split(":")[0]),
-                        int(score_text.split(":")[1]),
-                    )
-                ]
-
-                self.add_match(
-                    Match(
-                        home_team=home_team,
-                        away_team=away_team,
-                        datetime=match_datetime,
-                        predictions=scores,
-                        odds=None,
-                        result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
-                    )
-                )
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

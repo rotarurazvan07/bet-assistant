@@ -17,6 +17,8 @@ MAX_CONCURRENCY = 3
 
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
+    # TIMEZONE = "Etc/GMT-2"
+
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
@@ -46,7 +48,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                     dt_tag = cells[0].find(class_="fulldatetime")
                     if dt_tag:
                         dt_str = dt_tag.get_text(strip=True)
-                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(hour=0, minute=0, second=0, microsecond=0)
 
                         teams = list(cells[1].stripped_strings)
                         home_team = teams[0]
@@ -66,7 +68,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         self.add_match(Match(home_team, away_team, dt_obj, predictions, odds))
 
                 except Exception as e:
-                    logger.info(f"SKIPPED [{url}]: {e}")
+                    logger.error(f"SKIPPED [{url}]: {e}")
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

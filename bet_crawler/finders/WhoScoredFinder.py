@@ -21,7 +21,7 @@ class WhoScoredFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
-    TIMEZONE = "UTC"  # WhoScored provides UTC timestamps
+    # TIMEZONE = "UTC"  # WhoScored provides UTC timestamps
 
     def get_matches_urls(self):
         """Get match URLs via browser (needs JS rendering)."""
@@ -43,10 +43,10 @@ class WhoScoredFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
-        try:
-            # 1. Look for the embedded JSON config that WhoScored now uses
-            import json
+        # 1. Look for the embedded JSON config that WhoScored now uses
+        import json
 
+        try:
             match_json = re.search(r"matchHeaderJson: JSON\.parse\(\'(.*?)\'\),", html)
             if not match_json:
                 logger.info(f"[{url}] WhoScored: Could not find matchHeaderJson block.")
@@ -65,14 +65,20 @@ class WhoScoredFinder(BaseMatchFinder):
             soup = BeautifulSoup(html, "html.parser")
             score_container = soup.find("div", id="preview-prediction")
             score = score_container.find_all("span", class_="predicted-score")
-            scores = [
-                Score(
-                    WHOSCORED_NAME,
-                    score[0].get_text(strip=True),
-                    score[1].get_text(strip=True),
-                )
-            ]
-            self.add_match(Match(home_team, away_team, match_datetime, scores, None))
+
+            # Try to create the match object, but handle exceptions for individual matches
+            try:
+                scores = [
+                    Score(
+                        WHOSCORED_NAME,
+                        score[0].get_text(strip=True),
+                        score[1].get_text(strip=True),
+                    )
+                ]
+                self.add_match(Match(home_team, away_team, match_datetime.replace(hour=0, minute=0, second=0, microsecond=0), scores, None))
+            except Exception as e:
+                logger.error(f"SKIPPED [{url}] WhoScored: Error creating match object: {e}")
+                return
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

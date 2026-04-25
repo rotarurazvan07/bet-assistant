@@ -34,7 +34,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         league_urls = [
             SCOREPREDICTOR_URL + a.get("href")
             for a in soup.find(class_="block_categories").find_all("a")[3:]
-            if a.get("href") not in EXCLUDED
+            if a.get("href") != "#"
         ]
 
         logger.info(f"{len(league_urls)} leagues to scrape")
@@ -57,26 +57,48 @@ class ScorePredictorFinder(BaseMatchFinder):
                 return
 
             for entry in soup.find(class_="table_dark").find_all("tr")[1:]:
-                date_str = entry.find_all("td")[0].get_text().strip()
-                today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                day, month = map(int, date_str.split("."))
-                candidate = datetime(today.year, month, day).replace(hour=0, minute=0, second=0, microsecond=0)
-                if candidate - today > timedelta(days=300):
-                    candidate = candidate.replace(year=today.year - 1)
-                elif today - candidate > timedelta(days=300):
-                    candidate = candidate.replace(year=today.year + 1)
+                try:
+                    # Parse date
+                    date_str = entry.find_all("td")[0].get_text().strip()
+                    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                    day, month = map(int, date_str.split("."))
+                    candidate = datetime(today.year, month, day).replace(hour=0, minute=0, second=0, microsecond=0)
+                    if candidate - today > timedelta(days=300):
+                        candidate = candidate.replace(year=today.year - 1)
+                    elif today - candidate > timedelta(days=300):
+                        candidate = candidate.replace(year=today.year + 1)
 
-                home_team = entry.find_all("td")[1].get_text().strip()
-                away_team = entry.find_all("td")[4].get_text().strip()
-                scores = [
-                    Score(
-                        SCOREPREDICTOR_NAME,
-                        int(entry.find_all("td")[2].get_text()),
-                        int(entry.find_all("td")[3].get_text()),
-                    )
-                ]
+                    # Parse team names
+                    home_team = entry.find_all("td")[1].get_text().strip()
+                    away_team = entry.find_all("td")[4].get_text().strip()
 
-                self.add_match(Match(home_team, away_team, candidate, scores, None))
+                    # Parse scores with error handling
+                    home_score_text = entry.find_all("td")[2].get_text().strip()
+                    away_score_text = entry.find_all("td")[3].get_text().strip()
+
+                    # Check if scores are valid integers
+                    if not home_score_text.isdigit() or not away_score_text.isdigit():
+                        logger.warning(f"Skipping match {home_team} vs {away_team} on {url} due to invalid score data: '{home_score_text}' - '{away_score_text}'")
+                        continue
+
+                    scores = [
+                        Score(
+                            SCOREPREDICTOR_NAME,
+                            int(home_score_text),
+                            int(away_score_text),
+                        )
+                    ]
+
+                    self.add_match(Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None))
+
+                except ValueError as e:
+                    # Handle individual match parsing errors
+                    logger.error(f"Skipping match on {url} due to parsing error: {e}")
+                    continue
+                except Exception as e:
+                    # Handle any other unexpected errors for individual matches
+                    logger.error(f"Skipping match on {url} due to unexpected error: {e}")
+                    continue
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

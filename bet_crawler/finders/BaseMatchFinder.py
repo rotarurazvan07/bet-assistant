@@ -20,12 +20,23 @@ SKIP_PATTERNS: list[tuple[str, str]] = [  # TODO false skipping
     (r"\bRes\b", "Reserve team"),
 ]
 
-CURRENT_TIME = datetime.now()
-_LOCAL_TZ = CURRENT_TIME.astimezone().tzinfo
+_LOCAL_TZ = "Europe/Bucharest" # this needs to be set because different datacenter computers can be everywhere.
+# CURRENT_TIME is now computed dynamically in validate_match_date to avoid stale time
 # logger.info(f"Detected System Timezone: {_LOCAL_TZ}")
 
 
 class BaseMatchFinder:
+    @staticmethod
+    def _detect_local_timezone() -> str:
+        """Detect the local timezone as an IANA timezone string."""
+        # Try to use tzlocal if available
+        try:
+            from tzlocal import get_localzone
+            return str(get_localzone())
+        except:
+            logger.warning("tzlocal not available")
+            return None
+
     """Base class for match finders.
 
     Subclasses implement:
@@ -73,7 +84,9 @@ class BaseMatchFinder:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=source_tz)
 
-        local_dt = dt.astimezone(_LOCAL_TZ)
+        local_dt = dt.astimezone(ZoneInfo(_LOCAL_TZ))
+
+        logger.info(f"Normalised datetime from {dt} ({self.TIMEZONE}) to {local_dt}")
 
         return local_dt.replace(tzinfo=None)
 
@@ -122,5 +135,7 @@ class BaseMatchFinder:
 
     def validate_match_date(self, match_datetime):
         """Keep only today's matches and future matches."""
-        today_start = CURRENT_TIME.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Compute current time dynamically to avoid stale time across midnight
+        now = datetime.now(ZoneInfo(_LOCAL_TZ)).replace(tzinfo=None)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         return match_datetime >= today_start

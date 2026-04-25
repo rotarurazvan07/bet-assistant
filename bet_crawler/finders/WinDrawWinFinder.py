@@ -90,7 +90,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                     self.add_match(Match(home_team, away_team, current_date, predictions, odds))
 
                 except Exception as e:
-                    logger.info(f"SKIPPED [{url}]: {e}")
+                    logger.error(f"SKIPPED [{url}]: {e}")
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
