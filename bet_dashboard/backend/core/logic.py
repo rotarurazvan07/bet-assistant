@@ -346,21 +346,61 @@ class AppLogic:
         slips = self.get_slips(profile, date_from, date_to)
         settled = [s for s in slips if s.slip_status in ("Won", "Lost")]
         won = [s for s in settled if s.slip_status == "Won"]
+        pending = [s for s in slips if s.slip_status == "Pending"]
 
         n_settled = len(settled)
         n_won = len(won)
         stakes = sum(s.units for s in settled)
         gross_return = sum(s.total_odds * s.units for s in won)
         net_profit = gross_return - stakes
+        actual_win_rate = round((n_won / n_settled * 100) if n_settled else 0.0, 2)
+
+        # ── New value metrics ────────────────────────────────────────────────
+        avg_odds = round(sum(s.total_odds for s in settled) / n_settled, 3) if n_settled else 0.0
+        implied_win_rate = round(
+            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100)
+            if n_settled else 0.0, 2
+        )
+        edge = round(actual_win_rate - implied_win_rate, 2)
+
+        # ── Staking consistency ──────────────────────────────────────────────
+        avg_units = round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
+        units_std = 0.0
+        if n_settled > 1:
+            _mean = avg_units
+            units_std = round(
+                (sum((s.units - _mean) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2
+            )
+
+        # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
+        daily_pnl: dict[str, float] = {}
+        for s in settled:
+            day = s.date_generated[:10]
+            pnl = (s.total_odds - 1) * s.units if s.slip_status == "Won" else -s.units
+            daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
+
+        sharpe_ratio: float | None = None
+        if len(daily_pnl) >= 7:
+            vals = list(daily_pnl.values())
+            _m = sum(vals) / len(vals)
+            _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
+            sharpe_ratio = round((_m / _std * (252 ** 0.5)) if _std > 0 else 0.0, 2)
 
         return {
             "total_settled": n_settled,
             "total_won_count": n_won,
-            "win_rate": round((n_won / n_settled * 100) if n_settled else 0.0, 2),
+            "win_rate": actual_win_rate,
+            "implied_win_rate": implied_win_rate,
+            "edge": edge,
             "total_units_bet": round(stakes, 2),
             "gross_return": round(gross_return, 2),
             "net_profit": round(net_profit, 2),
             "roi_percentage": round((net_profit / stakes * 100) if stakes else 0.0, 2),
+            "avg_odds": avg_odds,
+            "avg_units": avg_units,
+            "units_std": units_std,
+            "pending_count": len(pending),
+            "sharpe_ratio": sharpe_ratio,
         }
 
     # ── Analytics ─────────────────────────────────────────────────────────────
