@@ -84,12 +84,33 @@ MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {
         ("cons_away", "odds_away", MarketLabel.AWAY),
     ],
     MarketType.OVER_UNDER_25: [
-        ("cons_over", "odds_over", MarketLabel.OVER_25),
-        ("cons_under", "odds_under", MarketLabel.UNDER_25),
+        ("cons_over_25", "odds_over_25", MarketLabel.OVER_25),
+        ("cons_under_25", "odds_under_25", MarketLabel.UNDER_25),
+    ],
+    MarketType.OVER_UNDER_15: [
+        ("cons_over_15", "odds_over_15", MarketLabel.OVER_15),
+        ("cons_under_15", "odds_under_15", MarketLabel.UNDER_15),
     ],
     MarketType.BTTS: [
         ("cons_btts_yes", "odds_btts_yes", MarketLabel.BTTS_YES),
         ("cons_btts_no", "odds_btts_no", MarketLabel.BTTS_NO),
+    ],
+    MarketType.OVER_UNDER_05: [
+        ("cons_over_05", "odds_over_05", MarketLabel.OVER_05),
+        ("cons_under_05", "odds_under_05", MarketLabel.UNDER_05),
+    ],
+    MarketType.OVER_UNDER_35: [
+        ("cons_over_35", "odds_over_35", MarketLabel.OVER_35),
+        ("cons_under_35", "odds_under_35", MarketLabel.UNDER_35),
+    ],
+    MarketType.OVER_UNDER_45: [
+        ("cons_over_45", "odds_over_45", MarketLabel.OVER_45),
+        ("cons_under_45", "odds_under_45", MarketLabel.UNDER_45),
+    ],
+    MarketType.DOUBLE_CHANCE: [
+        ("cons_dc_1x", "odds_dc_1x", MarketLabel.DC_1X),
+        ("cons_dc_12", "odds_dc_12", MarketLabel.DC_12),
+        ("cons_dc_x2", "odds_dc_x2", MarketLabel.DC_X2),
     ],
 }
 
@@ -307,18 +328,40 @@ class BetAssistant(BaseStorageManager):
                         "cons_home": cons_data["result"]["home"],
                         "cons_draw": cons_data["result"]["draw"],
                         "cons_away": cons_data["result"]["away"],
-                        "cons_over": cons_data["over_under_2.5"]["over"],
-                        "cons_under": cons_data["over_under_2.5"]["under"],
+                        "cons_over_15": cons_data["over_under_15"]["over"],
+                        "cons_under_15": cons_data["over_under_15"]["under"],
+                        "cons_over_05": cons_data["over_under_05"]["over"],
+                        "cons_under_05": cons_data["over_under_05"]["under"],
+                        "cons_over_25": cons_data["over_under_25"]["over"],
+                        "cons_under_25": cons_data["over_under_25"]["under"],
+                        "cons_over_35": cons_data["over_under_35"]["over"],
+                        "cons_under_35": cons_data["over_under_35"]["under"],
+                        "cons_over_45": cons_data["over_under_45"]["over"],
+                        "cons_under_45": cons_data["over_under_45"]["under"],
                         "cons_btts_yes": cons_data["btts"]["yes"],
                         "cons_btts_no": cons_data["btts"]["no"],
+                        "cons_dc_1x": cons_data["double_chance"]["1x"],
+                        "cons_dc_12": cons_data["double_chance"]["12"],
+                        "cons_dc_x2": cons_data["double_chance"]["x2"],
                         # Odds
                         "odds_home": odds.get("home", 0.0),
                         "odds_draw": odds.get("draw", 0.0),
                         "odds_away": odds.get("away", 0.0),
-                        "odds_over": odds.get("over", 0.0),
-                        "odds_under": odds.get("under", 0.0),
+                        "odds_over_15": odds.get("over_15", 0.0),
+                        "odds_under_15": odds.get("under_15", 0.0),
+                        "odds_over_25": odds.get("over_25", 0.0),
+                        "odds_under_25": odds.get("under_25", 0.0),
                         "odds_btts_yes": odds.get("btts_y", 0.0),
                         "odds_btts_no": odds.get("btts_n", 0.0),
+                        "odds_over_05": odds.get("over_05", 0.0),
+                        "odds_under_05": odds.get("under_05", 0.0),
+                        "odds_over_35": odds.get("over_35", 0.0),
+                        "odds_under_35": odds.get("under_35", 0.0),
+                        "odds_over_45": odds.get("over_45", 0.0),
+                        "odds_under_45": odds.get("under_45", 0.0),
+                        "odds_dc_1x": odds.get("dc_1x", 0.0),
+                        "odds_dc_12": odds.get("dc_12", 0.0),
+                        "odds_dc_x2": odds.get("dc_x2", 0.0),
                     }
                 )
             except Exception as e:
@@ -557,8 +600,8 @@ class BetAssistant(BaseStorageManager):
         ----------
         leg_id      : Primary key of the leg row.
         score       : Full-time score in 'H:A' format (e.g. '2:1').
-        market      : Leg market label (e.g. '1', 'X', 'Over 2.5').
-        market_type : One of 'result', 'btts', 'over_under_2.5'.
+        market      : Leg market label (e.g. '1', 'X', 'Over 2.5', 'Over 1.5', 'Over 0.5', 'Over 3.5', 'Over 4.5').
+        market_type : One of 'result', 'btts', 'over_under_25', 'over_under_15', 'over_under_05', 'over_under_35', 'over_under_45'.
 
         Returns
         -------
@@ -577,7 +620,7 @@ class BetAssistant(BaseStorageManager):
     def score_match(
         self,
         row: dict,
-        cfg: BetSlipConfig | str = "medium_risk",
+        cfg: BetSlipConfig,
     ) -> list[dict]:
         """
         Score a single match row against a config and return candidate leg dicts.
@@ -597,9 +640,6 @@ class BetAssistant(BaseStorageManager):
         List of candidate dicts (may be empty) — each contains
         market, market_type, consensus, odds, tier, score.
         """
-        if isinstance(cfg, str):
-            cfg = get_profile(cfg)
-
         candidates: list[dict] = []
         url = row.get("result_url")
         if not is_valid_url(url):

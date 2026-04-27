@@ -7,11 +7,21 @@ export interface Match {
     away: string;
     sources: number;
     cons_home: number; cons_draw: number; cons_away: number;
-    cons_over: number; cons_under: number;
+    cons_over_25: number; cons_under_25: number;
     cons_btts_yes: number; cons_btts_no: number;
+    cons_over_05: number; cons_under_05: number;
+    cons_over_15: number; cons_under_15: number;
+    cons_over_35: number; cons_under_35: number;
+    cons_over_45: number; cons_under_45: number;
+    cons_dc_1x: number; cons_dc_12: number; cons_dc_x2: number;
     odds_home: number; odds_draw: number; odds_away: number;
-    odds_over: number; odds_under: number;
+    odds_over_25: number; odds_under_25: number;
     odds_btts_yes: number; odds_btts_no: number;
+    odds_over_05: number; odds_under_05: number;
+    odds_over_15: number; odds_under_15: number;
+    odds_over_35: number; odds_under_35: number;
+    odds_over_45: number; odds_under_45: number;
+    odds_dc_1x: number; odds_dc_12: number; odds_dc_x2: number;
     result_url: string | null;
 }
 
@@ -22,7 +32,7 @@ export interface MatchesPage {
 
 // ── Builder ───────────────────────────────────────────────────────────────────
 
-export const ALL_MARKETS = ['1', 'X', '2', 'Over 2.5', 'Under 2.5', 'BTTS Yes', 'BTTS No'];
+export const ALL_MARKETS = ['1', 'X', '2', 'Over 2.5', 'Under 2.5', 'BTTS Yes', 'BTTS No', 'Over 0.5', 'Under 0.5', 'Over 1.5', 'Under 1.5', 'Over 3.5', 'Under 3.5', 'Over 4.5', 'Under 4.5', '1X', '12', 'X2'];
 
 export interface BuilderConfig {
     target_odds: number;

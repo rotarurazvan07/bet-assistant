@@ -232,10 +232,6 @@ class ForebetFinder(BaseMatchFinder):
                     home=float(odds_tags[0]) if odds_tags[0] not in ("", " - ") else None,
                     draw=float(odds_tags[1]) if odds_tags[1] not in ("", " - ") else None,
                     away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
-                    over=None,
-                    under=None,
-                    btts_y=None,
-                    btts_n=None,
                 )
 
                 self.add_match(Match(home_team, away_team, match_date, predictions, odds))

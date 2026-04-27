@@ -27,7 +27,6 @@ def ensure_decimal_odds(odds_value) -> float:
             else:
                 return round((100 / abs(val)) + 1, 2)
         return round(val, 2)
-
     except (ValueError, TypeError):
         return None
 
@@ -37,19 +36,41 @@ class Odds:
     home: None = None
     draw: None = None
     away: None = None
-    over: None = None
-    under: None = None
+    over_05: None = None
+    under_05: None = None
+    over_15: None = None
+    under_15: None = None
+    over_25: None = None
+    under_25: None = None
+    over_35: None = None
+    under_35: None = None
+    over_45: None = None
+    under_45: None = None
     btts_y: None = None
     btts_n: None = None
+    dc_1x: None = None
+    dc_12: None = None
+    dc_x2: None = None
 
     def __post_init__(self) -> None:
         self.home = ensure_decimal_odds(self.home)
         self.draw = ensure_decimal_odds(self.draw)
         self.away = ensure_decimal_odds(self.away)
-        self.over = ensure_decimal_odds(self.over)
-        self.under = ensure_decimal_odds(self.under)
+        self.over_05 = ensure_decimal_odds(self.over_05)
+        self.under_05 = ensure_decimal_odds(self.under_05)
+        self.over_15 = ensure_decimal_odds(self.over_15)
+        self.under_15 = ensure_decimal_odds(self.under_15)
+        self.over_25 = ensure_decimal_odds(self.over_25)
+        self.under_25 = ensure_decimal_odds(self.under_25)
+        self.over_35 = ensure_decimal_odds(self.over_35)
+        self.under_35 = ensure_decimal_odds(self.under_35)
+        self.over_45 = ensure_decimal_odds(self.over_45)
+        self.under_45 = ensure_decimal_odds(self.under_45)
         self.btts_y = ensure_decimal_odds(self.btts_y)
         self.btts_n = ensure_decimal_odds(self.btts_n)
+        self.dc_1x = ensure_decimal_odds(self.dc_1x)
+        self.dc_12 = ensure_decimal_odds(self.dc_12)
+        self.dc_x2 = ensure_decimal_odds(self.dc_x2)
 
 
 class Match:

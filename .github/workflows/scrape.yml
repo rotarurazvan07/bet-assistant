@@ -45,6 +45,12 @@ jobs:
           name: logs-prepare-actions.txt
           path: /tmp/job_log.txt
           retention-days: 7
+      - name: Upload URL files
+        uses: actions/upload-artifact@v4
+        with:
+          name: url-files-actions
+          path: "*-urls.txt"
+          retention-days: 1
 
   scrape-actions:
     needs: prepare-actions
@@ -72,8 +78,12 @@ jobs:
       - name: Install Playwright Browsers (if cache miss)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
+      - name: Download URL files
+        uses: actions/download-artifact@v4
+        with:
+          name: url-files-actions
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
+        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls_file }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -120,6 +130,12 @@ jobs:
           name: logs-prepare-local.txt
           path: /tmp/job_log.txt
           retention-days: 7
+      - name: Upload URL files
+        uses: actions/upload-artifact@v4
+        with:
+          name: url-files-local
+          path: "*-urls.txt"
+          retention-days: 1
 
   scrape-local:
     needs: prepare-local
@@ -143,8 +159,12 @@ jobs:
           fi
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+      - name: Download URL files
+        uses: actions/download-artifact@v4
+        with:
+          name: url-files-local
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
+        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls_file }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
@@ -181,6 +201,12 @@ jobs:
           pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Merge Databases
         run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
+      - name: Upload Final Database Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: final_matches.db
+          path: final_matches.db
+          retention-days: 7
       - name: Create or Update Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2

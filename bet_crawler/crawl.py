@@ -50,6 +50,7 @@ _CRAWLER_KEYS = {
     "xgscore": lambda: _import("xGScoreFinder"),
     "eaglepredict": lambda: _import("EaglePredictFinder"),
     "legitpredict": lambda: _import("LegitPredictFinder"),
+    "betclan": lambda: _import("BetClanFinder"),
 }
 
 _RUNNER_SETS = {
@@ -63,10 +64,11 @@ _RUNNER_SETS = {
         "xgscore",
         "eaglepredict",
         "legitpredict",
+        "betclan"
     ],
     "local": ["whoscored", "forebet", "footballbettingtips"],
     "all": list(_CRAWLER_KEYS.keys()),
-    "test": ["legitpredict"],
+    "test": ["windrawwin"],
 }
 
 MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
@@ -135,10 +137,17 @@ def mode_prepare_scrape(runner: str, config_dir: str) -> None:
     tasks = [
         {
             "db_path": f"{runner}-{i // chunk_size + 1}.db",
-            "urls": ",".join(urls[i : i + chunk_size]),
+            "urls_file": f"{runner}-{i // chunk_size + 1}-urls.txt",
         }
         for i in range(0, len(urls), chunk_size)
     ]
+
+    # Create URL files for each task
+    for i, task in enumerate(tasks):
+        with open(task["urls_file"], "w") as f:
+            start_idx = i * chunk_size
+            end_idx = min((i + 1) * chunk_size, len(urls))
+            f.write(",".join(urls[start_idx:end_idx]))
 
     sys.stdout.write(json.dumps(tasks) + "\n")
 
