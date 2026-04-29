@@ -94,10 +94,6 @@ class PredictzFinder(BaseMatchFinder):
                             home=entry.find_all(class_="odds")[0].get_text(),
                             draw=entry.find_all(class_="odds")[1].get_text(),
                             away=entry.find_all(class_="odds")[2].get_text(),
-                            over=None,
-                            under=None,
-                            btts_y=None,
-                            btts_n=None,
                         )
                     except (AttributeError, IndexError):
                         odds = None

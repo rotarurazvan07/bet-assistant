@@ -3,7 +3,7 @@ import { BaseDataRow } from './ui/BaseDataRow';
 
 // Consensus cell coloring
 function consCell(pct: number, odds: number | null | undefined) {
-    if (pct <= 0) return null;
+    if (!pct || pct <= 0) return null;
     const bg = pct >= 80 ? 'var(--cons-high)'
         : pct >= 60 ? 'var(--cons-mid)'
             : 'var(--cons-low)';
@@ -42,10 +42,10 @@ function Cell({ pct, odds, onClick, isActive = false, isInSlip = false }: CellPr
                 onClick={onClick}
                 role="button"
                 tabIndex={0}
-                aria-label={`Select ${pct}% at @${oddsDisplay}`}
+                aria-label={`Select ${c.pct || pct || 0}% at @${oddsDisplay}`}
             >
                 <span className="font-mono font-bold text-sm" style={{ color: textColor }}>
-                    {c.pct.toFixed(0)}%
+                    {c.pct ? c.pct.toFixed(0) : '0'}%
                 </span>
                 {c.odds != null && c.odds > 1 && (
                     <span className="font-mono text-sm" style={{ color: textColor, opacity: isInSlip || isActive ? 1 : 0.8 }}>
@@ -100,10 +100,21 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         '1': 'result',
         'X': 'result',
         '2': 'result',
-        'Over 2.5': 'over_under_2.5',
-        'Under 2.5': 'over_under_2.5',
+        'Over 2.5': 'over_under_25',
+        'Under 2.5': 'over_under_25',
         'BTTS Yes': 'btts',
         'BTTS No': 'btts',
+        'Over 0.5': 'over_under_05',
+        'Under 0.5': 'over_under_05',
+        'Over 1.5': 'over_under_15',
+        'Under 1.5': 'over_under_15',
+        'Over 3.5': 'over_under_35',
+        'Under 3.5': 'over_under_35',
+        'Over 4.5': 'over_under_45',
+        'Under 4.5': 'over_under_45',
+        '1X': 'double_chance',
+        '12': 'double_chance',
+        'X2': 'double_chance',
     };
 
     const hasResultUrl = match.result_url != null && match.result_url.trim() !== '';
@@ -170,23 +181,23 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         />,
         <Cell
             key="over-cell"
-            pct={match.cons_over}
-            odds={match.odds_over}
+            pct={match.cons_over_25}
+            odds={match.odds_over_25}
             isActive={activeMarkets.has('Over 2.5')}
             isInSlip={inSlipMarkets.has('Over 2.5')}
             onClick={onCellClick ? () => {
-                const leg = buildLeg('Over 2.5', marketTypeMap['Over 2.5'], match.cons_over, match.odds_over);
+                const leg = buildLeg('Over 2.5', marketTypeMap['Over 2.5'], match.cons_over_25, match.odds_over_25);
                 if (leg) onCellClick(leg);
             } : undefined}
         />,
         <Cell
             key="under-cell"
-            pct={match.cons_under}
-            odds={match.odds_under}
+            pct={match.cons_under_25}
+            odds={match.odds_under_25}
             isActive={activeMarkets.has('Under 2.5')}
             isInSlip={inSlipMarkets.has('Under 2.5')}
             onClick={onCellClick ? () => {
-                const leg = buildLeg('Under 2.5', marketTypeMap['Under 2.5'], match.cons_under, match.odds_under);
+                const leg = buildLeg('Under 2.5', marketTypeMap['Under 2.5'], match.cons_under_25, match.odds_under_25);
                 if (leg) onCellClick(leg);
             } : undefined}
         />,
@@ -209,6 +220,127 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
             isInSlip={inSlipMarkets.has('BTTS No')}
             onClick={onCellClick ? () => {
                 const leg = buildLeg('BTTS No', marketTypeMap['BTTS No'], match.cons_btts_no, match.odds_btts_no);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="over-05-cell"
+            pct={match.cons_over_05}
+            odds={match.odds_over_05}
+            isActive={activeMarkets.has('Over 0.5')}
+            isInSlip={inSlipMarkets.has('Over 0.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Over 0.5', marketTypeMap['Over 0.5'], match.cons_over_05, match.odds_over_05);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="under-05-cell"
+            pct={match.cons_under_05}
+            odds={match.odds_under_05}
+            isActive={activeMarkets.has('Under 0.5')}
+            isInSlip={inSlipMarkets.has('Under 0.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Under 0.5', marketTypeMap['Under 0.5'], match.cons_under_05, match.odds_under_05);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="over-15-cell"
+            pct={match.cons_over_15}
+            odds={match.odds_over_15}
+            isActive={activeMarkets.has('Over 1.5')}
+            isInSlip={inSlipMarkets.has('Over 1.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Over 1.5', marketTypeMap['Over 1.5'], match.cons_over_15, match.odds_over_15);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="under-15-cell"
+            pct={match.cons_under_15}
+            odds={match.odds_under_15}
+            isActive={activeMarkets.has('Under 1.5')}
+            isInSlip={inSlipMarkets.has('Under 1.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Under 1.5', marketTypeMap['Under 1.5'], match.cons_under_15, match.odds_under_15);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="over-35-cell"
+            pct={match.cons_over_35}
+            odds={match.odds_over_35}
+            isActive={activeMarkets.has('Over 3.5')}
+            isInSlip={inSlipMarkets.has('Over 3.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Over 3.5', marketTypeMap['Over 3.5'], match.cons_over_35, match.odds_over_35);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="under-35-cell"
+            pct={match.cons_under_35}
+            odds={match.odds_under_35}
+            isActive={activeMarkets.has('Under 3.5')}
+            isInSlip={inSlipMarkets.has('Under 3.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Under 3.5', marketTypeMap['Under 3.5'], match.cons_under_35, match.odds_under_35);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="over-45-cell"
+            pct={match.cons_over_45}
+            odds={match.odds_over_45}
+            isActive={activeMarkets.has('Over 4.5')}
+            isInSlip={inSlipMarkets.has('Over 4.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Over 4.5', marketTypeMap['Over 4.5'], match.cons_over_45, match.odds_over_45);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="under-45-cell"
+            pct={match.cons_under_45}
+            odds={match.odds_under_45}
+            isActive={activeMarkets.has('Under 4.5')}
+            isInSlip={inSlipMarkets.has('Under 4.5')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('Under 4.5', marketTypeMap['Under 4.5'], match.cons_under_45, match.odds_under_45);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="dc-1x-cell"
+            pct={match.cons_dc_1x}
+            odds={match.odds_dc_1x}
+            isActive={activeMarkets.has('1X')}
+            isInSlip={inSlipMarkets.has('1X')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('1X', marketTypeMap['1X'], match.cons_dc_1x, match.odds_dc_1x);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="dc-12-cell"
+            pct={match.cons_dc_12}
+            odds={match.odds_dc_12}
+            isActive={activeMarkets.has('12')}
+            isInSlip={inSlipMarkets.has('12')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('12', marketTypeMap['12'], match.cons_dc_12, match.odds_dc_12);
+                if (leg) onCellClick(leg);
+            } : undefined}
+        />,
+        <Cell
+            key="dc-x2-cell"
+            pct={match.cons_dc_x2}
+            odds={match.odds_dc_x2}
+            isActive={activeMarkets.has('X2')}
+            isInSlip={inSlipMarkets.has('X2')}
+            onClick={onCellClick ? () => {
+                const leg = buildLeg('X2', marketTypeMap['X2'], match.cons_dc_x2, match.odds_dc_x2);
                 if (leg) onCellClick(leg);
             } : undefined}
         />

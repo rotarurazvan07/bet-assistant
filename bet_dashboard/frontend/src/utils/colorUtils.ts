@@ -113,6 +113,11 @@ export function getPotentialStatusColor(leg: { market: string; odds: number; sta
         return total < line ? 'var(--potential-win)' : 'var(--potential-loss)';
     }
 
+    // ── Double Chance ──
+    if (market === '1X') return (homeLeading || isTied) ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (market === '12') return (homeLeading || awayLeading) ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (market === 'X2') return (awayLeading || isTied) ? 'var(--potential-win)' : 'var(--potential-loss)';
+
     // ── Default ──
     return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
 }

@@ -81,8 +81,8 @@ class WinDrawWinFinder(BaseMatchFinder):
                         home=mo_tag.contents[1].get_text() if mo_tag else None,
                         draw=mo_tag.contents[2].get_text() if mo_tag else None,
                         away=mo_tag.contents[3].get_text() if mo_tag else None,
-                        over=ou_tag.contents[1].get_text() if ou_tag else None,
-                        under=ou_tag.contents[2].get_text() if ou_tag else None,
+                        over_25=ou_tag.contents[1].get_text() if ou_tag else None,
+                        under_25=ou_tag.contents[2].get_text() if ou_tag else None,
                         btts_y=bt_tag.contents[1].get_text() if bt_tag else None,
                         btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
                     )

@@ -17,10 +17,21 @@ const COLS = [
     { key: 'cons_home', label: '1' },
     { key: 'cons_draw', label: 'X' },
     { key: 'cons_away', label: '2' },
-    { key: 'cons_over', label: 'O2.5' },
-    { key: 'cons_under', label: 'U2.5' },
+    { key: 'cons_over_25', label: 'O2.5' },
+    { key: 'cons_under_25', label: 'U2.5' },
     { key: 'cons_btts_yes', label: 'BTTS Y' },
     { key: 'cons_btts_no', label: 'BTTS N' },
+    { key: 'cons_over_05', label: 'O0.5' },
+    { key: 'cons_under_05', label: 'U0.5' },
+    { key: 'cons_over_15', label: 'O1.5' },
+    { key: 'cons_under_15', label: 'U1.5' },
+    { key: 'cons_over_35', label: 'O3.5' },
+    { key: 'cons_under_35', label: 'U3.5' },
+    { key: 'cons_over_45', label: 'O4.5' },
+    { key: 'cons_under_45', label: 'U4.5' },
+    { key: 'cons_dc_1x', label: '1X' },
+    { key: 'cons_dc_12', label: '12' },
+    { key: 'cons_dc_x2', label: 'X2' },
 ];
 
 const PAGE_SIZE = 40;

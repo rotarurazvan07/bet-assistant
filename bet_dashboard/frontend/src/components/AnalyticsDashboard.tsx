@@ -172,7 +172,7 @@ export default function AnalyticsDashboard({ legs, totalOdds }: Props) {
         const tier1Ratio = legs.filter(l => l.tier === 1).length / legs.length;
 
         const uniqueMarkets = new Set(legs.map(l => l.market)).size;
-        const totalMarkets = 7;
+        const totalMarkets = 18;
 
         const riskScore = calculateRiskScore(totalOdds, avgConsensus);
 
