@@ -433,4 +433,4 @@ tests/test_validate_slips.py:37:89: E501 Line too long (89 > 88)
 tests/test_validate_slips.py:38:89: E501 Line too long (114 > 88)
 tests/test_validate_slips.py:46:89: E501 Line too long (115 > 88)
 tests/test_validate_slips.py:113:89: E501 Line too long (93 > 88)
-Found 436 errors (1 fixed, 435 remaining).
+Found 435 errors.
