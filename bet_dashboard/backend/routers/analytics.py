@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+# Import analytics utilities
+from core.analytics_utils import (
+    _get_status_value,
+    calculate_correlation_data,
+    calculate_daily_summary,
+    calculate_market_accuracy,
+    calculate_rolling_edge,
+)
 from fastapi import APIRouter, Request
 from utils.profile_utils import get_profile_params
-
-# Import analytics utilities
-from core.analytics_utils import calculate_rolling_edge, calculate_overall_edge, calculate_daily_summary, calculate_market_accuracy, calculate_correlation_data, _get_status_value
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -19,8 +24,8 @@ def _get_status_value(status) -> str:
     return str(status)
 
 
-
 # ── Drawdown ───────────────────────────────────────────────────────────────────
+
 
 def _drawdown_data(history: list[dict]) -> list[dict]:
     if not history:
@@ -31,16 +36,19 @@ def _drawdown_data(history: list[dict]) -> list[dict]:
         cum = day["cumulative_profit"]
         if cum > peak:
             peak = cum
-        result.append({
-            "date": day["date"],
-            "drawdown": round(cum - peak, 2),
-            "peak": round(peak, 2),
-            "cumulative_profit": cum,
-        })
+        result.append(
+            {
+                "date": day["date"],
+                "drawdown": round(cum - peak, 2),
+                "peak": round(peak, 2),
+                "cumulative_profit": cum,
+            }
+        )
     return result
 
 
 # ── Market breakdown (with per-leg implied win rate) ───────────────────────────
+
 
 def _market_breakdown(slips) -> list[dict]:
     data: dict[str, dict] = {}
@@ -56,8 +64,7 @@ def _market_breakdown(slips) -> list[dict]:
                 continue
             m = str(leg.market)
             if m not in data:
-                data[m] = {"market": m, "legs": 0, "won": 0, "lost": 0,
-                            "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
+                data[m] = {"market": m, "legs": 0, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
             data[m]["legs"] += 1
             data[m]["sum_odds"] += leg.odds
             data[m]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
@@ -73,21 +80,24 @@ def _market_breakdown(slips) -> list[dict]:
         total = d["legs"]
         win_rate = round(d["won"] / total * 100, 1) if total else 0.0
         implied = round(d["sum_implied"] / total * 100, 1) if total else 0.0
-        result.append({
-            "market": m,
-            "legs": total,
-            "won": d["won"],
-            "lost": d["lost"],
-            "win_rate": win_rate,
-            "implied_win_rate": implied,
-            "edge": round(win_rate - implied, 1),
-            "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
-            "net_profit": round(d["net_profit"], 2),
-        })
+        result.append(
+            {
+                "market": m,
+                "legs": total,
+                "won": d["won"],
+                "lost": d["lost"],
+                "win_rate": win_rate,
+                "implied_win_rate": implied,
+                "edge": round(win_rate - implied, 1),
+                "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
+                "net_profit": round(d["net_profit"], 2),
+            }
+        )
     return sorted(result, key=lambda x: x["edge"], reverse=True)
 
 
 # ── Existing helpers (unchanged) ───────────────────────────────────────────────
+
 
 def _pnl_by_market(slips) -> list[dict]:
     data: dict[str, dict] = {}
@@ -148,6 +158,7 @@ def _profile_scatter(slips) -> list[dict]:
 
 # ── Main endpoint ──────────────────────────────────────────────────────────────
 
+
 @router.get("")
 def get_analytics(
     request: Request,
@@ -168,7 +179,7 @@ def get_analytics(
 
     slips = logic.get_slips(prof, df_, dt_)
     all_slips = logic.get_slips(None, df_, dt_)
-    
+
     # Get slips for daily summary calculation
     daily_summary_slips = logic.get_slips(prof or "all", df_, dt_)
 

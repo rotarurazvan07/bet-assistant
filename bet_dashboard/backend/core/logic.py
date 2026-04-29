@@ -7,19 +7,26 @@ import urllib.request
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
-from datetime import datetime, timedelta
 
 import pandas as pd
+
+# Import analytics utilities
+from core.analytics_utils import (
+    _get_status_value,
+    calculate_biggest_win_loss,
+    calculate_kelly_recommendation,
+    calculate_overall_edge,
+    calculate_profit_factor,
+    calculate_streak_metrics,
+    get_rolling_edge_trend,
+)
 from core.config_helpers import _yaml_to_config, ensure_default_profiles
 from core.ticker_service import TickerService
 from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
-from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
-from bet_framework.core.types import Outcome
-from bet_framework.MatchesManager import MatchesManager
 
-# Import analytics utilities
-from core.analytics_utils import calculate_overall_edge, calculate_rolling_edge, calculate_kelly_recommendation, get_rolling_edge_trend, _get_status_value, calculate_streak_metrics, calculate_profit_factor, calculate_biggest_win_loss
+from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.MatchesManager import MatchesManager
 
 
 class AppLogic:
@@ -365,8 +372,7 @@ class AppLogic:
         # ── New value metrics ────────────────────────────────────────────────
         avg_odds = round(sum(s.total_odds for s in settled) / n_settled, 3) if n_settled else 0.0
         implied_win_rate = round(
-            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100)
-            if n_settled else 0.0, 2
+            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100) if n_settled else 0.0, 2
         )
 
         # Calculate overall edge using the new unified function
@@ -377,9 +383,7 @@ class AppLogic:
         units_std = 0.0
         if n_settled > 1:
             _mean = avg_units
-            units_std = round(
-                (sum((s.units - _mean) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2
-            )
+            units_std = round((sum((s.units - _mean) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2)
 
         # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
         daily_pnl: dict[str, float] = {}
@@ -393,7 +397,7 @@ class AppLogic:
             vals = list(daily_pnl.values())
             _m = sum(vals) / len(vals)
             _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
-            sharpe_ratio = round((_m / _std * (252 ** 0.5)) if _std > 0 else 0.0, 2)
+            sharpe_ratio = round((_m / _std * (252**0.5)) if _std > 0 else 0.0, 2)
 
         # Best and worst day P&L
         best_day_pnl = max(daily_pnl.values()) if daily_pnl else None
@@ -401,19 +405,19 @@ class AppLogic:
 
         kelly_rec = calculate_kelly_recommendation(n_won, n_settled, avg_odds, gross_return)
         edge_analysis = get_rolling_edge_trend(settled)
-        
+
         # ── New advanced metrics ───────────────────────────────────────────────
         # Calculate biggest win/loss
         biggest_win_loss = calculate_biggest_win_loss(settled)
         biggest_win_units = biggest_win_loss["biggest_win_units"]
         biggest_loss_units = biggest_win_loss["biggest_loss_units"]
-        
+
         # Calculate streak metrics
         streak_metrics = calculate_streak_metrics(slips)  # Pass all slips, not just settled ones
         current_streak = streak_metrics["current_streak"]
         longest_win_streak = streak_metrics["longest_win_streak"]
         longest_loss_streak = streak_metrics["longest_loss_streak"]
-        
+
         # Calculate profit factor
         profit_factor = calculate_profit_factor(settled)
 
@@ -455,6 +459,7 @@ class AppLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         from core.analytics_utils import calculate_daily_summary
+
         slips = self.get_slips(profile or "all", date_from, date_to)
         return calculate_daily_summary(slips, profile, date_from, date_to)
 
@@ -465,6 +470,7 @@ class AppLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         from core.analytics_utils import calculate_market_accuracy
+
         slips = self.get_slips(profile or "all", date_from, date_to)
         return calculate_market_accuracy(slips)
 
@@ -475,6 +481,7 @@ class AppLogic:
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
         from core.analytics_utils import calculate_correlation_data
+
         slips = self.get_slips(profile or "all", date_from, date_to)
         settled = [s for s in slips if self._get_status_value(s.slip_status) in ("Won", "Lost")]
         return calculate_correlation_data(settled)

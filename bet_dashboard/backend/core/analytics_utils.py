@@ -4,8 +4,7 @@ This module contains pure functions for analytics calculations.
 """
 
 from datetime import datetime, timedelta
-from typing import Any, List, Dict, Union
-import pandas as pd
+from typing import Any
 
 
 def calculate_overall_edge(slips) -> float:
@@ -22,7 +21,7 @@ def calculate_overall_edge(slips) -> float:
         return 0.0
 
     # Filter for settled slips (Won or Lost)
-    settled = [s for s in slips if hasattr(s, 'slip_status') and _get_status_value(s.slip_status) in ("Won", "Lost")]
+    settled = [s for s in slips if hasattr(s, "slip_status") and _get_status_value(s.slip_status) in ("Won", "Lost")]
 
     if not settled:
         return 0.0
@@ -31,14 +30,13 @@ def calculate_overall_edge(slips) -> float:
     n_settled = len(settled)
     actual_win_rate = round((n_won / n_settled * 100) if n_settled else 0.0, 2)
     implied_win_rate = round(
-        (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100)
-        if n_settled else 0.0, 2
+        (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100) if n_settled else 0.0, 2
     )
 
     return round(actual_win_rate - implied_win_rate, 2)
 
 
-def calculate_rolling_edge(slips, window_days: int) -> List[Dict[str, Any]]:
+def calculate_rolling_edge(slips, window_days: int) -> list[dict[str, Any]]:
     """
     Calculate rolling edge for slips over a specified window.
 
@@ -52,7 +50,7 @@ def calculate_rolling_edge(slips, window_days: int) -> List[Dict[str, Any]]:
     import pandas as pd
 
     # Filter for settled slips (Won or Lost)
-    settled = [s for s in slips if hasattr(s, 'slip_status') and _get_status_value(s.slip_status) in ("Won", "Lost")]
+    settled = [s for s in slips if hasattr(s, "slip_status") and _get_status_value(s.slip_status) in ("Won", "Lost")]
 
     if not settled:
         return []
@@ -67,7 +65,7 @@ def calculate_rolling_edge(slips, window_days: int) -> List[Dict[str, Any]]:
         for s in settled
     ]
 
-    dates = sorted(set(r["date"] for r in settled_data))
+    dates = sorted({r["date"] for r in settled_data})
     result = []
 
     for date_str in dates:
@@ -83,13 +81,15 @@ def calculate_rolling_edge(slips, window_days: int) -> List[Dict[str, Any]]:
         rolling_wr = wins / n * 100
         rolling_implied = sum(r["implied"] for r in window) / n * 100
 
-        result.append({
-            "date": date_str,
-            "rolling_edge": round(rolling_wr - rolling_implied, 2),
-            "rolling_win_rate": round(rolling_wr, 1),
-            "rolling_implied": round(rolling_implied, 1),
-            "sample_size": n,
-        })
+        result.append(
+            {
+                "date": date_str,
+                "rolling_edge": round(rolling_wr - rolling_implied, 2),
+                "rolling_win_rate": round(rolling_wr, 1),
+                "rolling_implied": round(rolling_implied, 1),
+                "sample_size": n,
+            }
+        )
 
     return result
 
@@ -121,10 +121,7 @@ def get_rolling_edge_trend(settled_slips) -> dict:
     fourteen_days_ago = today - timedelta(days=14)
 
     # Filter slips from the last 14 days
-    recent_slips = [
-        s for s in settled_slips
-        if datetime.strptime(s.date_generated[:10], "%Y-%m-%d") >= fourteen_days_ago
-    ]
+    recent_slips = [s for s in settled_slips if datetime.strptime(s.date_generated[:10], "%Y-%m-%d") >= fourteen_days_ago]
 
     if not recent_slips:
         return {"trend": "neutral", "value": 0.0}
@@ -156,10 +153,7 @@ def _get_status_value(status) -> str:
 
 
 def calculate_daily_summary(
-    slips,
-    profile: str | list[str] | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None
+    slips, profile: str | list[str] | None = None, date_from: str | None = None, date_to: str | None = None
 ) -> list[dict[str, Any]]:
     from bet_framework.core.types import Outcome
 
@@ -275,63 +269,55 @@ def calculate_correlation_data(slips) -> list[dict[str, Any]]:
 def calculate_streak_metrics(slips) -> dict:
     """
     Calculate streak-related metrics from slips based on daily P&L.
-    
+
     A "winning day" has positive net profit, a "losing day" has negative net profit.
     Break-even days (zero P&L) are ignored and don't break streaks.
     Pending and Live slips are excluded from daily P&L calculations.
-    
+
     Parameters:
     slips: List of slips (all statuses)
-    
+
     Returns:
     dict with current_streak (days), longest_win_streak (days), longest_loss_streak (days)
     """
     if not slips:
-        return {
-            "current_streak": 0,
-            "longest_win_streak": 0,
-            "longest_loss_streak": 0
-        }
-    
+        return {"current_streak": 0, "longest_win_streak": 0, "longest_loss_streak": 0}
+
     # Filter for settled slips only (Won or Lost) - Pending/Live excluded from P&L
     settled_slips = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
-    
+
     if not settled_slips:
-        return {
-            "current_streak": 0,
-            "longest_win_streak": 0,
-            "longest_loss_streak": 0
-        }
-    
+        return {"current_streak": 0, "longest_win_streak": 0, "longest_loss_streak": 0}
+
     # Group slips by date and calculate daily P&L
     daily_pnl = {}
     for slip in settled_slips:
         # Extract date part from date_generated (ISO string)
-        date_str = slip.date_generated.split('T')[0] if 'T' in slip.date_generated else slip.date_generated
-        date = datetime.strptime(date_str, '%Y-%m-%d')
-        
+        date_str = slip.date_generated.split("T")[0] if "T" in slip.date_generated else slip.date_generated
+        date = datetime.strptime(date_str, "%Y-%m-%d")
+
         # Calculate slip profit/loss
         if _get_status_value(slip.slip_status) == "Won":
             profit = (slip.total_odds - 1) * slip.units
         else:  # Lost
             profit = -slip.units
-        
+
         daily_pnl[date] = daily_pnl.get(date, 0) + profit
-    
+
     # Sort dates in descending order (newest first) for current streak
     sorted_dates = sorted(daily_pnl.keys(), reverse=True)
-    
+
     # Calculate current streak: consecutive days from newest with same sign
     current_streak = 0
     current_streak_type = None  # 'win' or 'loss'
-    
+
     for date in sorted_dates:
         pnl = daily_pnl[date]
         if pnl == 0:
             continue  # Break-even days don't count and don't break streak
-        
-        day_type = 'win' if pnl > 0 else 'loss'
-        
+
+        day_type = "win" if pnl > 0 else "loss"
+
         if current_streak_type is None:
             current_streak_type = day_type
             current_streak = 1
@@ -339,20 +325,20 @@ def calculate_streak_metrics(slips) -> dict:
             current_streak += 1
         else:
             break  # Streak broken
-    
+
     # For longest streaks, we need to consider all days in chronological order
     chronological_dates = sorted(daily_pnl.keys())
-    
+
     longest_win_streak = 0
     longest_loss_streak = 0
     win_streak = 0
     loss_streak = 0
-    
+
     for date in chronological_dates:
         pnl = daily_pnl[date]
         if pnl == 0:
             continue  # Skip break-even days
-        
+
         if pnl > 0:
             win_streak += 1
             loss_streak = 0
@@ -361,43 +347,43 @@ def calculate_streak_metrics(slips) -> dict:
             loss_streak += 1
             win_streak = 0
             longest_loss_streak = max(longest_loss_streak, loss_streak)
-    
+
     # Apply sign to current_streak: positive for win streak, negative for loss streak
-    if current_streak_type == 'win':
+    if current_streak_type == "win":
         current_streak = current_streak  # positive
-    elif current_streak_type == 'loss':
+    elif current_streak_type == "loss":
         current_streak = -current_streak  # negative
     else:
         current_streak = 0
-    
+
     return {
         "current_streak": current_streak,
         "longest_win_streak": longest_win_streak,
-        "longest_loss_streak": longest_loss_streak
+        "longest_loss_streak": longest_loss_streak,
     }
 
 
 def calculate_profit_factor(settled_slips) -> float:
     """
     Calculate profit factor = sum(wins) / abs(sum(losses))
-    
+
     Parameters:
     settled_slips: List of settled slips (Won or Lost)
-    
+
     Returns:
     float: profit factor, 0.0 if no losses
     """
     if not settled_slips:
         return 0.0
-    
+
     total_wins = 0.0
     total_losses = 0.0
-    
+
     for slip in settled_slips:
         status = _get_status_value(slip.slip_status)
         if status not in ("Won", "Lost"):
             continue
-        
+
         # Calculate slip profit
         if status == "Won":
             profit = (slip.total_odds * slip.units) - slip.units
@@ -405,10 +391,10 @@ def calculate_profit_factor(settled_slips) -> float:
         else:  # Lost
             loss = slip.units
             total_losses += loss
-    
+
     if total_losses == 0:
         return 0.0
-    
+
     profit_factor = total_wins / total_losses
     return round(profit_factor, 2)
 
@@ -416,27 +402,24 @@ def calculate_profit_factor(settled_slips) -> float:
 def calculate_biggest_win_loss(settled_slips) -> dict:
     """
     Calculate biggest win and biggest loss from settled slips.
-    
+
     Parameters:
     settled_slips: List of settled slips (Won or Lost)
-    
+
     Returns:
     dict with biggest_win_units and biggest_loss_units
     """
     if not settled_slips:
-        return {
-            "biggest_win_units": None,
-            "biggest_loss_units": None
-        }
-    
+        return {"biggest_win_units": None, "biggest_loss_units": None}
+
     biggest_win = None
     biggest_loss = None
-    
+
     for slip in settled_slips:
         status = _get_status_value(slip.slip_status)
         if status not in ("Won", "Lost"):
             continue
-        
+
         # Calculate slip net profit
         if status == "Won":
             profit = (slip.total_odds * slip.units) - slip.units
@@ -446,8 +429,8 @@ def calculate_biggest_win_loss(settled_slips) -> dict:
             loss = -slip.units  # Negative value
             if biggest_loss is None or loss < biggest_loss:
                 biggest_loss = loss
-    
+
     return {
         "biggest_win_units": round(biggest_win, 2) if biggest_win is not None else None,
-        "biggest_loss_units": round(biggest_loss, 2) if biggest_loss is not None else None
+        "biggest_loss_units": round(biggest_loss, 2) if biggest_loss is not None else None,
     }
