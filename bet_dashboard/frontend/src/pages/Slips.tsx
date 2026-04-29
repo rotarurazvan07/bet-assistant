@@ -15,13 +15,13 @@ type SortOption = 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc
 
 export default function Slips({ filters, refreshKey, liveData: externalLiveData }: Props) {
     const [data, setData] = useState<SlipsPage | null>(null);
-    
+
     // Initialize selectedProfiles from shared storage (persists across Slips/Analytics)
     const { selectedProfiles, setSelectedProfiles } = useProfileSelection({
         page: 'slips',
         allProfiles: data?.profiles ?? []
     });
-    
+
     // Initialize filters from Slips-specific storage (persists only for Slips page)
     const [hideSettled, setHideSettled] = useState(() => {
         const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
@@ -52,7 +52,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     const [status, setStatus] = useState('');
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
 
-    
+
     // Persist filters to Slips-specific storage
     useEffect(() => {
         localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ hideSettled, liveOnly, sortBy }));
@@ -72,7 +72,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             if (selectedProfiles.length > 0) {
                 params.profiles = selectedProfiles;
             }
-            
+
             const d = await fetchSlips(params);
             setData(d);
             // Update local live data from the slip legs that have live status
@@ -88,7 +88,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             setLocalLiveData(ld);
         } catch {
             // Set empty state on error
-            setData({ slips: [], stats: { total_settled: 0, total_won_count: 0, win_rate: 0, total_units_bet: 0, gross_return: 0, net_profit: 0, roi_percentage: 0 }, profiles: [] });
+            setData({ slips: [], stats: { total_settled: 0, total_won_count: 0, win_rate: 0, implied_win_rate: 0, edge: 0, total_units_bet: 0, gross_return: 0, net_profit: 0, roi_percentage: 0, avg_odds: 0, avg_units: 0, units_std: 0, pending_count: 0, sharpe_ratio: null , kelly_suggested_units: 0, edge_trend: "neutral", recent_edge_value: 0.0}, profiles: [] });
         } finally { setLoading(false); }
     }, [selectedProfiles, filters, hideSettled, liveOnly, refreshKey]);
 

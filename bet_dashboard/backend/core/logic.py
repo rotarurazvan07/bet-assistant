@@ -7,16 +7,19 @@ import urllib.request
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlparse
+from datetime import datetime, timedelta
 
 import pandas as pd
 from core.config_helpers import _yaml_to_config, ensure_default_profiles
 from core.ticker_service import TickerService
 from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
-
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.core.types import Outcome
 from bet_framework.MatchesManager import MatchesManager
+
+# Import analytics utilities
+from core.analytics_utils import calculate_overall_edge, calculate_rolling_edge, calculate_kelly_recommendation, get_rolling_edge_trend, _get_status_value, calculate_streak_metrics, calculate_profit_factor, calculate_biggest_win_loss
 
 
 class AppLogic:
@@ -29,6 +32,12 @@ class AppLogic:
         3. TickerServices call _do_pull / _do_generate / _do_verify → broadcast events
         4. API routes call delegating methods that broadcast after state changes
     """
+
+    def _get_status_value(self, status) -> str:
+        """Extract value from enum or return string representation."""
+        if hasattr(status, "value"):
+            return status.value
+        return str(status)
 
     def __init__(
         self,
@@ -335,8 +344,6 @@ class AppLogic:
         """URLs that must be excluded from new slip generation."""
         return self._assistant.get_excluded_urls()
 
-    # ── Statistics ────────────────────────────────────────────────────────────
-
     def stats(
         self,
         profile: str | list[str] | None = None,
@@ -344,23 +351,99 @@ class AppLogic:
         date_to: str | None = None,
     ) -> dict[str, Any]:
         slips = self.get_slips(profile, date_from, date_to)
-        settled = [s for s in slips if s.slip_status in ("Won", "Lost")]
-        won = [s for s in settled if s.slip_status == "Won"]
+        settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
+        won = [s for s in settled if _get_status_value(s.slip_status) == "Won"]
+        pending = [s for s in slips if _get_status_value(s.slip_status) == "Pending"]
 
         n_settled = len(settled)
         n_won = len(won)
         stakes = sum(s.units for s in settled)
         gross_return = sum(s.total_odds * s.units for s in won)
         net_profit = gross_return - stakes
+        actual_win_rate = round((n_won / n_settled * 100) if n_settled else 0.0, 2)
+
+        # ── New value metrics ────────────────────────────────────────────────
+        avg_odds = round(sum(s.total_odds for s in settled) / n_settled, 3) if n_settled else 0.0
+        implied_win_rate = round(
+            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100)
+            if n_settled else 0.0, 2
+        )
+
+        # Calculate overall edge using the new unified function
+        edge = calculate_overall_edge(settled)
+
+        # ── Staking consistency ──────────────────────────────────────────────
+        avg_units = round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
+        units_std = 0.0
+        if n_settled > 1:
+            _mean = avg_units
+            units_std = round(
+                (sum((s.units - _mean) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2
+            )
+
+        # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
+        daily_pnl: dict[str, float] = {}
+        for s in settled:
+            day = s.date_generated[:10]
+            pnl = (s.total_odds - 1) * s.units if _get_status_value(s.slip_status) == "Won" else -s.units
+            daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
+
+        sharpe_ratio: float | None = None
+        if len(daily_pnl) >= 7:
+            vals = list(daily_pnl.values())
+            _m = sum(vals) / len(vals)
+            _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
+            sharpe_ratio = round((_m / _std * (252 ** 0.5)) if _std > 0 else 0.0, 2)
+
+        # Best and worst day P&L
+        best_day_pnl = max(daily_pnl.values()) if daily_pnl else None
+        worst_day_pnl = min(daily_pnl.values()) if daily_pnl else None
+
+        kelly_rec = calculate_kelly_recommendation(n_won, n_settled, avg_odds, gross_return)
+        edge_analysis = get_rolling_edge_trend(settled)
+        
+        # ── New advanced metrics ───────────────────────────────────────────────
+        # Calculate biggest win/loss
+        biggest_win_loss = calculate_biggest_win_loss(settled)
+        biggest_win_units = biggest_win_loss["biggest_win_units"]
+        biggest_loss_units = biggest_win_loss["biggest_loss_units"]
+        
+        # Calculate streak metrics
+        streak_metrics = calculate_streak_metrics(slips)  # Pass all slips, not just settled ones
+        current_streak = streak_metrics["current_streak"]
+        longest_win_streak = streak_metrics["longest_win_streak"]
+        longest_loss_streak = streak_metrics["longest_loss_streak"]
+        
+        # Calculate profit factor
+        profit_factor = calculate_profit_factor(settled)
 
         return {
             "total_settled": n_settled,
             "total_won_count": n_won,
-            "win_rate": round((n_won / n_settled * 100) if n_settled else 0.0, 2),
+            "win_rate": actual_win_rate,
+            "implied_win_rate": implied_win_rate,
+            "edge": edge,
             "total_units_bet": round(stakes, 2),
             "gross_return": round(gross_return, 2),
             "net_profit": round(net_profit, 2),
             "roi_percentage": round((net_profit / stakes * 100) if stakes else 0.0, 2),
+            "avg_odds": avg_odds,
+            "avg_units": avg_units,
+            "units_std": units_std,
+            "pending_count": len(pending),
+            "sharpe_ratio": sharpe_ratio,
+            "kelly_suggested_units": kelly_rec,
+            "edge_trend": edge_analysis["trend"],
+            "recent_edge_value": edge_analysis["value"],
+            # New advanced metrics
+            "biggest_win_units": biggest_win_units,
+            "biggest_loss_units": biggest_loss_units,
+            "best_day_pnl": round(best_day_pnl, 2) if best_day_pnl is not None else None,
+            "worst_day_pnl": round(worst_day_pnl, 2) if worst_day_pnl is not None else None,
+            "current_streak": current_streak,
+            "longest_win_streak": longest_win_streak,
+            "longest_loss_streak": longest_loss_streak,
+            "profit_factor": profit_factor,
         }
 
     # ── Analytics ─────────────────────────────────────────────────────────────
@@ -371,64 +454,9 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        from core.analytics_utils import calculate_daily_summary
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled_slips = [s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)]
-
-        settled_slips.sort(key=lambda x: x.date_generated)
-
-        daily_stats = {}
-        for s in settled_slips:
-            day = s.date_generated
-            if day not in daily_stats:
-                daily_stats[day] = {
-                    "date": day,
-                    "slips_count": 0,
-                    "units_bet": 0.0,
-                    "units_won": 0.0,
-                    "won_count": 0,
-                }
-
-            stats = daily_stats[day]
-            stats["slips_count"] += 1
-            stats["units_bet"] += s.units
-            if s.slip_status == Outcome.WON:
-                stats["units_won"] += s.total_odds * s.units
-                stats["won_count"] += 1
-
-        summary = []
-        cum_bet = 0.0
-        cum_profit = 0.0
-        cum_won_count = 0
-        cum_settled_count = 0
-
-        sorted_days = sorted(daily_stats.keys())
-        for day in sorted_days:
-            stats = daily_stats[day]
-            profit = stats["units_won"] - stats["units_bet"]
-
-            cum_bet += stats["units_bet"]
-            cum_profit += profit
-            cum_won_count += stats["won_count"]
-            cum_settled_count += stats["slips_count"]
-
-            summary.append(
-                {
-                    "date": day,
-                    "slips_count": stats["slips_count"],
-                    "units_bet": round(stats["units_bet"], 2),
-                    "units_won": round(stats["units_won"], 2),
-                    "net_profit": round(profit, 2),
-                    "cumulative_profit": round(cum_profit, 2),
-                    "cumulative_bet": round(cum_bet, 2),
-                    "roi_percentage": round((cum_profit / cum_bet * 100) if cum_bet else 0, 2),
-                    "win_rate": round(
-                        (cum_won_count / cum_settled_count * 100) if cum_settled_count else 0,
-                        2,
-                    ),
-                }
-            )
-
-        return summary
+        return calculate_daily_summary(slips, profile, date_from, date_to)
 
     def market_accuracy(
         self,
@@ -436,35 +464,9 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        from core.analytics_utils import calculate_market_accuracy
         slips = self.get_slips(profile or "all", date_from, date_to)
-
-        market_stats = {}
-        for slip in slips:
-            for leg in slip.legs:
-                if leg.status not in (Outcome.WON, Outcome.LOST):
-                    continue
-
-                mtype = leg.market or "Unknown"
-                if mtype not in market_stats:
-                    market_stats[mtype] = {
-                        "market": mtype,
-                        "won": 0,
-                        "lost": 0,
-                        "total": 0,
-                    }
-
-                market_stats[mtype]["total"] += 1
-                if leg.status == Outcome.WON:
-                    market_stats[mtype]["won"] += 1
-                else:
-                    market_stats[mtype]["lost"] += 1
-
-        results = []
-        for m in market_stats.values():
-            m["accuracy"] = round((m["won"] / m["total"] * 100) if m["total"] else 0, 2)
-            results.append(m)
-
-        return sorted(results, key=lambda x: x["total"], reverse=True)
+        return calculate_market_accuracy(slips)
 
     def correlation_data(
         self,
@@ -472,24 +474,10 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        from core.analytics_utils import calculate_correlation_data
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled = [s for s in slips if s.slip_status in (Outcome.WON, Outcome.LOST)]
-
-        data = []
-        for s in settled:
-            data.append(
-                {
-                    "legs_count": len(s.legs),
-                    "total_odds": round(s.total_odds, 2),
-                    "units": s.units,
-                    "status": s.slip_status,
-                    "profit": round(
-                        (s.total_odds * s.units - s.units) if s.slip_status == Outcome.WON else -s.units,
-                        2,
-                    ),
-                }
-            )
-        return data
+        settled = [s for s in slips if self._get_status_value(s.slip_status) in ("Won", "Lost")]
+        return calculate_correlation_data(settled)
 
     # ── Builder ───────────────────────────────────────────────────────────────
 
