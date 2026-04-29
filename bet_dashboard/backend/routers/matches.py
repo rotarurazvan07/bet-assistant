@@ -57,9 +57,26 @@ def get_matches(
 
     # Apply min_consensus filter if provided
     if min_consensus is not None and min_consensus > 0:
-        consensus_cols = ["cons_home", "cons_draw", "cons_away", "cons_over_25", "cons_under_25", "cons_btts_yes", "cons_btts_no",
-                     "cons_over_05", "cons_under_05", "cons_over_15", "cons_under_15", "cons_over_35", "cons_under_35", "cons_over_45", "cons_under_45",
-                     "cons_dc_1x", "cons_dc_12", "cons_dc_x2"]
+        consensus_cols = [
+            "cons_home",
+            "cons_draw",
+            "cons_away",
+            "cons_over_25",
+            "cons_under_25",
+            "cons_btts_yes",
+            "cons_btts_no",
+            "cons_over_05",
+            "cons_under_05",
+            "cons_over_15",
+            "cons_under_15",
+            "cons_over_35",
+            "cons_under_35",
+            "cons_over_45",
+            "cons_under_45",
+            "cons_dc_1x",
+            "cons_dc_12",
+            "cons_dc_x2",
+        ]
         available_cols = [c for c in consensus_cols if c in df.columns]
         if available_cols:
             # Keep rows where at least one consensus column meets the threshold

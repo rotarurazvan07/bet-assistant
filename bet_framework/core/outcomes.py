@@ -90,7 +90,7 @@ def _handle_double_chance_market(home: int, away: int, market: str) -> Outcome:
         return Outcome.WON
     if market == MarketLabel.DC_12 and (home != away):  # Either team wins (12)
         return Outcome.WON
-    if market == MarketLabel.DC_X2 and (away >= home):   # Away win or draw (X2)
+    if market == MarketLabel.DC_X2 and (away >= home):  # Away win or draw (X2)
         return Outcome.WON
     return Outcome.LOST
 
@@ -98,7 +98,7 @@ def _handle_double_chance_market(home: int, away: int, market: str) -> Outcome:
 def _handle_over_under_market(home: int, away: int, market: str) -> Outcome:
     """Handle Over/Under goals market outcomes (0.5, 1.5, 2.5, 3.5, 4.5)."""
     total = home + away
-    
+
     # Determine threshold based on market label
     if market in (MarketLabel.OVER_05, MarketLabel.UNDER_05):
         threshold = 0.5
@@ -110,9 +110,16 @@ def _handle_over_under_market(home: int, away: int, market: str) -> Outcome:
         threshold = 4.5
     else:  # Default to 2.5 for OVER_25, UNDER_25
         threshold = 2.5
-    
-    if market in (MarketLabel.OVER_05, MarketLabel.OVER_15, MarketLabel.OVER_25, MarketLabel.OVER_35, MarketLabel.OVER_45) and total > threshold:
+
+    if (
+        market in (MarketLabel.OVER_05, MarketLabel.OVER_15, MarketLabel.OVER_25, MarketLabel.OVER_35, MarketLabel.OVER_45)
+        and total > threshold
+    ):
         return Outcome.WON
-    if market in (MarketLabel.UNDER_05, MarketLabel.UNDER_15, MarketLabel.UNDER_25, MarketLabel.UNDER_35, MarketLabel.UNDER_45) and total < threshold:
+    if (
+        market
+        in (MarketLabel.UNDER_05, MarketLabel.UNDER_15, MarketLabel.UNDER_25, MarketLabel.UNDER_35, MarketLabel.UNDER_45)
+        and total < threshold
+    ):
         return Outcome.WON
     return Outcome.LOST

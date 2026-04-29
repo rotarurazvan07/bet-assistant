@@ -64,7 +64,7 @@ _RUNNER_SETS = {
         "xgscore",
         "eaglepredict",
         "legitpredict",
-        "betclan"
+        "betclan",
     ],
     "local": ["whoscored", "forebet", "footballbettingtips"],
     "all": list(_CRAWLER_KEYS.keys()),

@@ -2,14 +2,14 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
-import re
+import json
 from datetime import datetime
 
 from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
-from dataclasses import dataclass, fields
+
 from bet_framework.core.Match import *
-import json
+
 from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
@@ -34,7 +34,7 @@ class WinDrawWinFinder(BaseMatchFinder):
                 league_urls.append(anchors[-1]["href"])
 
         logger.info(f"Found {len(league_urls)} leagues to scrape")
-        matches_urls=[]
+        matches_urls = []
         for url in league_urls:
             page = fetch(url, stealthy_headers=True)
             soup = BeautifulSoup(page, "html.parser")
@@ -56,43 +56,51 @@ class WinDrawWinFinder(BaseMatchFinder):
 
     def _parse_page(self, url, html) -> None:
         try:
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
             if "Voting Is Now Closed" in html:
                 logger.error(f"Skipping {url} as voting is closed")
                 return
             # Extract teams
             home_team, away_team = "Unknown", "Unknown"
-            h1 = soup.find('h1', class_='h1sm')
+            h1 = soup.find("h1", class_="h1sm")
             teams_text = h1.get_text().strip().split(" v ") if h1 else []
             home_team = teams_text[0].strip()
             away_team = teams_text[1].strip()
 
-            start_date = next((json.loads(s.string)['startDate'] for s in soup.find_all('script', type='application/ld+json')
-                            if s.string and 'SportsEvent' in s.string and 'startDate' in s.string), None)
-            date_time = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S%z").replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+            start_date = next(
+                (
+                    json.loads(s.string)["startDate"]
+                    for s in soup.find_all("script", type="application/ld+json")
+                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                ),
+                None,
+            )
+            date_time = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S%z").replace(
+                tzinfo=None, hour=0, minute=0, second=0, microsecond=0
+            )
 
             # Extract predictions from feature tip
-            score_text = soup.find('div', class_='featurescore').get_text().strip()
-            home_score = float(score_text.split('-')[0].strip())
-            away_score = float(score_text.split('-')[1].strip())
+            score_text = soup.find("div", class_="featurescore").get_text().strip()
+            home_score = float(score_text.split("-")[0].strip())
+            away_score = float(score_text.split("-")[1].strip())
             predictions = [Score(WINDRAWWIN_NAME, home_score, away_score)]
 
             # Extract odds
             market_map = {
-                'MATCH WINNER': ['home', 'draw', 'away'],
-                'BOTH TEAMS TO SCORE': ['btts_y', 'btts_n'],
-                'OVER/UNDER 2.5 GOALS': ['over_25', 'under_25'],
-                'OVER/UNDER 1.5 GOALS': ['over_15', 'under_15']
+                "MATCH WINNER": ["home", "draw", "away"],
+                "BOTH TEAMS TO SCORE": ["btts_y", "btts_n"],
+                "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
+                "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],
             }
 
             # 2. Collect data into a dictionary first
             odds_data = {}
 
             for header_text, attr_names in market_map.items():
-                div = soup.find('div', class_='feature2', string=header_text)
+                div = soup.find("div", class_="feature2", string=header_text)
                 if div:
-                    parent = div.find_parent('div', class_='compareoddswrapper')
-                    links = parent.find_all('a', class_='btnstsm')
+                    parent = div.find_parent("div", class_="compareoddswrapper")
+                    links = parent.find_all("a", class_="btnstsm")
                     if len(links) == len(attr_names):
                         for i, attr in enumerate(attr_names):
                             try:
@@ -106,13 +114,7 @@ class WinDrawWinFinder(BaseMatchFinder):
             odds = Odds(**odds_data) if odds_data else None
 
             # Create the Match object
-            match = Match(
-                home_team=home_team,
-                away_team=away_team,
-                datetime=date_time,
-                predictions=predictions,
-                odds=odds
-            )
+            match = Match(home_team=home_team, away_team=away_team, datetime=date_time, predictions=predictions, odds=odds)
 
             self.add_match(match)
 

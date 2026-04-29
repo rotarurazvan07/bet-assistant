@@ -1,15 +1,18 @@
 import re
+
 from scrape_kit import browser, get_logger
 
 logger = get_logger(__name__)
 
 import time
-from datetime import datetime
-from scrape_kit import ScrapeMode, fetch, scrape
-from bs4 import BeautifulSoup
-import json
-from bet_framework.core.Match import *
 from dataclasses import fields
+from datetime import datetime
+
+from bs4 import BeautifulSoup
+from scrape_kit import ScrapeMode, scrape
+
+from bet_framework.core.Match import *
+
 from .BaseMatchFinder import BaseMatchFinder
 
 XGSCORE_URL = "https://xgscore.io/predictions/correct-score"
@@ -61,10 +64,12 @@ class xGScoreFinder(BaseMatchFinder):
 
         if html:
             matches_urls = []
-            soup= BeautifulSoup(html, "html.parser")
-            matches_anchors= soup.find_all("div", class_="xgs-category-forecast-fixture")
+            soup = BeautifulSoup(html, "html.parser")
+            matches_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
             for anchor in matches_anchors:
-                matches_urls.append("https://xgscore.io" + anchor.find("a", class_="xgs-category-forecast-fixture_teams").get("href"))
+                matches_urls.append(
+                    "https://xgscore.io" + anchor.find("a", class_="xgs-category-forecast-fixture_teams").get("href")
+                )
             logger.info(f"Found {len(matches_urls)} matches.")
             return matches_urls
 
@@ -79,19 +84,21 @@ class xGScoreFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         soup = BeautifulSoup(html, "html.parser")
         try:
-            home_team=soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()
-            away_team=soup.find_all("strong", class_="xgs-game-header_team-name")[1].get_text().strip()
+            home_team = soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()
+            away_team = soup.find_all("strong", class_="xgs-game-header_team-name")[1].get_text().strip()
 
             try:
                 date_str = soup.find("div", class_="xgs-game-header_datetime").get_text().strip()
-                match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(hour=0, minute=0)
-            except Exception as e:
-                logger.error(f"Match finished")
+                match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
+                    hour=0, minute=0
+                )
+            except Exception:
+                logger.error("Match finished")
                 return
 
             home, away = re.search(r"Correct Score:\s*(\d+)-(\d+)", html).groups()
 
-            predictions = [Score(XGSCORE_NAME,home,away)]
+            predictions = [Score(XGSCORE_NAME, home, away)]
 
             # Extract odds from the HTML div elements
             odds = self._extract_odds_from_html(soup)
@@ -108,7 +115,7 @@ class xGScoreFinder(BaseMatchFinder):
         init_data = {f.name: f.default for f in fields(Odds)}
 
         try:
-            odds_elements = soup.find_all('xgs-odds')
+            odds_elements = soup.find_all("xgs-odds")
 
             if len(odds_elements) >= 2:
                 # 2. Get the raw dictionary from the helper
@@ -135,7 +142,9 @@ class xGScoreFinder(BaseMatchFinder):
         found_data = {}
 
         for label, field_name in labels.items():
-            pattern = rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
+            pattern = (
+                rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
+            )
             match = re.search(pattern, element_str, re.DOTALL)
             if match:
                 try:

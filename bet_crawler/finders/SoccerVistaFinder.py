@@ -4,13 +4,14 @@ logger = get_logger(__name__)
 
 import json
 import re
+from dataclasses import fields
 from datetime import datetime
 
 from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
-from dataclasses import dataclass, fields
+
 from .BaseMatchFinder import BaseMatchFinder
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
@@ -682,9 +683,10 @@ class SoccerVistaFinder(BaseMatchFinder):
             for script in json_scripts:
                 try:
                     import json
+
                     data = json.loads(script.string)
                     if isinstance(data, dict) and data.get("@type") == ["Event", "SportsEvent"]:
-                        url = data.get("url").replace("/fr/","/")
+                        url = data.get("url").replace("/fr/", "/")
                         if url:
                             matches_url.append(url)
                             # matches_url.append(SOCCERVISTA_URL + url)
@@ -745,9 +747,17 @@ class SoccerVistaFinder(BaseMatchFinder):
                 if "SportsEvent" in (event_type if isinstance(event_type, list) else [event_type]):
                     home_team = data.get("homeTeam", {}).get("name")
                     away_team = data.get("awayTeam", {}).get("name")
-                    start_date = next((json.loads(s.string)['startDate'] for s in soup.find_all('script', type='application/ld+json')
-                                    if s.string and 'SportsEvent' in s.string and 'startDate' in s.string), None)
-                    match_datetime = datetime.strptime(start_date, "%Y-%m-%dT%H:%M").replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+                    start_date = next(
+                        (
+                            json.loads(s.string)["startDate"]
+                            for s in soup.find_all("script", type="application/ld+json")
+                            if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                        ),
+                        None,
+                    )
+                    match_datetime = datetime.strptime(start_date, "%Y-%m-%dT%H:%M").replace(
+                        tzinfo=None, hour=0, minute=0, second=0, microsecond=0
+                    )
 
                     break
             except (json.JSONDecodeError, TypeError):
