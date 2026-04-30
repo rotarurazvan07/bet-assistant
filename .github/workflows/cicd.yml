@@ -13,19 +13,19 @@ concurrency:
 env:
   # Python configuration
   PYTHON_VERSION: "3.10"
-  
+
   # Source directories (space-separated for tools like mypy, radon, etc.)
   SRC_DIR: "bet_crawler bet_dashboard/backend bet_framework"
   TEST_DIR: "tests"
-  
+
   # Coverage threshold
   COVERAGE_FAIL_UNDER: "10"
-  
+
   # Requirements files (template - customize these for your project)
   REQUIREMENTS_FILES: |
     bet_dashboard/backend/requirements.txt
     setup/requirements-scrape.txt
-  
+
   # Additional install commands (e.g., scrapling install, playwright install)
   POST_INSTALL_CMDS: "scrapling install"
 
@@ -82,8 +82,8 @@ jobs:
       - name: ruff lint --fix
         run: |
           # Process all source and test directories
-          ruff check --select E,F,B,C,SIM,PERF --ignore UP             --fix --unsafe-fixes --output-format=concise             $SRC_DIR $TEST_DIR 2>&1 | tee ruff-fix-output.txt || true
-          ruff check --select E,F,B,C,SIM,PERF --ignore UP             --fix --unsafe-fixes --output-format=github             $SRC_DIR $TEST_DIR || true
+          ruff check --select E,F,B,C,SIM,PERF --ignore UP           --fix --unsafe-fixes --output-format=concise           $SRC_DIR $TEST_DIR || true
+          ruff check --select E,F,B,C,SIM,PERF --ignore UP           --fix --unsafe-fixes --output-format=github           $SRC_DIR $TEST_DIR || true
 
       - name: Commit fixes (if any)
         run: |
@@ -141,13 +141,13 @@ jobs:
               echo "Warning: Requirements file not found: $req_file"
             fi
           done <<< "$REQUIREMENTS_FILES"
-          
+
           # Install test dependencies
           pip install pytest pytest-cov pytest-xdist pytest-timeout
-          
+
           # Set PYTHONPATH to include source directories for local package imports
           echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
-          
+
           # Run any post-install commands (e.g., scrapling install, playwright install)
           if [ -n "$POST_INSTALL_CMDS" ]; then
             echo "Running post-install commands: $POST_INSTALL_CMDS"
@@ -162,7 +162,7 @@ jobs:
           for dir in $SRC_DIR; do
             COV_ARGS="$COV_ARGS --cov=$dir"
           done
-          
+
           pytest $COV_ARGS             --cov-report=term-missing             --cov-report=xml:coverage.xml             --cov-report=html:htmlcov             --cov-fail-under=$COVERAGE_FAIL_UNDER             --junitxml=test-results.xml             --timeout=60             -n auto -v $TEST_DIR
 
       - name: Upload coverage report
@@ -261,13 +261,13 @@ jobs:
               echo "Warning: Requirements file not found: $req_file"
             fi
           done <<< "$REQUIREMENTS_FILES"
-          
+
           # Install audit tools
           pip install bandit pip-audit radon vulture mypy interrogate
-          
+
           # Set PYTHONPATH to include source directories for local package imports
           echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
-          
+
           # Run any post-install commands (e.g., scrapling install, playwright install)
           if [ -n "$POST_INSTALL_CMDS" ]; then
             echo "Running post-install commands: $POST_INSTALL_CMDS"
@@ -293,9 +293,9 @@ jobs:
           except:
               print('0')
           " 2>/dev/null || echo "0")
-          else   
+          else
             SEMGREP_FINDINGS="0"
-          fi   
+          fi
           echo "semgrep_findings=${SEMGREP_FINDINGS}" >> "$GITHUB_OUTPUT"
 
       - name: mypy — static type checking
