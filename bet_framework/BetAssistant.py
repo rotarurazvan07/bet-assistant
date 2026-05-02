@@ -691,17 +691,6 @@ class BetAssistant(BaseStorageManager):
         finally:
             self._df = previous_df
 
-    @staticmethod
-    def derive_slip_status(legs: list[dict]) -> str:
-        """
-        Derive the overall slip status from a list of leg dicts (each must have
-        a 'status' key).  Delegates to :func:`slip_utils.derive_slip_status`.
-
-        >>> BetAssistant.derive_slip_status([{"status": "Won"}, {"status": "Lost"}])
-        'Lost'
-        """
-        return derive_slip_status([leg["status"] for leg in legs])
-
     def process_leg_result(
         self,
         leg_id: int,

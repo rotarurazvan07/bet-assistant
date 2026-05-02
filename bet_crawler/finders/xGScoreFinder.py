@@ -1,15 +1,11 @@
-import re
-
 from scrape_kit import browser, get_logger
 
 logger = get_logger(__name__)
 
 import time
-from dataclasses import fields
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, scrape
 
 from bet_framework.core.Match import *
 
@@ -17,7 +13,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 XGSCORE_URL = "https://xgscore.io/predictions/correct-score"
 XGSCORE_NAME = "xgscore"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 
 class xGScoreFinder(BaseMatchFinder):
@@ -29,8 +25,10 @@ class xGScoreFinder(BaseMatchFinder):
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
+        return [XGSCORE_URL]
+
+    def get_matches(self, urls=None) -> None:
         """Load predictions page, execute JS to expand, then parse."""
-        html = None
         with browser(solve_cloudflare=True, interactive=True) as session:
             logger.info("Loading predictions page...")
             session.fetch(XGSCORE_URL)
@@ -62,94 +60,34 @@ class xGScoreFinder(BaseMatchFinder):
 
             html = session.page.content()
 
-        if html:
-            matches_urls = []
-            soup = BeautifulSoup(html, "html.parser")
-            matches_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
-            for anchor in matches_anchors:
-                matches_urls.append(
-                    "https://xgscore.io" + anchor.find("a", class_="xgs-category-forecast-fixture_teams").get("href")
-                )
-            logger.info(f"Found {len(matches_urls)} matches.")
-            return matches_urls
+        self._parse_page(None, html)
 
-    def get_matches(self, urls=None) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+    def _parse_page(self, _, html) -> None:
         soup = BeautifulSoup(html, "html.parser")
-        try:
-            home_team = soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()
-            away_team = soup.find_all("strong", class_="xgs-game-header_team-name")[1].get_text().strip()
-
+        all_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
+        for anchor in all_anchors:
             try:
-                date_str = soup.find("div", class_="xgs-game-header_datetime").get_text().strip()
-                match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
-                    hour=0, minute=0
-                )
-            except Exception:
-                logger.error("Match finished")
-                return
+                home_team = anchor.find("a", class_="xgs-category-forecast-fixture_teams").find_all("span")[0].get_text()
+                away_team = anchor.find("a", class_="xgs-category-forecast-fixture_teams").find_all("span")[-1].get_text()
+                match_datetime = min(
+                    (
+                        datetime.strptime(
+                            f"{anchor.find('div', class_='xgs-fixture_datetime').get_text().strip()} {y}",
+                            "%b %d %H:%M %Y",
+                        )
+                        for y in [
+                            datetime.now().year - 1,
+                            datetime.now().year,
+                            datetime.now().year + 1,
+                        ]
+                    ),
+                    key=lambda d: abs(d - datetime.now()),
+                ).replace(hour=0, minute=0, second=0, microsecond=0)
+                score_text = anchor.find("div", class_="xgs-category-forecast-fixture_bet").get_text()
+                predictions = [Score(XGSCORE_NAME, score_text.split("-")[0], score_text.split("-")[1])]
+                odds = None
 
-            home, away = re.search(r"Correct Score:\s*(\d+)-(\d+)", html).groups()
+                self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
 
-            predictions = [Score(XGSCORE_NAME, home, away)]
-
-            # Extract odds from the HTML div elements
-            odds = self._extract_odds_from_html(soup)
-
-            self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
-
-        except Exception as e:
-            logger.error(f"SKIPPED: Parse error - {e}")
-
-    def _extract_odds_from_html(self, soup):
-        """Extract bookmaker odds from HTML and return a safe Odds object."""
-        # 1. Initialize data with default values from the dataclass fields
-        # This prevents missing fields from causing issues later.
-        init_data = {f.name: f.default for f in fields(Odds)}
-
-        try:
-            odds_elements = soup.find_all("xgs-odds")
-
-            if len(odds_elements) >= 2:
-                # 2. Get the raw dictionary from the helper
-                parsed_data = self._parse_odds_from_element(odds_elements[1])
-
-                if parsed_data:
-                    # 3. Update our safe defaults with the parsed values
-                    init_data.update(parsed_data)
-
-            # 4. Create the object in one shot
-            return Odds(**init_data)
-
-        except Exception as e:
-            logger.error(f"Error extracting odds: {e}")
-            # Return a "safe" default object if everything crashes
-            return None
-
-    def _parse_odds_from_element(self, element):
-        """Regex helper that returns a dictionary mapped to field names."""
-        element_str = str(element)
-
-        # Map regex labels to dataclass field names
-        labels = {"1x": "dc_1x", "12": "dc_12", "x2": "dc_x2"}
-        found_data = {}
-
-        for label, field_name in labels.items():
-            pattern = (
-                rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
-            )
-            match = re.search(pattern, element_str, re.DOTALL)
-            if match:
-                try:
-                    found_data[field_name] = float(match.group(1))
-                except (ValueError, TypeError):
-                    continue
-
-        return found_data
+            except Exception as e:
+                logger.error(f"SKIPPED: Parse error - {e}")
