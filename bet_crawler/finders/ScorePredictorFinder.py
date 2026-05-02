@@ -13,7 +13,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 EXCLUDED = [
     "index.php?section=football&season=ChampionsLeague",

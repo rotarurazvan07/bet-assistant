@@ -14,7 +14,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 # Non-leagues
 EXCLUDED = [

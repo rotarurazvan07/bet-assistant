@@ -13,7 +13,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 BETCLAN_NAME = "betclan"
 BETCLAN_URL = "https://www.betclan.com/predictions/"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 URLS = [
     "https://www.betclan.com/todays-football-predictions/",

@@ -17,14 +17,10 @@ from .BaseMatchFinder import BaseMatchFinder
 
 XGSCORE_URL = "https://xgscore.io/predictions/correct-score"
 XGSCORE_NAME = "xgscore"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 
 class xGScoreFinder(BaseMatchFinder):
-    # For interactive browsing finders, TIMEZONE should be set to the server's local timezone
-    # Use dynamic detection to get the actual local timezone of the computer running this code
-    # TIMEZONE = BaseMatchFinder._detect_local_timezone()
-
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 

@@ -7,6 +7,23 @@ on:
 
 env:
   SCRAPE_KIT_LOG_LEVEL: INFO
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DESIGN NOTES
+# ─────────────────────────────────────────────────────────────────────────────
+# • Python scripts: stdout and stderr are BOTH saved to the job log file.
+#   stderr is also echoed to the GH Actions console (visible in the UI) but
+#   never treated as an error -- the logger lives on stderr.
+# • Prepare jobs: only clean JSON is captured from stdout for matrix outputs.
+#   stderr (logging) never contaminates that capture path.
+# • Self-hosted runners: dependencies are installed once and re-used across
+#   runs via a requirements-hash sentinel file (venv/.req_hash).  A full
+#   reinstall -- including `scrapling install` -- only happens when the hash
+#   changes.
+# • GitHub-hosted runners (ubuntu-22.04): use actions/cache for both pip and
+#   Playwright browsers since the workspace is ephemeral.
+# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
   prepare-actions:
@@ -15,29 +32,47 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize log file
-        run: 'echo "=== Job: prepare-actions started at $(date) ===" > /tmp/job_log.txt'
-      - name: Cache Playwright Browsers
+        run: |
+          echo "=== Job: prepare-actions started at $(date) ===" > /tmp/job_log.txt
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+          restore-keys: ${{ runner.os }}-playwright-
+
       - name: Install dependencies
         run: |
           python3 -m venv venv
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
-      - name: Install Playwright Browsers (if cache miss)
+
+      - name: Install Playwright browsers (cache miss only)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
+
+      # stdout  → captured in JSON_DATA  (written to log via tee)
+      # stderr  → logged + shown in UI via >&2 -- never captured in JSON_DATA
       - name: Generate Matrix
         id: set-matrix
         run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "config" 2> >(tee -a /tmp/job_log.txt >&2) | tee -a /tmp/job_log.txt)
+          set -o pipefail
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl \
+            --mode prepare-scrape --runners actions --config_dir "config" \
+            2> >(tee -a /tmp/job_log.txt >&2) | tee -a /tmp/job_log.txt)
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
+
       - name: Upload job log
         uses: actions/upload-artifact@v4
         if: always()
@@ -45,6 +80,7 @@ jobs:
           name: logs-prepare-actions.txt
           path: /tmp/job_log.txt
           retention-days: 7
+
       - name: Upload URL files
         uses: actions/upload-artifact@v4
         with:
@@ -60,36 +96,58 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-actions.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize log file
-        run: 'echo "=== Job: scrape-actions started at $(date) ===" > /tmp/job_log.txt'
-      - name: Cache Playwright Browsers
+        run: |
+          echo "=== Job: scrape-actions started at $(date) ===" > /tmp/job_log.txt
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
+      - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('setup/requirements-scrape.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+          restore-keys: ${{ runner.os }}-playwright-
+
       - name: Install dependencies
         run: |
           python3 -m venv venv
           source venv/bin/activate
           pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
-      - name: Install Playwright Browsers (if cache miss)
+
+      - name: Install Playwright browsers (cache miss only)
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
+
       - name: Download URL files
         uses: actions/download-artifact@v4
         with:
           name: url-files-actions
+
       - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls_file }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
-      - name: Upload
+        run: |
+          set -o pipefail
+          ./venv/bin/python -m bet_crawler.crawl \
+            --mode scrape \
+            --matches_db_path "${{ matrix.db_path }}" \
+            --urls "${{ matrix.urls_file }}" \
+            --config_dir "config" \
+            2>&1 | tee -a /tmp/job_log.txt
+
+      - name: Upload database
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
           retention-days: 7
+
       - name: Upload job log
         uses: actions/upload-artifact@v4
         if: always()
@@ -101,35 +159,181 @@ jobs:
   prepare-local:
     runs-on: self-hosted
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      matrix: ${{ (runner.os == 'Windows' && steps.set-matrix-win.outputs.matrix) || steps.set-matrix-unix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-      - name: Initialize log file
-        run: 'echo "=== Job: prepare-local started at $(date) ===" > /tmp/job_log.txt'
-      - name: Install dependencies
+
+      # ── log init ──────────────────────────────────────────────────────────
+      - name: Initialize log file (Windows)
+        if: runner.os == 'Windows'
+        id: init-win
+        shell: powershell
         run: |
-          # FIX: Redirect temp space to SD card to bypass small RAM-disk (/tmp)
+          $logPath = Join-Path $env:TEMP "job_log.txt"
+          "=== Job: prepare-local started at $(Get-Date -Format 'o') ===" |
+            Out-File -FilePath $logPath -Encoding utf8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "LOG_PATH=$logPath"
+
+      - name: Initialize log file (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          echo "=== Job: prepare-local started at $(date) ===" > /tmp/job_log.txt
+
+      # ── dependency install (hash-cached) ──────────────────────────────────
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $reqHash  = (Get-FileHash "setup/requirements-scrape.txt" -Algorithm MD5).Hash
+          $hashFile = "venv\.req_hash"
+          $needsInstall = (-not (Test-Path "venv")) -or
+                          (-not (Test-Path $hashFile)) -or
+                          ((Get-Content $hashFile -ErrorAction SilentlyContinue) -ne $reqHash)
+
+          if ($needsInstall) {
+            Write-Host "==> Installing / updating dependencies..."
+            if (-not (Test-Path "./tmp_build")) {
+              New-Item -ItemType Directory -Path "./tmp_build" | Out-Null
+            }
+            $env:TMPDIR        = (Resolve-Path "./tmp_build").Path
+            $env:PIP_CACHE_DIR = $env:TMPDIR
+
+            if (-not (Test-Path "venv")) { python -m venv venv }
+
+            & "./venv/Scripts/python.exe" -m pip install --upgrade pip setuptools wheel
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & "./venv/Scripts/python.exe" -m pip install -r setup/requirements-scrape.txt
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & "./venv/Scripts/scrapling.exe" install
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            $reqHash | Out-File -FilePath $hashFile -Encoding utf8 -NoNewline
+            Write-Host "==> Dependencies installed and hash saved."
+          } else {
+            Write-Host "==> Dependencies up to date -- skipping install."
+          }
+
+      - name: Install dependencies (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          REQ_HASH=$(md5sum setup/requirements-scrape.txt | cut -d' ' -f1)
+          HASH_FILE="venv/.req_hash"
+          if [ ! -d "venv" ] || [ ! -f "$HASH_FILE" ] || \
+             [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$REQ_HASH" ]; then
+            echo "==> Installing / updating dependencies..."
+            mkdir -p ./tmp_build
+            export TMPDIR=$PWD/tmp_build
+            export PIP_CACHE_DIR=$PWD/tmp_build
+            [ ! -d "venv" ] && python3 -m venv venv
+            source venv/bin/activate
+            pip install -r setup/requirements-scrape.txt
+            ./venv/bin/scrapling install
+            echo "$REQ_HASH" > "$HASH_FILE"
+            echo "==> Dependencies installed and hash saved."
+          else
+            echo "==> Dependencies up to date -- skipping install."
+          fi
+
+      # ── generate matrix ───────────────────────────────────────────────────
+      # Windows: run Python once via Start-Process so stdout and stderr are
+      #          captured into separate temp files.  Only stdout feeds the
+      #          matrix output; stderr is logged + echoed to the console.
+      - name: Generate Matrix (Windows)
+        if: runner.os == 'Windows'
+        id: set-matrix-win
+        shell: powershell
+        run: |
+          $logPath = "${{ steps.init-win.outputs.LOG_PATH }}"
+
+          if (-not (Test-Path "./tmp_build")) {
+            New-Item -ItemType Directory -Path "./tmp_build" | Out-Null
+          }
+          $env:TMPDIR = (Resolve-Path "./tmp_build").Path
+
+          $stdoutFile = Join-Path $env:TEMP "py_stdout_$([System.Guid]::NewGuid().ToString('N')).txt"
+          $stderrFile = Join-Path $env:TEMP "py_stderr_$([System.Guid]::NewGuid().ToString('N')).txt"
+
+          $proc = Start-Process -FilePath "./venv/Scripts/python.exe" `
+            -ArgumentList @(
+              "-m", "bet_crawler.crawl",
+              "--mode", "prepare-scrape",
+              "--runners", "local",
+              "--config_dir", "config"
+            ) `
+            -RedirectStandardOutput $stdoutFile `
+            -RedirectStandardError  $stderrFile `
+            -NoNewWindow -PassThru -Wait
+
+          $stdout = if (Test-Path $stdoutFile) {
+            Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue
+          } else { "" }
+          $stderr = if (Test-Path $stderrFile) {
+            Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue
+          } else { "" }
+          if ($null -eq $stdout) { $stdout = "" }
+          if ($null -eq $stderr) { $stderr = "" }
+
+          # Log both streams to the job log file
+          Add-Content -Path $logPath -Value "--- STDOUT ---"
+          Add-Content -Path $logPath -Value $stdout
+          Add-Content -Path $logPath -Value "--- STDERR ---"
+          Add-Content -Path $logPath -Value $stderr
+
+          # Echo both to the GH Actions console so they appear in the UI
+          # (Write-Host does NOT cause a step failure)
+          if ($stdout) { Write-Host $stdout }
+          if ($stderr) { Write-Host $stderr }
+
+          Remove-Item $stdoutFile, $stderrFile -ErrorAction SilentlyContinue
+
+          if ($proc.ExitCode -ne 0) {
+            Write-Error "Python script exited with code $($proc.ExitCode)"
+            exit $proc.ExitCode
+          }
+
+          # Extract the last line that looks like a JSON object or array
+          $jsonLine = ($stdout -split "`r?`n" |
+            Where-Object { $_ -match '^\s*[\{\[]' } |
+            Select-Object -Last 1)
+
+          if (-not $jsonLine) {
+            Write-Error "No JSON found in Python stdout -- check the log above."
+            exit 1
+          }
+
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "matrix={""include"":$($jsonLine.Trim())}"
+
+      # Unix: process substitution routes stderr to log+console; stdout is
+      #       captured cleanly into JSON_DATA via $() + tee.
+      - name: Generate Matrix (Unix)
+        if: runner.os != 'Windows'
+        id: set-matrix-unix
+        run: |
+          set -o pipefail
           mkdir -p ./tmp_build
           export TMPDIR=$PWD/tmp_build
-          export PIP_CACHE_DIR=$PWD/tmp_build
-
-          if [ ! -d "venv" ]; then
-            python3 -m venv venv
-          fi
-          source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
-      - name: Generate Matrix
-        id: set-matrix
-        run: |
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "config" 2> >(tee -a /tmp/job_log.txt >&2) | tee -a /tmp/job_log.txt)
+          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl \
+            --mode prepare-scrape --runners local --config_dir "config" \
+            2> >(tee -a /tmp/job_log.txt >&2) | tee -a /tmp/job_log.txt)
           echo "matrix={\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
-      - name: Upload job log
+
+      # ── upload ────────────────────────────────────────────────────────────
+      - name: Upload job log (Windows)
+        if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v4
-        if: always()
+        with:
+          name: logs-prepare-local.txt
+          path: ${{ steps.init-win.outputs.LOG_PATH }}
+          retention-days: 7
+
+      - name: Upload job log (Unix)
+        if: always() && runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
         with:
           name: logs-prepare-local.txt
           path: /tmp/job_log.txt
           retention-days: 7
+
       - name: Upload URL files
         uses: actions/upload-artifact@v4
         with:
@@ -145,35 +349,149 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-local.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
-      - name: Initialize log file
-        run: 'echo "=== Job: scrape-local started at $(date) ===" > /tmp/job_log.txt'
-      - name: Install dependencies
-        run: |
-          # FIX: Redirect temp space to SD card
-          mkdir -p ./tmp_build
-          export TMPDIR=$PWD/tmp_build
-          export PIP_CACHE_DIR=$PWD/tmp_build
 
-          if [ ! -d "venv" ]; then
-            python3 -m venv venv
+      # ── log init ──────────────────────────────────────────────────────────
+      - name: Initialize log file (Windows)
+        if: runner.os == 'Windows'
+        id: init-win
+        shell: powershell
+        run: |
+          $logPath = Join-Path $env:TEMP "job_log.txt"
+          "=== Job: scrape-local started at $(Get-Date -Format 'o') ===" |
+            Out-File -FilePath $logPath -Encoding utf8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "LOG_PATH=$logPath"
+
+      - name: Initialize log file (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          echo "=== Job: scrape-local started at $(date) ===" > /tmp/job_log.txt
+
+      # ── dependency install (hash-cached) ──────────────────────────────────
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $reqHash  = (Get-FileHash "setup/requirements-scrape.txt" -Algorithm MD5).Hash
+          $hashFile = "venv\.req_hash"
+          $needsInstall = (-not (Test-Path "venv")) -or
+                          (-not (Test-Path $hashFile)) -or
+                          ((Get-Content $hashFile -ErrorAction SilentlyContinue) -ne $reqHash)
+
+          if ($needsInstall) {
+            Write-Host "==> Installing / updating dependencies..."
+            if (-not (Test-Path "./tmp_build")) {
+              New-Item -ItemType Directory -Path "./tmp_build" | Out-Null
+            }
+            $env:TMPDIR        = (Resolve-Path "./tmp_build").Path
+            $env:PIP_CACHE_DIR = $env:TMPDIR
+
+            if (-not (Test-Path "venv")) { python -m venv venv }
+
+            & "./venv/Scripts/python.exe" -m pip install --upgrade pip setuptools wheel
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & "./venv/Scripts/python.exe" -m pip install -r setup/requirements-scrape.txt
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & "./venv/Scripts/scrapling.exe" install
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            $reqHash | Out-File -FilePath $hashFile -Encoding utf8 -NoNewline
+          } else {
+            Write-Host "==> Dependencies up to date -- skipping install."
+          }
+
+      - name: Install dependencies (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          REQ_HASH=$(md5sum setup/requirements-scrape.txt | cut -d' ' -f1)
+          HASH_FILE="venv/.req_hash"
+          if [ ! -d "venv" ] || [ ! -f "$HASH_FILE" ] || \
+             [ "$(cat "$HASH_FILE" 2>/dev/null)" != "$REQ_HASH" ]; then
+            echo "==> Installing / updating dependencies..."
+            mkdir -p ./tmp_build
+            export TMPDIR=$PWD/tmp_build
+            export PIP_CACHE_DIR=$PWD/tmp_build
+            [ ! -d "venv" ] && python3 -m venv venv
+            source venv/bin/activate
+            pip install -r setup/requirements-scrape.txt
+            ./venv/bin/scrapling install
+            echo "$REQ_HASH" > "$HASH_FILE"
+          else
+            echo "==> Dependencies up to date -- skipping install."
           fi
-          source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+
       - name: Download URL files
         uses: actions/download-artifact@v4
         with:
           name: url-files-local
-      - name: Run Scraper
-        run: ./venv/bin/python -m bet_crawler.crawl --mode scrape --matches_db_path "${{ matrix.db_path }}" --urls "${{ matrix.urls_file }}" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
-      - name: Upload
+
+      # ── run scraper ───────────────────────────────────────────────────────
+      - name: Run Scraper (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $logPath    = "${{ steps.init-win.outputs.LOG_PATH }}"
+          if (-not (Test-Path "./tmp_build")) {
+            New-Item -ItemType Directory -Path "./tmp_build" | Out-Null
+          }
+          $env:TMPDIR = (Resolve-Path "./tmp_build").Path
+          $stdoutFile = Join-Path $env:TEMP "py_stdout_$([System.Guid]::NewGuid().ToString('N')).txt"
+          $stderrFile = Join-Path $env:TEMP "py_stderr_$([System.Guid]::NewGuid().ToString('N')).txt"
+
+          $proc = Start-Process -FilePath "./venv/Scripts/python.exe" `
+          -ArgumentList @("-m", "bet_crawler.crawl",
+            "--mode", "scrape",
+            "--matches_db_path", "${{ matrix.db_path }}",
+            "--urls", "${{ matrix.urls_file }}",
+            "--config_dir", "config") `
+          -RedirectStandardOutput $stdoutFile `
+          -RedirectStandardError  $stderrFile `
+          -NoNewWindow -PassThru -Wait
+
+          $stdout = if (Test-Path $stdoutFile) { Get-Content $stdoutFile -Raw -ErrorAction SilentlyContinue } else { "" }
+          $stderr = if (Test-Path $stderrFile) { Get-Content $stderrFile -Raw -ErrorAction SilentlyContinue } else { "" }
+          if ($null -eq $stdout) { $stdout = "" }
+          if ($null -eq $stderr) { $stderr = "" }
+
+          Add-Content -Path $logPath -Value $stdout
+          Add-Content -Path $logPath -Value $stderr
+          if ($stdout) { Write-Host $stdout }
+          if ($stderr) { Write-Host $stderr }
+
+          Remove-Item $stdoutFile, $stderrFile -ErrorAction SilentlyContinue
+          if ($proc.ExitCode -ne 0) { exit $proc.ExitCode }
+
+      - name: Run Scraper (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          set -o pipefail
+          mkdir -p ./tmp_build
+          export TMPDIR=$PWD/tmp_build
+          ./venv/bin/python -m bet_crawler.crawl \
+            --mode scrape \
+            --matches_db_path "${{ matrix.db_path }}" \
+            --urls "${{ matrix.urls_file }}" \
+            --config_dir "config" \
+            2>&1 | tee -a /tmp/job_log.txt
+
+      # ── upload ────────────────────────────────────────────────────────────
+      - name: Upload database
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
           retention-days: 7
-      - name: Upload job log
+
+      - name: Upload job log (Windows)
+        if: always() && runner.os == 'Windows'
         uses: actions/upload-artifact@v4
-        if: always()
+        with:
+          name: logs-scrape-local-${{ matrix.db_path }}.txt
+          path: ${{ steps.init-win.outputs.LOG_PATH }}
+          retention-days: 7
+
+      - name: Upload job log (Unix)
+        if: always() && runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
         with:
           name: logs-scrape-local-${{ matrix.db_path }}.txt
           path: /tmp/job_log.txt
@@ -184,39 +502,50 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Initialize log file
-        run: 'echo "=== Job: merge started at $(date) ===" > /tmp/job_log.txt'
+        run: |
+          echo "=== Job: merge started at $(date) ===" > /tmp/job_log.txt
+
       - name: Download all chunks
         uses: actions/download-artifact@v4
         with:
           pattern: "*.db"
           merge-multiple: true
           path: .
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('setup/requirements-scrape.txt') }}
+          restore-keys: ${{ runner.os }}-pip-
+
       - name: Install dependencies
-        run: |
-          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+        run: pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+
       - name: Merge Databases
-        run: python -m bet_crawler.crawl --mode merge --chunks_dir "." --matches_db_path "final_matches.db" --config_dir "config" 2>&1 | tee -a /tmp/job_log.txt
-      - name: Upload Final Database Artifact
+        run: |
+          set -o pipefail
+          python -m bet_crawler.crawl \
+            --mode merge \
+            --chunks_dir "." \
+            --matches_db_path "final_matches.db" \
+            --config_dir "config" \
+            2>&1 | tee -a /tmp/job_log.txt
+
+      - name: Upload Final Database
         uses: actions/upload-artifact@v4
         with:
           name: final_matches.db
           path: final_matches.db
           retention-days: 7
-      - name: Create or Update Release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest-db
-          name: Latest Matches Database
-          files: final_matches.db
-          make_latest: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload job log
         uses: actions/upload-artifact@v4
         if: always()
@@ -225,29 +554,73 @@ jobs:
           path: /tmp/job_log.txt
           retention-days: 7
 
+  upload-release:
+    needs: merge
+    runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download enriched database
+        uses: actions/download-artifact@v4
+        with:
+          name: final_matches_enriched.db
+
+      - name: Create or Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-db
+          name: Latest Matches Database
+          files: final_matches.db
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   unify-logs:
     needs: [prepare-actions, scrape-actions, prepare-local, scrape-local, merge]
     runs-on: ubuntu-22.04
+    if: always()
     steps:
       - name: Download All Logs
         uses: actions/download-artifact@v4
         with:
           pattern: logs-*
           path: all_logs
+
       - name: Create unified log
         run: |
           echo "=== UNIFIED LOGS FROM ALL JOBS ===" > unified_log.txt
           echo "" >> unified_log.txt
           find all_logs -type f -name "*.txt" | sort | while read log_file; do
             echo "=== LOG FILE: $(basename "$log_file") ===" >> unified_log.txt
-            cat "$log_file" >> unified_log.txt
-            echo "" >> unified_log.txt
-            echo "=== END OF FILE ===" >> unified_log.txt
-            echo "" >> unified_log.txt
+            cat "$log_file"                                  >> unified_log.txt
+            echo ""                                          >> unified_log.txt
+            echo "=== END OF FILE ==="                       >> unified_log.txt
+            echo ""                                          >> unified_log.txt
           done
+
       - name: Upload unified log
         uses: actions/upload-artifact@v4
         with:
           name: unified-logs
           path: unified_log.txt
           retention-days: 30
+
+  cleanup-artifacts:
+    needs: [unify-logs]
+    runs-on: ubuntu-22.04
+    if: always()
+    permissions:
+      actions: write
+    steps:
+      - name: Delete intermediate artifacts
+        uses: geekyeggo/delete-artifact@v6
+        with:
+          name: |
+            logs-*
+            url-files-*
+            final_matches.db
+            actions-*.db
+            local-*.db
+            worker-*.db
+          failOnError: false

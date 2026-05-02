@@ -13,7 +13,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 ONE_MILLION_PREDICTIONS_NAME = "onemillionpredictions"
 ONE_MILLION_PREDICTIONS_URL = "https://onemillionpredictions.com"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 
 class OneMillionPredictionsFinder(BaseMatchFinder):

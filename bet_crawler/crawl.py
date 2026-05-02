@@ -2,11 +2,11 @@
 main.py — Bet Assistant CLI
 ────────────────────────────
 Modes:
-  prepare-scrape   Collect match URLs and split them into chunks for parallel scraping.
-  scrape           Scrape a chunk of URLs into a local SQLite DB.
-  merge            Merge all chunk DBs into a single final DB.
-  generate-slips   Run all daily-enabled profiles and insert slips.
-  validate-slips   Scrape match results and update pending leg outcomes.
+  prepare-scrape       Collect match URLs and split them into chunks for parallel scraping.
+  scrape               Scrape a chunk of URLs into a local SQLite DB.
+  merge                Merge all chunk DBs into a single final DB.
+  generate-slips       Run all daily-enabled profiles and insert slips.
+  validate-slips       Scrape match results and update pending leg outcomes.
 
 Usage examples:
   python -m main --mode prepare-scrape --runners actions
@@ -17,379 +17,26 @@ Usage examples:
 """
 
 import argparse
-import json
-import math
-import os
-import random
 import sys
-from collections import defaultdict
-from contextlib import redirect_stdout
-from urllib.parse import urlparse
 
-import pandas as pd
-from scrape_kit import SettingsManager, configure, get_logger
+from scrape_kit import configure, get_logger
 
 logger = get_logger(__name__)
 
-from bet_framework.MatchesManager import MatchesManager
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Crawler registry
-# ─────────────────────────────────────────────────────────────────────────────
-
-_CRAWLER_KEYS = {
-    "scorepredictor": lambda: _import("ScorePredictorFinder"),
-    "soccervista": lambda: _import("SoccerVistaFinder"),
-    "whoscored": lambda: _import("WhoScoredFinder"),
-    "windrawwin": lambda: _import("WinDrawWinFinder"),
-    "forebet": lambda: _import("ForebetFinder"),
-    "vitibet": lambda: _import("VitibetFinder"),
-    "predictz": lambda: _import("PredictzFinder"),
-    "onemillionpredictions": lambda: _import("OneMillionPredictionsFinder"),
-    "footballbettingtips": lambda: _import("FootballBettingTipsFinder"),
-    "xgscore": lambda: _import("xGScoreFinder"),
-    "eaglepredict": lambda: _import("EaglePredictFinder"),
-    "legitpredict": lambda: _import("LegitPredictFinder"),
-    "betclan": lambda: _import("BetClanFinder"),
-}
-
-_RUNNER_SETS = {
-    "actions": [
-        "vitibet",
-        "scorepredictor",
-        "predictz",
-        "soccervista",
-        "windrawwin",
-        "onemillionpredictions",
-        "xgscore",
-        "eaglepredict",
-        "legitpredict",
-        "betclan",
-    ],
-    "local": ["whoscored", "forebet", "footballbettingtips"],
-    "all": list(_CRAWLER_KEYS.keys()),
-    "test": ["windrawwin"],
-}
-
-MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
-
-
-def _import(cls: str):
-    from bet_crawler import finders
-
-    return getattr(finders, cls)
-
-
-def get_crawler_class(url: str):
-    lower = url.lower()
-    for key, loader in _CRAWLER_KEYS.items():
-        if key in lower:
-            return loader()
-    raise ValueError(f"No crawler registered for URL: {url}")
-
-
-def get_runner_classes(runner: str) -> list:
-    keys = _RUNNER_SETS.get(runner, [])
-    return [_CRAWLER_KEYS[k]() for k in keys]
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Mode: prepare-scrape
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def mode_prepare_scrape(runner: str, config_dir: str) -> None:
-    configure(config_dir)
-    crawler_classes = get_runner_classes(runner)
-    if not crawler_classes:
-        logger.error("❌ No crawlers found for runner type.")
-        sys.exit(1)
-
-    urls = []
-    with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
-        for cls in crawler_classes:
-            instance = cls(None)
-            for attempt in range(3):
-                try:
-                    new_urls = instance.get_matches_urls()
-                    if new_urls:
-                        urls.extend(new_urls)
-                        break
-                    logger.warning(f"⚠️  No URLs found for {cls.__name__} (attempt {attempt + 1}/3)")
-                except Exception as e:
-                    logger.error(f"❌ Error in {cls.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}")
-
-                if attempt < 2:
-                    import time
-
-                    time.sleep(2)
-            del instance
-
-    random.shuffle(urls)
-
-    # Log unique domains
-    unique_domains = sorted({urlparse(u).netloc for u in urls if u})
-    logger.info(f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}")
-
-    max_runners = MAX_CHUNK_SIZE[runner]
-    chunk_size = max(20, math.ceil(len(urls) / max_runners))
-
-    tasks = [
-        {
-            "db_path": f"{runner}-{i // chunk_size + 1}.db",
-            "urls_file": f"{runner}-{i // chunk_size + 1}-urls.txt",
-        }
-        for i in range(0, len(urls), chunk_size)
-    ]
-
-    # Create URL files for each task
-    for i, task in enumerate(tasks):
-        with open(task["urls_file"], "w") as f:
-            start_idx = i * chunk_size
-            end_idx = min((i + 1) * chunk_size, len(urls))
-            f.write(",".join(urls[start_idx:end_idx]))
-
-    sys.stdout.write(json.dumps(tasks) + "\n")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Mode: scrape
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def mode_scrape(db_path: str, urls_str: str, config_dir: str) -> None:
-    configure(config_dir)
-
-    if os.path.isfile(urls_str):
-        with open(urls_str) as f:
-            urls = [u.strip() for u in f.read().split(",") if u.strip()]
-    else:
-        urls = [u.strip() for u in urls_str.split(",") if u.strip()]
-
-    groups: dict = defaultdict(list)
-    for url in urls:
-        domain = urlparse(url).netloc
-        core_name = domain.split(".")[-2] if "." in domain else domain
-        groups[core_name].append(url)
-
-    # Initialize SettingsManager locally
-    sm = SettingsManager(config_dir)
-    matches_manager = MatchesManager(db_path, similarity_config=sm.get("similarity_config"))
-    matches_manager.reset_matches_db()
-
-    def _on_match(match) -> None:
-        matches_manager.add_match(match)
-
-    for i, (domain_key, group_urls) in enumerate(groups.items()):
-        logger.info(f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)...")
-        try:
-            crawler = get_crawler_class(group_urls[0])(_on_match)
-            crawler.get_matches(group_urls)
-        except Exception as e:
-            logger.error(f"    ⚠️ Error scraping {domain_key}: {e}")
-
-    matches_manager.close()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Mode: merge
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def mode_merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
-    """Merge multiple chunk databases into a single database and generate summary."""
-    if not os.path.isdir(chunks_dir):
-        logger.error(f"❌ Not a valid directory: {chunks_dir}")
-        sys.exit(1)
-
-    matches_df = _perform_merge(db_path, chunks_dir, config_dir)
-    _generate_merge_summary(matches_df, chunks_dir, db_path)
-
-
-def _perform_merge(db_path: str, chunks_dir: str, config_dir: str) -> pd.DataFrame:
-    """Perform the database merge operation. Returns the merged DataFrame."""
-    sm = SettingsManager(config_dir)
-    matches_manager = MatchesManager(db_path, similarity_config=sm.get("similarity_config"))
-    matches_manager.reset_matches_db()
-    matches_manager.merge_databases(chunks_dir)
-    matches_df = matches_manager.fetch_matches()
-    matches_manager.close()
-    return matches_df
-
-
-def _generate_merge_summary(matches_df: pd.DataFrame, chunks_dir: str, db_path: str) -> None:
-    """Generate and log a summary of the merge operation."""
-    source_to_matches = _build_source_mapping(matches_df)
-    matches_count = len(matches_df)
-    chunk_files = [f for f in os.listdir(chunks_dir) if f.endswith(".db") and f != os.path.basename(db_path)]
-
-    _log_summary_header(matches_count, len(chunk_files))
-    _log_source_details(source_to_matches)
-    _validate_runner_sets(source_to_matches, chunk_files)
-    _log_footer(db_path)
-
-
-def _build_source_mapping(matches_df: pd.DataFrame) -> dict[str, set]:
-    """Build mapping of source names to match indices."""
-    source_to_matches = defaultdict(set)
-
-    for i, row in matches_df.iterrows():
-        url = row.get("result_url")
-        scores_list = row.get("scores")
-
-        # Infer from URL
-        if url:
-            domain = urlparse(url).netloc
-            core_name = domain.split(".")[-2] if "." in domain else domain
-            source_to_matches[core_name.lower()].add(i)
-
-        # Extract from predictions list
-        if scores_list:
-            for p in scores_list:
-                src = p.get("source")
-                if src:
-                    source_to_matches[src.lower()].add(i)
-
-    return source_to_matches
-
-
-def _log_summary_header(matches_count: int, chunk_count: int) -> None:
-    """Log the summary header section."""
-    logger.info("  " + "=" * 26)
-    logger.info("  " + "MERGE SUMMARY".center(26))
-    logger.info("  " + "=" * 26)
-    logger.info(f"  Unique Matches: {matches_count}")
-    logger.info(f"  Chunks scanned: {chunk_count}")
-
-
-def _log_source_details(source_to_matches: dict[str, set]) -> None:
-    """Log detailed source statistics."""
-    sorted_sources = sorted(
-        [(s, len(ms)) for s, ms in source_to_matches.items()],
-        key=lambda x: x[1],
-        reverse=True,
-    )
-    for k, v in sorted_sources:
-        logger.info(f"    - {k}: {v} matches")
-
-    # Identify missing crawlers
-    for crawler in sorted(_CRAWLER_KEYS.keys()):
-        if crawler not in source_to_matches:
-            logger.warning(f"    - {crawler}: 0 matches (MISSING)")
-
-
-def _validate_runner_sets(source_to_matches: dict[str, set], chunk_files: list[str]) -> None:
-    """Validate that all expected runner sets contributed data."""
-    seen_runners = set()
-    for source in source_to_matches:
-        for runner_name, crawlers in _RUNNER_SETS.items():
-            if source in crawlers:
-                seen_runners.add(runner_name)
-
-    expected_runners = set()
-    for cf in chunk_files:
-        runner_name = cf.split("-")[0]
-        if runner_name in _RUNNER_SETS:
-            expected_runners.add(runner_name)
-
-    missing_runner_sets = expected_runners - seen_runners
-    if missing_runner_sets:
-        logger.error(f"  ❌ Full runner sets missing data: {missing_runner_sets}")
-
-
-def _log_footer(db_path: str) -> None:
-    """Log the footer with output path."""
-    logger.info("  " + "=" * 26)
-    logger.info(f"✅ Merged into: {db_path}")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Mode: generate-slips
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def mode_generate_slips(matches_db_path: str, slips_db_path: str, profile_path: str) -> None:
-    """
-    Load matches and generate slips for the profile defined in the given YAML file.
-    """
-    from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
-
-    sm = SettingsManager(profile_path)
-    # The profile name is the stem of the file
-    name = os.path.basename(profile_path).split(".")[0]
-    data = sm.get(name)
-
-    if not data:
-        logger.error(f"❌ No data found in profile file: {profile_path}")
-        sys.exit(1)
-
-    raw_df = MatchesManager(matches_db_path).fetch_matches()
-
-    assistant = BetAssistant(slips_db_path)
-    assistant.load_matches(raw_df)
-
-    units = float(data.get("units", 1.0))
-
-    cfg = BetSlipConfig(
-        target_odds=data.get("target_odds"),
-        target_legs=data.get("target_legs"),
-        max_legs_overflow=data.get("max_legs_overflow"),
-        consensus_floor=data.get("consensus_floor"),
-        min_odds=data.get("min_odds"),
-        tolerance_factor=data.get("tolerance_factor"),
-        stop_threshold=data.get("stop_threshold"),
-        min_legs_fill_ratio=data.get("min_legs_fill_ratio"),
-        quality_vs_balance=data.get("quality_vs_balance"),
-        consensus_vs_sources=data.get("consensus_vs_sources"),
-        included_markets=data.get("included_markets"),
-        date_from=data.get("date_from"),
-        date_to=data.get("date_to"),
-        excluded_urls=data.get("excluded_urls"),
-    )
-
-    logger.info(f"\n▶ Profile: {name.upper()}")
-
-    legs = assistant.build_slip_auto_exclude(cfg)
-    if not legs:
-        logger.info("  ℹ️  No suitable matches found.")
-    else:
-        slip_id = assistant.save_slip(name, legs, units)
-        total_odds = 1.0
-        for leg in legs:
-            logger.info(f"  ⚽ {leg.match_name} ({leg.market.value}) @ {leg.odds:.2f}")
-            total_odds *= leg.odds
-        logger.info(f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)")
-
-    assistant.close()
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Mode: validate-slips
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def mode_validate_slips(slips_db_path: str) -> None:
-    """
-    Delegate entirely to BetAssistant.validate_slips() — no duplicated
-    scraping or outcome logic here.
-    """
-    from bet_framework.BetAssistant import BetAssistant
-
-    assistant = BetAssistant(slips_db_path)
-    result = assistant.validate_slips()
-    assistant.close()
-
-    logger.info(
-        f"✅ Checked {result['checked']} · Settled {len(result['settled'])} · Live {len(result['live'])} · Errors {result['errors']}"
-    )
-
-    for item in result["live"]:
-        logger.info(f"  🟡 {item['match_name']} ({item['market']})  {item['score']}  {item['minute']}")
-
-    for item in result["settled"]:
-        icon = "✅" if item["outcome"] == "Won" else "❌"
-        logger.info(f"  {icon} {item['match_name']} ({item['market']})  {item['score']}  → {item['outcome']}")
-
+# Import mode handlers from crawl_core
+from bet_crawler.crawl_core.prepare_scrape import prepare_scrape
+from bet_crawler.crawl_core.scrape import scrape
+from bet_crawler.crawl_core.merge import merge
+from bet_crawler.crawl_core.generate_slips import generate_slips
+from bet_crawler.crawl_core.validate_slips import validate_slips
+
+# Import crawler registry from the new shared module
+from bet_crawler.crawl_registry import (
+    _CRAWLER_KEYS,
+    _RUNNER_SETS,
+    MAX_CHUNK_SIZE,
+    get_runner_classes,
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point
@@ -432,24 +79,24 @@ if __name__ == "__main__":
     if args.mode == "prepare-scrape":
         if not args.runners or not args.config_dir:
             build_parser().error("--runners and --config_dir are required for prepare-scrape")
-        mode_prepare_scrape(args.runners, args.config_dir)
+        prepare_scrape(args.runners, args.config_dir)
 
     elif args.mode == "scrape":
         if not args.urls or not args.matches_db_path or not args.config_dir:
             build_parser().error("--urls, --matches_db_path, and --config_dir are required for scrape")
-        mode_scrape(args.matches_db_path, args.urls, args.config_dir)
+        scrape(args.matches_db_path, args.urls, args.config_dir)
 
     elif args.mode == "merge":
         if not args.matches_db_path or not args.chunks_dir or not args.config_dir:
             build_parser().error("--matches_db_path, --chunks_dir, and --config_dir are required for merge")
-        mode_merge(args.matches_db_path, args.chunks_dir, args.config_dir)
+        merge(args.matches_db_path, args.chunks_dir, args.config_dir)
 
     elif args.mode == "generate-slips":
         if not args.matches_db_path or not args.slips_db_path or not args.profile_path:
             build_parser().error("--matches_db_path, --slips_db_path, and --profile_path are required for generate-slips")
-        mode_generate_slips(args.matches_db_path, args.slips_db_path, args.profile_path)
+        generate_slips(args.matches_db_path, args.slips_db_path, args.profile_path)
 
     elif args.mode == "validate-slips":
         if not args.slips_db_path:
             build_parser().error("--slips_db_path is required for validate-slips")
-        mode_validate_slips(args.slips_db_path)
+        validate_slips(args.slips_db_path)

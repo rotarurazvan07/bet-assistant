@@ -14,10 +14,10 @@ from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-MAX_CONCURRENCY = 3
+MAX_CONCURRENCY = 1
 
 
-class WinDrawWinFinder(BaseMatchFinder):
+class WinDrawWinFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
