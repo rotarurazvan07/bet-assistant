@@ -30,7 +30,6 @@ class xGScoreFinder(BaseMatchFinder):
         with browser(solve_cloudflare=True, interactive=True) as session:
             logger.info("Loading predictions page...")
             session.fetch(XGSCORE_URL)
-            session.wait_for_selector("mat-button-toggle-group", timeout=15000)
 
             logger.info("Clicking on Week view.")
 

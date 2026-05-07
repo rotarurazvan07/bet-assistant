@@ -43,12 +43,7 @@ class ForebetFinder(BaseMatchFinder):
                         timeout=60000,
                     )
 
-                    logger.info("Solving challenges and waiting for content...")
-                    session.wait_for_selector("div#body-main", timeout=60000)
-                    session.wait_for_function("typeof ltodrows === 'function'", timeout=30000)
-
                     logger.info("Expanding matches via content-aware approach...")
-                    time.sleep(3)
 
                     successful_clicks = 0
                     no_button_streak = 0

@@ -57,6 +57,7 @@ class BaseMatchFinder:
 
     def __init__(self, add_match_callback: Callable) -> None:
         super().__init__()
+        self.contributes_odds = True
         self.add_match_callback = add_match_callback
 
     @abstractmethod
@@ -108,9 +109,11 @@ class BaseMatchFinder:
                 if match.datetime is not None and not self.validate_match_date(match.datetime):
                     logger.info(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
                     return False
+                if self.contributes_odds == False:
+                    match.odds = None  # ensure odds are not added by non-odds finders
             logger.info(
                 f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
-            )
+            ) if match.predictions else logger.info(f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})")
             self.add_match_callback(match)
             return True
         except Exception as e:

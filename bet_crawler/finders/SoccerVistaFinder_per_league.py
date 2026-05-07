@@ -1,7 +1,8 @@
 from scrape_kit import get_logger
 
 logger = get_logger(__name__)
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 import datetime
 
 from bs4 import BeautifulSoup
@@ -13,31 +14,22 @@ from .BaseMatchFinder import BaseMatchFinder
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 10
 
 class SoccerVistaFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 
     def get_matches_urls(self):
-        """Get league URLs via fast HTTP."""
         html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
         soup = BeautifulSoup(html, "html.parser")
 
-        league_urls = []
-        leagues_tag = soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent
-        all_links = [link["href"] for link in leagues_tag.find_all("a", href=True)][:-2]
-        for link in all_links:
-            html = fetch(SOCCERVISTA_URL + link)
-            soup = BeautifulSoup(html, "html.parser")
-            if html:
-                try:
-                    league_urls += [opt["value"] for opt in soup.find("select", id="tournamentPage").find_all("option")]
-                except AttributeError:
-                    logger.info(f"Can't parse: {link}")
+        links = [link["href"] for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)][:-2]
 
-        league_urls = [SOCCERVISTA_URL + url for url in league_urls]
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
+            results = list(ex.map(lambda l: [opt["value"] for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser").find("select", id="tournamentPage").find_all("option")] if fetch(SOCCERVISTA_URL + l) else [], links))
 
+        league_urls = [SOCCERVISTA_URL + url for urls in results for url in urls]
         logger.info(f"{len(league_urls)} leagues to scrape")
         return league_urls
 
