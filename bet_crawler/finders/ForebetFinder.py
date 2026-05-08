@@ -35,7 +35,7 @@ class ForebetFinder(BaseMatchFinder):
         max_attempts = 2
         for attempt in range(1, max_attempts + 1):
             try:
-                with browser(solve_cloudflare=True, interactive=True, disable_resources=True) as session:
+                with browser(solve_cloudflare=True, interactive=True, disable_resources=False, headless=True) as session:
                     logger.info(f"Attempt {attempt}/{max_attempts}: Loading predictions page (Cloudflare)...")
                     session.fetch(
                         FOREBET_ALL_PREDICTIONS_URL,
@@ -45,62 +45,180 @@ class ForebetFinder(BaseMatchFinder):
 
                     logger.info("Expanding matches via content-aware approach...")
 
-                    successful_clicks = 0
-                    no_button_streak = 0
-                    no_growth_streak = 0
-                    max_expansions = 100
-                    max_no_button_streak = 4
-                    last_batch_fingerprint = None
+                    # ---------- Step 3: Let page fully settle ----------
+                    # (your original mutation observer, but with more relaxed hard cap)
+                    session.execute_script("""
+                        (function() {
+                            return new Promise((resolve) => {
+                                var prevHTML = document.body.innerHTML.length;
+                                var hardCap = setTimeout(() => { resolve(); }, 18000);   // was 8s
+                                var idleTimer = setTimeout(() => { clearTimeout(hardCap); resolve(); }, 4000);  // was 2s
+                                var observer = new MutationObserver(() => {
+                                    var newHTML = document.body.innerHTML.length;
+                                    if (newHTML !== prevHTML) {
+                                        prevHTML = newHTML;
+                                        clearTimeout(idleTimer);
+                                        idleTimer = setTimeout(() => { clearTimeout(hardCap); resolve(); }, 4000);
+                                    }
+                                });
+                                observer.observe(document.body, {
+                                    childList: true, subtree: true, attributes: true, characterData: true
+                                });
+                            });
+                        })()
+                    """)
+                    # safety nap after settle (CI machines can be absurdly slow)
+                    time.sleep(2)
 
-                    while successful_clicks < max_expansions:
-                        try:
-                            # Capture count BEFORE the click
-                            count_before = self._get_match_count(session)
+                    session.execute_script("""
+                        var btn = document.querySelector('button.fc-cta-consent');
+                        if (btn) btn.click();
+                    """)
 
-                            clicked = self._click_expansion_button(session, count_before)
+                    time.sleep(2)
+                    session.execute_script("""
+                        (function() {
+                            return new Promise((resolve) => {
+                                var totalClicks = 0;
+                                var maxClicks = 50;
+                                var lastKnownHeight = 0;
+                                var sameHeightCount = 0;
 
-                            if clicked:
-                                no_button_streak = 0
-                                successful_clicks += 1
-                                logger.info(
-                                    f"Clicked expansion button ({successful_clicks}) - matches before load: {count_before}"
-                                )
+                                function isElementVisible(el) {
+                                    if (!el) return false;
+                                    var style = window.getComputedStyle(el);
+                                    return style.display !== 'none' &&
+                                        style.visibility !== 'hidden' &&
+                                        style.opacity !== '0' &&
+                                        el.offsetWidth > 0 &&
+                                        el.offsetHeight > 0;
+                                }
 
-                                stable_count = self._wait_for_stable_count(session, count_before)
-                                logger.info(f"Content stabilized at {stable_count} matches")
+                                function scrollAndClick() {
+                                    // Scroll to bottom
+                                    var maxScroll = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                                    document.body.scrollTop = maxScroll;
+                                    document.documentElement.scrollTop = maxScroll;
 
-                                new_batch_fingerprint = self._get_last_batch_fingerprint(session, count_before)
-                                if new_batch_fingerprint and new_batch_fingerprint == last_batch_fingerprint:
-                                    logger.info("Last expansion is a duplicate batch — all real content loaded.")
-                                    break
+                                    var prevHeight = maxScroll;
 
-                                if stable_count <= count_before:
-                                    no_growth_streak += 1
-                                    logger.info(f"No new matches after click (streak: {no_growth_streak}/2)")
-                                    if no_growth_streak >= 2:
-                                        logger.info("Button saturated — all content loaded.")
-                                        break
-                                else:
-                                    no_growth_streak = 0
-                                    last_batch_fingerprint = new_batch_fingerprint
+                                    var idleTimeout = setTimeout(() => {
+                                        tryClickMore();
+                                    }, 3000);
 
-                            else:
-                                no_button_streak += 1
-                                no_growth_streak = 0
-                                logger.info(f"Button not found (streak: {no_button_streak}/{max_no_button_streak})")
-                                if no_button_streak >= max_no_button_streak:
-                                    logger.info("Button consistently absent — assuming all content loaded.")
-                                    break
-                                time.sleep(4)
+                                    var observer = new MutationObserver(() => {
+                                        var newHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                                        if (newHeight > prevHeight) {
+                                            prevHeight = newHeight;
+                                            clearTimeout(idleTimeout);
+                                            observer.disconnect();
+                                            setTimeout(scrollAndClick, 1000);
+                                        }
+                                    });
 
-                        except Exception as e:
-                            logger.warning(f"Expansion loop error on click {successful_clicks + 1}: {e}")
-                            time.sleep(5)
-                            break
+                                    observer.observe(document.body, {
+                                        childList: true,
+                                        subtree: true,
+                                        attributes: true,
+                                        characterData: true
+                                    });
 
-                    time.sleep(3)
-                    final_count = self._get_match_count(session)
-                    logger.info(f"Final match count after {successful_clicks} clicks: {final_count}")
+                                    setTimeout(() => {
+                                        observer.disconnect();
+                                    }, 3000);
+                                }
+
+                                function tryClickMore() {
+                                    // Check if page height hasn't changed (infinite loop detection)
+                                    var currentHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                                    if (currentHeight === lastKnownHeight) {
+                                        sameHeightCount++;
+                                        if (sameHeightCount >= 3) {
+                                            console.log('Page height unchanged 3 times, stopping');
+                                            resolve();
+                                            return;
+                                        }
+                                    } else {
+                                        sameHeightCount = 0;
+                                        lastKnownHeight = currentHeight;
+                                    }
+
+                                    totalClicks++;
+
+                                    // Find VISIBLE "More" button
+                                    var moreButton = document.querySelector('span[onclick*="ltodrows"]');
+
+                                    // Check if it's visible
+                                    if (!moreButton || !isElementVisible(moreButton)) {
+                                        // Try alternative selectors
+                                        var allSpans = document.querySelectorAll('span');
+                                        for (var i = 0; i < allSpans.length; i++) {
+                                            if (allSpans[i].textContent.trim() === 'More' && isElementVisible(allSpans[i])) {
+                                                moreButton = allSpans[i];
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // Stop conditions
+                                    if (!moreButton || !isElementVisible(moreButton)) {
+                                        console.log('More button not found or not visible, stopping');
+                                        resolve();
+                                        return;
+                                    }
+
+                                    if (totalClicks > maxClicks) {
+                                        console.log('Max clicks reached, stopping');
+                                        resolve();
+                                        return;
+                                    }
+
+                                    console.log('Clicking More button (click #' + totalClicks + ')');
+
+                                    // Click the button
+                                    moreButton.click();
+
+                                    // Wait for content to load
+                                    var prevHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+
+                                    var loadTimeout = setTimeout(() => {
+                                        var newHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                                        if (newHeight > prevHeight) {
+                                            scrollAndClick();
+                                        } else {
+                                            resolve();
+                                        }
+                                    }, 5000);
+
+                                    var clickObserver = new MutationObserver(() => {
+                                        var newHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                                        if (newHeight > prevHeight) {
+                                            clearTimeout(loadTimeout);
+                                            clickObserver.disconnect();
+                                            setTimeout(scrollAndClick, 1000);
+                                        }
+                                    });
+
+                                    clickObserver.observe(document.body, {
+                                        childList: true,
+                                        subtree: true,
+                                        attributes: true,
+                                        characterData: true
+                                    });
+
+                                    setTimeout(() => {
+                                        clickObserver.disconnect();
+                                    }, 5000);
+                                }
+
+                                // Start the process
+                                scrollAndClick();
+                            });
+                        })()
+                    """)
+
+                    count_script = '(function(){ return document.querySelectorAll("div.ex_sc.tabonly").length; })()'
+                    logger.info(f"Final match count : {session.execute_script(count_script)}")
 
                     html = session.page.content()
                     self._parse_page(FOREBET_ALL_PREDICTIONS_URL, html)
@@ -109,97 +227,8 @@ class ForebetFinder(BaseMatchFinder):
             except Exception as e:
                 logger.error(f"Attempt {attempt} failed: {e}")
                 if attempt == max_attempts:
-                    logger.critical("All Forebet scraping attempts failed.")
+                    logger.error("All Forebet scraping attempts failed.")
                 time.sleep(5)
-
-    def _get_match_count(self, session) -> int:
-        return session.execute_script("(function(){ return document.querySelectorAll('div.ex_sc.tabonly').length; })()")
-
-    def _get_last_batch_fingerprint(self, session, count_before: int) -> str | None:
-        return session.execute_script(f"""
-            (function() {{
-                var all = Array.from(document.querySelectorAll('div.ex_sc.tabonly'));
-                var batch = all.slice({count_before});
-                if (batch.length === 0) return null;
-                var text = batch.map(function(el) {{ return el.textContent.trim(); }}).join('|');
-                var hash = 0;
-                for (var i = 0; i < text.length; i++) {{
-                    hash = ((hash << 5) - hash) + text.charCodeAt(i);
-                    hash = hash & hash;
-                }}
-                return '' + hash;
-            }})()
-        """)
-
-    def _click_expansion_button(self, session, count_before: int) -> bool:
-        """
-        Try each strategy in order. After a click, poll up to 10s for the count
-        to increase — necessary on slow hardware like Pi where 2s is not enough.
-        """
-        strategies = [
-            "document.querySelector('div#mrows span')",
-            "document.querySelector('span[onclick*=\"ltodrows\"]')",
-            "document.getElementById('ltodbtn')",
-            "document.querySelector('span.showmore')",
-            """Array.from(document.querySelectorAll('span')).find(function(s) {
-                return s.offsetParent !== null && s.textContent &&
-                    s.textContent.trim().toLowerCase() === 'more';
-            }) || null""",
-        ]
-
-        for i, strategy in enumerate(strategies):
-            found = session.execute_script(f"""
-                (function() {{
-                    try {{
-                        var el = {strategy};
-                        if (!el || el.offsetParent === null) return false;
-                        el.scrollIntoView({{behavior: 'auto', block: 'center'}});
-                        el.click();
-                        return true;
-                    }} catch(e) {{
-                        return false;
-                    }}
-                }})()
-            """)
-
-            if not found:
-                continue
-
-            # Poll up to 10s for count to increase rather than a fixed 2s sleep
-            # This handles slow Pi rendering without penalising fast machines
-            for _ in range(5):
-                time.sleep(2)
-                count_after = self._get_match_count(session)
-                if count_after > count_before:
-                    logger.debug(f"Strategy {i + 1} succeeded: {count_before} -> {count_after}")
-                    return True
-
-            logger.debug(f"Strategy {i + 1} clicked but count unchanged ({count_before}) after 10s, trying next...")
-
-        return False
-
-    def _wait_for_stable_count(
-        self, session, count_before: int, poll_interval: float = 2.0, stable_threshold: int = 3, timeout: float = 45.0
-    ) -> int:
-        """Poll until match count stops growing."""
-        stable_readings = 0
-        last_count = count_before
-        elapsed = 0.0
-
-        while elapsed < timeout:
-            time.sleep(poll_interval)
-            elapsed += poll_interval
-            current = self._get_match_count(session)
-            if current > last_count:
-                stable_readings = 0
-                last_count = current
-            else:
-                stable_readings += 1
-                if stable_readings >= stable_threshold:
-                    return last_count
-
-        logger.warning(f"_wait_for_stable_count timed out after {timeout}s — last seen: {last_count}")
-        return last_count
 
     def _parse_page(self, url, html) -> None:
         soup = BeautifulSoup(html, "html.parser")

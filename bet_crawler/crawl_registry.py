@@ -37,6 +37,7 @@ _CRAWLER_KEYS = {
     "legitpredict": {"class": lambda: _import("LegitPredictFinder"), "contributes_odds": True},
     "betclan": {"class": lambda: _import("BetClanFinder"), "contributes_odds": True},
     "oddsportal": {"class": lambda: _import("OddsPortalFinder"), "contributes_odds": True},
+    "betexplorer": {"class": lambda: _import("BetExplorerFinder"), "contributes_odds": True},
 }
 
 _RUNNER_SETS = {
@@ -52,13 +53,14 @@ _RUNNER_SETS = {
         "legitpredict",
         "betclan",
         "oddsportal",
+        "betexplorer"
     ],
     "local": ["whoscored",
               "forebet",
               "footballbettingtips"
               ],
     "all": list(_CRAWLER_KEYS.keys()),
-    "test": ["oddsportal"],
+    "test": ["betexplorer"],
 }
 
 MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}
