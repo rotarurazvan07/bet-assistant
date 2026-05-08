@@ -307,6 +307,49 @@ class BetExplorerFinder(BaseMatchFinder):
                             session.fetch(url, wait_until="domcontentloaded", timeout=60000)
                         except Exception:
                             pass
+                    
+                        session.execute_script("""
+    (function() {
+        // Click "I Accept" button (case-insensitive)
+        var elements = document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [role="button"]');
+        for (var el of elements) {
+            if (el.textContent.trim().toLowerCase().includes('i accept') || 
+                el.value?.toLowerCase().includes('i accept')) {
+                el.click();
+                break;
+            }
+        }
+
+        // Wait for content to settle
+        return new Promise((resolve) => {
+            function cycle() {
+                var maxScroll = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                document.body.scrollTop = maxScroll;
+                document.documentElement.scrollTop = maxScroll;
+
+                var prevHeight = maxScroll;
+
+                var idleTimeout = setTimeout(() => {
+                    observer.disconnect();
+                    resolve();
+                }, 10000);
+
+                var observer = new MutationObserver(() => {
+                    var newHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                    if (newHeight > prevHeight) {
+                        clearTimeout(idleTimeout);
+                        observer.disconnect();
+                        setTimeout(cycle, 1000);
+                    }
+                });
+
+                observer.observe(document.body, { childList: true, subtree: true });
+            }
+
+            cycle();
+        });
+    })()
+""")
 
                     try:
                         session.page.wait_for_selector(".list-details__item__title", state="attached", timeout=30000)
