@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup, Tag
 from scrape_kit import get_logger
-
+import re
 logger = get_logger(__name__)
 
 from scrape_kit import ScrapeMode, fetch, scrape
@@ -14,18 +14,6 @@ from .BaseMatchFinder import BaseMatchFinder
 VITIBET_URL = "https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en"
 VITIBET_NAME = "vitibet"
 MAX_CONCURRENCY = 1
-
-EXCLUDED = {
-    "/index.php?clanek=tips&sekce=fotbal&liga=champions2&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=champions3&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=champions4&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=euro_national_league&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=southamerica&lang=en",
-    "/index.php?clanek=euro-2008&liga=euro&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=africancup&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=angliezeny&lang=en",
-    "/index.php?clanek=tips&sekce=fotbal&liga=euro2024&lang=en",
-}
 
 
 class VitibetFinder(BaseMatchFinder):
@@ -61,39 +49,34 @@ class VitibetFinder(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
 
-            matches_table = soup.find("table", class_="tabulkaquick")
-            if not matches_table:
-                logger.info(f"SKIPPED [{url}]: No matches table")
-                return
-
-            for match_tag in matches_table.find_all("tr")[2:]:
+            for match_link in soup.find_all('a', class_='upcoming-match-wrapper'):
                 try:
-                    tds = match_tag.find_all("td")
-                    if tds[5].get_text() == "?" or tds[7].get_text() == "?":
-                        continue
+                    prev_date_div = match_link.find_previous('div', style=lambda x: x and 'background: linear-gradient' in x)
+                    date_span = prev_date_div.find('span', string=re.compile(r'\d{2}\.\d{2}\.\d{4}'))
+                    date_str = date_span.text.strip()
+                    match_datetime = datetime.strptime(date_str, '%d.%m.%Y').replace(hour=0, minute=0, second=0)
 
-                    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                    day, month = map(int, tds[0].get_text().split("."))
-                    candidate = datetime(today.year, month, day).replace(hour=0, minute=0, second=0, microsecond=0)
-                    if candidate - today > timedelta(days=300):
-                        candidate = candidate.replace(year=today.year - 1)
-                    elif today - candidate > timedelta(days=300):
-                        candidate = candidate.replace(year=today.year + 1)
+                    # Home team
+                    home_div = match_link.find('div', class_='mc-team')
+                    home_team = home_div.find('span').text.strip()
 
-                    predictions = [
-                        Score(
-                            VITIBET_NAME,
-                            float(tds[5].get_text()),
-                            float(tds[7].get_text()),
-                        )
-                    ]
+                    # Away team
+                    away_divs = match_link.find_all('div', class_='mc-team')
+                    away_team = away_divs[1].find('span').text.strip()
+
+                    # Score prediction
+                    score_div = match_link.find('div', class_='mc-score')
+                    predictions = [Score(VITIBET_NAME,
+                                   float(score_div.text.strip().split(" : ")[0]),
+                                   float(score_div.text.strip().split(" : ")[1]))]
+
                     self.add_match(
                         Match(
-                            tds[2].get_text(),
-                            tds[3].get_text(),
-                            candidate.replace(hour=0, minute=0, second=0, microsecond=0),
-                            predictions,
-                            None,
+                            home_team=home_team,
+                            away_team=away_team,
+                            datetime=match_datetime,
+                            predictions=predictions,
+                            odds=None
                         )
                     )
 
