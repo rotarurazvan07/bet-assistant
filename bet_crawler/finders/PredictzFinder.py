@@ -14,26 +14,7 @@ from .BaseMatchFinder import BaseMatchFinder
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-MAX_CONCURRENCY = 1
-
-# Non-leagues
-EXCLUDED = [
-    "https://www.predictz.com/predictions/england/community-shield/",
-    "https://www.predictz.com/predictions/england/fa-cup/",
-    "https://www.predictz.com/predictions/england/efl-cup/",
-    "https://www.predictz.com/predictions/england/womens-super-league/",
-    "https://www.predictz.com/predictions/scotland/scottish-cup/",
-    "https://www.predictz.com/predictions/scotland/scottish-league-cup/",
-    "https://www.predictz.com/predictions/spain/copa-del-rey/",
-    "https://www.predictz.com/predictions/spain/supercopa-de-espana/",
-    "https://www.predictz.com/predictions/germany/dfb-pokal/",
-    "https://www.predictz.com/predictions/italy/coppa-italia/",
-    "https://www.predictz.com/predictions/france/coupe-de-france/",
-    "https://www.predictz.com/predictions/france/coupe-de-la-ligue/",
-    "https://www.predictz.com/predictions/brazil/copa-do-brasil/",
-    "https://www.predictz.com/predictions/usa/leagues-cup/",
-]
-
+MAX_CONCURRENCY = 3
 
 class PredictzFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:

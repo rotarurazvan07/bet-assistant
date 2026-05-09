@@ -13,12 +13,10 @@ from .BaseMatchFinder import BaseMatchFinder
 
 ONE_MILLION_PREDICTIONS_NAME = "onemillionpredictions"
 ONE_MILLION_PREDICTIONS_URL = "https://onemillionpredictions.com"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 3
 
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
-    # TIMEZONE = "Etc/GMT-2"
-
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 

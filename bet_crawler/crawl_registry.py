@@ -53,11 +53,11 @@ _RUNNER_SETS = {
         "legitpredict",
         "betclan",
         "oddsportal",
-        "betexplorer"
     ],
     "local": ["whoscored",
               "forebet",
-              "footballbettingtips"
+              "footballbettingtips",
+              "betexplorer",
               ],
     "all": list(_CRAWLER_KEYS.keys()),
     "test": ["betexplorer"],

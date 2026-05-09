@@ -17,10 +17,6 @@ MAX_CONCURRENCY = 1
 
 
 class LegitPredictFinder(BaseMatchFinder):
-    # For stealth/interactive browsing finders, TIMEZONE should be set to the server's local timezone
-    # Use dynamic detection to get the actual local timezone of the computer running this code
-    # TIMEZONE = "Etc/GMT-3"
-
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
 

@@ -7,23 +7,6 @@ on:
 
 env:
   SCRAPE_KIT_LOG_LEVEL: INFO
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-# ─────────────────────────────────────────────────────────────────────────────
-# DESIGN NOTES
-# ─────────────────────────────────────────────────────────────────────────────
-# • Python scripts: stdout and stderr are BOTH saved to the job log file.
-#   stderr is also echoed to the GH Actions console (visible in the UI) but
-#   never treated as an error -- the logger lives on stderr.
-# • Prepare jobs: only clean JSON is captured from stdout for matrix outputs.
-#   stderr (logging) never contaminates that capture path.
-# • Self-hosted runners: dependencies are installed once and re-used across
-#   runs via a requirements-hash sentinel file (venv/.req_hash).  A full
-#   reinstall -- including `scrapling install` -- only happens when the hash
-#   changes.
-# • GitHub-hosted runners (ubuntu-22.04): use actions/cache for both pip and
-#   Playwright browsers since the workspace is ephemeral.
-# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
   prepare-actions:

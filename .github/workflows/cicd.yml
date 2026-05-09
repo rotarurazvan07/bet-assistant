@@ -13,7 +13,6 @@ concurrency:
 env:
   # Python configuration
   PYTHON_VERSION: "3.10"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
   # Source directories (space-separated for tools like mypy, radon, etc.)
   SRC_DIR: "bet_crawler bet_dashboard/backend bet_framework"
