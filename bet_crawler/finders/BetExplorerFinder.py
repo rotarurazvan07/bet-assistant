@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, scrape
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 from bet_framework.core.Match import *
 
@@ -13,19 +15,19 @@ from .BaseMatchFinder import BaseMatchFinder
 
 BETEXPLORER_URL = ""
 BETEXPLORER_NAME = "betexplorer"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 10
 
 
 class BetExplorerFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
+        self._add_match_lock = threading.Lock()
 
     def get_matches_urls(self):
         urls = []
-        max_attempts = 3                   # one extra top‑level attempt
+        max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
-                # Attempt to pass them; if the helper doesn't support it, remove
                 try:
                     with browser(
                         solve_cloudflare=True,
@@ -33,7 +35,6 @@ class BetExplorerFinder(BaseMatchFinder):
                         disable_resources=False,
                         headless=True
                     ) as session:
-                        # Give the browser a moment after Cloudflare solving
                         time.sleep(3)
 
                         hide_finished = False
@@ -44,7 +45,7 @@ class BetExplorerFinder(BaseMatchFinder):
                             date_urls = self._scrape_date(
                                 session, date_str, hide_finished
                             )
-                            if not hide_finished and date_urls:   # only mark True once it actually worked
+                            if not hide_finished and date_urls:
                                 hide_finished = True
                             urls.extend(date_urls)
                             logger.info(
@@ -58,7 +59,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     logger.error("Attempt %d failed: %s", attempt, e)
                     if attempt == max_attempts:
                         logger.critical("All scraping attempts failed.")
-                    time.sleep(10)          # longer cooldown between whole sessions
+                    time.sleep(10)
 
             except Exception as outer_e:
                 logger.exception("Outer setup error attempt %d: %s", attempt, outer_e)
@@ -68,31 +69,22 @@ class BetExplorerFinder(BaseMatchFinder):
 
         return []
 
-    # ------------------------------------------------------------------
-    # Private scraper for a single date – heavily fortified
-    # ------------------------------------------------------------------
     def _scrape_date(self, session, date_str, hide_finished):
         year, month, day = date_str[:4], date_str[4:6], date_str[6:8]
         url = f"https://www.betexplorer.com/?year={year}&month={month}&day={day}"
 
-        # Two inner attempts per date (network hiccups, slow CI)
-        for attempt in range(1, 4):          # now up to 3
+        for attempt in range(1, 4):
             try:
-                logger.info(
-                    "Fetching %s (attempt %d/%d)", date_str, attempt, 3
-                )
+                logger.info("Fetching %s (attempt %d/%d)", date_str, attempt, 3)
 
-                # ---------- Step 1: Navigate with DOM-ready wait (with retries) ----------
                 fetch_ok = False
-                for nav_retry in range(1, 4):  # Up to 3 navigation retries
+                for nav_retry in range(1, 4):
                     try:
                         if nav_retry == 1:
                             session.fetch(url, wait_until="domcontentloaded", timeout=90000)
                         else:
-                            # On retries, do a full reload
                             session.page.reload(wait_until="domcontentloaded", timeout=60000)
 
-                        # Check if we got an error page by looking at the HTML
                         html_check = session.page.content()
                         if "ERR_HTTP_RESPONSE_CODE_FAILURE" not in html_check and len(html_check) > 5000:
                             fetch_ok = True
@@ -105,10 +97,9 @@ class BetExplorerFinder(BaseMatchFinder):
                             )
                             time.sleep(5)
                     except Exception as nav_error:
-                        error_str = str(nav_error)
                         logger.warning(
                             "Navigation error on %s (nav retry %d/%d): %s",
-                            date_str, nav_retry, 4, error_str
+                            date_str, nav_retry, 4, str(nav_error)
                         )
                         time.sleep(5)
                         if nav_retry == 3:
@@ -121,10 +112,8 @@ class BetExplorerFinder(BaseMatchFinder):
                         time.sleep(10)
                         continue
                     else:
-                        return []  # Give up on this date
+                        return []
 
-                # ---------- Step 2: Wait for meaningful content to appear ----------
-                # Wait until at least one match link is present (up to 30s)
                 try:
                     session.page.wait_for_selector(
                         'a[data-live-cell="matchlink"]',
@@ -132,18 +121,14 @@ class BetExplorerFinder(BaseMatchFinder):
                         timeout=30000,
                     )
                 except Exception:
-                    logger.warning(
-                        "No match links detected after 30s, will still continue"
-                    )
+                    logger.warning("No match links detected after 30s, will still continue")
 
-                # ---------- Step 3: Let page fully settle ----------
-                # (your original mutation observer, but with more relaxed hard cap)
                 session.execute_script("""
                     (function() {
                         return new Promise((resolve) => {
                             var prevHTML = document.body.innerHTML.length;
-                            var hardCap = setTimeout(() => { resolve(); }, 18000);   // was 8s
-                            var idleTimer = setTimeout(() => { clearTimeout(hardCap); resolve(); }, 4000);  // was 2s
+                            var hardCap = setTimeout(() => { resolve(); }, 18000);
+                            var idleTimer = setTimeout(() => { clearTimeout(hardCap); resolve(); }, 4000);
                             var observer = new MutationObserver(() => {
                                 var newHTML = document.body.innerHTML.length;
                                 if (newHTML !== prevHTML) {
@@ -158,12 +143,9 @@ class BetExplorerFinder(BaseMatchFinder):
                         });
                     })()
                 """)
-                # safety nap after settle (CI machines can be absurdly slow)
                 time.sleep(2)
 
-                # ---------- Step 4: Hide finished matches (only first date) ----------
                 if not hide_finished:
-                    # Wait for the button to become clickable
                     try:
                         session.page.wait_for_selector(
                             'li#sOption a#sCurrent',
@@ -180,7 +162,7 @@ class BetExplorerFinder(BaseMatchFinder):
 
                                         var prevHTML = document.body.innerHTML.length;
                                         var hardCap = setTimeout(() => { observer.disconnect(); resolve(true); }, 18000);
-                                        var idleTimer = setTimeout(() => { observer.disconnect(); clearTimeout(hardCap); resolve(true); }, 3000);  // was 1s
+                                        var idleTimer = setTimeout(() => { observer.disconnect(); clearTimeout(hardCap); resolve(true); }, 3000);
                                         var observer = new MutationObserver(() => {
                                             var newHTML = document.body.innerHTML.length;
                                             if (newHTML !== prevHTML) {
@@ -195,11 +177,10 @@ class BetExplorerFinder(BaseMatchFinder):
                             })()
                         """)
                         logger.debug("Hide finished button clicked: %s", clicked)
-                        time.sleep(3)       # extra wait for UI re‑render
+                        time.sleep(3)
                     except Exception as hide_err:
                         logger.warning("Could not hide finished matches, continuing: %s", hide_err)
 
-                # ---------- Step 5: The working scroll logic (unchanged) ----------
                 before_scroll = len(session.page.query_selector_all('a[data-live-cell="matchlink"]'))
                 logger.debug("%s links before scroll: %d", date_str, before_scroll)
 
@@ -235,20 +216,15 @@ class BetExplorerFinder(BaseMatchFinder):
                         });
                     })()
                 """)
-                # Give the DOM a final breather
                 time.sleep(2)
 
-                # ---------- Step 6: Retrieve page source and verify size ----------
                 html = session.page.content()
-                if len(html) < 8000:   # raised from 5000 – CI might load slower
-                    logger.warning(
-                        "Page content too small (%d bytes), retrying...", len(html)
-                    )
+                if len(html) < 8000:
+                    logger.warning("Page content too small (%d bytes), retrying...", len(html))
                     if attempt < 3:
                         time.sleep(5)
                         continue
 
-                # ---------- Step 7: Parse and return links ----------
                 soup = BeautifulSoup(html, "html.parser")
                 links = list(
                     set(
@@ -257,21 +233,16 @@ class BetExplorerFinder(BaseMatchFinder):
                     )
                 )
 
-                # >>> ADD THIS RETRY LOGIC <<<
                 if len(links) == 0:
                     logger.warning(
                         "%s attempt %d produced 0 links – retrying after cooldown",
                         date_str, attempt
                     )
                     if attempt < 3:
-                        time.sleep(10)          # longer before retry
-                        continue                 # try again from the top of the loop
+                        time.sleep(10)
+                        continue
                     else:
-                        logger.error(
-                            "Date %s still 0 links after %d attempts, giving up",
-                            date_str, attempt
-                        )
-                # >>> END OF ADDITION <<<
+                        logger.error("Date %s still 0 links after %d attempts, giving up", date_str, attempt)
 
                 logger.debug(
                     "%s links after scroll: %d (was %d before)",
@@ -284,11 +255,15 @@ class BetExplorerFinder(BaseMatchFinder):
                 if attempt == 3:
                     logger.error("Skipping %s after %d failed attempts", date_str, 3)
                     return []
-                time.sleep(8)   # longer cooldown between retries on the same date
+                time.sleep(8)
 
         return []
 
-    def get_matches(self, urls) -> None:
+    def _process_url_batch(self, urls: list) -> None:
+        """Process a batch of URLs in a single browser session (runs in its own thread)."""
+        thread_name = threading.current_thread().name
+        logger.info("[%s] Starting batch of %d URLs", thread_name, len(urls))
+
         with browser(
             solve_cloudflare=True,
             interactive=True,
@@ -301,68 +276,66 @@ class BetExplorerFinder(BaseMatchFinder):
                     try:
                         session.fetch(url, wait_until="domcontentloaded", timeout=90000)
                     except Exception as fetch_err:
-                        logger.warning("Fetch error (retrying fetch): %s", fetch_err)
+                        logger.warning("[%s] Fetch error (retrying fetch): %s", thread_name, fetch_err)
                         time.sleep(4)
                         try:
                             session.fetch(url, wait_until="domcontentloaded", timeout=60000)
                         except Exception:
                             pass
-                    
+
                         session.execute_script("""
-    (function() {
-        // Click "I Accept" button (case-insensitive)
-        var elements = document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [role="button"]');
-        for (var el of elements) {
-            if (el.textContent.trim().toLowerCase().includes('i accept') || 
-                el.value?.toLowerCase().includes('i accept')) {
-                el.click();
-                break;
-            }
+(function() {
+    var elements = document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [role="button"]');
+    for (var el of elements) {
+        if (el.textContent.trim().toLowerCase().includes('i accept') ||
+            el.value?.toLowerCase().includes('i accept')) {
+            el.click();
+            break;
+        }
+    }
+
+    return new Promise((resolve) => {
+        function cycle() {
+            var maxScroll = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+            document.body.scrollTop = maxScroll;
+            document.documentElement.scrollTop = maxScroll;
+
+            var prevHeight = maxScroll;
+
+            var idleTimeout = setTimeout(() => {
+                observer.disconnect();
+                resolve();
+            }, 10000);
+
+            var observer = new MutationObserver(() => {
+                var newHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                if (newHeight > prevHeight) {
+                    clearTimeout(idleTimeout);
+                    observer.disconnect();
+                    setTimeout(cycle, 1000);
+                }
+            });
+
+            observer.observe(document.body, { childList: true, subtree: true });
         }
 
-        // Wait for content to settle
-        return new Promise((resolve) => {
-            function cycle() {
-                var maxScroll = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-                document.body.scrollTop = maxScroll;
-                document.documentElement.scrollTop = maxScroll;
-
-                var prevHeight = maxScroll;
-
-                var idleTimeout = setTimeout(() => {
-                    observer.disconnect();
-                    resolve();
-                }, 10000);
-
-                var observer = new MutationObserver(() => {
-                    var newHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-                    if (newHeight > prevHeight) {
-                        clearTimeout(idleTimeout);
-                        observer.disconnect();
-                        setTimeout(cycle, 1000);
-                    }
-                });
-
-                observer.observe(document.body, { childList: true, subtree: true });
-            }
-
-            cycle();
-        });
-    })()
+        cycle();
+    });
+})()
 """)
 
                     try:
                         session.page.wait_for_selector(".list-details__item__title", state="attached", timeout=30000)
                         session.page.wait_for_selector("#match-date", state="attached", timeout=30000)
                     except Exception:
-                        logger.warning("Critical selectors not found, still trying")
+                        logger.warning("[%s] Critical selectors not found, skipping: %s", thread_name, url)
                         continue
 
                     try:
                         session.page.wait_for_selector("#bettype_menu_best", state="attached", timeout=30000)
-                        logger.debug("Odds tab menu found")
+                        logger.debug("[%s] Odds tab menu found", thread_name)
                     except Exception:
-                        logger.warning("Odds tab menu (#bettype_menu_best) not found — odds will be empty")
+                        logger.warning("[%s] Odds tab menu (#bettype_menu_best) not found — odds will be empty: %s", thread_name, url)
                         continue
 
                     html = session.page.content()
@@ -371,32 +344,33 @@ class BetExplorerFinder(BaseMatchFinder):
                     away_team = soup.select_one(".list-details__item:nth-child(3) .list-details__item__title").text.strip()
 
                     date_str = soup.select_one("#match-date").text.strip()
-                    date_part = date_str.split(" - ")[0]  # "11.05.2026"
+                    date_part = date_str.split(" - ")[0]
                     day, month, year = map(int, date_part.split("."))
                     match_date = datetime(year, month, day, 0, 0, 0)
 
                     odds_1 = odds_X = odds_2 = odds_btts_y = odds_btts_n = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
+                    odds_ou = {}
+
                     try:
-                        logger.info("Extracting 1x2 Odds")
+                        logger.info("[%s] Extracting 1x2 Odds", thread_name)
                         odds_1 = soup.find_all("div", class_="oddsComparisonAll__average_text")[0].text.strip()
                         odds_X = soup.find_all("div", class_="oddsComparisonAll__average_text")[1].text.strip()
                         odds_2 = soup.find_all("div", class_="oddsComparisonAll__average_text")[2].text.strip()
                     except Exception:
-                        logger.warning("Failed to scrape 1X2 odds")
+                        logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
 
                     try:
-                        logger.info("Extracting BTTS Odds")
-
+                        logger.info("[%s] Extracting BTTS Odds", thread_name)
                         click_by_selector(session, '#bettype_menu_best li[title="Both Teams To Score"]')
                         html = session.page.content()
                         soup = BeautifulSoup(html, "html.parser")
                         odds_btts_y = soup.find_all("div", class_="oddsComparisonAll__average_text")[0].text.strip()
                         odds_btts_n = soup.find_all("div", class_="oddsComparisonAll__average_text")[1].text.strip()
                     except Exception:
-                        logger.warning("Failed to scrape BTTS odds")
+                        logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
 
                     try:
-                        logger.info("Extracting DC Odds")
+                        logger.info("[%s] Extracting DC Odds", thread_name)
                         click_by_selector(session, '#bettype_menu_best li[title="Double Chance"]')
                         html = session.page.content()
                         soup = BeautifulSoup(html, "html.parser")
@@ -404,17 +378,17 @@ class BetExplorerFinder(BaseMatchFinder):
                         odds_dc_12 = soup.find_all("div", class_="oddsComparisonAll__average_text")[1].text.strip()
                         odds_dc_x2 = soup.find_all("div", class_="oddsComparisonAll__average_text")[2].text.strip()
                     except Exception:
-                        logger.warning("Failed to scrape DC odds")
+                        logger.warning("[%s] Failed to scrape DC odds", thread_name)
 
                     try:
-                        logger.info("Extracting Over/Under Odds")
+                        logger.info("[%s] Extracting Over/Under Odds", thread_name)
                         click_by_selector(session, '#bettype_menu_best li[title="Over/Under"]')
                         click_by_selector(session, '.oddsComparison__ul.bestOddsComparison li#all')
                         html = session.page.content()
                         soup = BeautifulSoup(html, "html.parser")
                         odds_ou = extract_match_odds_over_under(soup)
                     except Exception:
-                        logger.warning("Failed to scrape O/U odds")
+                        logger.warning("[%s] Failed to scrape O/U odds", thread_name)
 
                     odds = Odds(
                         home=odds_1,
@@ -436,19 +410,59 @@ class BetExplorerFinder(BaseMatchFinder):
                         dc_12=odds_dc_12,
                         dc_x2=odds_dc_x2,
                     )
-                    logger.info(odds)
-                    self.add_match(
-                        Match(
-                            home_team=home_team,
-                            away_team=away_team,
-                            datetime=match_date,
-                            predictions=None,
-                            odds=odds
-                        )
+                    logger.info("[%s] %s", thread_name, odds)
+
+                    match = Match(
+                        home_team=home_team,
+                        away_team=away_team,
+                        datetime=match_date,
+                        predictions=None,
+                        odds=odds
                     )
+                    with self._add_match_lock:
+                        self.add_match(match)
+
                 except Exception as e:
-                    logger.error(f"Error parsing {url} {str(e)}")
+                    logger.error("[%s] Error parsing %s: %s", thread_name, url, str(e))
                     continue
+
+        logger.info("[%s] Batch complete", thread_name)
+
+    def get_matches(self, urls) -> None:
+        if not urls:
+            return
+
+        if MAX_CONCURRENCY <= 1:
+            # Fast path: single browser session, no threading overhead
+            self._process_url_batch(urls)
+            return
+
+        # Split URLs into roughly equal chunks — one chunk per worker
+        chunk_size = max(1, len(urls) // MAX_CONCURRENCY)
+        # Any remainder goes to the last chunk (not a separate tiny batch)
+        chunks = [urls[i:i + chunk_size] for i in range(0, len(urls), chunk_size)]
+        # If we got more chunks than workers (due to rounding), merge the tail into the last one
+        while len(chunks) > MAX_CONCURRENCY:
+            chunks[-2].extend(chunks[-1])
+            chunks.pop()
+
+        logger.info(
+            "Parallelizing %d URLs across %d workers (chunks: %s)",
+            len(urls),
+            len(chunks),
+            [len(c) for c in chunks],
+        )
+
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="betexp") as executor:
+            futures = {executor.submit(self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)}
+            for future in as_completed(futures):
+                chunk_idx = futures[future]
+                try:
+                    future.result()
+                    logger.info("Worker %d finished successfully", chunk_idx)
+                except Exception as e:
+                    logger.error("Worker %d raised an exception: %s", chunk_idx, e)
+
 
 def extract_match_odds_over_under(soup: BeautifulSoup) -> Dict[str, Optional[str]]:
     result = {
@@ -481,6 +495,7 @@ def extract_match_odds_over_under(soup: BeautifulSoup) -> Dict[str, Optional[str
 
     return result
 
+
 def click_by_selector(session, selector):
     """
     Click an odds tab <li> by its title attribute within #bettype_menu_best.
@@ -505,13 +520,13 @@ def click_by_selector(session, selector):
                     var hardCap = setTimeout(() => {{
                         observer.disconnect();
                         resolve(true);
-                    }}, 30000);   // 30s hard cap (was 10s)
+                    }}, 30000);
 
                     var idleTimer = setTimeout(() => {{
                         observer.disconnect();
                         clearTimeout(hardCap);
                         resolve(true);
-                    }}, 5000);    // 5s idle (was 1s)
+                    }}, 5000);
 
                     var observer = new MutationObserver(() => {{
                         var newHeight = document.documentElement.scrollHeight;
