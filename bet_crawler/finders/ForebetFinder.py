@@ -1,5 +1,5 @@
 from scrape_kit import ScrapeMode, get_logger, scrape
-import re
+
 logger = get_logger(__name__)
 
 from datetime import datetime
