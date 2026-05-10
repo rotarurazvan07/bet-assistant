@@ -1,5 +1,5 @@
 from scrape_kit import ScrapeMode, get_logger, scrape
-
+import re
 logger = get_logger(__name__)
 
 from datetime import datetime
@@ -248,7 +248,7 @@ class ForebetFinder(BaseMatchFinder):
 
                 match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
                 match_date_str = match_date_str.split(" ")[0]  # just the date part
-                match_date = datetime.strptime(match_date_str, "%d/%m/%Y").replace(hour=0, minute=0, second=0, microsecond=0)
+                match_date = datetime.strptime(match_date_str, "%m/%d/%Y")
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
                 away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
