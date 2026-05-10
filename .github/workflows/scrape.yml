@@ -544,10 +544,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download enriched database
+      - name: Download database
         uses: actions/download-artifact@v4
         with:
-          name: final_matches_enriched.db
+          name: final_matches.db
 
       - name: Create or Update Release
         uses: softprops/action-gh-release@v2
@@ -602,8 +602,6 @@ jobs:
           name: |
             logs-*
             url-files-*
-            final_matches.db
             actions-*.db
             local-*.db
-            worker-*.db
           failOnError: false
