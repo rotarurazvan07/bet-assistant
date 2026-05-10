@@ -1,12 +1,13 @@
 """
 generate_slips module for handling the generate-slips mode logic
 """
+
 import os
 
-from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from scrape_kit import SettingsManager, get_logger
-from bet_framework.MatchesManager import MatchesManager
 
+from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.MatchesManager import MatchesManager
 
 logger = get_logger(__name__)
 

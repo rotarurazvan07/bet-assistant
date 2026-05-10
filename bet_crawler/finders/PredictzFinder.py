@@ -16,6 +16,7 @@ PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
 MAX_CONCURRENCY = 3
 
+
 class PredictzFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)

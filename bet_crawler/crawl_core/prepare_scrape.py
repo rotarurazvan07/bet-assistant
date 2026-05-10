@@ -1,17 +1,18 @@
 """
 prepare_scrape module for handling the prepare-scrape mode logic
 """
+
 import json
 import math
 import os
 import random
 import sys
 from contextlib import redirect_stdout
-
-from scrape_kit import configure, get_logger
 from urllib.parse import urlparse
 
-from bet_crawler.crawl_registry import get_runner_classes, MAX_CHUNK_SIZE
+from scrape_kit import configure, get_logger
+
+from bet_crawler.crawl_registry import MAX_CHUNK_SIZE, get_runner_classes
 
 logger = get_logger(__name__)
 

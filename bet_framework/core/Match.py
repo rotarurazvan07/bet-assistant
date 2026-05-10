@@ -38,9 +38,9 @@ def ensure_decimal_odds(odds_value) -> float:
             val = float(odds_value)
         else:
             # Clean the string
-            cleaned = str(odds_value).strip().replace(',', '.')
+            cleaned = str(odds_value).strip().replace(",", ".")
             # Remove any non-numeric characters except +, -, and .
-            cleaned = ''.join(c for c in cleaned if c.isdigit() or c in '+-.')
+            cleaned = "".join(c for c in cleaned if c.isdigit() or c in "+-.")
             val = float(cleaned)
 
         # Check if it's American odds (absolute value >= 100 and not between 0 and 3 typically)

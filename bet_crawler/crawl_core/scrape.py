@@ -1,14 +1,15 @@
 """
 scrape module for handling the scrape mode logic
 """
+
 import os
 from collections import defaultdict
 from urllib.parse import urlparse
 
 from scrape_kit import SettingsManager, configure, get_logger
-from bet_framework.MatchesManager import MatchesManager
-from bet_crawler.crawl_registry import get_crawler_class
 
+from bet_crawler.crawl_registry import get_crawler_class
+from bet_framework.MatchesManager import MatchesManager
 
 logger = get_logger(__name__)
 

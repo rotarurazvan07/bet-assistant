@@ -1,9 +1,8 @@
 from scrape_kit import get_logger
 
 logger = get_logger(__name__)
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
@@ -16,6 +15,7 @@ SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
 MAX_CONCURRENCY = 10
 
+
 class SoccerVistaFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
@@ -24,10 +24,26 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
         soup = BeautifulSoup(html, "html.parser")
 
-        links = [link["href"] for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)][:-2]
+        links = [
+            link["href"] for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
+        ][:-2]
 
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
-            results = list(ex.map(lambda l: [opt["value"] for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser").find("select", id="tournamentPage").find_all("option")] if fetch(SOCCERVISTA_URL + l) else [], links))
+            results = list(
+                ex.map(
+                    lambda l: (
+                        [
+                            opt["value"]
+                            for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser")
+                            .find("select", id="tournamentPage")
+                            .find_all("option")
+                        ]
+                        if fetch(SOCCERVISTA_URL + l)
+                        else []
+                    ),
+                    links,
+                )
+            )
 
         league_urls = [SOCCERVISTA_URL + url for urls in results for url in urls]
         logger.info(f"{len(league_urls)} leagues to scrape")

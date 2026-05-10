@@ -23,10 +23,24 @@ def _enum_or_str(val):
 
 
 ALLOWED_MARKETS = {
-    "1", "X", "2", "Over 2.5", "Under 2.5", "BTTS Yes", "BTTS No",
-    "Over 0.5", "Under 0.5", "Over 1.5", "Under 1.5",
-    "Over 3.5", "Under 3.5", "Over 4.5", "Under 4.5",
-    "1X", "12", "X2"
+    "1",
+    "X",
+    "2",
+    "Over 2.5",
+    "Under 2.5",
+    "BTTS Yes",
+    "BTTS No",
+    "Over 0.5",
+    "Under 0.5",
+    "Over 1.5",
+    "Under 1.5",
+    "Over 3.5",
+    "Under 3.5",
+    "Over 4.5",
+    "Under 4.5",
+    "1X",
+    "12",
+    "X2",
 }
 
 

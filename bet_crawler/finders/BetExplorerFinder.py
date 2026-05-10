@@ -1,22 +1,25 @@
-from scrape_kit import browser, get_logger
 import time
+
+from scrape_kit import browser, get_logger
+
 logger = get_logger(__name__)
-from datetime import date, timedelta
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, scrape
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date, datetime, timedelta
+
+from bs4 import BeautifulSoup
+
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
+import contextlib
 
 BETEXPLORER_URL = ""
 BETEXPLORER_NAME = "betexplorer"
 MAX_CONCURRENCY = 10
 NUM_DAYS_AHEAD = 3
+
 
 class BetExplorerFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
@@ -25,7 +28,6 @@ class BetExplorerFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         urls = []
-        hide_finished = False
 
         for date_str in [(date.today() + timedelta(days=i)).strftime("%Y%m%d") for i in range(NUM_DAYS_AHEAD)]:
             year, month, day = date_str[:4], date_str[4:6], date_str[6:8]
@@ -42,13 +44,15 @@ class BetExplorerFinder(BaseMatchFinder):
                     html = session.page.content()
                     soup = BeautifulSoup(html, "html.parser")
 
-                    links = list(set(
-                        f"https://www.betexplorer.com{a['href']}"
-                        for row in soup.find_all('li', class_='showHide')
-                        for status in row.find_all('span', {'data-live-cell': 'time'})
-                        for a in row.find_all('a', {'data-live-cell': 'matchlink'})
-                        if re.match(r'^\d{2}:\d{2}$', status.text.strip())
-                    ))
+                    links = list(
+                        {
+                            f"https://www.betexplorer.com{a['href']}"
+                            for row in soup.find_all("li", class_="showHide")
+                            for status in row.find_all("span", {"data-live-cell": "time"})
+                            for a in row.find_all("a", {"data-live-cell": "matchlink"})
+                            if re.match(r"^\d{2}:\d{2}$", status.text.strip())
+                        }
+                    )
 
                     urls.extend(links)
                     logger.info("Found %d match URLs on %s (total: %d)", len(links), date_str, len(urls))
@@ -73,10 +77,8 @@ class BetExplorerFinder(BaseMatchFinder):
                     except Exception as fetch_err:
                         logger.warning("[%s] Fetch error (retrying fetch): %s", thread_name, fetch_err)
                         time.sleep(4)
-                        try:
+                        with contextlib.suppress(Exception):
                             session.fetch(url, wait_until="domcontentloaded", timeout=60000)
-                        except Exception:
-                            pass
 
                     try:
                         session.page.wait_for_selector(".list-details__item__title", state="attached", timeout=30000)
@@ -89,7 +91,9 @@ class BetExplorerFinder(BaseMatchFinder):
                         session.page.wait_for_selector("#bettype_menu_best", state="attached", timeout=30000)
                         logger.debug("[%s] Odds tab menu found", thread_name)
                     except Exception:
-                        logger.warning("[%s] Odds tab menu (#bettype_menu_best) not found — odds will be empty: %s", thread_name, url)
+                        logger.warning(
+                            "[%s] Odds tab menu (#bettype_menu_best) not found — odds will be empty: %s", thread_name, url
+                        )
                         continue
 
                     html = session.page.content()
@@ -103,7 +107,9 @@ class BetExplorerFinder(BaseMatchFinder):
                     match_date = datetime(year, month, day, 0, 0, 0)
 
                     odds_1 = odds_X = odds_2 = odds_btts_y = odds_btts_n = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
-                    odds_over05 = odds_under05 = odds_over15 = odds_under15 = odds_over25 = odds_under25 = odds_over35 = odds_under35 = odds_over45 = odds_under45 = None
+                    odds_over05 = odds_under05 = odds_over15 = odds_under15 = odds_over25 = odds_under25 = odds_over35 = (
+                        odds_under35
+                    ) = odds_over45 = odds_under45 = None
 
                     try:
                         logger.info("[%s] Extracting 1x2 Odds", thread_name)
@@ -137,9 +143,12 @@ class BetExplorerFinder(BaseMatchFinder):
                     try:
                         logger.info("[%s] Extracting Over/Under Odds", thread_name)
                         assert session.click('#bettype_menu_best li[title="Over/Under"]'), "Click failed"
-                        assert session.click('.oddsComparison__ul.bestOddsComparison li#all'), "Click failed"
+                        assert session.click(".oddsComparison__ul.bestOddsComparison li#all"), "Click failed"
                         soup = BeautifulSoup(session.page.content(), "html.parser")
-                        h = {s.get("data-all-handicap"): s.find("div", class_="oddsComparisonAll__rowBookie") for s in soup.find_all("div", {"data-all-handicap": True})}
+                        h = {
+                            s.get("data-all-handicap"): s.find("div", class_="oddsComparisonAll__rowBookie")
+                            for s in soup.find_all("div", {"data-all-handicap": True})
+                        }
                         c = {k: v.find_all("div", attrs={"data-odd": True}) for k, v in h.items()}
                         odds_over05, odds_under05 = c["0.50"][0].get("data-odd"), c["0.50"][1].get("data-odd")
                         odds_over15, odds_under15 = c["1.50"][0].get("data-odd"), c["1.50"][1].get("data-odd")
@@ -171,13 +180,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     )
                     logger.info("[%s] %s", thread_name, odds)
 
-                    match = Match(
-                        home_team=home_team,
-                        away_team=away_team,
-                        datetime=match_date,
-                        predictions=None,
-                        odds=odds
-                    )
+                    match = Match(home_team=home_team, away_team=away_team, datetime=match_date, predictions=None, odds=odds)
                     with self._add_match_lock:
                         self.add_match(match)
 
@@ -196,7 +199,7 @@ class BetExplorerFinder(BaseMatchFinder):
             return
 
         chunk_size = max(1, len(urls) // MAX_CONCURRENCY)
-        chunks = [urls[i:i + chunk_size] for i in range(0, len(urls), chunk_size)]
+        chunks = [urls[i : i + chunk_size] for i in range(0, len(urls), chunk_size)]
         while len(chunks) > MAX_CONCURRENCY:
             chunks[-2].extend(chunks[-1])
             chunks.pop()

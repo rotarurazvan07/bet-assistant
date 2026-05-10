@@ -5,16 +5,7 @@ This module contains the crawler registry and related functions that are
 used by both the main crawl.py and the crawl_core mode modules.
 """
 
-import os
-import random
-import sys
-from collections import defaultdict
-from contextlib import redirect_stdout
-from urllib.parse import urlparse
-
-import pandas as pd
-from scrape_kit import SettingsManager, configure, get_logger
-from bet_framework.MatchesManager import MatchesManager
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
@@ -54,11 +45,12 @@ _RUNNER_SETS = {
         "betclan",
         "oddsportal",
     ],
-    "local": ["whoscored",
-              "forebet",
-              "footballbettingtips",
-              "betexplorer",
-              ],
+    "local": [
+        "whoscored",
+        "forebet",
+        "footballbettingtips",
+        "betexplorer",
+    ],
     "all": list(_CRAWLER_KEYS.keys()),
     "test": ["betexplorer"],
 }

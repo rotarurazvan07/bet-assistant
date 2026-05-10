@@ -18,6 +18,7 @@ SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
 MAX_CONCURRENCY = 5
 
+
 class SoccerVistaFinder_per_match(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)

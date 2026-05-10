@@ -17,25 +17,22 @@ Usage examples:
 """
 
 import argparse
-import sys
 
-from scrape_kit import configure, get_logger
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
+
+from bet_crawler.crawl_core.generate_slips import generate_slips
+from bet_crawler.crawl_core.merge import merge
 
 # Import mode handlers from crawl_core
 from bet_crawler.crawl_core.prepare_scrape import prepare_scrape
 from bet_crawler.crawl_core.scrape import scrape
-from bet_crawler.crawl_core.merge import merge
-from bet_crawler.crawl_core.generate_slips import generate_slips
 from bet_crawler.crawl_core.validate_slips import validate_slips
 
 # Import crawler registry from the new shared module
 from bet_crawler.crawl_registry import (
-    _CRAWLER_KEYS,
     _RUNNER_SETS,
-    MAX_CHUNK_SIZE,
-    get_runner_classes,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -109,7 +109,7 @@ class BaseMatchFinder:
                 if match.datetime is not None and not self.validate_match_date(match.datetime):
                     logger.info(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
                     return False
-                if self.contributes_odds == False:
+                if not self.contributes_odds:
                     match.odds = None  # ensure odds are not added by non-odds finders
             logger.info(
                 f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"

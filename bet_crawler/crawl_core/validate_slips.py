@@ -1,9 +1,10 @@
 """
 validate_slips module for handling the validate-slips mode logic
 """
-from bet_framework.BetAssistant import BetAssistant
+
 from scrape_kit import get_logger
 
+from bet_framework.BetAssistant import BetAssistant
 
 logger = get_logger(__name__)
 

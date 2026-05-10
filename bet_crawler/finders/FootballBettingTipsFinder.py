@@ -1,8 +1,8 @@
 from scrape_kit import get_logger
 
 logger = get_logger(__name__)
-import time
 import re
+import time
 from datetime import datetime
 
 from bs4 import BeautifulSoup

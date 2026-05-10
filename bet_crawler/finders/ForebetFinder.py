@@ -43,9 +43,9 @@ class ForebetFinder(BaseMatchFinder):
                         timeout=60000,
                     )
 
-                    session.click('button.fc-cta-consent')
+                    session.click("button.fc-cta-consent")
 
-                    while session.click('div#mrows span', visible_only=True):
+                    while session.click("div#mrows span", visible_only=True):
                         pass
 
                     html = session.page.content()

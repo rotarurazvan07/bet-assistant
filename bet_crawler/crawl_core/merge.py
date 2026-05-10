@@ -1,14 +1,13 @@
 """
 merge module for handling the merge mode logic
 """
+
 import os
 from collections import defaultdict
 from urllib.parse import urlparse
 
 import pandas as pd
-from scrape_kit import SettingsManager, get_logger
-from bet_framework.MatchesManager import MatchesManager
-
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
@@ -26,8 +25,9 @@ def merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
 def _perform_merge(db_path: str, chunks_dir: str, config_dir: str) -> pd.DataFrame:
     """Perform the database merge operation. Returns the merged DataFrame."""
     from scrape_kit import SettingsManager
+
     from bet_framework.MatchesManager import MatchesManager
-    
+
     sm = SettingsManager(config_dir)
     matches_manager = MatchesManager(db_path, similarity_config=sm.get("similarity_config"))
     matches_manager.reset_matches_db()
@@ -39,8 +39,7 @@ def _perform_merge(db_path: str, chunks_dir: str, config_dir: str) -> pd.DataFra
 
 def _generate_merge_summary(matches_df: pd.DataFrame, chunks_dir: str, db_path: str) -> None:
     """Generate and log a summary of the merge operation."""
-    from bet_crawler.crawl_registry import _CRAWLER_KEYS, _RUNNER_SETS
-    
+
     source_to_matches = _build_source_mapping(matches_df)
     matches_count = len(matches_df)
     chunk_files = [f for f in os.listdir(chunks_dir) if f.endswith(".db") and f != os.path.basename(db_path)]
@@ -96,6 +95,7 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
 
     # Identify missing crawlers
     from bet_crawler.crawl_registry import _CRAWLER_KEYS
+
     for crawler in sorted(_CRAWLER_KEYS.keys()):
         if crawler not in source_to_matches:
             logger.warning(f"    - {crawler}: 0 matches (MISSING)")
@@ -104,7 +104,7 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
 def _validate_runner_sets(source_to_matches: dict[str, set], chunk_files: list[str]) -> None:
     """Validate that all expected runner sets contributed data."""
     from bet_crawler.crawl_registry import _RUNNER_SETS
-    
+
     seen_runners = set()
     for source in source_to_matches:
         for runner_name, crawlers in _RUNNER_SETS.items():

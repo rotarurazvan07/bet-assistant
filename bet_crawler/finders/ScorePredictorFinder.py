@@ -15,6 +15,7 @@ SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
 MAX_CONCURRENCY = 3
 
+
 class ScorePredictorFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
