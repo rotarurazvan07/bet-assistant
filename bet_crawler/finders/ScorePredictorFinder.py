@@ -15,14 +15,6 @@ SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
 MAX_CONCURRENCY = 3
 
-EXCLUDED = [
-    "index.php?section=football&season=ChampionsLeague",
-    "index.php?section=football&season=EuropaLeague",
-    "index.php?section=football&season=ConferenceLeague",
-    "#",
-]
-
-
 class ScorePredictorFinder(BaseMatchFinder):
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)

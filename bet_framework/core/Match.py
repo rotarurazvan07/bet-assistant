@@ -18,16 +18,43 @@ def ensure_decimal_odds(odds_value) -> float:
     """
     Detects if odds are American or Decimal and returns Decimal (European).
     Handles strings, integers, and floats.
+
+    Examples:
+        "+120" -> 2.20
+        "-110" -> 1.91
+        "1.91" -> 1.91
+        "2.20" -> 2.20
+        120 -> 2.20
+        -110 -> 1.91
+        1.91 -> 1.91
     """
     try:
-        val = float(odds_value)
-        if abs(val) >= 100:
-            if val > 0:
+        # Convert to string and clean
+        if odds_value is None:
+            return None
+
+        # Handle if it's already a number
+        if isinstance(odds_value, (int, float)):
+            val = float(odds_value)
+        else:
+            # Clean the string
+            cleaned = str(odds_value).strip().replace(',', '.')
+            # Remove any non-numeric characters except +, -, and .
+            cleaned = ''.join(c for c in cleaned if c.isdigit() or c in '+-.')
+            val = float(cleaned)
+
+        # Check if it's American odds (absolute value >= 100 and not between 0 and 3 typically)
+        # American odds are usually 3-digit numbers like 110, -150, +200, etc.
+        if abs(val) >= 100 and (abs(val) < 10 or abs(val) > 3):
+            if val > 0:  # Positive American odds
                 return round((val / 100) + 1, 2)
-            else:
+            else:  # Negative American odds
                 return round((100 / abs(val)) + 1, 2)
-        return round(val, 2)
-    except (ValueError, TypeError):
+        else:
+            # Already decimal odds
+            return round(val, 2)
+
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
