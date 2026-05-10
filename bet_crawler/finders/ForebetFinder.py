@@ -1,5 +1,5 @@
 from scrape_kit import ScrapeMode, get_logger, scrape
-
+import re
 logger = get_logger(__name__)
 
 from datetime import datetime
@@ -246,8 +246,16 @@ class ForebetFinder(BaseMatchFinder):
                     logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
                     continue
 
-                match_date = anchor.find("span", class_="date_bah").get_text()
-                match_date = datetime.strptime(match_date, "%d/%m/%Y %H:%M")
+                match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
+
+                try:
+                    match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M")
+                except ValueError:
+                    try:
+                        match_date = datetime.strptime(match_date_str, "%d/%m/%Y %I:%M %p")
+                    except ValueError:
+                        cleaned = re.sub(r'\b(\d):', r'0\1:', match_date_str)
+                        match_date = datetime.strptime(cleaned, "%d/%m/%Y %I:%M %p")
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
                 away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
