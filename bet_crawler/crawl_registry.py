@@ -44,15 +44,15 @@ _RUNNER_SETS = {
         "legitpredict",
         "betclan",
         "oddsportal",
+        "forebet",
     ],
     "local": [
         "whoscored",
-        "forebet",
         "footballbettingtips",
         "betexplorer",
     ],
     "all": list(_CRAWLER_KEYS.keys()),
-    "test": ["betexplorer"],
+    "test": ["forebet"],
 }
 
 MAX_CHUNK_SIZE = {"actions": 100, "local": 1, "all": 1, "test": 1}

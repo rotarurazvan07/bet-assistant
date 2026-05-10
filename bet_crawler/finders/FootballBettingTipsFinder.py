@@ -30,7 +30,6 @@ class FootballBettingTipsFinder(BaseMatchFinder):
             except Exception:
                 logger.warning("Content selector not found after 30s")
 
-            time.sleep(3)
             html = session.page.content()
 
         soup = BeautifulSoup(html, "html.parser")

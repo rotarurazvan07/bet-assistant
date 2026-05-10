@@ -35,8 +35,6 @@ class BetExplorerFinder(BaseMatchFinder):
 
             try:
                 with browser(solve_cloudflare=True, interactive=True, disable_resources=False, headless=True) as session:
-                    time.sleep(3)
-
                     session.fetch(url, wait_until="domcontentloaded", timeout=90000)
 
                     session.scroll_to_bottom()
