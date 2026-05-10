@@ -1,5 +1,7 @@
-from scrape_kit import ScrapeMode, get_logger, scrape
 import re
+
+from scrape_kit import ScrapeMode, get_logger, scrape
+
 logger = get_logger(__name__)
 
 from datetime import datetime
@@ -254,7 +256,7 @@ class ForebetFinder(BaseMatchFinder):
                     try:
                         match_date = datetime.strptime(match_date_str, "%d/%m/%Y %I:%M %p")
                     except ValueError:
-                        cleaned = re.sub(r'\b(\d):', r'0\1:', match_date_str)
+                        cleaned = re.sub(r"\b(\d):", r"0\1:", match_date_str)
                         match_date = datetime.strptime(cleaned, "%d/%m/%Y %I:%M %p")
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
