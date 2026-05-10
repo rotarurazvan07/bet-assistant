@@ -218,7 +218,7 @@ ALL_LINKS = list(
 
 
 class ForebetFinder(BaseMatchFinder):
-    TIMEZONE = BaseMatchFinder._detect_local_timezone()
+    # TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
@@ -249,15 +249,8 @@ class ForebetFinder(BaseMatchFinder):
                     continue
 
                 match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
-
-                try:
-                    match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M")
-                except ValueError:
-                    try:
-                        match_date = datetime.strptime(match_date_str, "%d/%m/%Y %I:%M %p")
-                    except ValueError:
-                        cleaned = re.sub(r"\b(\d):", r"0\1:", match_date_str)
-                        match_date = datetime.strptime(cleaned, "%d/%m/%Y %I:%M %p")
+                match_date_str = match_date_str.split(" ")[0]  # just the date part
+                match_date = datetime.strptime(match_date_str, "%d/%m/%Y").replace(hour=0, minute=0, second=0, microsecond=0)
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
                 away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])

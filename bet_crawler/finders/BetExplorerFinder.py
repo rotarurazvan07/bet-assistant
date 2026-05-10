@@ -22,6 +22,8 @@ NUM_DAYS_AHEAD = 3
 
 
 class BetExplorerFinder(BaseMatchFinder):
+    TIMEZONE = BaseMatchFinder._detect_local_timezone()
+
     def __init__(self, add_match_callback) -> None:
         super().__init__(add_match_callback)
         self._add_match_lock = threading.Lock()
@@ -100,9 +102,10 @@ class BetExplorerFinder(BaseMatchFinder):
                     away_team = soup.select_one(".list-details__item:nth-child(3) .list-details__item__title").text.strip()
 
                     date_str = soup.select_one("#match-date").text.strip()
-                    date_part = date_str.split(" - ")[0]
+                    date_part, time_part = date_str.split(" - ")
                     day, month, year = map(int, date_part.split("."))
-                    match_date = datetime(year, month, day, 0, 0, 0)
+                    hour, minute = map(int, time_part.split(":"))
+                    match_date = datetime(year, month, day, hour, minute)
 
                     odds_1 = odds_X = odds_2 = odds_btts_y = odds_btts_n = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
                     odds_over05 = odds_under05 = odds_over15 = odds_under15 = odds_over25 = odds_under25 = odds_over35 = (
