@@ -3,6 +3,7 @@ import time
 from scrape_kit import browser, get_logger
 
 logger = get_logger(__name__)
+import contextlib
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -13,7 +14,6 @@ from bs4 import BeautifulSoup
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
-import contextlib
 
 BETEXPLORER_URL = ""
 BETEXPLORER_NAME = "betexplorer"
