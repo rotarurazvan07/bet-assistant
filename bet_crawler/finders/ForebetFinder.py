@@ -1,5 +1,3 @@
-import re
-
 from scrape_kit import ScrapeMode, get_logger, scrape
 
 logger = get_logger(__name__)
