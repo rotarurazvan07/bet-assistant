@@ -16,25 +16,60 @@ WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
 MAX_CONCURRENCY = 1
 
+TOP_LEAGUES = [
+    "https://www.windrawwin.com/tips/champions-league/",
+    "https://www.windrawwin.com/tips/europa-league/",
+    "https://www.windrawwin.com/tips/europa-conference-league/",
+    "https://www.windrawwin.com/tips/england-premier-league/",
+    "https://www.windrawwin.com/tips/italy-serie-a/",
+    "https://www.windrawwin.com/tips/spain-la-liga/",
+    "https://www.windrawwin.com/tips/germany-bundesliga/",
+    "https://www.windrawwin.com/tips/france-ligue-1/",
+    "https://www.windrawwin.com/tips/belgium-first-division-a/",        # Jupiler Pro League
+    "https://www.windrawwin.com/tips/england-championship/",
+    "https://www.windrawwin.com/tips/portugal-primeira-liga/",
+    "https://www.windrawwin.com/tips/brazil-serie-a/",
+    "https://www.windrawwin.com/tips/usa-major-league-soccer/",         # MLS
+    "https://www.windrawwin.com/tips/netherlands-eredivisie/",
+    "https://www.windrawwin.com/tips/denmark-superliga/",
+    "https://www.windrawwin.com/tips/poland-ekstraklasa/",
+    "https://www.windrawwin.com/tips/argentina-liga-profesional/",
+    "https://www.windrawwin.com/tips/japan-j-league/",                  # J1 League
+    "https://www.windrawwin.com/tips/turkey-super-lig/",
+    "https://www.windrawwin.com/tips/sweden-allsvenskan/",
+    "https://www.windrawwin.com/tips/croatia-1-hnl/",                  # HNL
+    "https://www.windrawwin.com/tips/mexico-liga-mx/",
+    "https://www.windrawwin.com/tips/spain-segunda-division/",
+    "https://www.windrawwin.com/tips/norway-eliteserien/",
+    "https://www.windrawwin.com/tips/austria-bundesliga/",
+    "https://www.windrawwin.com/tips/switzerland-super-league/",
+    "https://www.windrawwin.com/tips/italy-serie-b/",
+    "https://www.windrawwin.com/tips/germany-2-bundesliga/",
+    "https://www.windrawwin.com/tips/france-ligue-2/",
+    "https://www.windrawwin.com/tips/scotland-premiership/",
+]
 
 class WinDrawWinFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
-        soup = BeautifulSoup(page, "html.parser")
+        if self.top_leagues_only:
+            return TOP_LEAGUES
+        else:
+            page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
+            soup = BeautifulSoup(page, "html.parser")
 
-        all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
-        league_urls = []
-        for tr in all_trs[start:]:
-            anchors = tr.find_all("a")
-            if anchors:
-                league_urls.append(anchors[-1]["href"])
+            all_trs = soup.find("div", class_="widetable").find_all("tr")
+            start = next(i for i, r in enumerate(all_trs) if "Cup and International Leagues" in r.text) + 1
+            league_urls = []
+            for tr in all_trs[start:]:
+                anchors = tr.find_all("a")
+                if anchors:
+                    league_urls.append(anchors[-1]["href"])
 
-        logger.info(f"Found {len(league_urls)} leagues to scrape")
-        return league_urls
+            logger.info(f"Found {len(league_urls)} leagues to scrape")
+            return league_urls
 
     def get_matches(self, urls) -> None:
         scrape(

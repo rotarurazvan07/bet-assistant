@@ -1,6 +1,6 @@
 import time
 
-from scrape_kit import browser, get_logger
+from scrape_kit import browser, get_logger, fetch
 
 logger = get_logger(__name__)
 import contextlib
@@ -8,9 +8,9 @@ import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
-
+import json
 from bs4 import BeautifulSoup
-
+from datetime import datetime, timedelta, timezone
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
@@ -18,8 +18,273 @@ from .BaseMatchFinder import BaseMatchFinder
 BETEXPLORER_URL = ""
 BETEXPLORER_NAME = "betexplorer"
 MAX_CONCURRENCY = 10
-NUM_DAYS_AHEAD = 3
 
+TOP_LEAGUES = [
+    "https://www.betexplorer.com/football/uefa-champions-league/",
+    "https://www.betexplorer.com/football/uefa-europa-league/",
+    "https://www.betexplorer.com/football/uefa-europa-conference-league/",
+    "https://www.betexplorer.com/football/england/premier-league/",
+    "https://www.betexplorer.com/football/italy/serie-a/",
+    "https://www.betexplorer.com/football/spain/laliga/",
+    "https://www.betexplorer.com/football/germany/bundesliga/",
+    "https://www.betexplorer.com/football/france/ligue-1/",
+    "https://www.betexplorer.com/football/belgium/jupiler-pro-league/",
+    "https://www.betexplorer.com/football/england/championship/",
+    "https://www.betexplorer.com/football/portugal/liga-portugal/",
+    "https://www.betexplorer.com/football/brazil/serie-a-betano/",
+    "https://www.betexplorer.com/football/usa/mls/",
+    "https://www.betexplorer.com/football/netherlands/eredivisie/",
+    "https://www.betexplorer.com/football/denmark/superliga/",
+    "https://www.betexplorer.com/football/poland/ekstraklasa/",
+    "https://www.betexplorer.com/football/argentina/liga-profesional/",
+    "https://www.betexplorer.com/football/japan/j1-league/",
+    "https://www.betexplorer.com/football/turkey/super-lig/",
+    "https://www.betexplorer.com/football/sweden/allsvenskan/",
+    "https://www.betexplorer.com/football/croatia/hnl/",
+    "https://www.betexplorer.com/football/mexico/liga-mx/",
+    "https://www.betexplorer.com/football/spain/laliga2/",
+    "https://www.betexplorer.com/football/norway/eliteserien/",
+    "https://www.betexplorer.com/football/austria/bundesliga/",
+    "https://www.betexplorer.com/football/switzerland/super-league/",
+    "https://www.betexplorer.com/football/italy/serie-b/",
+    "https://www.betexplorer.com/football/germany/2-bundesliga/",
+    "https://www.betexplorer.com/football/france/ligue-2/",
+    "https://www.betexplorer.com/football/scotland/premiership/"
+]
+
+ALL_LINKS = [
+    "https://www.betexplorer.com/football/albania/abissnet-superiore/",
+    "https://www.betexplorer.com/football/albania/kategoria-e-pare/",
+    "https://www.betexplorer.com/football/argentina/liga-profesional/",
+    "https://www.betexplorer.com/football/argentina/primera-nacional/",
+    "https://www.betexplorer.com/football/argentina/primera-b/",
+    "https://www.betexplorer.com/football/argentina/primera-c/",
+    "https://www.betexplorer.com/football/argentina/copa-argentina/",
+    "https://www.betexplorer.com/football/argentina/reserve-league/",
+    "https://www.betexplorer.com/football/argentina/primera-a-women/",
+    "https://www.betexplorer.com/football/armenia/first-league/",
+    "https://www.betexplorer.com/football/aruba/division-di-honor/",
+    "https://www.betexplorer.com/football/asia/afc-champions-league-2/",
+    "https://www.betexplorer.com/football/australia/a-league/",
+    "https://www.betexplorer.com/football/australia/npl-act/",
+    "https://www.betexplorer.com/football/australia/npl-northern-nsw/",
+    "https://www.betexplorer.com/football/australia/npl-nsw/",
+    "https://www.betexplorer.com/football/australia/npl-queensland/",
+    "https://www.betexplorer.com/football/australia/npl-south-australia/",
+    "https://www.betexplorer.com/football/australia/npl-victoria/",
+    "https://www.betexplorer.com/football/australia/nsw-league-one/",
+    "https://www.betexplorer.com/football/australia/queensland-premier-league/",
+    "https://www.betexplorer.com/football/australia/sa-state-league/",
+    "https://www.betexplorer.com/football/australia/victoria-premier-league/",
+    "https://www.betexplorer.com/football/australia/victoria-premier-league-2/",
+    "https://www.betexplorer.com/football/australia/a-league-women/",
+    "https://www.betexplorer.com/football/australia-oceania/ofc-pro-league/",
+    "https://www.betexplorer.com/football/austria/bundesliga/",
+    "https://www.betexplorer.com/football/austria/2-liga/",
+    "https://www.betexplorer.com/football/bahrain/premier-league/",
+    "https://www.betexplorer.com/football/barbados/premier-league/",
+    "https://www.betexplorer.com/football/belarus/vysshaya-liga/",
+    "https://www.betexplorer.com/football/belarus/belarusian-cup/",
+    "https://www.betexplorer.com/football/belgium/jupiler-pro-league/",
+    "https://www.betexplorer.com/football/belgium/belgian-cup/",
+    "https://www.betexplorer.com/football/belgium/pro-league-u21/",
+    "https://www.betexplorer.com/football/bolivia/division-profesional/",
+    "https://www.betexplorer.com/football/brazil/serie-a-betano/",
+    "https://www.betexplorer.com/football/brazil/serie-b/",
+    "https://www.betexplorer.com/football/brazil/serie-c/",
+    "https://www.betexplorer.com/football/brazil/serie-d/",
+    "https://www.betexplorer.com/football/brazil/catarinense-2/",
+    "https://www.betexplorer.com/football/brazil/cearense-2/",
+    "https://www.betexplorer.com/football/brazil/paranaense-2/",
+    "https://www.betexplorer.com/football/brazil/paulista-a2/",
+    "https://www.betexplorer.com/football/brazil/copa-betano-do-brasil/",
+    "https://www.betexplorer.com/football/brazil/brasileiro-u20/",
+    "https://www.betexplorer.com/football/brazil/kings-league-brazil/",
+    "https://www.betexplorer.com/football/brazil/brasileiro-women/",
+    "https://www.betexplorer.com/football/bulgaria/efbet-league/",
+    "https://www.betexplorer.com/football/bulgaria/vtora-liga/",
+    "https://www.betexplorer.com/football/cameroon/elite-two/",
+    "https://www.betexplorer.com/football/canada/canadian-premier-league/",
+    "https://www.betexplorer.com/football/canada/championship/",
+    "https://www.betexplorer.com/football/chile/liga-de-primera/",
+    "https://www.betexplorer.com/football/chile/liga-de-ascenso/",
+    "https://www.betexplorer.com/football/chile/segunda-division/",
+    "https://www.betexplorer.com/football/chile/copa-de-la-liga/",
+    "https://www.betexplorer.com/football/china/super-league/",
+    "https://www.betexplorer.com/football/colombia/primera-a/",
+    "https://www.betexplorer.com/football/colombia/primera-b/",
+    "https://www.betexplorer.com/football/colombia/copa-colombia/",
+    "https://www.betexplorer.com/football/colombia/liga-women/",
+    "https://www.betexplorer.com/football/costa-rica/primera-division/",
+    "https://www.betexplorer.com/football/costa-rica/liga-de-ascenso/",
+    "https://www.betexplorer.com/football/croatia/hnl/",
+    "https://www.betexplorer.com/football/croatia/croatian-cup/",
+    "https://www.betexplorer.com/football/croatia/1-hnl-women/",
+    "https://www.betexplorer.com/football/cyprus/cyprus-league/",
+    "https://www.betexplorer.com/football/czech-republic/chance-liga/",
+    "https://www.betexplorer.com/football/czech-republic/chnl/",
+    "https://www.betexplorer.com/football/czech-republic/3-cfl-group-a/",
+    "https://www.betexplorer.com/football/denmark/superliga/",
+    "https://www.betexplorer.com/football/denmark/1st-division/",
+    "https://www.betexplorer.com/football/denmark/2nd-division/",
+    "https://www.betexplorer.com/football/denmark/landspokal-cup/",
+    "https://www.betexplorer.com/football/dominican-republic/ldf/",
+    "https://www.betexplorer.com/football/ecuador/liga-pro/",
+    "https://www.betexplorer.com/football/ecuador/serie-b/",
+    "https://www.betexplorer.com/football/egypt/premier-league/",
+    "https://www.betexplorer.com/football/egypt/division-2-a/",
+    "https://www.betexplorer.com/football/el-salvador/primera-division/",
+    "https://www.betexplorer.com/football/england/premier-league/",
+    "https://www.betexplorer.com/football/england/championship/",
+    "https://www.betexplorer.com/football/england/league-one/",
+    "https://www.betexplorer.com/football/england/league-two/",
+    "https://www.betexplorer.com/football/england/fa-cup/",
+    "https://www.betexplorer.com/football/england/fa-trophy/",
+    "https://www.betexplorer.com/football/england/professional-development-league/",
+    "https://www.betexplorer.com/football/england/wsl/",
+    "https://www.betexplorer.com/football/estonia/meistriliiga/",
+    "https://www.betexplorer.com/football/estonia/esiliiga/",
+    "https://www.betexplorer.com/football/ethiopia/premier-league/",
+    "https://www.betexplorer.com/football/finland/veikkausliiga/",
+    "https://www.betexplorer.com/football/finland/ykkosliiga/",
+    "https://www.betexplorer.com/football/france/ligue-1/",
+    "https://www.betexplorer.com/football/france/national/",
+    "https://www.betexplorer.com/football/france/premiere-ligue-women/",
+    "https://www.betexplorer.com/football/gambia/gfa-league/",
+    "https://www.betexplorer.com/football/georgia/crystalbet-erovnuli-liga/",
+    "https://www.betexplorer.com/football/germany/bundesliga/",
+    "https://www.betexplorer.com/football/germany/2-bundesliga/",
+    "https://www.betexplorer.com/football/germany/3-liga/",
+    "https://www.betexplorer.com/football/germany/oberliga-hamburg/",
+    "https://www.betexplorer.com/football/germany/oberliga-niedersachsen/",
+    "https://www.betexplorer.com/football/germany/bundesliga-women/",
+    "https://www.betexplorer.com/football/greece/super-league/",
+    "https://www.betexplorer.com/football/guatemala/liga-nacional/",
+    "https://www.betexplorer.com/football/honduras/liga-nacional/",
+    "https://www.betexplorer.com/football/hungary/nb-i/",
+    "https://www.betexplorer.com/football/iceland/besta-deild-karla/",
+    "https://www.betexplorer.com/football/iceland/besta-deild-women/",
+    "https://www.betexplorer.com/football/india/isl/",
+    "https://www.betexplorer.com/football/india/i-league/",
+    "https://www.betexplorer.com/football/indonesia/super-league/",
+    "https://www.betexplorer.com/football/iran/azadegan-league/",
+    "https://www.betexplorer.com/football/iraq/stars-league/",
+    "https://www.betexplorer.com/football/ireland/premier-division/",
+    "https://www.betexplorer.com/football/ireland/division-1/",
+    "https://www.betexplorer.com/football/israel/ligat-ha-al/",
+    "https://www.betexplorer.com/football/israel/leumit-league/",
+    "https://www.betexplorer.com/football/italy/serie-a/",
+    "https://www.betexplorer.com/football/italy/serie-b/",
+    "https://www.betexplorer.com/football/italy/serie-d-group-c/",
+    "https://www.betexplorer.com/football/italy/serie-d-group-f/",
+    "https://www.betexplorer.com/football/italy/coppa-italia/",
+    "https://www.betexplorer.com/football/jamaica/premier-league/",
+    "https://www.betexplorer.com/football/japan/j1-league/",
+    "https://www.betexplorer.com/football/japan/j2-j3-league/",
+    "https://www.betexplorer.com/football/japan/nadeshiko-league-women/",
+    "https://www.betexplorer.com/football/kazakhstan/kazakhstan-cup/",
+    "https://www.betexplorer.com/football/kuwait/premier-league/",
+    "https://www.betexplorer.com/football/kyrgyzstan/premier-liga/",
+    "https://www.betexplorer.com/football/latvia/virsliga/",
+    "https://www.betexplorer.com/football/lithuania/toplyga/",
+    "https://www.betexplorer.com/football/lithuania/i-lyga/",
+    "https://www.betexplorer.com/football/malawi/super-league/",
+    "https://www.betexplorer.com/football/malaysia/super-league/",
+    "https://www.betexplorer.com/football/mauritania/ligue-1/",
+    "https://www.betexplorer.com/football/mexico/liga-mx/",
+    "https://www.betexplorer.com/football/mexico/liga-de-expansion-mx/",
+    "https://www.betexplorer.com/football/mexico/liga-mx-women/",
+    "https://www.betexplorer.com/football/morocco/botola-pro/",
+    "https://www.betexplorer.com/football/netherlands/eredivisie/",
+    "https://www.betexplorer.com/football/niger/super-ligue/",
+    "https://www.betexplorer.com/football/northern-ireland/nifl-premiership/",
+    "https://www.betexplorer.com/football/norway/eliteserien/",
+    "https://www.betexplorer.com/football/norway/obos-ligaen/",
+    "https://www.betexplorer.com/football/norway/division-3-group-1/",
+    "https://www.betexplorer.com/football/norway/division-3-group-2/",
+    "https://www.betexplorer.com/football/norway/division-3-group-3/",
+    "https://www.betexplorer.com/football/norway/division-3-group-4/",
+    "https://www.betexplorer.com/football/norway/division-3-group-6/",
+    "https://www.betexplorer.com/football/norway/toppserien-women/",
+    "https://www.betexplorer.com/football/oman/professional-league/",
+    "https://www.betexplorer.com/football/panama/lpf/",
+    "https://www.betexplorer.com/football/paraguay/copa-de-primera/",
+    "https://www.betexplorer.com/football/paraguay/division-intermedia/",
+    "https://www.betexplorer.com/football/peru/liga-1/",
+    "https://www.betexplorer.com/football/peru/liga-2/",
+    "https://www.betexplorer.com/football/poland/ekstraklasa/",
+    "https://www.betexplorer.com/football/poland/division-1/",
+    "https://www.betexplorer.com/football/poland/division-2/",
+    "https://www.betexplorer.com/football/poland/iii-liga-group-i/",
+    "https://www.betexplorer.com/football/poland/iii-liga-group-ii/",
+    "https://www.betexplorer.com/football/poland/iii-liga-group-iii/",
+    "https://www.betexplorer.com/football/poland/iii-liga-group-iv/",
+    "https://www.betexplorer.com/football/portugal/liga-portugal/",
+    "https://www.betexplorer.com/football/portugal/liga-portugal-2/",
+    "https://www.betexplorer.com/football/portugal/taca-revelacao-u23/",
+    "https://www.betexplorer.com/football/romania/superliga/",
+    "https://www.betexplorer.com/football/romania/liga-2/",
+    "https://www.betexplorer.com/football/romania/romanian-cup/",
+    "https://www.betexplorer.com/football/russia/premier-league/",
+    "https://www.betexplorer.com/football/russia/fnl/",
+    "https://www.betexplorer.com/football/russia/fnl-2-division-b-group-2/",
+    "https://www.betexplorer.com/football/saudi-arabia/saudi-professional-league/",
+    "https://www.betexplorer.com/football/scotland/premiership/",
+    "https://www.betexplorer.com/football/scotland/championship/",
+    "https://www.betexplorer.com/football/scotland/league-one/",
+    "https://www.betexplorer.com/football/scotland/league-two/",
+    "https://www.betexplorer.com/football/scotland/highland-league/",
+    "https://www.betexplorer.com/football/scotland/lowland-league/",
+    "https://www.betexplorer.com/football/senegal/ligue-1/",
+    "https://www.betexplorer.com/football/serbia/mozzart-bet-prva-liga/",
+    "https://www.betexplorer.com/football/serbia/mozzart-serbian-cup/",
+    "https://www.betexplorer.com/football/singapore/premier-league/",
+    "https://www.betexplorer.com/football/slovakia/nike-liga/",
+    "https://www.betexplorer.com/football/slovenia/prva-liga/",
+    "https://www.betexplorer.com/football/slovenia/2-snl/",
+    "https://www.betexplorer.com/football/south-africa/betway-premiership/",
+    "https://www.betexplorer.com/football/south-korea/k-league-1/",
+    "https://www.betexplorer.com/football/south-korea/k-league-2/",
+    "https://www.betexplorer.com/football/south-korea/k3-league/",
+    "https://www.betexplorer.com/football/south-korea/wk-league-women/",
+    "https://www.betexplorer.com/football/spain/laliga/",
+    "https://www.betexplorer.com/football/spain/laliga2/",
+    "https://www.betexplorer.com/football/spain/liga-f-women/",
+    "https://www.betexplorer.com/football/suriname/sml/",
+    "https://www.betexplorer.com/football/sweden/allsvenskan/",
+    "https://www.betexplorer.com/football/sweden/superettan/",
+    "https://www.betexplorer.com/football/sweden/division-1-norra/",
+    "https://www.betexplorer.com/football/sweden/division-1-sodra/",
+    "https://www.betexplorer.com/football/sweden/division-2-norra-gotaland/",
+    "https://www.betexplorer.com/football/sweden/division-2-sodra-gotaland/",
+    "https://www.betexplorer.com/football/sweden/division-2-vastra-gotaland/",
+    "https://www.betexplorer.com/football/sweden/svenska-cupen/",
+    "https://www.betexplorer.com/football/sweden/allsvenskan-women/",
+    "https://www.betexplorer.com/football/switzerland/super-league/",
+    "https://www.betexplorer.com/football/switzerland/challenge-league/",
+    "https://www.betexplorer.com/football/tanzania/ligi-kuu-bara/",
+    "https://www.betexplorer.com/football/tunisia/ligue-professionnelle-1/",
+    "https://www.betexplorer.com/football/tunisia/ligue-2/",
+    "https://www.betexplorer.com/football/turkey/super-lig/",
+    "https://www.betexplorer.com/football/turkey/1-lig/",
+    "https://www.betexplorer.com/football/turkey/turkish-cup/",
+    "https://www.betexplorer.com/football/turkey/super-lig-women/",
+    "https://www.betexplorer.com/football/ukraine/premier-league/",
+    "https://www.betexplorer.com/football/ukraine/persha-liga/",
+    "https://www.betexplorer.com/football/ukraine/u19-league/",
+    "https://www.betexplorer.com/football/united-arab-emirates/uae-league/",
+    "https://www.betexplorer.com/football/united-arab-emirates/pro-league-u23/",
+    "https://www.betexplorer.com/football/uruguay/liga-auf-uruguaya/",
+    "https://www.betexplorer.com/football/uruguay/segunda-division/",
+    "https://www.betexplorer.com/football/usa/mls/",
+    "https://www.betexplorer.com/football/usa/mls-next-pro/",
+    "https://www.betexplorer.com/football/usa/usl-league-one/",
+    "https://www.betexplorer.com/football/usa/usl-league-two/",
+    "https://www.betexplorer.com/football/usa/nwsl-women/",
+    "https://www.betexplorer.com/football/venezuela/liga-futve/",
+    "https://www.betexplorer.com/football/venezuela/liga-futve-2/",
+    "https://www.betexplorer.com/football/zambia/super-league/",
+]
 
 class BetExplorerFinder(BaseMatchFinder):
     TIMEZONE = BaseMatchFinder._detect_local_timezone()
@@ -31,34 +296,29 @@ class BetExplorerFinder(BaseMatchFinder):
     def get_matches_urls(self):
         urls = []
 
-        for date_str in [(date.today() + timedelta(days=i)).strftime("%Y%m%d") for i in range(NUM_DAYS_AHEAD)]:
-            year, month, day = date_str[:4], date_str[4:6], date_str[6:8]
-            url = f"https://www.betexplorer.com/?year={year}&month={month}&day={day}"
-
+        for url in TOP_LEAGUES if self.top_leagues_only else ALL_LINKS:
             try:
-                with browser(solve_cloudflare=True, interactive=True, disable_resources=False, headless=True) as session:
-                    session.fetch(url, wait_until="domcontentloaded", timeout=90000)
+                html = fetch(url)
+                soup = BeautifulSoup(html, "html.parser")
 
-                    session.scroll_to_bottom()
+                today = datetime.now(timezone.utc).date()
+                max_date = today + timedelta(days=self.num_days_ahead)
 
-                    html = session.page.content()
-                    soup = BeautifulSoup(html, "html.parser")
-
-                    links = list(
-                        {
-                            f"https://www.betexplorer.com{a['href']}"
-                            for row in soup.find_all("li", class_="showHide")
-                            for status in row.find_all("span", {"data-live-cell": "time"})
-                            for a in row.find_all("a", {"data-live-cell": "matchlink"})
-                            if re.match(r"^\d{2}:\d{2}$", status.text.strip())
-                        }
-                    )
-
-                    urls.extend(links)
-                    logger.info("Found %d match URLs on %s (total: %d)", len(links), date_str, len(urls))
-
+                links = list(dict.fromkeys([
+                    event['url']
+                    for script in soup.find_all('script', type='application/ld+json')
+                    for data in [json.loads(script.string)]
+                    for event in (data if isinstance(data, list) else [data])
+                    if isinstance(event, dict)
+                    and event.get('eventStatus') == 'Scheduled'
+                    and event.get('url')
+                    and event.get('startDate')
+                    and today <= datetime.fromisoformat(event['startDate'].replace('Z', '+00:00')).date() <= max_date
+                ]))
+                urls.extend(links)
+                logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:
-                logger.error("Failed to scrape %s: %s", date_str, e)
+                logger.error("Failed to scrape %s: %s", url, e)
                 continue
 
         logger.info("Total URLs found: %d", len(urls))
@@ -105,7 +365,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     date_part, time_part = date_str.split(" - ")
                     day, month, year = map(int, date_part.split("."))
                     hour, minute = map(int, time_part.split(":"))
-                    match_date = datetime(year, month, day, hour, minute)
+                    match_date = datetime(year, month, day, hour, minute) - timedelta(hours=1)
 
                     odds_1 = odds_X = odds_2 = odds_btts_y = odds_btts_n = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
                     odds_over05 = odds_under05 = odds_over15 = odds_under15 = odds_over25 = odds_under25 = odds_over35 = (
@@ -147,10 +407,13 @@ class BetExplorerFinder(BaseMatchFinder):
                         assert session.click(".oddsComparison__ul.bestOddsComparison li#all"), "Click failed"
                         soup = BeautifulSoup(session.page.content(), "html.parser")
                         h = {
-                            s.get("data-all-handicap"): s.find("div", class_="oddsComparisonAll__rowBookie")
+                            s.get("data-all-handicap"): s.find_all(
+                                "div", class_="oddsComparisonAll__average_text"
+                            )
                             for s in soup.find_all("div", {"data-all-handicap": True})
+                            if not s.get("data-all-handicap", "").startswith("handicap-")
                         }
-                        c = {k: v.find_all("div", attrs={"data-odd": True}) for k, v in h.items()}
+                        c = {k: [d for d in v if d.get("data-odd")] for k, v in h.items()}
                         odds_over05, odds_under05 = c["0.50"][0].get("data-odd"), c["0.50"][1].get("data-odd")
                         odds_over15, odds_under15 = c["1.50"][0].get("data-odd"), c["1.50"][1].get("data-odd")
                         odds_over25, odds_under25 = c["2.50"][0].get("data-odd"), c["2.50"][1].get("data-odd")

@@ -2,7 +2,7 @@ from scrape_kit import ScrapeMode, get_logger, scrape
 
 logger = get_logger(__name__)
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
@@ -15,33 +15,40 @@ FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
 MAX_CONCURRENCY = 1
 
-ALL_LINKS = list(
-    {
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-romania",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-today",
-        # "https://www.forebet.com/en/live-football-tips",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-tomorrow",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-the-weekend",
-        # "https://www.forebet.com/en/football-predictions-from-yesterday",
-        # "https://www.forebet.com/en/football-predictions",
-        # "https://www.forebet.com/en/top-football-tips-and-predictions",
-        # "https://www.forebet.com/en/values",
-        # "https://www.forebet.com/en/favourite-predictions",
-        # "https://www.forebet.com/en/prediction-lists",
-        # "https://www.forebet.com/en/predictions-europe/uefa-champions-league",
-        # "https://www.forebet.com/en/predictions-europe/uefa-europa-league",
-        # "https://www.forebet.com/en/predictions-europe/uefa-europa-conference-league",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-england/premier-league",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-spain/primera-division",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-germany/bundesliga",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-a",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue1",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-netherlands/eredivisie",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-portugal/liga-portugal",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-brazil/serie-a",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-scotland/premiership",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-turkey/super-lig",
-        # "https://www.forebet.com/en/football-tips-and-predictions-for-saudi-arabia/professional-league",
+TOP_LEAGUES = [
+    "https://www.forebet.com/en/predictions-europe/uefa-champions-league",
+    "https://www.forebet.com/en/predictions-europe/uefa-europa-league",
+    "https://www.forebet.com/en/predictions-europe/uefa-europa-conference-league",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-england/premier-league",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-a",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-spain/primera-division",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-germany/bundesliga",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue1",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-belgium/jupiler-pro-league",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-england/championship",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-portugal/liga-portugal",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-brazil/serie-a",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-usa/mls",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-netherlands/eredivisie",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-denmark/superliga",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-poland/ekstraklasa",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-argentina/liga-profesional",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-japan/j1-league",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-turkey/super-lig",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-sweden/allsvenskan",
+    "https://www.forebet.com/en/football-predictions-for-croatia/hnl",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-mexico/liga-mx",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-spain/segunda-division",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-norway/eliteserien",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-austria/bundesliga",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-switzerland/super-league",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-b",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-germany/2-bundesliga",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue2",
+    "https://www.forebet.com/en/football-tips-and-predictions-for-scotland/premiership"
+    ]
+
+ALL_LINKS = [
         "https://www.forebet.com/en/football-tips-and-predictions-for-albania",
         "https://www.forebet.com/en/tips-and-predictions-for-algeria",
         "https://www.forebet.com/en/predictions-andorra",
@@ -211,8 +218,7 @@ ALL_LINKS = list(
         "https://www.forebet.com/en/predictions-north-central-america",
         "https://www.forebet.com/en/south-america",
         "https://www.forebet.com/en/predictions-world",
-    }
-)
+]
 
 
 class ForebetFinder(BaseMatchFinder):
@@ -222,13 +228,13 @@ class ForebetFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        return ALL_LINKS
+        return TOP_LEAGUES if self.top_leagues_only else ALL_LINKS
 
     def get_matches(self, urls) -> None:
         scrape(
             urls,
             self._parse_page,
-            mode=ScrapeMode.STEALTH,
+            mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
 
@@ -242,13 +248,12 @@ class ForebetFinder(BaseMatchFinder):
                 home_team = anchor.find("div", class_="tnms").find("span", class_="homeTeam").get_text()
                 away_team = anchor.find("div", class_="tnms").find("span", class_="awayTeam").get_text()
 
-                if anchor.find("div", class_="scoreLnk").get_text().strip():
+                if anchor.find("div", class_="scoreLnk").get_text().strip() != "":
                     logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
                     continue
 
                 match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
-                match_date_str = match_date_str.split(" ")[0]  # just the date part
-                match_date = datetime.strptime(match_date_str, "%m/%d/%Y")
+                match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M") + timedelta(hours=1)
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
                 away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])

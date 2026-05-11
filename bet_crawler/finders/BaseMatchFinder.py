@@ -44,6 +44,7 @@ class BaseMatchFinder:
         add_match_callback: Callable,
         *,
         contributes_odds: bool,
+        top_leagues_only: bool,
         num_days_ahead: int,
         local_timezone: str,
         skip_patterns: tuple[tuple[str, str], ...] | list[tuple[str, str]],
@@ -51,6 +52,7 @@ class BaseMatchFinder:
         super().__init__()
         self.add_match_callback = add_match_callback
         self.contributes_odds = contributes_odds
+        self.top_leagues_only = top_leagues_only
         self.num_days_ahead = num_days_ahead
         self.local_timezone = local_timezone
         self.skip_patterns = tuple(skip_patterns)
@@ -134,8 +136,8 @@ class BaseMatchFinder:
 
     def validate_match_date(self, match_datetime):
         """Keep today's matches through the configured number of days ahead."""
-        # Compute current time dynamically to avoid stale time across midnight
-        now = datetime.now(ZoneInfo(self.local_timezone)).replace(tzinfo=None)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        max_datetime = today_start + timedelta(days=self.num_days_ahead + 1)
-        return today_start <= match_datetime < max_datetime
+        now = datetime.now(ZoneInfo(self.local_timezone))
+        today = now.date()
+        match_date = match_datetime.date()
+        max_date = today + timedelta(days=self.num_days_ahead)
+        return today <= match_date <= max_date

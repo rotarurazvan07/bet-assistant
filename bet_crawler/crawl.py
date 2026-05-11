@@ -61,6 +61,7 @@ class CrawlerFactory:
         return crawler_class(
             on_match_callback,
             contributes_odds=bool(crawler_config.get("contributes_odds")),
+            top_leagues_only=bool(crawler_config.get("top_leagues_only", False)),
             num_days_ahead=self.runtime_settings.num_days_ahead,
             local_timezone=self.runtime_settings.local_timezone,
             skip_patterns=self.runtime_settings.skip_patterns,
