@@ -370,7 +370,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     date_part, time_part = date_str.split(" - ")
                     day, month, year = map(int, date_part.split("."))
                     hour, minute = map(int, time_part.split(":"))
-                    match_date = datetime(year, month, day, hour, minute) - timedelta(hours=1)
+                    match_date = datetime(year, month, day, hour, minute) + timedelta(hours=1)
 
                     odds_1 = odds_X = odds_2 = odds_btts_y = odds_btts_n = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
                     odds_over05 = odds_under05 = odds_over15 = odds_under15 = odds_over25 = odds_under25 = odds_over35 = (
