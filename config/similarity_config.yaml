@@ -1,17 +1,13 @@
 acronyms:
   # Global / English Standard
   " utd": ""
-  " united": ""
   "fc ": ""
   " fc": ""
   "afc ": ""
   " afc": ""
   "sc ": ""
   " sc": ""
-  " town": ""
-  " city": ""
   " club": ""
-  "union ": ""
 
   # Spanish / Portuguese / Latin American
   "al ": ""
@@ -74,7 +70,6 @@ acronyms:
   " ss": ""
   "usc ": ""
   " us": ""
-  "inter ": ""
   " calcio": ""
 
   # Middle East / North Africa
@@ -84,11 +79,12 @@ acronyms:
 synonyms:
   "man utd": "manchester united"
   "psv": "psv eindhoven"
-  "inter": "inter milano"
+  "inter": "inter milan"
+  "inter milano": "inter milan"
+  "internazionale": "inter milan"
   "man city": "manchester city"
   "psg": "paris saint germain"
   "sporting cp": "sporting lisbon"
-  "sporting": "sporting lisbon"
   "bvb": "borussia dortmund"
   "spurs": "tottenham hotspur"
   "qpr": "queens park rangers"
@@ -98,6 +94,20 @@ synonyms:
   "atl madrid": "atletico madrid"
   "atletico": "atletico madrid"
   "brestois": "brest"
+
+weak_tokens:
+  - new
+  - york
+  - los
+  - angeles
+  - sporting
+  - inter
+  - dynamo
+  - city
+  - united
+  - union
+  - real
+  - manchester
 
 weights:
   token: 0.5
