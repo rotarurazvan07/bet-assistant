@@ -93,6 +93,11 @@ synonyms:
   "spurs": "tottenham hotspur"
   "qpr": "queens park rangers"
   "wolves": "wolverhampton wanderers"
+  "ath bilbao": "athletic bilbao"
+  "athletic": "athletic bilbao"
+  "atl madrid": "atletico madrid"
+  "atletico": "atletico madrid"
+  "brestois": "brest"
 
 weights:
   token: 0.5
