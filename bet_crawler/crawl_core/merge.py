@@ -103,6 +103,7 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
     for k, v in sorted_sources:
         logger.info(f"    - {k}: {v} matches")
 
+
 def _log_missing_crawlers(source_to_matches: dict[str, set], crawler_keys: dict) -> None:
     """Identify configured crawlers that did not contribute matches."""
     for crawler in sorted(crawler_keys.keys()):

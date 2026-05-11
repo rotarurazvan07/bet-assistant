@@ -32,9 +32,7 @@ def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int])
                         break
                     logger.warning(f"⚠️  No URLs found for {crawler.__class__.__name__} (attempt {attempt + 1}/3)")
                 except Exception as e:
-                    logger.error(
-                        f"❌ Error in {crawler.__class__.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}"
-                    )
+                    logger.error(f"❌ Error in {crawler.__class__.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}")
 
                 if attempt < 2:
                     import time

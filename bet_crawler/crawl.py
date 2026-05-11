@@ -18,8 +18,9 @@ Usage examples:
 
 import argparse
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from scrape_kit import SettingsManager, configure, get_logger
 
@@ -101,10 +102,7 @@ def load_runtime(config_dir: str):
     crawler_keys = scraper_config.get("CRAWLER_KEYS")
     runner_sets = scraper_config.get("RUNNER_SETS")
     max_chunk_size = scraper_config.get("MAX_CHUNK_SIZE")
-    skip_patterns = tuple(
-        (item["pattern"], item["description"])
-        for item in scraper_config.get("SKIP_PATTERNS")
-    )
+    skip_patterns = tuple((item["pattern"], item["description"]) for item in scraper_config.get("SKIP_PATTERNS"))
     runtime_settings = CrawlerRuntimeSettings(
         num_days_ahead=int(scraper_config.get("num_days_ahead")),
         local_timezone=str(scraper_config.get("local_timezone")),

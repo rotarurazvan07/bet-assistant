@@ -8,6 +8,7 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
+
 class BaseMatchFinder:
     @staticmethod
     def _detect_local_timezone() -> str:
