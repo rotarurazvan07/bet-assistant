@@ -91,6 +91,10 @@ CRAWLER_KEYS:
     class: "BetExplorerFinder"
     contributes_odds: true
     top_leagues_only: true
+  footballpredictions:
+    class: "FootballPredictionsFinder"
+    contributes_odds: true
+    top_leagues_only: true
 
 RUNNER_SETS:
   actions:
@@ -105,13 +109,14 @@ RUNNER_SETS:
     - legitpredict
     - betclan
     - oddsportal
+    - footballpredictions
   local:
     - whoscored
     - footballbettingtips
     - forebet
     - betexplorer
   test:
-    - forebet
+    - footballpredictions
 
 MAX_CHUNK_SIZE:
   actions: 100

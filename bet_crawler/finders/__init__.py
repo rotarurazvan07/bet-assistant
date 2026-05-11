@@ -16,6 +16,8 @@ from .WhoScoredFinder import WhoScoredFinder
 from .WinDrawWinFinder_per_league import WinDrawWinFinder_per_league
 from .WinDrawWinFinder_per_match import WinDrawWinFinder_per_match
 from .xGScoreFinder import xGScoreFinder
+from .FootballPredictionsFinder import FootballPredictionsFinder
+
 
 __all__ = [
     "BaseMatchFinder",
@@ -36,4 +38,5 @@ __all__ = [
     "BetClanFinder",
     "OddsPortalFinder",
     "BetExplorerFinder",
+    "FootballPredictionsFinder",
 ]
