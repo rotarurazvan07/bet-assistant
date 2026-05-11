@@ -25,19 +25,19 @@ TOP_LEAGUES = [
     "https://www.windrawwin.com/tips/spain-la-liga/",
     "https://www.windrawwin.com/tips/germany-bundesliga/",
     "https://www.windrawwin.com/tips/france-ligue-1/",
-    "https://www.windrawwin.com/tips/belgium-first-division-a/",        # Jupiler Pro League
+    "https://www.windrawwin.com/tips/belgium-first-division-a/",  # Jupiler Pro League
     "https://www.windrawwin.com/tips/england-championship/",
     "https://www.windrawwin.com/tips/portugal-primeira-liga/",
     "https://www.windrawwin.com/tips/brazil-serie-a/",
-    "https://www.windrawwin.com/tips/usa-major-league-soccer/",         # MLS
+    "https://www.windrawwin.com/tips/usa-major-league-soccer/",  # MLS
     "https://www.windrawwin.com/tips/netherlands-eredivisie/",
     "https://www.windrawwin.com/tips/denmark-superliga/",
     "https://www.windrawwin.com/tips/poland-ekstraklasa/",
     "https://www.windrawwin.com/tips/argentina-liga-profesional/",
-    "https://www.windrawwin.com/tips/japan-j-league/",                  # J1 League
+    "https://www.windrawwin.com/tips/japan-j-league/",  # J1 League
     "https://www.windrawwin.com/tips/turkey-super-lig/",
     "https://www.windrawwin.com/tips/sweden-allsvenskan/",
-    "https://www.windrawwin.com/tips/croatia-1-hnl/",                  # HNL
+    "https://www.windrawwin.com/tips/croatia-1-hnl/",  # HNL
     "https://www.windrawwin.com/tips/mexico-liga-mx/",
     "https://www.windrawwin.com/tips/spain-segunda-division/",
     "https://www.windrawwin.com/tips/norway-eliteserien/",
@@ -48,6 +48,7 @@ TOP_LEAGUES = [
     "https://www.windrawwin.com/tips/france-ligue-2/",
     "https://www.windrawwin.com/tips/scotland-premiership/",
 ]
+
 
 class WinDrawWinFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:

@@ -49,6 +49,7 @@ TOP_LEAGUES = [
     "https://www.predictz.com/predictions/scotland/premiership/",
 ]
 
+
 class PredictzFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)

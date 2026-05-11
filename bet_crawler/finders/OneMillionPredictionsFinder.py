@@ -5,6 +5,7 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 from itertools import takewhile
+
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
@@ -31,6 +32,7 @@ TOP_LEAGUES = [
     "https://onemillionpredictions.com/uefa-europa-league/predictions/",
     "https://onemillionpredictions.com/uefa-europa-conference-league/predictions/",
 ]
+
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
@@ -59,7 +61,9 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
             if self.top_leagues_only:
-                matches_container = list(takewhile(lambda tr: "Matchday" not in tr.text, soup.find_all("tbody")[1].find_all("tr")))
+                matches_container = list(
+                    takewhile(lambda tr: "Matchday" not in tr.text, soup.find_all("tbody")[1].find_all("tr"))
+                )
             else:
                 matches_container = soup.find_all("tbody")[2].find_all("tr")
 

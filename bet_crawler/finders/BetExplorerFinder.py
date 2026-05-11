@@ -1,16 +1,16 @@
 import time
 
-from scrape_kit import browser, get_logger, fetch
+from scrape_kit import browser, fetch, get_logger
 
 logger = get_logger(__name__)
 import contextlib
-import re
+import json
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta
-import json
-from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, timezone
+
+from bs4 import BeautifulSoup
+
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
@@ -49,7 +49,7 @@ TOP_LEAGUES = [
     "https://www.betexplorer.com/football/italy/serie-b/",
     "https://www.betexplorer.com/football/germany/2-bundesliga/",
     "https://www.betexplorer.com/football/france/ligue-2/",
-    "https://www.betexplorer.com/football/scotland/premiership/"
+    "https://www.betexplorer.com/football/scotland/premiership/",
 ]
 
 ALL_LINKS = [
@@ -286,6 +286,7 @@ ALL_LINKS = [
     "https://www.betexplorer.com/football/zambia/super-league/",
 ]
 
+
 class BetExplorerFinder(BaseMatchFinder):
     TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
@@ -304,17 +305,21 @@ class BetExplorerFinder(BaseMatchFinder):
                 today = datetime.now(timezone.utc).date()
                 max_date = today + timedelta(days=self.num_days_ahead)
 
-                links = list(dict.fromkeys([
-                    event['url']
-                    for script in soup.find_all('script', type='application/ld+json')
-                    for data in [json.loads(script.string)]
-                    for event in (data if isinstance(data, list) else [data])
-                    if isinstance(event, dict)
-                    and event.get('eventStatus') == 'Scheduled'
-                    and event.get('url')
-                    and event.get('startDate')
-                    and today <= datetime.fromisoformat(event['startDate'].replace('Z', '+00:00')).date() <= max_date
-                ]))
+                links = list(
+                    dict.fromkeys(
+                        [
+                            event["url"]
+                            for script in soup.find_all("script", type="application/ld+json")
+                            for data in [json.loads(script.string)]
+                            for event in (data if isinstance(data, list) else [data])
+                            if isinstance(event, dict)
+                            and event.get("eventStatus") == "Scheduled"
+                            and event.get("url")
+                            and event.get("startDate")
+                            and today <= datetime.fromisoformat(event["startDate"].replace("Z", "+00:00")).date() <= max_date
+                        ]
+                    )
+                )
                 urls.extend(links)
                 logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:
@@ -407,9 +412,7 @@ class BetExplorerFinder(BaseMatchFinder):
                         assert session.click(".oddsComparison__ul.bestOddsComparison li#all"), "Click failed"
                         soup = BeautifulSoup(session.page.content(), "html.parser")
                         h = {
-                            s.get("data-all-handicap"): s.find_all(
-                                "div", class_="oddsComparisonAll__average_text"
-                            )
+                            s.get("data-all-handicap"): s.find_all("div", class_="oddsComparisonAll__average_text")
                             for s in soup.find_all("div", {"data-all-handicap": True})
                             if not s.get("data-all-handicap", "").startswith("handicap-")
                         }

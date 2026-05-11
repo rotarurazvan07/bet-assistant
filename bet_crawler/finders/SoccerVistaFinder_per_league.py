@@ -48,6 +48,7 @@ TOP_LEAGUES = [
     "https://www.soccervista.com/scotland/premiership/tGwiyvJ1/",
 ]
 
+
 class SoccerVistaFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
@@ -60,7 +61,8 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
             soup = BeautifulSoup(html, "html.parser")
 
             links = [
-                link["href"] for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
+                link["href"]
+                for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
             ][:-2]
 
             with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:

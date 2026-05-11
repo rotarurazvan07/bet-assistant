@@ -2,10 +2,10 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 import re
-from datetime import datetime
 from datetime import datetime, timedelta
+
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, browser, scrape
+from scrape_kit import ScrapeMode, scrape
 
 from bet_framework.core.Match import *
 
@@ -24,7 +24,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         today = datetime.now()
         urls = [
             f"https://www.footballbettingtips.org/tips/{today.strftime('%Y-%m-%d')}.html",
-            f"https://www.footballbettingtips.org/tips/{(today + timedelta(days=1)).strftime('%Y-%m-%d')}.html"
+            f"https://www.footballbettingtips.org/tips/{(today + timedelta(days=1)).strftime('%Y-%m-%d')}.html",
         ]
         logger.info(f"Found {len(urls)} urls to scrape")
         return urls

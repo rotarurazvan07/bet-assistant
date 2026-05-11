@@ -1,16 +1,16 @@
 import threading
 import time
 
-from scrape_kit import browser, get_logger, fetch
+from scrape_kit import browser, fetch, get_logger
 
 logger = get_logger(__name__)
 import contextlib
-import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, datetime, timedelta
-from datetime import datetime, timedelta, timezone
-from bs4 import BeautifulSoup
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
+
+from bs4 import BeautifulSoup
+
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
@@ -260,6 +260,7 @@ ALL_LINKS = [
     "https://www.oddsportal.com/football/zambia/super-league/",
 ]
 
+
 class OddsPortalFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
@@ -276,24 +277,28 @@ class OddsPortalFinder(BaseMatchFinder):
                 today = datetime.now(timezone.utc).date()
                 max_date = today + timedelta(days=self.num_days_ahead)
 
-                links = list(dict.fromkeys([
-                    event['url']
-                    for script in soup.find_all('script', type='application/ld+json')
-                    for data in [json.loads(script.string)]
-                    for event in (data if isinstance(data, list) else [data])
-                    if isinstance(event, dict)
-                    and event.get('url')
-                    and event.get('startDate')
-                    and (
-                        event.get('eventStatus') == 'Scheduled'
-                        or (
-                            isinstance(event.get('eventStatus'), dict)
-                            and event['eventStatus'].get('@type') == 'EventStatusType'
-                            and event['eventStatus'].get('@id') == 'https://schema.org/EventScheduled'
-                        )
+                links = list(
+                    dict.fromkeys(
+                        [
+                            event["url"]
+                            for script in soup.find_all("script", type="application/ld+json")
+                            for data in [json.loads(script.string)]
+                            for event in (data if isinstance(data, list) else [data])
+                            if isinstance(event, dict)
+                            and event.get("url")
+                            and event.get("startDate")
+                            and (
+                                event.get("eventStatus") == "Scheduled"
+                                or (
+                                    isinstance(event.get("eventStatus"), dict)
+                                    and event["eventStatus"].get("@type") == "EventStatusType"
+                                    and event["eventStatus"].get("@id") == "https://schema.org/EventScheduled"
+                                )
+                            )
+                            and today <= datetime.fromisoformat(event["startDate"].replace("Z", "+00:00")).date() <= max_date
+                        ]
                     )
-                    and today <= datetime.fromisoformat(event['startDate'].replace('Z', '+00:00')).date() <= max_date
-                ]))
+                )
 
                 urls.extend(links)
                 logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))

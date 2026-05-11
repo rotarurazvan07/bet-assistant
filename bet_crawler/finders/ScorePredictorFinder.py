@@ -43,6 +43,7 @@ TOP_LEAGUES = [
     "https://scorepredictor.net/index.php?section=football&season=Scotland",
 ]
 
+
 class ScorePredictorFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
