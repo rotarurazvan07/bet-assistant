@@ -3,6 +3,7 @@ from .BetClanFinder import BetClanFinder
 from .BetExplorerFinder import BetExplorerFinder
 from .EaglePredictFinder import EaglePredictFinder
 from .FootballBettingTipsFinder import FootballBettingTipsFinder
+from .FootballPredictionsFinder import FootballPredictionsFinder
 from .ForebetFinder import ForebetFinder
 from .LegitPredictFinder import LegitPredictFinder
 from .OddsPortalFinder import OddsPortalFinder
@@ -16,8 +17,6 @@ from .WhoScoredFinder import WhoScoredFinder
 from .WinDrawWinFinder_per_league import WinDrawWinFinder_per_league
 from .WinDrawWinFinder_per_match import WinDrawWinFinder_per_match
 from .xGScoreFinder import xGScoreFinder
-from .FootballPredictionsFinder import FootballPredictionsFinder
-
 
 __all__ = [
     "BaseMatchFinder",

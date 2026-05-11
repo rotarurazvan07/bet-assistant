@@ -2,8 +2,9 @@ from scrape_kit import ScrapeMode, get_logger, scrape
 
 logger = get_logger(__name__)
 
-from datetime import datetime, timedelta
 import re
+from datetime import datetime
+
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
@@ -68,7 +69,9 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 # --- Date and time ---
                 date_wrapper = row.find("span", class_="table-tips__date-time-wrapper")
                 match_date_str = date_wrapper["data-datetime"]  # e.g. "2026-05-11T20:00:00+01:00"
-                match_date = datetime.fromisoformat(match_date_str).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+                match_date = datetime.fromisoformat(match_date_str).replace(
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+                )
 
                 # --- Correct score prediction ---
                 tips_td = row.find_all("td")[1]
