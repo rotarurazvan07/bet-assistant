@@ -21,7 +21,7 @@ class LegitPredictFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        urls = [f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}" for i in range(7)]
+        urls = [f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}" for i in range(self.num_days_ahead + 1)]
         logger.info(f"{len(urls)} urls to scrape")
         return urls
 

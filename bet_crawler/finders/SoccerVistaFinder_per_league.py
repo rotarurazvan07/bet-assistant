@@ -15,39 +15,74 @@ SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
 MAX_CONCURRENCY = 10
 
+TOP_LEAGUES = [
+    "https://www.soccervista.com/europe/champions-league/xGrwqq16/",
+    "https://www.soccervista.com/europe/europa-league/ClDjv3V5/",
+    "https://www.soccervista.com/europe/conference-league/GfRbsVWM/",
+    "https://www.soccervista.com/england/championship/2DSCa5fE/",
+    "https://www.soccervista.com/italy/serie-b/6oug4RRc/",
+    "https://www.soccervista.com/spain/laliga2/vZiPmPJi/",
+    "https://www.soccervista.com/germany/2-bundesliga/tKH71vSe/",
+    "https://www.soccervista.com/france/ligue-2/Y35Jer59/",
+    "https://www.soccervista.com/england/premier-league/dYlOSQOD/",
+    "https://www.soccervista.com/spain/laliga/QVmLl54o/",
+    "https://www.soccervista.com/germany/bundesliga/W6BOzpK2/",
+    "https://www.soccervista.com/italy/serie-a/COuk57Ci/",
+    "https://www.soccervista.com/france/ligue-1/KIShoMk3/",
+    "https://www.soccervista.com/belgium/jupiler-pro-league/dG2SqPrf/",
+    "https://www.soccervista.com/portugal/liga-portugal/UmMRoGzp/",
+    "https://www.soccervista.com/brazil/serie-a-betano/Yq4hUnzQ/",
+    "https://www.soccervista.com/usa/mls/CQv5qrFt/",
+    "https://www.soccervista.com/netherlands/eredivisie/Or1bBrWD/",
+    "https://www.soccervista.com/denmark/superliga/O6W7GIaF/",
+    "https://www.soccervista.com/poland/ekstraklasa/lrMHUHDc/",
+    "https://www.soccervista.com/argentina/liga-profesional/naYhNOaA/",
+    "https://www.soccervista.com/japan/j1-league/pAq4eRQ9/",
+    "https://www.soccervista.com/turkey/super-lig/Opdcd08Q/",
+    "https://www.soccervista.com/sweden/allsvenskan/nXxWpLmT/",
+    "https://www.soccervista.com/croatia/hnl/nqMxclRN/",
+    "https://www.soccervista.com/mexico/liga-mx/bm2Vlsfl/",
+    "https://www.soccervista.com/norway/eliteserien/GOvB22xg/",
+    "https://www.soccervista.com/austria/bundesliga/rJg7S7Me/",
+    "https://www.soccervista.com/switzerland/super-league/KAjTCI1l/",
+    "https://www.soccervista.com/scotland/premiership/tGwiyvJ1/",
+]
 
 class SoccerVistaFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
-        soup = BeautifulSoup(html, "html.parser")
+        if self.top_leagues_only:
+            return TOP_LEAGUES
+        else:
+            html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
+            soup = BeautifulSoup(html, "html.parser")
 
-        links = [
-            link["href"] for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
-        ][:-2]
+            links = [
+                link["href"] for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
+            ][:-2]
 
-        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
-            results = list(
-                ex.map(
-                    lambda l: (
-                        [
-                            opt["value"]
-                            for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser")
-                            .find("select", id="tournamentPage")
-                            .find_all("option")
-                        ]
-                        if fetch(SOCCERVISTA_URL + l)
-                        else []
-                    ),
-                    links,
+            with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
+                results = list(
+                    ex.map(
+                        lambda l: (
+                            [
+                                opt["value"]
+                                for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser")
+                                .find("select", id="tournamentPage")
+                                .find_all("option")
+                            ]
+                            if fetch(SOCCERVISTA_URL + l)
+                            else []
+                        ),
+                        links,
+                    )
                 )
-            )
 
-        league_urls = [SOCCERVISTA_URL + url for urls in results for url in urls]
-        logger.info(f"{len(league_urls)} leagues to scrape")
-        return league_urls
+            league_urls = [SOCCERVISTA_URL + url for urls in results for url in urls]
+            logger.info(f"{len(league_urls)} leagues to scrape")
+            return league_urls
 
     def get_matches(self, urls) -> None:
         scrape(

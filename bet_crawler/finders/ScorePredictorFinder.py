@@ -15,23 +15,53 @@ SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
 MAX_CONCURRENCY = 3
 
+TOP_LEAGUES = [
+    "https://scorepredictor.net/index.php?section=football&season=ChampionsLeague",
+    "https://scorepredictor.net/index.php?section=football&season=EuropaLeague",
+    "https://scorepredictor.net/index.php?section=football&season=ConferenceLeague",
+    "https://scorepredictor.net/index.php?section=football&season=England",
+    "https://scorepredictor.net/index.php?section=football&season=Italy",
+    "https://scorepredictor.net/index.php?section=football&season=Spain",
+    "https://scorepredictor.net/index.php?section=football&season=Germany",
+    "https://scorepredictor.net/index.php?section=football&season=France",
+    "https://scorepredictor.net/index.php?section=football&season=Belgium",
+    "https://scorepredictor.net/index.php?section=football&season=England2",
+    "https://scorepredictor.net/index.php?section=football&season=Portugal",
+    "https://scorepredictor.net/index.php?section=football&season=Netherlands",
+    "https://scorepredictor.net/index.php?section=football&season=Denmark",
+    "https://scorepredictor.net/index.php?section=football&season=Poland",
+    "https://scorepredictor.net/index.php?section=football&season=Turkey",
+    "https://scorepredictor.net/index.php?section=football&season=Sweden",
+    "https://scorepredictor.net/index.php?section=football&season=Croatia",
+    "https://scorepredictor.net/index.php?section=football&season=Spain2",
+    "https://scorepredictor.net/index.php?section=football&season=Norway",
+    "https://scorepredictor.net/index.php?section=football&season=Austria",
+    "https://scorepredictor.net/index.php?section=football&season=Switzerland",
+    "https://scorepredictor.net/index.php?section=football&season=Italy2",
+    "https://scorepredictor.net/index.php?section=football&season=Germany2",
+    "https://scorepredictor.net/index.php?section=football&season=France2",
+    "https://scorepredictor.net/index.php?section=football&season=Scotland",
+]
 
 class ScorePredictorFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        html = fetch(SCOREPREDICTOR_URL + "index.php?section=football")
-        soup = BeautifulSoup(html, "html.parser")
+        if self.top_leagues_only:
+            return TOP_LEAGUES
+        else:
+            html = fetch(SCOREPREDICTOR_URL + "index.php?section=football")
+            soup = BeautifulSoup(html, "html.parser")
 
-        league_urls = [
-            SCOREPREDICTOR_URL + a.get("href")
-            for a in soup.find(class_="block_categories").find_all("a")[3:]
-            if a.get("href") != "#"
-        ]
+            league_urls = [
+                SCOREPREDICTOR_URL + a.get("href")
+                for a in soup.find(class_="block_categories").find_all("a")
+                if a.get("href") != "#"
+            ]
 
-        logger.info(f"{len(league_urls)} leagues to scrape")
-        return league_urls
+            logger.info(f"{len(league_urls)} leagues to scrape")
+            return league_urls
 
     def get_matches(self, urls) -> None:
         scrape(
