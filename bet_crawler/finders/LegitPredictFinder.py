@@ -17,8 +17,8 @@ MAX_CONCURRENCY = 1
 
 
 class LegitPredictFinder(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
         urls = [f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}" for i in range(7)]

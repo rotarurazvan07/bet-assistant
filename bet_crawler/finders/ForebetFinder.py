@@ -218,8 +218,8 @@ ALL_LINKS = list(
 class ForebetFinder(BaseMatchFinder):
     # TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
         return ALL_LINKS

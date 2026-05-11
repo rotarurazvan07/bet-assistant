@@ -21,8 +21,8 @@ NUM_DAYS_AHEAD = 3
 
 
 class OddsPortalFinder(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
         self._add_match_lock = threading.Lock()
 
     def get_matches_urls(self):

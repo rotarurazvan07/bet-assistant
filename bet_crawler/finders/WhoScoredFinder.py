@@ -18,8 +18,8 @@ MAX_CONCURRENCY = 3
 
 
 class WhoScoredFinder(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     # TIMEZONE = "UTC"  # WhoScored provides UTC timestamps
 

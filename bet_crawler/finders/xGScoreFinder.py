@@ -21,8 +21,8 @@ MAX_CONCURRENCY = 1
 
 
 class xGScoreFinder(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
         """Load predictions page, execute JS to expand, then parse."""

@@ -1,5 +1,105 @@
+# Web Scraper settings
 retry_indicators:
   - "403 Forbidden"
 
 block_indicators:
   - "403 Forbidden"
+
+# Matches filtering settings
+num_days_ahead: 7
+local_timezone: "Europe/Bucharest"
+
+SKIP_PATTERNS:
+  - pattern: "\\bU\\d{2}s?\\b"
+    description: "Youth team"
+  - pattern: "\\bW\\b"
+    description: "Women's team"
+  - pattern: "\\bII\\b"
+    description: "Reserve team II"
+  - pattern: "\\b2\\b"
+    description: "Reserve team 2"
+  - pattern: "\\bIII\\b"
+    description: "Reserve team III"
+  - pattern: "\\bB\\b"
+    description: "B team"
+  - pattern: "\\bC\\b"
+    description: "C team"
+  - pattern: "\\b(Am)\\b"
+    description: "Amateur"
+  - pattern: "\\bRes\\b"
+    description: "Reserve team"
+
+# Crawler settings
+CRAWLER_KEYS:
+  scorepredictor:
+    class: "ScorePredictorFinder"
+    contributes_odds: true
+  soccervista:
+    class: "SoccerVistaFinder_per_league"
+    contributes_odds: true
+  whoscored:
+    class: "WhoScoredFinder"
+    contributes_odds: true
+  windrawwin:
+    class: "WinDrawWinFinder_per_league"
+    contributes_odds: true
+  forebet:
+    class: "ForebetFinder"
+    contributes_odds: true
+  vitibet:
+    class: "VitibetFinder"
+    contributes_odds: true
+  predictz:
+    class: "PredictzFinder"
+    contributes_odds: true
+  onemillionpredictions:
+    class: "OneMillionPredictionsFinder"
+    contributes_odds: true
+  footballbettingtips:
+    class: "FootballBettingTipsFinder"
+    contributes_odds: true
+  xgscore:
+    class: "xGScoreFinder"
+    contributes_odds: true
+  eaglepredict:
+    class: "EaglePredictFinder"
+    contributes_odds: true
+  legitpredict:
+    class: "LegitPredictFinder"
+    contributes_odds: true
+  betclan:
+    class: "BetClanFinder"
+    contributes_odds: true
+  oddsportal:
+    class: "OddsPortalFinder"
+    contributes_odds: true
+  betexplorer:
+    class: "BetExplorerFinder"
+    contributes_odds: true
+
+RUNNER_SETS:
+  actions:
+    - vitibet
+    - scorepredictor
+    - predictz
+    - soccervista
+    - windrawwin
+    - onemillionpredictions
+    - xgscore
+    - eaglepredict
+    - legitpredict
+    - betclan
+    - oddsportal
+    - forebet
+  local:
+    - whoscored
+    - footballbettingtips
+    - betexplorer
+  test:
+    - forebet
+
+MAX_CHUNK_SIZE:
+  actions: 100
+  local: 1
+  all: 1
+  test: 1

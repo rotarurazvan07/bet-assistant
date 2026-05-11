@@ -17,8 +17,8 @@ MAX_CONCURRENCY = 1
 
 
 class FootballBettingTipsFinder(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
         with browser(interactive=True, solve_cloudflare=True, disable_resources=False, headless=True) as session:

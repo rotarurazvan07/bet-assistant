@@ -12,24 +12,27 @@ from scrape_kit import get_logger
 logger = get_logger(__name__)
 
 
-def merge(db_path: str, chunks_dir: str, config_dir: str) -> None:
+def merge(
+    db_path: str,
+    chunks_dir: str,
+    similarity_config: dict | None,
+    crawler_keys: dict,
+    runner_sets: dict[str, list[str]],
+) -> None:
     """Merge multiple chunk databases into a single database and generate summary."""
     if not os.path.isdir(chunks_dir):
         logger.error(f"❌ Not a valid directory: {chunks_dir}")
         raise SystemExit(1)
 
-    matches_df = _perform_merge(db_path, chunks_dir, config_dir)
-    _generate_merge_summary(matches_df, chunks_dir, db_path)
+    matches_df = _perform_merge(db_path, chunks_dir, similarity_config)
+    _generate_merge_summary(matches_df, chunks_dir, db_path, crawler_keys, runner_sets)
 
 
-def _perform_merge(db_path: str, chunks_dir: str, config_dir: str) -> pd.DataFrame:
+def _perform_merge(db_path: str, chunks_dir: str, similarity_config: dict | None) -> pd.DataFrame:
     """Perform the database merge operation. Returns the merged DataFrame."""
-    from scrape_kit import SettingsManager
-
     from bet_framework.MatchesManager import MatchesManager
 
-    sm = SettingsManager(config_dir)
-    matches_manager = MatchesManager(db_path, similarity_config=sm.get("similarity_config"))
+    matches_manager = MatchesManager(db_path, similarity_config=similarity_config)
     matches_manager.reset_matches_db()
     matches_manager.merge_databases(chunks_dir)
     matches_df = matches_manager.fetch_matches()
@@ -37,7 +40,13 @@ def _perform_merge(db_path: str, chunks_dir: str, config_dir: str) -> pd.DataFra
     return matches_df
 
 
-def _generate_merge_summary(matches_df: pd.DataFrame, chunks_dir: str, db_path: str) -> None:
+def _generate_merge_summary(
+    matches_df: pd.DataFrame,
+    chunks_dir: str,
+    db_path: str,
+    crawler_keys: dict,
+    runner_sets: dict[str, list[str]],
+) -> None:
     """Generate and log a summary of the merge operation."""
 
     source_to_matches = _build_source_mapping(matches_df)
@@ -46,7 +55,8 @@ def _generate_merge_summary(matches_df: pd.DataFrame, chunks_dir: str, db_path: 
 
     _log_summary_header(matches_count, len(chunk_files))
     _log_source_details(source_to_matches)
-    _validate_runner_sets(source_to_matches, chunk_files)
+    _log_missing_crawlers(source_to_matches, crawler_keys)
+    _validate_runner_sets(source_to_matches, chunk_files, runner_sets)
     _log_footer(db_path)
 
 
@@ -93,28 +103,29 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
     for k, v in sorted_sources:
         logger.info(f"    - {k}: {v} matches")
 
-    # Identify missing crawlers
-    from bet_crawler.crawl_registry import _CRAWLER_KEYS
-
-    for crawler in sorted(_CRAWLER_KEYS.keys()):
+def _log_missing_crawlers(source_to_matches: dict[str, set], crawler_keys: dict) -> None:
+    """Identify configured crawlers that did not contribute matches."""
+    for crawler in sorted(crawler_keys.keys()):
         if crawler not in source_to_matches:
             logger.warning(f"    - {crawler}: 0 matches (MISSING)")
 
 
-def _validate_runner_sets(source_to_matches: dict[str, set], chunk_files: list[str]) -> None:
+def _validate_runner_sets(
+    source_to_matches: dict[str, set],
+    chunk_files: list[str],
+    runner_sets: dict[str, list[str]],
+) -> None:
     """Validate that all expected runner sets contributed data."""
-    from bet_crawler.crawl_registry import _RUNNER_SETS
-
     seen_runners = set()
     for source in source_to_matches:
-        for runner_name, crawlers in _RUNNER_SETS.items():
+        for runner_name, crawlers in runner_sets.items():
             if source in crawlers:
                 seen_runners.add(runner_name)
 
     expected_runners = set()
     for cf in chunk_files:
         runner_name = cf.split("-")[0]
-        if runner_name in _RUNNER_SETS:
+        if runner_name in runner_sets:
             expected_runners.add(runner_name)
 
     missing_runner_sets = expected_runners - seen_runners

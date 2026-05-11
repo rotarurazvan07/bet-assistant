@@ -10,39 +10,36 @@ import sys
 from contextlib import redirect_stdout
 from urllib.parse import urlparse
 
-from scrape_kit import configure, get_logger
-
-from bet_crawler.crawl_registry import MAX_CHUNK_SIZE, get_runner_classes
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
 
-def prepare_scrape(runner: str, config_dir: str) -> None:
-    configure(config_dir)
-    crawler_classes = get_runner_classes(runner)
-    if not crawler_classes:
+def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int]) -> None:
+    crawlers = crawler_factory.create_for_runner(runner)
+    if not crawlers:
         logger.error("❌ No crawlers found for runner type.")
         sys.exit(1)
 
     urls = []
     with open(os.devnull, "w") as devnull, redirect_stdout(devnull):
-        for cls in crawler_classes:
-            instance = cls(None)
+        for crawler in crawlers:
             for attempt in range(3):
                 try:
-                    new_urls = instance.get_matches_urls()
+                    new_urls = crawler.get_matches_urls()
                     if new_urls:
                         urls.extend(new_urls)
                         break
-                    logger.warning(f"⚠️  No URLs found for {cls.__name__} (attempt {attempt + 1}/3)")
+                    logger.warning(f"⚠️  No URLs found for {crawler.__class__.__name__} (attempt {attempt + 1}/3)")
                 except Exception as e:
-                    logger.error(f"❌ Error in {cls.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}")
+                    logger.error(
+                        f"❌ Error in {crawler.__class__.__name__}.get_matches_urls() (attempt {attempt + 1}/3): {e}"
+                    )
 
                 if attempt < 2:
                     import time
 
                     time.sleep(2)
-            del instance
 
     random.shuffle(urls)
 
@@ -50,7 +47,7 @@ def prepare_scrape(runner: str, config_dir: str) -> None:
     unique_domains = sorted({urlparse(u).netloc for u in urls if u})
     logger.info(f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}")
 
-    max_runners = MAX_CHUNK_SIZE[runner]
+    max_runners = max_chunk_size.get(runner, 1)
     chunk_size = max(20, math.ceil(len(urls) / max_runners))
 
     tasks = [

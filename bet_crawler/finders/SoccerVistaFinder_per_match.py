@@ -20,8 +20,8 @@ MAX_CONCURRENCY = 5
 
 
 class SoccerVistaFinder_per_match(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
         """Get league URLs via fast HTTP."""

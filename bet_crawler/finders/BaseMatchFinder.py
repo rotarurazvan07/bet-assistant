@@ -1,29 +1,12 @@
-from scrape_kit import get_logger
-
-logger = get_logger(__name__)
-
 import re
 from abc import abstractmethod
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-SKIP_PATTERNS: list[tuple[str, str]] = [  # TODO false skipping
-    (r"\bU\d{2}s?\b", "Youth team"),
-    (r"\bW\b", "Women's team"),
-    (r"\bII\b", "Reserve team II"),
-    (r"\b2\b", "Reserve team 2"),
-    (r"\bIII\b", "Reserve team III"),
-    (r"\bB\b", "B team"),
-    (r"\bC\b", "C team"),
-    (r"\b(Am)\b", "Amateur"),
-    (r"\bRes\b", "Reserve team"),
-]
+from scrape_kit import get_logger
 
-_LOCAL_TZ = "Europe/Bucharest"  # this needs to be set because different datacenter computers can be everywhere.
-# CURRENT_TIME is now computed dynamically in validate_match_date to avoid stale time
-# logger.info(f"Detected System Timezone: {_LOCAL_TZ}")
-
+logger = get_logger(__name__)
 
 class BaseMatchFinder:
     @staticmethod
@@ -34,7 +17,7 @@ class BaseMatchFinder:
             from tzlocal import get_localzone
 
             return str(get_localzone())
-        except:
+        except Exception:
             logger.warning("tzlocal not available")
             return None
 
@@ -55,10 +38,21 @@ class BaseMatchFinder:
 
     TIMEZONE: str | None = None  # Subclasses override
 
-    def __init__(self, add_match_callback: Callable) -> None:
+    def __init__(
+        self,
+        add_match_callback: Callable,
+        *,
+        contributes_odds: bool,
+        num_days_ahead: int,
+        local_timezone: str,
+        skip_patterns: tuple[tuple[str, str], ...] | list[tuple[str, str]],
+    ) -> None:
         super().__init__()
-        self.contributes_odds = True
         self.add_match_callback = add_match_callback
+        self.contributes_odds = contributes_odds
+        self.num_days_ahead = num_days_ahead
+        self.local_timezone = local_timezone
+        self.skip_patterns = tuple(skip_patterns)
 
     @abstractmethod
     def get_matches_urls(self):
@@ -86,7 +80,7 @@ class BaseMatchFinder:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=source_tz)
 
-        local_dt = dt.astimezone(ZoneInfo(_LOCAL_TZ))
+        local_dt = dt.astimezone(ZoneInfo(self.local_timezone))
 
         logger.info(f"Normalised datetime from {dt} ({self.TIMEZONE}) to {local_dt}")
 
@@ -127,7 +121,7 @@ class BaseMatchFinder:
         skip_patterns: list[tuple[str, str]] | None = None,
     ) -> str | None:
         """Return the reason for skipping when any pattern matches either team."""
-        patterns = skip_patterns if skip_patterns is not None else SKIP_PATTERNS
+        patterns = skip_patterns if skip_patterns is not None else self.skip_patterns
         return next(
             (
                 reason
@@ -138,8 +132,9 @@ class BaseMatchFinder:
         )
 
     def validate_match_date(self, match_datetime):
-        """Keep only today's matches and future matches."""
+        """Keep today's matches through the configured number of days ahead."""
         # Compute current time dynamically to avoid stale time across midnight
-        now = datetime.now(ZoneInfo(_LOCAL_TZ)).replace(tzinfo=None)
+        now = datetime.now(ZoneInfo(self.local_timezone)).replace(tzinfo=None)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        return match_datetime >= today_start
+        max_datetime = today_start + timedelta(days=self.num_days_ahead + 1)
+        return today_start <= match_datetime < max_datetime

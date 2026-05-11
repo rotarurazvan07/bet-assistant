@@ -17,8 +17,8 @@ MAX_CONCURRENCY = 3
 
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
-    def __init__(self, add_match_callback) -> None:
-        super().__init__(add_match_callback)
+    def __init__(self, add_match_callback, **runtime_settings) -> None:
+        super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
         page = fetch(ONE_MILLION_PREDICTIONS_URL, stealthy_headers=True)
