@@ -1,131 +1,62 @@
 from datetime import datetime, timedelta
 
-from bs4 import BeautifulSoup
-from scrape_kit import get_logger
+from scrape_kit import get_logger, Page
 
-logger = get_logger(__name__)
-
-from scrape_kit import ScrapeMode, fetch, scrape
-
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Score
 
 from .BaseMatchFinder import BaseMatchFinder
 
-SCOREPREDICTOR_URL = "https://scorepredictor.net/"
-SCOREPREDICTOR_NAME = "scorepredictor"
-MAX_CONCURRENCY = 3
+logger = get_logger(__name__)
 
-TOP_LEAGUES = [
-    "https://scorepredictor.net/index.php?section=football&season=ChampionsLeague",
-    "https://scorepredictor.net/index.php?section=football&season=EuropaLeague",
-    "https://scorepredictor.net/index.php?section=football&season=ConferenceLeague",
-    "https://scorepredictor.net/index.php?section=football&season=England",
-    "https://scorepredictor.net/index.php?section=football&season=Italy",
-    "https://scorepredictor.net/index.php?section=football&season=Spain",
-    "https://scorepredictor.net/index.php?section=football&season=Germany",
-    "https://scorepredictor.net/index.php?section=football&season=France",
-    "https://scorepredictor.net/index.php?section=football&season=Belgium",
-    "https://scorepredictor.net/index.php?section=football&season=England2",
-    "https://scorepredictor.net/index.php?section=football&season=Portugal",
-    "https://scorepredictor.net/index.php?section=football&season=Netherlands",
-    "https://scorepredictor.net/index.php?section=football&season=Denmark",
-    "https://scorepredictor.net/index.php?section=football&season=Poland",
-    "https://scorepredictor.net/index.php?section=football&season=Turkey",
-    "https://scorepredictor.net/index.php?section=football&season=Sweden",
-    "https://scorepredictor.net/index.php?section=football&season=Croatia",
-    "https://scorepredictor.net/index.php?section=football&season=Spain2",
-    "https://scorepredictor.net/index.php?section=football&season=Norway",
-    "https://scorepredictor.net/index.php?section=football&season=Austria",
-    "https://scorepredictor.net/index.php?section=football&season=Switzerland",
-    "https://scorepredictor.net/index.php?section=football&season=Italy2",
-    "https://scorepredictor.net/index.php?section=football&season=Germany2",
-    "https://scorepredictor.net/index.php?section=football&season=France2",
-    "https://scorepredictor.net/index.php?section=football&season=Scotland",
-]
+SCORE_PREDICTOR_URL = "https://www.scorepredictor.net/index.php?clanek=quicktips&sekce=fotbal&lang=en"
+SCORE_PREDICTOR_NAME = "scorepredictor"
 
 
 class ScorePredictorFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
-        if self.top_leagues_only:
-            return TOP_LEAGUES
-        else:
-            html = fetch(SCOREPREDICTOR_URL + "index.php?section=football")
-            soup = BeautifulSoup(html, "html.parser")
+    def get_urls(self) -> list[str]:
+        # ScorePredictor often uses a daily parameter
+        urls = [f"{SCORE_PREDICTOR_URL}&day={i}" for i in range(self.num_days_ahead + 1)]
+        logger.info(f"Found {len(urls)} ScorePredictor date URLs")
+        return urls
 
-            league_urls = [
-                SCOREPREDICTOR_URL + a.get("href")
-                for a in soup.find(class_="block_categories").find_all("a")
-                if a.get("href") != "#"
-            ]
-
-            logger.info(f"{len(league_urls)} leagues to scrape")
-            return league_urls
-
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+    def _parse_page(self, url: str, page: Page) -> None:
         try:
-            soup = BeautifulSoup(html, "html.parser")
-
-            if "No matches within next 5 days" in html:
-                logger.info(f"No matches in {url}")
+            # ScorePredictor usually has a table with class 'prediction'
+            rows = page.find("table.prediction tr")
+            if not rows:
+                logger.warning(f"No prediction table found on {url}")
                 return
 
-            for entry in soup.find(class_="table_dark").find_all("tr")[1:]:
+            for row in rows[1:]:  # Skip header
                 try:
-                    # Parse date
-                    date_str = entry.find_all("td")[0].get_text().strip()
-                    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-                    day, month = map(int, date_str.split("."))
-                    candidate = datetime(today.year, month, day).replace(hour=0, minute=0, second=0, microsecond=0)
-                    if candidate - today > timedelta(days=300):
-                        candidate = candidate.replace(year=today.year - 1)
-                    elif today - candidate > timedelta(days=300):
-                        candidate = candidate.replace(year=today.year + 1)
-
-                    # Parse team names
-                    home_team = entry.find_all("td")[1].get_text().strip()
-                    away_team = entry.find_all("td")[4].get_text().strip()
-
-                    # Parse scores with error handling
-                    home_score_text = entry.find_all("td")[2].get_text().strip()
-                    away_score_text = entry.find_all("td")[3].get_text().strip()
-
-                    # Check if scores are valid integers
-                    if not home_score_text.isdigit() or not away_score_text.isdigit():
-                        logger.warning(
-                            f"Skipping match {home_team} vs {away_team} on {url} due to invalid score data: '{home_score_text}' - '{away_score_text}'"
-                        )
+                    cols = row.find("td")
+                    if len(cols) < 5:
                         continue
 
-                    scores = [
-                        Score(
-                            SCOREPREDICTOR_NAME,
-                            int(home_score_text),
-                            int(away_score_text),
-                        )
-                    ]
+                    date_str = cols[0].text().strip()
+                    home_team = cols[1].text().strip()
+                    away_team = cols[2].text().strip()
+                    
+                    try:
+                        home_score = float(cols[3].text().strip())
+                        away_score = float(cols[4].text().strip())
+                    except (ValueError, IndexError):
+                        continue
 
-                    self.add_match(
-                        Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None)
-                    )
+                    # Date format DD.MM.YYYY
+                    try:
+                        match_date = datetime.strptime(date_str, "%d.%m.%Y").replace(hour=0, minute=0, second=0, microsecond=0)
+                    except ValueError:
+                        day_offset = int(url.split("day=")[-1]) if "day=" in url else 0
+                        match_date = (datetime.now() + timedelta(days=day_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
 
-                except ValueError as e:
-                    # Handle individual match parsing errors
-                    logger.error(f"Skipping match on {url} due to parsing error: {e}")
-                    continue
-                except Exception as e:
-                    # Handle any other unexpected errors for individual matches
-                    logger.error(f"Skipping match on {url} due to unexpected error: {e}")
+                    predictions = [Score(SCORE_PREDICTOR_NAME, home_score, away_score)]
+                    self.add_match(Match(home_team, away_team, match_date, predictions))
+
+                except Exception:
                     continue
 
         except Exception as e:

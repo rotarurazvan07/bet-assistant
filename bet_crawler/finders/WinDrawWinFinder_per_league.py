@@ -1,132 +1,67 @@
-from scrape_kit import get_logger
-
-logger = get_logger(__name__)
-
-import re
 from datetime import datetime
 
-from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import get_logger, Page
 
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Score
 
 from .BaseMatchFinder import BaseMatchFinder
 
-WINDRAWWIN_NAME = "windrawwin"
-WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-MAX_CONCURRENCY = 1
+logger = get_logger(__name__)
 
-TOP_LEAGUES = [
-    "https://www.windrawwin.com/tips/champions-league/",
-    "https://www.windrawwin.com/tips/europa-league/",
-    "https://www.windrawwin.com/tips/europa-conference-league/",
-    "https://www.windrawwin.com/tips/england-premier-league/",
-    "https://www.windrawwin.com/tips/italy-serie-a/",
-    "https://www.windrawwin.com/tips/spain-la-liga/",
-    "https://www.windrawwin.com/tips/germany-bundesliga/",
-    "https://www.windrawwin.com/tips/france-ligue-1/",
-    "https://www.windrawwin.com/tips/belgium-first-division-a/",  # Jupiler Pro League
-    "https://www.windrawwin.com/tips/england-championship/",
-    "https://www.windrawwin.com/tips/portugal-primeira-liga/",
-    "https://www.windrawwin.com/tips/brazil-serie-a/",
-    "https://www.windrawwin.com/tips/usa-major-league-soccer/",  # MLS
-    "https://www.windrawwin.com/tips/netherlands-eredivisie/",
-    "https://www.windrawwin.com/tips/denmark-superliga/",
-    "https://www.windrawwin.com/tips/poland-ekstraklasa/",
-    "https://www.windrawwin.com/tips/argentina-liga-profesional/",
-    "https://www.windrawwin.com/tips/japan-j-league/",  # J1 League
-    "https://www.windrawwin.com/tips/turkey-super-lig/",
-    "https://www.windrawwin.com/tips/sweden-allsvenskan/",
-    "https://www.windrawwin.com/tips/croatia-1-hnl/",  # HNL
-    "https://www.windrawwin.com/tips/mexico-liga-mx/",
-    "https://www.windrawwin.com/tips/spain-segunda-division/",
-    "https://www.windrawwin.com/tips/norway-eliteserien/",
-    "https://www.windrawwin.com/tips/austria-bundesliga/",
-    "https://www.windrawwin.com/tips/switzerland-super-league/",
-    "https://www.windrawwin.com/tips/italy-serie-b/",
-    "https://www.windrawwin.com/tips/germany-2-bundesliga/",
-    "https://www.windrawwin.com/tips/france-ligue-2/",
-    "https://www.windrawwin.com/tips/scotland-premiership/",
-]
+WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/today/"
+WINDRAWWIN_NAME = "windrawwin"
 
 
 class WinDrawWinFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
-        if self.top_leagues_only:
-            return TOP_LEAGUES
-        else:
-            page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
-            soup = BeautifulSoup(page, "html.parser")
-
-            all_trs = soup.find("div", class_="widetable").find_all("tr")
-            start = next(i for i, r in enumerate(all_trs) if "Cup and International Leagues" in r.text) + 1
-            league_urls = []
-            for tr in all_trs[start:]:
-                anchors = tr.find_all("a")
-                if anchors:
-                    league_urls.append(anchors[-1]["href"])
-
-            logger.info(f"Found {len(league_urls)} leagues to scrape")
-            return league_urls
-
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+    def get_urls(self) -> list[str]:
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            page = Page.from_url(WINDRAWWIN_URL)
+            # Find league links from a dropdown or list
+            links = page.find(".wt-league-link a")
+            if not links:
+                links = page.find("a[href*='/predictions/league/']")
+                
+            urls = ["https://www.windrawwin.com" + link.attr("href") for link in links if link.attr("href")]
+            
+            logger.info(f"Found {len(urls)} WinDrawWin league URLs")
+            return urls
+        except Exception as e:
+            logger.error(f"Error discovering WinDrawWin leagues: {e}")
+            return [WINDRAWWIN_URL]
 
-            current_date = None
-            matches_div = soup.find("div", class_="wdwtablest mb30")
-            if matches_div is None:
-                logger.info(f"SKIPPED [{url}]: No matches")
-                return
+    def _parse_page(self, url: str, page: Page) -> None:
+        try:
+            # WinDrawWin league page rows
+            rows = page.find(".wt-match-row")
+            if not rows:
+                rows = page.find("table tr")
 
-            for match_div in matches_div.contents[2:]:
+            for row in rows:
                 try:
-                    if match_div.has_attr("class") and "wttrdt" in match_div["class"]:
-                        date_str = re.sub(r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text())
-                        date_str = date_str.replace("Today, ", "").replace("Tomorrow, ", "")
-                        current_date = datetime.strptime(date_str, "%A, %B %d, %Y").replace(
-                            hour=0, minute=0, second=0, microsecond=0
-                        )
+                    home_team = row.find(".wt-home-team").text().strip()
+                    away_team = row.find(".wt-away-team").text().strip()
+                    
+                    score_text = row.find(".wt-score-prediction").text().strip()
+                    if "-" in score_text:
+                        home_p, away_p = score_text.split("-")
+                        predictions = [Score(WINDRAWWIN_NAME, float(home_p), float(away_p))]
+                    else:
                         continue
 
-                    inner = match_div.contents[:-1]
-                    home_team = inner[0].find("div").get_text()
-                    away_team = inner[1].find("div").get_text()
+                    # Date
+                    date_text = row.find(".wt-match-date").text().strip()
+                    try:
+                        match_date = datetime.strptime(date_text, "%d %b %Y")
+                    except ValueError:
+                        match_date = datetime.now().replace(hour=0, minute=0, second=0)
 
-                    score_text = inner[-1].get_text()
-                    home = float(score_text.split("-")[0])
-                    away = float(score_text.split("-")[1])
-                    predictions = [Score(WINDRAWWIN_NAME, home, away)]
+                    self.add_match(Match(home_team, away_team, match_date, predictions))
 
-                    mo_tag = match_div.find("div", class_="wtmo")
-                    ou_tag = match_div.find("div", class_="wtou")
-                    bt_tag = match_div.find("div", class_="wtbt")
-
-                    odds = Odds(
-                        home=mo_tag.contents[1].get_text() if mo_tag else None,
-                        draw=mo_tag.contents[2].get_text() if mo_tag else None,
-                        away=mo_tag.contents[3].get_text() if mo_tag else None,
-                        over_25=ou_tag.contents[1].get_text() if ou_tag else None,
-                        under_25=ou_tag.contents[2].get_text() if ou_tag else None,
-                        btts_y=bt_tag.contents[1].get_text() if bt_tag else None,
-                        btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
-                    )
-
-                    self.add_match(Match(home_team, away_team, current_date, predictions, odds))
-
-                except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                except Exception:
+                    continue
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

@@ -1,20 +1,16 @@
-from scrape_kit import get_logger
-
-logger = get_logger(__name__)
-
-import re
 from datetime import datetime
+import re
 
-from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import get_logger, Page
 
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Score, Odds
 
 from .BaseMatchFinder import BaseMatchFinder
 
+logger = get_logger(__name__)
+
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-MAX_CONCURRENCY = 1
 
 TOP_LEAGUES = [
     "https://www.predictz.com/predictions/europe/champions-league/",
@@ -37,16 +33,6 @@ TOP_LEAGUES = [
     "https://www.predictz.com/predictions/japan/j-league/",
     "https://www.predictz.com/predictions/turkey/super-lig/",
     "https://www.predictz.com/predictions/sweden/allsvenskan/",
-    "https://www.predictz.com/predictions/croatia/1-hnl/",
-    "https://www.predictz.com/predictions/mexico/la-division/",
-    "https://www.predictz.com/predictions/spain/segunda-division/",
-    "https://www.predictz.com/predictions/norway/eliteserien/",
-    "https://www.predictz.com/predictions/austria/bundesliga/",
-    "https://www.predictz.com/predictions/switzerland/super-league/",
-    "https://www.predictz.com/predictions/italy/serie-b/",
-    "https://www.predictz.com/predictions/germany/2-bundesliga/",
-    "https://www.predictz.com/predictions/france/ligue-2/",
-    "https://www.predictz.com/predictions/scotland/premiership/",
 ]
 
 
@@ -54,69 +40,99 @@ class PredictzFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
+    def get_urls(self) -> list[str]:
         if self.top_leagues_only:
             return TOP_LEAGUES
-        else:
-            page = fetch(PREDICTZ_URL, stealthy_headers=False)
-            soup = BeautifulSoup(page, "html.parser")
-            league_urls = []
-            for optgroup in soup.find(class_="dd nav-select").find_all("optgroup")[3:]:
-                league_urls += [opt.get("value") for opt in optgroup.find_all("option")]
-
-            logger.info(f"{len(league_urls)} leagues to scrape")
-            return league_urls
-
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+        
         try:
-            soup = BeautifulSoup(html, "html.parser")
+            page = Page.from_url(PREDICTZ_URL)
+            # Find the navigation menu
+            nav_select = page.find(".dd.nav-select")
+            if not nav_select:
+                return TOP_LEAGUES
+                
+            options = nav_select[0].find("option")
+            league_urls = [opt.attr("value") for opt in options if opt.attr("value") and "/predictions/" in opt.attr("value")]
+            
+            logger.info(f"Found {len(league_urls)} leagues to scrape")
+            return league_urls
+        except Exception as e:
+            logger.warning(f"Failed to discover leagues from {PREDICTZ_URL}: {e}")
+            return TOP_LEAGUES
 
-            if "This could be due to games currently in play" in html:
-                logger.info(f"No matches in {url}")
+    def _parse_page(self, url: str, page: Page) -> None:
+        try:
+            if "This could be due to games currently in play" in page.content:
+                logger.debug(f"No matches in {url}")
                 return
 
             match_datetime = None
-            for entry in soup.find_all(class_="pzcnth"):
-                if entry.find("h2"):
-                    date_str = entry.find("h2").get_text()
-                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
-                    match_datetime = next(
-                        dt
-                        for y in range(datetime.now().year - 1, datetime.now().year + 2)
-                        for dt in [datetime.strptime(f"{clean} {y}", "%A %B %d %Y")]
-                        if dt.strftime("%A") in date_str
-                    ).replace(hour=0, minute=0, second=0, microsecond=0)
-                else:
-                    home_team = entry.find(class_="fixt").get_text().split(" vs ")[0]
-                    away_team = entry.find(class_="fixt").get_text().split(" vs ")[1]
+            # Find the match containers
+            entries = page.find(".pzcnth")
+            
+            for entry in entries:
+                try:
+                    # Date header
+                    h2 = entry.find("h2")
+                    if h2:
+                        date_str = h2[0].text().strip()
+                        # Clean ordinal suffixes (1st, 2nd, etc.)
+                        clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
+                        
+                        # Try to find valid year
+                        current_year = datetime.now().year
+                        for y in [current_year, current_year + 1]:
+                            try:
+                                dt = datetime.strptime(f"{clean} {y}", "%A %B %d %Y")
+                                if dt.strftime("%A") in date_str:
+                                    match_datetime = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+                                    break
+                            except ValueError:
+                                continue
+                        continue
 
-                    score_text = entry.find("td").get_text()[-3:]
-                    scores = [
-                        Score(
-                            PREDICTZ_NAME,
-                            int(score_text.split("-")[0]),
-                            int(score_text.split("-")[1]),
-                        )
-                    ]
+                    # Match row
+                    fixture_tag = entry.find(".fixt")
+                    if not fixture_tag:
+                        continue
+                        
+                    teams = fixture_tag[0].text().split(" vs ")
+                    if len(teams) < 2:
+                        continue
+                        
+                    home_team = teams[0].strip()
+                    away_team = teams[1].strip()
 
-                    try:
-                        odds = Odds(
-                            home=entry.find_all(class_="odds")[0].get_text(),
-                            draw=entry.find_all(class_="odds")[1].get_text(),
-                            away=entry.find_all(class_="odds")[2].get_text(),
-                        )
-                    except (AttributeError, IndexError):
-                        odds = None
+                    # Prediction score
+                    tds = entry.find("td")
+                    if not tds:
+                        continue
+                        
+                    score_text = tds[0].text().strip()[-3:]
+                    if "-" in score_text:
+                        home_p, away_p = score_text.split("-")
+                        predictions = [Score(PREDICTZ_NAME, int(home_p), int(away_p))]
+                    else:
+                        continue
 
-                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
+                    # Odds
+                    odds_elements = entry.find(".odds")
+                    odds = None
+                    if len(odds_elements) >= 3:
+                        try:
+                            odds = Odds(
+                                home=float(odds_elements[0].text().strip()),
+                                draw=float(odds_elements[1].text().strip()),
+                                away=float(odds_elements[2].text().strip())
+                            )
+                        except (ValueError, TypeError):
+                            pass
+
+                    self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
+
+                except Exception as e:
+                    logger.debug(f"Skipping entry in {url}: {e}")
+                    continue
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

@@ -1,148 +1,73 @@
-from scrape_kit import get_logger
+from datetime import datetime
 
-logger = get_logger(__name__)
-import datetime
-from concurrent.futures import ThreadPoolExecutor
+from scrape_kit import get_logger, Page
 
-from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
-
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Score
 
 from .BaseMatchFinder import BaseMatchFinder
 
-SOCCERVISTA_URL = "https://www.soccervista.com"
-SOCCERVISTA_NAME = "soccervista"
-MAX_CONCURRENCY = 10
+logger = get_logger(__name__)
 
-TOP_LEAGUES = [
-    "https://www.soccervista.com/europe/champions-league/xGrwqq16/",
-    "https://www.soccervista.com/europe/europa-league/ClDjv3V5/",
-    "https://www.soccervista.com/europe/conference-league/GfRbsVWM/",
-    "https://www.soccervista.com/england/championship/2DSCa5fE/",
-    "https://www.soccervista.com/italy/serie-b/6oug4RRc/",
-    "https://www.soccervista.com/spain/laliga2/vZiPmPJi/",
-    "https://www.soccervista.com/germany/2-bundesliga/tKH71vSe/",
-    "https://www.soccervista.com/france/ligue-2/Y35Jer59/",
-    "https://www.soccervista.com/england/premier-league/dYlOSQOD/",
-    "https://www.soccervista.com/spain/laliga/QVmLl54o/",
-    "https://www.soccervista.com/germany/bundesliga/W6BOzpK2/",
-    "https://www.soccervista.com/italy/serie-a/COuk57Ci/",
-    "https://www.soccervista.com/france/ligue-1/KIShoMk3/",
-    "https://www.soccervista.com/belgium/jupiler-pro-league/dG2SqPrf/",
-    "https://www.soccervista.com/portugal/liga-portugal/UmMRoGzp/",
-    "https://www.soccervista.com/brazil/serie-a-betano/Yq4hUnzQ/",
-    "https://www.soccervista.com/usa/mls/CQv5qrFt/",
-    "https://www.soccervista.com/netherlands/eredivisie/Or1bBrWD/",
-    "https://www.soccervista.com/denmark/superliga/O6W7GIaF/",
-    "https://www.soccervista.com/poland/ekstraklasa/lrMHUHDc/",
-    "https://www.soccervista.com/argentina/liga-profesional/naYhNOaA/",
-    "https://www.soccervista.com/japan/j1-league/pAq4eRQ9/",
-    "https://www.soccervista.com/turkey/super-lig/Opdcd08Q/",
-    "https://www.soccervista.com/sweden/allsvenskan/nXxWpLmT/",
-    "https://www.soccervista.com/croatia/hnl/nqMxclRN/",
-    "https://www.soccervista.com/mexico/liga-mx/bm2Vlsfl/",
-    "https://www.soccervista.com/norway/eliteserien/GOvB22xg/",
-    "https://www.soccervista.com/austria/bundesliga/rJg7S7Me/",
-    "https://www.soccervista.com/switzerland/super-league/KAjTCI1l/",
-    "https://www.soccervista.com/scotland/premiership/tGwiyvJ1/",
-]
+SOCCERVISTA_URL = "https://www.soccervista.com/"
+SOCCERVISTA_NAME = "soccervista"
 
 
 class SoccerVistaFinder_per_league(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
-        if self.top_leagues_only:
-            return TOP_LEAGUES
-        else:
-            html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
-            soup = BeautifulSoup(html, "html.parser")
-
-            links = [
-                link["href"]
-                for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
-            ][:-2]
-
-            with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
-                results = list(
-                    ex.map(
-                        lambda l: (
-                            [
-                                opt["value"]
-                                for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser")
-                                .find("select", id="tournamentPage")
-                                .find_all("option")
-                            ]
-                            if fetch(SOCCERVISTA_URL + l)
-                            else []
-                        ),
-                        links,
-                    )
-                )
-
-            league_urls = [SOCCERVISTA_URL + url for urls in results for url in urls]
-            logger.info(f"{len(league_urls)} leagues to scrape")
-            return league_urls
-
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+    def get_urls(self) -> list[str]:
         try:
-            soup = BeautifulSoup(html, "html.parser")
-            container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)
-            matches = container.parent.find("tbody").find_all("tr") if container else []
+            page = Page.from_url(SOCCERVISTA_URL)
+            # Find league links
+            links = page.find(".leaguelist a")
+            if not links:
+                links = page.find("a[href*='/betting-tips/']")
+                
+            urls = ["https://www.soccervista.com" + link.attr("href") for link in links if link.attr("href")]
+            
+            if self.top_leagues_only:
+                # Filter or keep top ones
+                urls = urls[:20]
+                
+            logger.info(f"Found {len(urls)} SoccerVista league URLs")
+            return urls
+        except Exception as e:
+            logger.error(f"Error discovering SoccerVista leagues: {e}")
+            return []
 
-            for match_tr in matches:
+    def _parse_page(self, url: str, page: Page) -> None:
+        try:
+            # SoccerVista league page has matches in a table
+            rows = page.find("table.main tr")
+            if not rows:
+                rows = page.find(".match-row")
+
+            for row in rows:
                 try:
-                    home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                    away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
-                    try:
-                        date_str = match_tr.find_all("td")[0].get_text()
-                        match_datetime = min(
-                            (
-                                datetime.strptime(f"{date_str} {y}", "%d %b %Y")
-                                for y in [
-                                    datetime.now().year - 1,
-                                    datetime.now().year,
-                                    datetime.now().year + 1,
-                                ]
-                            ),
-                            key=lambda d: abs(d - datetime.now()),
-                        ).replace(hour=0, minute=0, second=0, microsecond=0)
-                    except Exception:
-                        logger.info(f"{home_team} vs {away_team}: Match ongoing")
+                    # SoccerVista layout parsing
+                    cols = row.find("td")
+                    if len(cols) < 6:
                         continue
 
-                    score_text = match_tr.find_all("td")[-1].get_text()
-                    scores = [
-                        Score(
-                            SOCCERVISTA_NAME,
-                            int(score_text.split(":")[0]),
-                            int(score_text.split(":")[1]),
-                        )
-                    ]
+                    home_team = cols[2].text().strip()
+                    away_team = cols[3].text().strip()
+                    
+                    score_text = cols[5].text().strip() # Prediction column
+                    if ":" in score_text:
+                        home_p, away_p = score_text.split(":")
+                        predictions = [Score(SOCCERVISTA_NAME, float(home_p), float(away_p))]
+                    elif "-" in score_text:
+                        home_p, away_p = score_text.split("-")
+                        predictions = [Score(SOCCERVISTA_NAME, float(home_p), float(away_p))]
+                    else:
+                        continue
 
-                    self.add_match(
-                        Match(
-                            home_team=home_team,
-                            away_team=away_team,
-                            datetime=match_datetime,
-                            predictions=scores,
-                            odds=None,
-                            result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
-                        )
-                    )
+                    match_date = datetime.now().replace(hour=0, minute=0, second=0)
 
-                except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    self.add_match(Match(home_team, away_team, match_date, predictions))
+
+                except Exception:
                     continue
 
         except Exception as e:

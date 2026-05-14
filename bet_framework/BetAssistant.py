@@ -47,8 +47,7 @@ from datetime import datetime
 from typing import Any
 
 import pandas as pd
-from bs4 import BeautifulSoup
-from scrape_kit import BaseStorageManager, get_logger, scrape
+from scrape_kit import BaseStorageManager, Page, get_logger, scrape
 
 from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
@@ -120,16 +119,16 @@ def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
     Parse a result page HTML and return the MatchResultInfo.
     """
     result = MatchResultInfo(status=MatchStatus.PENDING)
-    soup = BeautifulSoup(html, "html.parser")
+    page = Page.from_html(html)
 
-    status_text = _extract_status_text(soup)
-    is_finished, is_live, minute = _determine_match_status(status_text, soup)
+    status_text = _extract_status_text(page)
+    is_finished, is_live, minute = _determine_match_status(status_text, page)
 
     # If match hasn't started yet, don't look for scores (prevents future stat leaks)
     if not (is_finished or is_live):
         return result
 
-    score = _extract_score(soup)
+    score = _extract_score(page)
     if score:
         result.score = score
 
@@ -142,21 +141,21 @@ def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
     return result
 
 
-def _extract_status_text(soup: BeautifulSoup) -> str:
+def _extract_status_text(page: Page) -> str:
     """Extract status text from specialized containers or fallback to global search."""
-    status_container = soup.find(id="status-container")
-    gametime_container = soup.find(id="gametime-container")
+    status_container = page.find_by_id("status-container")
+    gametime_container = page.find_by_id("gametime-container")
 
     status_parts = []
     if status_container:
-        status_parts.append(status_container.get_text(strip=True))
+        status_parts.append(status_container.text())
     if gametime_container:
-        status_parts.append(gametime_container.get_text(strip=True))
+        status_parts.append(gametime_container.text())
     status_text = " ".join(status_parts).strip()
 
     # Global fallback for status if containers are empty
     if not status_text:
-        all_text_start = soup.get_text(separator=" ", strip=True)[:2000]
+        all_text_start = page.text_content[:2000]
         for marker in [MatchStatus.FT, MatchStatus.FINISHED, MatchStatus.HT]:
             if marker in all_text_start:
                 status_text = marker
@@ -165,7 +164,7 @@ def _extract_status_text(soup: BeautifulSoup) -> str:
     return status_text
 
 
-def _determine_match_status(status_text: str, soup: BeautifulSoup) -> tuple[bool, bool, str]:
+def _determine_match_status(status_text: str, page: Page) -> tuple[bool, bool, str]:
     """
     Determine if match is finished or live, and extract minute if live.
     Returns: (is_finished, is_live, minute)
@@ -180,14 +179,14 @@ def _determine_match_status(status_text: str, soup: BeautifulSoup) -> tuple[bool
 
     # Heuristic: search globally for minutes if specialized tags missed it
     if not is_finished:
-        match_live = minute_rx.search(soup.get_text()[:2000])
+        match_live = minute_rx.search(page.text_content[:2000])
         if match_live:
             return is_finished, True, match_live.group(1)
 
     return is_finished, False, ""
 
 
-def _extract_score(soup: BeautifulSoup) -> str | None:
+def _extract_score(page: Page) -> str | None:
     """
     Extract score from the page. Tries multiple strategies in order of priority.
     Returns score as "X:Y" or None if not found.
@@ -195,19 +194,19 @@ def _extract_score(soup: BeautifulSoup) -> str | None:
     score_rx = re.compile(r"(\d{1,2})\s*:\s*(\d{1,2})")
 
     # 1. Prioritize Soccervista livescore-container
-    score_container = soup.find(id="livescore-container")
-    score_text = score_container.get_text(strip=True) if score_container else ""
+    score_container = page.find_by_id("livescore-container")
+    score_text = score_container.text() if score_container else ""
     match_score = score_rx.search(score_text)
 
     if not match_score:
         # 2. Fallback: search in common score-like classes
-        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.I))
+        score_div = page.find("div.font-bold.text-center")
         if score_div:
-            match_score = score_rx.search(score_div.get_text(strip=True))
+            match_score = score_rx.search(score_div.text())
 
     if not match_score:
         # 3. Last resort: global search for the FIRST X:Y pattern in page header
-        match_score = score_rx.search(soup.get_text()[:2000])
+        match_score = score_rx.search(page.text_content[:2000])
 
     if match_score:
         return f"{match_score.group(1)}:{match_score.group(2)}"

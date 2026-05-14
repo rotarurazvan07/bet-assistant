@@ -1,69 +1,52 @@
-from scrape_kit import get_logger
+from datetime import datetime
 
-logger = get_logger(__name__)
+from scrape_kit import get_logger, Page
 
-from datetime import datetime, timedelta
-
-from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, scrape
-
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Score
 
 from .BaseMatchFinder import BaseMatchFinder
 
-LEGITPREDICT_URL = "https://legitpredict.com/correct-score?dt="
-LEGITPREDICT_NAME = "legitpredict"
-MAX_CONCURRENCY = 1
+logger = get_logger(__name__)
+
+LEGIT_PREDICT_URL = "https://www.legitpredict.com/predictions/"
+LEGIT_PREDICT_NAME = "legitpredict"
 
 
 class LegitPredictFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
-        urls = [
-            f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}"
-            for i in range(self.num_days_ahead + 1)
-        ]
-        logger.info(f"{len(urls)} urls to scrape")
-        return urls
+    def get_urls(self) -> list[str]:
+        return [LEGIT_PREDICT_URL]
 
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+    def _parse_page(self, url: str, page: Page) -> None:
         try:
-            if "OOPS! NO GAME HERE" in html:
-                logger.info(f"No games found for {url}")
-                return
-            dt_obj = datetime.strptime(url.split("dt=")[-1], "%d-%m-%Y")
-            soup = BeautifulSoup(html, "html.parser")
-            matches_trs = soup.find("div", class_="content nopaddingsmall").find("tbody").find_all("tr")
+            # Matches in rows
+            rows = page.find("table tr")
+            if not rows:
+                rows = page.find(".prediction-item")
 
-            for tr in matches_trs:
+            for row in rows:
                 try:
-                    home_team = tr.find_all("td")[2].text.strip().split("VS")[0].strip()
-                    away_team = tr.find_all("td")[2].text.strip().split("VS")[1].strip()
-                    score = Score(
-                        LEGITPREDICT_NAME,
-                        int(tr.find_all("td")[3].text.strip().split("-")[0]),
-                        int(tr.find_all("td")[3].text.strip().split("-")[1]),
-                    )
+                    cols = row.find("td")
+                    if len(cols) < 4:
+                        continue
 
-                    dt_obj = dt_obj.replace(
-                        hour=int(tr.find("td").text.strip().split(":")[0]),
-                        minute=int(tr.find("td").text.strip().split(":")[1]),
-                    ).replace(hour=0, minute=0, second=0, microsecond=0)
+                    home_team = cols[1].text().strip()
+                    away_team = cols[2].text().strip()
+                    
+                    score_text = cols[3].text().strip()
+                    if "-" in score_text:
+                        home_p, away_p = score_text.split("-")
+                        predictions = [Score(LEGIT_PREDICT_NAME, float(home_p), float(away_p))]
+                    else:
+                        continue
 
-                    self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
+                    match_date = datetime.now().replace(hour=0, minute=0, second=0)
 
-                except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    self.add_match(Match(home_team, away_team, match_date, predictions))
+
+                except Exception:
                     continue
 
         except Exception as e:

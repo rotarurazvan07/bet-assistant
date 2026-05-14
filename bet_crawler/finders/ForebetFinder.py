@@ -1,19 +1,15 @@
-from scrape_kit import ScrapeMode, get_logger, scrape
-
-logger = get_logger(__name__)
-
 from datetime import datetime, timedelta
 
-from bs4 import BeautifulSoup
+from scrape_kit import get_logger, Page
 
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Odds, Score
 
 from .BaseMatchFinder import BaseMatchFinder
 
+logger = get_logger(__name__)
+
 FOREBET_URL = "https://www.forebet.com"
-FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-MAX_CONCURRENCY = 1
 
 TOP_LEAGUES = [
     "https://www.forebet.com/en/predictions-europe/uefa-champions-league",
@@ -227,46 +223,38 @@ class ForebetFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
+    def get_urls(self) -> list[str]:
         return TOP_LEAGUES if self.top_leagues_only else ALL_LINKS
 
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, _, html) -> None:
-        soup = BeautifulSoup(html, "html.parser")
-        all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
-        logger.info(f"Found {len(all_anchors)} matches to scan")
+    def _parse_page(self, url: str, page: Page) -> None:
+        all_anchors = page.find("#body-main .rcnt")
+        logger.info(f"Found {len(all_anchors)} matches to scan on {url}")
 
         for anchor in all_anchors:
             try:
-                home_team = anchor.find("div", class_="tnms").find("span", class_="homeTeam").get_text()
-                away_team = anchor.find("div", class_="tnms").find("span", class_="awayTeam").get_text()
+                home_team = anchor.find(".tnms .homeTeam").text()
+                away_team = anchor.find(".tnms .awayTeam").text()
 
-                if anchor.find("div", class_="scoreLnk").get_text().strip() != "":
-                    logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
+                if anchor.find(".scoreLnk").text().strip() != "":
+                    logger.debug(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
                     continue
 
-                match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
+                match_date_str = anchor.find(".date_bah").text().strip()
                 match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M") + timedelta(hours=1)
 
-                home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
-                away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
-                predictions = [Score(FOREBET_NAME, home, away)]
+                score_text = anchor.find(".ex_sc").text()
+                home_score = float(score_text.split("-")[0])
+                away_score = float(score_text.split("-")[1])
+                predictions = [Score(FOREBET_NAME, home_score, away_score)]
 
-                odds_tags = [o.get_text() for o in anchor.find("div", class_="haodd").find_all("span")]
+                odds_tags = [o.text() for o in anchor.find(".haodd span")]
                 odds = Odds(
-                    home=float(odds_tags[0]) if odds_tags[0] not in ("", " - ") else None,
-                    draw=float(odds_tags[1]) if odds_tags[1] not in ("", " - ") else None,
-                    away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
+                    home=float(odds_tags[0]) if len(odds_tags) > 0 and odds_tags[0] not in ("", " - ") else None,
+                    draw=float(odds_tags[1]) if len(odds_tags) > 1 and odds_tags[1] not in ("", " - ") else None,
+                    away=float(odds_tags[2]) if len(odds_tags) > 2 and odds_tags[2] not in ("", " - ") else None,
                 )
 
                 self.add_match(Match(home_team, away_team, match_date, predictions, odds))
 
             except Exception as e:
-                logger.error(f"SKIPPED: Parse error - {e}")
+                logger.error(f"SKIPPED: Parse error on {url} - {e}")

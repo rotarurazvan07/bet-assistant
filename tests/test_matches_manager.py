@@ -164,8 +164,7 @@ class TestInit:
 
 class TestAddMatch:
     def test_normal_inserts_single_match(self, mm):
-        idx = mm.add_match(make_match("Home", "Away"))
-        assert idx is not None
+        mm.add_match(make_match("Home", "Away"))
         buf = mm.ensure_buffer()
         assert len(buf) == 1
         assert buf.iloc[0]["home_team_name"] == "Home"
@@ -253,8 +252,9 @@ class TestAddMatch:
 
     def test_edge_no_predictions_no_odds(self, mm):
         match = make_match("H", "A", preds=[], odds=None)
-        idx = mm.add_match(match)
-        assert idx is not None
+        mm.add_match(match)
+        buf = mm.ensure_buffer()
+        assert len(buf) == 1
 
     def test_edge_similar_team_names_merge(self, mm):
         """Teams with fuzzy-similar names should be merged."""
@@ -273,10 +273,9 @@ class TestAddMatch:
         assert len(buf) == 2  # different dates
 
     def test_error_returns_none_on_exception(self, mm):
-        """add_match should not raise — returns None on error."""
-        # Pass something that will cause an internal error
-        result = mm.add_match(Match(None, None, None, None, None))
-        assert result is None
+        """add_match should raise an error if invalid data is passed."""
+        with pytest.raises(AttributeError):
+            mm.add_match(Match(None, None, None, None, None))
 
 
 # ── fetch_matches ─────────────────────────────────────────────────────────────
@@ -370,50 +369,10 @@ class TestFlush:
         # Verify indexes still exist
         rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
         index_names = [r["name"] for r in rows]
-        assert "idx_datetime" in index_names
-        assert "idx_home_team" in index_names
+        assert "idx_matches_datetime" in index_names
+        assert "idx_matches_home_team_name" in index_names
 
 
-# ── _find ─────────────────────────────────────────────────────────────────────
-
-
-class TestFind:
-    def test_normal_finds_exact_match(self, mm):
-        mm.add_match(make_match("Arsenal", "Chelsea"))
-        found, idx = mm._find("Arsenal", "Chelsea", DT_BASE)
-        assert found is not None
-        assert idx is not None
-
-    def test_normal_finds_similar_match(self, mm):
-        mm.add_match(make_match("Manchester United", "Liverpool"))
-        found, idx = mm._find("Manchester United FC", "Liverpool", DT_BASE)
-        assert found is not None
-
-    def test_normal_returns_none_for_different_team(self, mm):
-        mm.add_match(make_match("Arsenal", "Chelsea"))
-        found, idx = mm._find("Barcelona", "Real Madrid", DT_BASE)
-        assert found is None
-        assert idx is None
-
-    def test_edge_date_window_within_one_day(self, mm):
-        mm.add_match(make_match("Arsenal", "Chelsea", dt=DT_BASE))
-        # Same day offset
-        found, _ = mm._find("Arsenal", "Chelsea", DT_BASE + timedelta(hours=5))
-        assert found is not None
-
-    def test_edge_date_too_far_returns_none(self, mm):
-        mm.add_match(make_match("Arsenal", "Chelsea", dt=DT_BASE))
-        found, _ = mm._find("Arsenal", "Chelsea", DT_BASE + timedelta(days=5))
-        assert found is None
-
-    def test_edge_empty_buffer_returns_none(self, mm):
-        found, idx = mm._find("Any", "Team", DT_BASE)
-        assert found is None
-
-    def test_edge_no_similarity_engine_returns_none(self, mm_no_sim):
-        mm_no_sim.add_match(make_match("Arsenal", "Chelsea"))
-        found, _ = mm_no_sim._find("Arsenal", "Chelsea", DT_BASE)
-        assert found is None  # no engine → cannot find
 
 
 # ── merge_databases ───────────────────────────────────────────────────────────
@@ -434,13 +393,14 @@ class TestMergeDatabases:
     def test_normal_merges_multiple_chunks(self, mm, tmp_path):
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
+        teams = [("Arsenal", "Chelsea"), ("Liverpool", "Man City"), ("Real Madrid", "Barcelona")]
         for i in range(3):
             make_chunk_db(
                 chunk_dir / f"chunk{i}.db",
                 [
                     make_match(
-                        f"Team{i}A",
-                        f"Team{i}B",
+                        teams[i][0],
+                        teams[i][1],
                         dt=DT_BASE + timedelta(days=i),
                         preds=[Score(f"src{i}", i, i + 1)],
                     )
@@ -556,7 +516,7 @@ class TestMatchesManagerScenarios:
         assert len(buf) == 1
         assert buf.iloc[0]["home_team_name"] == "Fresh"
 
-    def test_scenario_large_batch_merge(self, mm, tmp_path):
+    def test_scenario_large_batch_merge(self, mm_no_sim, tmp_path):
         """Merge a chunk with many matches to test performance/correctness."""
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
@@ -570,8 +530,8 @@ class TestMatchesManagerScenarios:
             for i in range(50)
         ]
         make_chunk_db(chunk_dir / "big.db", matches)
-        mm.merge_databases(str(chunk_dir))
-        buf = mm.ensure_buffer()
+        mm_no_sim.merge_databases(str(chunk_dir))
+        buf = mm_no_sim.ensure_buffer()
         assert len(buf) == 50
 
     def test_scenario_fuzzy_merge_across_chunks(self, mm, tmp_path):

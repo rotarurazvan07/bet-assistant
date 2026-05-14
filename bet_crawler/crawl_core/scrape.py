@@ -35,8 +35,10 @@ def scrape(db_path: str, urls_str: str, crawler_factory, similarity_config: dict
     for i, (domain_key, group_urls) in enumerate(groups.items()):
         logger.info(f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)...")
         try:
+            # factory.create_for_url returns a crawler instance
             crawler = crawler_factory.create_for_url(group_urls[0], _on_match)
-            crawler.get_matches(group_urls)
+            # Use the new v2 scrape method
+            crawler.scrape(group_urls)
         except Exception as e:
             logger.error(f"    ⚠️ Error scraping {domain_key}: {e}")
 

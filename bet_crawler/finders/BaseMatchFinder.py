@@ -1,40 +1,24 @@
-import re
 from abc import abstractmethod
 from collections.abc import Callable
 from datetime import datetime, timedelta
+import re
 from zoneinfo import ZoneInfo
 
-from scrape_kit import get_logger
+from scrape_kit import BaseFinder, Page, get_logger
 
 logger = get_logger(__name__)
 
 
-class BaseMatchFinder:
-    @staticmethod
-    def _detect_local_timezone() -> str:
-        """Detect the local timezone as an IANA timezone string."""
-        # Try to use tzlocal if available
-        try:
-            from tzlocal import get_localzone
-
-            return str(get_localzone())
-        except Exception:
-            logger.warning("tzlocal not available")
-            return None
-
-    """Base class for match finders.
+class BaseMatchFinder(BaseFinder):
+    """Base class for match finders, extending scrape_kit.BaseFinder.
 
     Subclasses implement:
-        get_matches_urls()  — return list of URLs to scrape
-        get_matches(urls)   — main runner, typically calls scrape_urls()
-        _parse_page(url, html) — callback to parse a single page
+        get_urls()          — return list of URLs to scrape
+        _parse_page(url, page) — callback to parse a single Page object
 
     Subclasses should set TIMEZONE to the source timezone of the scraped data:
         TIMEZONE = "UTC"             — WhoScored (UTC timestamps)
         TIMEZONE = "Asia/Bangkok"    — Forebet (UTC+7 displayed times)
-        TIMEZONE = "Europe/London"   — UK-based sites
-
-    If TIMEZONE is None, no normalisation is applied (legacy behaviour).
     """
 
     TIMEZONE: str | None = None  # Subclasses override
@@ -42,34 +26,33 @@ class BaseMatchFinder:
     def __init__(
         self,
         add_match_callback: Callable,
-        *,
-        contributes_odds: bool,
-        top_leagues_only: bool,
-        num_days_ahead: int,
-        local_timezone: str,
-        skip_patterns: tuple[tuple[str, str], ...] | list[tuple[str, str]],
+        **runtime_settings,
     ) -> None:
-        super().__init__()
+        """Initialize the finder with runtime settings.
+
+        Expected settings in runtime_settings:
+            contributes_odds (bool)
+            top_leagues_only (bool)
+            num_days_ahead (int)
+            local_timezone (str)
+            skip_patterns (tuple[tuple[str, str], ...])
+        """
+        super().__init__(add_match_callback, **runtime_settings)
         self.add_match_callback = add_match_callback
-        self.contributes_odds = contributes_odds
-        self.top_leagues_only = top_leagues_only
-        self.num_days_ahead = num_days_ahead
-        self.local_timezone = local_timezone
-        self.skip_patterns = tuple(skip_patterns)
+        self.contributes_odds = runtime_settings.get("contributes_odds", False)
+        self.top_leagues_only = runtime_settings.get("top_leagues_only", False)
+        self.num_days_ahead = runtime_settings.get("num_days_ahead", 1)
+        self.local_timezone = runtime_settings.get("local_timezone", "UTC")
+        self.skip_patterns = tuple(runtime_settings.get("skip_patterns", ()))
 
     @abstractmethod
-    def get_matches_urls(self):
+    def get_urls(self) -> list[str]:
         """Return list of URLs to scrape."""
         raise NotImplementedError()
 
     @abstractmethod
-    def get_matches(self, urls):
-        """Main scraping entrypoint."""
-        raise NotImplementedError()
-
-    @abstractmethod
-    def _parse_page(self, url, html):
-        """Parse a single scraped page. Used as callback for scrape_urls()."""
+    def _parse_page(self, url: str, page: Page) -> None:
+        """Parse a single Page object."""
         raise NotImplementedError()
 
     # ─────────────────────────── Datetime normalisation ───────────────────────
@@ -85,7 +68,7 @@ class BaseMatchFinder:
 
         local_dt = dt.astimezone(ZoneInfo(self.local_timezone))
 
-        logger.info(f"Normalised datetime from {dt} ({self.TIMEZONE}) to {local_dt}")
+        logger.debug(f"Normalised datetime from {dt} ({self.TIMEZONE}) to {local_dt}")
 
         return local_dt.replace(tzinfo=None)
 
@@ -101,16 +84,19 @@ class BaseMatchFinder:
             if not force:
                 reason = self.skip_match_by_patterns(match.home_team, match.away_team)
                 if reason:
-                    logger.info(f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})")
+                    logger.debug(f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})")
                     return False
                 if match.datetime is not None and not self.validate_match_date(match.datetime):
-                    logger.info(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
+                    logger.debug(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
                     return False
                 if not self.contributes_odds:
                     match.odds = None  # ensure odds are not added by non-odds finders
-            logger.info(
-                f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
-            ) if match.predictions else logger.info(f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})")
+
+            log_msg = f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})"
+            if match.predictions:
+                log_msg = f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
+            logger.info(log_msg)
+
             self.add_match_callback(match)
             return True
         except Exception as e:
@@ -134,10 +120,21 @@ class BaseMatchFinder:
             None,
         )
 
-    def validate_match_date(self, match_datetime):
+    def validate_match_date(self, match_datetime: datetime) -> bool:
         """Keep today's matches through the configured number of days ahead."""
         now = datetime.now(ZoneInfo(self.local_timezone))
         today = now.date()
         match_date = match_datetime.date()
         max_date = today + timedelta(days=self.num_days_ahead)
         return today <= match_date <= max_date
+
+    @staticmethod
+    def _detect_local_timezone() -> str | None:
+        """Detect the local timezone as an IANA timezone string."""
+        try:
+            from tzlocal import get_localzone
+
+            return str(get_localzone())
+        except Exception:
+            logger.warning("tzlocal not available")
+            return None

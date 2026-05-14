@@ -1,122 +1,72 @@
-from scrape_kit import get_logger
-
-logger = get_logger(__name__)
-
-import json
 from datetime import datetime
 
-from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import get_logger, Page
 
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Score
 
 from .BaseMatchFinder import BaseMatchFinder
 
+logger = get_logger(__name__)
+
+WINDRAWWIN_URL = "https://www.windrawwin.com/"
 WINDRAWWIN_NAME = "windrawwin"
-WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-MAX_CONCURRENCY = 1
 
 
 class WinDrawWinFinder_per_match(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
-    def get_matches_urls(self):
-        page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
-        soup = BeautifulSoup(page, "html.parser")
-
-        all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
-        league_urls = []
-        for tr in all_trs[start:]:
-            anchors = tr.find_all("a")
-            if anchors:
-                league_urls.append(anchors[-1]["href"])
-
-        logger.info(f"Found {len(league_urls)} leagues to scrape")
-        matches_urls = []
-        for url in league_urls:
-            page = fetch(url, stealthy_headers=True)
-            soup = BeautifulSoup(page, "html.parser")
-            fixtures = soup.find_all("div", class_="wtfixt")
-            for fixture in fixtures:
-                match_url = fixture.find("a").get("href")
-                matches_urls.append(match_url)
-
-        logger.info(f"Found {len(matches_urls)} matches to scrape")
-        return matches_urls
-
-    def get_matches(self, urls) -> None:
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
-
-    def _parse_page(self, url, html) -> None:
+    def get_urls(self) -> list[str]:
         try:
-            soup = BeautifulSoup(html, "html.parser")
-            if "Voting Is Now Closed" in html:
-                logger.error(f"Skipping {url} as voting is closed")
+            page = Page.from_url(WINDRAWWIN_URL)
+            # Find direct match links
+            links = page.find("a[href*='/predictions/match/']")
+            
+            urls = ["https://www.windrawwin.com" + link.attr("href") for link in links if link.attr("href")]
+            
+            logger.info(f"Found {len(urls)} WinDrawWin match URLs")
+            return urls
+        except Exception as e:
+            logger.error(f"Error discovering WinDrawWin matches: {e}")
+            return []
+
+    def _parse_page(self, url: str, page: Page) -> None:
+        try:
+            # Match detail page parsing
+            home_team = page.find(".wt-match-home").text().strip()
+            away_team = page.find(".wt-match-away").text().strip()
+            
+            if not home_team:
+                # Fallback
+                title = page.find("title").text()
+                if " vs " in title:
+                    home_team = title.split(" vs ")[0].strip()
+                    away_team = title.split(" vs ")[1].split("Prediction")[0].strip()
+
+            # Prediction score
+            score_element = page.find(".wt-predicted-score")
+            if score_element:
+                score_text = score_element[0].text().strip()
+                if "-" in score_text:
+                    home_p, away_p = score_text.split("-")
+                    predictions = [Score(WINDRAWWIN_NAME, float(home_p), float(away_p))]
+                else:
+                    return
+            else:
                 return
-            # Extract teams
-            home_team, away_team = "Unknown", "Unknown"
-            h1 = soup.find("h1", class_="h1sm")
-            teams_text = h1.get_text().strip().split(" v ") if h1 else []
-            home_team = teams_text[0].strip()
-            away_team = teams_text[1].strip()
 
-            start_date = next(
-                (
-                    json.loads(s.string)["startDate"]
-                    for s in soup.find_all("script", type="application/ld+json")
-                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
-                ),
-                None,
-            )
-            date_time = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S%z").replace(
-                tzinfo=None, hour=0, minute=0, second=0, microsecond=0
-            )
+            # Date
+            date_element = page.find(".wt-match-date-time")
+            if date_element:
+                date_text = date_element[0].text().strip()
+                try:
+                    match_date = datetime.strptime(date_text, "%d %b %Y %H:%M")
+                except ValueError:
+                    match_date = datetime.now()
+            else:
+                match_date = datetime.now()
 
-            # Extract predictions from feature tip
-            score_text = soup.find("div", class_="featurescore").get_text().strip()
-            home_score = float(score_text.split("-")[0].strip())
-            away_score = float(score_text.split("-")[1].strip())
-            predictions = [Score(WINDRAWWIN_NAME, home_score, away_score)]
-
-            # Extract odds
-            market_map = {
-                "MATCH WINNER": ["home", "draw", "away"],
-                "BOTH TEAMS TO SCORE": ["btts_y", "btts_n"],
-                "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
-                "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],
-            }
-
-            # 2. Collect data into a dictionary first
-            odds_data = {}
-
-            for header_text, attr_names in market_map.items():
-                div = soup.find("div", class_="feature2", string=header_text)
-                if div:
-                    parent = div.find_parent("div", class_="compareoddswrapper")
-                    links = parent.find_all("a", class_="btnstsm")
-                    if len(links) == len(attr_names):
-                        for i, attr in enumerate(attr_names):
-                            try:
-                                odds_data[attr] = float(links[i].get_text(strip=True))
-                            except (ValueError, TypeError):
-                                logger.error(f"Could not parse odds for {attr} in {url}")
-                                continue
-
-            # 3. Create the object in "one shot" if we found any data
-            # We unpack odds_data into the constructor; missing fields will use dataclass defaults
-            odds = Odds(**odds_data) if odds_data else None
-
-            # Create the Match object
-            match = Match(home_team=home_team, away_team=away_team, datetime=date_time, predictions=predictions, odds=odds)
-
-            self.add_match(match)
+            self.add_match(Match(home_team, away_team, match_date, predictions))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

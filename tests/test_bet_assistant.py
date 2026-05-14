@@ -392,7 +392,7 @@ class TestLoadMatches:
     def test_normal_computes_consensus_columns(self, ba):
         df = make_matches_df(3, sources_per_match=4)
         ba.load_matches(df)
-        for col in ["cons_home", "cons_draw", "cons_away", "cons_over", "cons_under"]:
+        for col in ["cons_home", "cons_draw", "cons_away", "cons_over_25", "cons_under_25"]:
             assert col in ba._df.columns
 
     def test_normal_computes_odds_columns(self, ba):
