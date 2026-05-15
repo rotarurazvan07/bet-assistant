@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
+from .leagues import FOREBET_LEAGUE_MAP
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
@@ -238,7 +239,8 @@ class ForebetFinder(BaseMatchFinder):
             max_concurrency=MAX_CONCURRENCY,
         )
 
-    def _parse_page(self, _, html) -> None:
+    def _parse_page(self, url, html) -> None:
+        league = FOREBET_LEAGUE_MAP.get(url, None)
         soup = BeautifulSoup(html, "html.parser")
         all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
         logger.info(f"Found {len(all_anchors)} matches to scan")
@@ -266,7 +268,7 @@ class ForebetFinder(BaseMatchFinder):
                     away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
                 )
 
-                self.add_match(Match(home_team, away_team, match_date, predictions, odds))
+                self.add_match(Match(home_team, away_team, match_date, predictions, odds, league=league))
 
             except Exception as e:
                 logger.error(f"SKIPPED: Parse error - {e}")

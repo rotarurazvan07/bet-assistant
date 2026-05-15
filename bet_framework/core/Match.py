@@ -109,6 +109,7 @@ class Match:
         predictions: list[Score] | Score,
         odds: Odds,
         result_url: str | None = None,
+        league: str | None = None,
     ) -> None:
         self.home_team = home_team
         self.away_team = away_team
@@ -121,6 +122,7 @@ class Match:
             self.predictions = [predictions]
         self.odds = odds
         self.result_url = result_url
+        self.league = league
 
     def to_dict(self):
         return {
@@ -130,4 +132,5 @@ class Match:
             "predictions": self.predictions,
             "odds": asdict(self.odds) if self.odds else None,
             "result_url": self.result_url if self.result_url else None,
+            "league": self.league,
         }
