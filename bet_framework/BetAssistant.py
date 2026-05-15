@@ -274,6 +274,7 @@ class BetAssistant(BaseStorageManager):
                     odds        REAL,
                     result_url  TEXT,
                     status      TEXT DEFAULT 'Pending',
+                    league      TEXT,
                     FOREIGN KEY(slip_id) REFERENCES slips(slip_id)
                 );
             """)
@@ -494,8 +495,8 @@ class BetAssistant(BaseStorageManager):
                 )
                 self.conn.execute(
                     """INSERT INTO legs
-                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url, league)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         slip_id,
                         leg.match_name,
@@ -504,6 +505,7 @@ class BetAssistant(BaseStorageManager):
                         market_type_value,
                         leg.odds,
                         leg.result_url,
+                        leg.league,
                     ),
                 )
 
@@ -531,7 +533,7 @@ class BetAssistant(BaseStorageManager):
         query = """
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
-                l.match_name, l.match_datetime, l.market, l.market_type, l.odds, l.status, l.result_url
+                l.match_name, l.match_datetime, l.market, l.market_type, l.odds, l.status, l.result_url, l.league
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
@@ -844,6 +846,11 @@ class BetAssistant(BaseStorageManager):
             if not is_valid_url(url) or url in excluded:
                 continue
 
+            # --- league filter ---
+            league = row.get("league", None)
+            if cfg.included_leagues and (league is None or league not in cfg.included_leagues):
+                continue
+
             match_name = f"{row['home']} vs {row['away']}"
 
             for m_type, market_cols in MARKET_MAP.items():
@@ -877,6 +884,7 @@ class BetAssistant(BaseStorageManager):
                                 odds=odds,
                                 result_url=row["result_url"],
                                 sources=sources,
+                                league=league,
                                 _adjusted_consensus=adj_cons,
                             )
                         )
@@ -974,6 +982,7 @@ class BetAssistant(BaseStorageManager):
             odds,
             status,
             url,
+            league,
         ) in rows:
             if slip_id not in slips:
                 slips[slip_id] = BetSlip(
@@ -1002,6 +1011,7 @@ class BetAssistant(BaseStorageManager):
                         odds=odds,
                         status=status,
                         result_url=url,
+                        league=league,
                     )
                 )
 

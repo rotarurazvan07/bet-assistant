@@ -761,6 +761,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.PENDING,
                 "http://x",
+                None,
             ),
             (
                 1,
@@ -775,6 +776,7 @@ class TestRowsToSlips:
                 2.0,
                 Outcome.PENDING,
                 "http://y",
+                None,
             ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
@@ -796,6 +798,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.PENDING,
                 None,
+                None,
             ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
@@ -815,6 +818,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
+                None,
                 None,
             ),
         ]
@@ -836,6 +840,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.WON,
                 None,
+                None,
             ),
             (
                 1,
@@ -849,6 +854,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.LOST,
+                None,
                 None,
             ),
         ]
@@ -870,6 +876,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.LIVE,
                 None,
+                None,
             ),
             (
                 1,
@@ -883,6 +890,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
+                None,
                 None,
             ),
         ]
@@ -904,6 +912,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.PENDING,
                 None,
+                None,
             ),
             (
                 2,
@@ -917,6 +926,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.WON,
+                None,
                 None,
             ),
         ]
