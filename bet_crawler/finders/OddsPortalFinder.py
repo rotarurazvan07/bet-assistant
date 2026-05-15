@@ -53,170 +53,190 @@ class OddsPortalFinder(BaseMatchFinder):
         self._add_match_lock = threading.Lock()
 
     def get_urls(self) -> list[str]:
-        urls = []
-        source_links = TOP_LEAGUES if self.top_leagues_only else [ODDSPORTAL_URL] # Simplified discovery
+        """Return discovery URLs for scraping."""
+        return TOP_LEAGUES if self.top_leagues_only else [ODDSPORTAL_URL]
 
-        for url in source_links:
+    def _parse_page(self, url: str, page: Page) -> None:
+        """Not used - this finder overrides scrape() for browser-based processing."""
+        pass
+
+    def get_match_urls(self) -> list[str]:
+        """Override to return discovered match URLs for distributed scraping."""
+        discovery_urls = self.get_urls()
+        return self._discover_match_urls(discovery_urls)
+
+    def scrape(self, urls: list[str] | None = None) -> None:
+        """Override scrape to handle discovery + browser-based match scraping."""
+        discovery_urls = urls if urls is not None else self.get_urls()
+
+        # Phase 1: Discover match URLs from listing pages
+        match_urls = self._discover_match_urls(discovery_urls)
+        if not match_urls:
+            logger.warning("No match URLs discovered")
+            return
+
+        logger.info(f"Total {len(match_urls)} match URLs to scrape")
+
+        # Phase 2: Scrape match pages with browser (interactive)
+        chunk_size = 10
+        for i in range(0, len(match_urls), chunk_size):
+            batch = match_urls[i : i + chunk_size]
+            self._process_batch(batch)
+
+    def _discover_match_urls(self, discovery_urls: list[str]) -> list[str]:
+        """Extract match URLs from discovery/listing pages using fetch()."""
+        all_urls = []
+        today = datetime.now(timezone.utc).date()
+        max_date = today + timedelta(days=self.num_days_ahead)
+
+        for url in discovery_urls:
             try:
                 page = fetch(url)
-                
-                today = datetime.now(timezone.utc).date()
-                max_date = today + timedelta(days=self.num_days_ahead)
-
-                # Extract from JSON-LD
-                scripts = page.find('script[type="application/ld+json"]')
-                links = []
-                for script in scripts:
-                    try:
-                        data = json.loads(script.text())
-                        events = data if isinstance(data, list) else [data]
-                        for event in events:
-                            if not isinstance(event, dict): continue
-                            
-                            ev_url = event.get("url")
-                            start_date = event.get("startDate")
-                            status = event.get("eventStatus")
-                            
-                            # Standardize status check
-                            is_scheduled = (status == "Scheduled" or 
-                                          (isinstance(status, dict) and status.get("@id") == "https://schema.org/EventScheduled"))
-                            
-                            if ev_url and start_date and is_scheduled:
-                                ev_date = datetime.fromisoformat(start_date.replace("Z", "+00:00")).date()
-                                if today <= ev_date <= max_date:
-                                    links.append(ev_url)
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-
-                # Deduplicate and add
+                links = self._extract_match_links_from_page(page, today, max_date)
                 unique_links = list(dict.fromkeys(links))
-                urls.extend(unique_links)
+                all_urls.extend(unique_links)
                 logger.info(f"Found {len(unique_links)} match URLs on {url}")
-                
             except Exception as e:
                 logger.error(f"Failed to discover matches on {url}: {e}")
 
-        return list(set(urls))
+        return list(set(all_urls))
 
-    def _parse_page(self, url: str, page: Page) -> None:
-        # Note: In BaseFinder.scrape(), _parse_page is called with a Page object.
-        # But for OddsPortal, we need to interact. 
-        # So we'll override scrape() instead of relying on default _parse_page logic for the whole batch.
-        pass
+    def _extract_match_links_from_page(self, page: Page, today, max_date) -> list[str]:
+        """Extract match URLs from JSON-LD on a listing page."""
+        links = []
+        scripts = page.select('script[type="application/ld+json"]')
 
-    def scrape(self, urls: list[str] | None = None) -> None:
-        """Override default scrape to handle interactive browser sessions."""
-        if urls is None:
-            urls = self.get_urls()
-            
-        if not urls:
-            return
-
-        # Use 1 worker for browser stability on small systems (RPi rule)
-        max_workers = 1 
-        
-        # Batch processing in chunks if urls are many
-        chunk_size = 10
-        for i in range(0, len(urls), chunk_size):
-            batch = urls[i : i + chunk_size]
-            self._process_batch(batch)
+        for script in scripts:
+            try:
+                data = json.loads(script.text())
+                events = data if isinstance(data, list) else [data]
+                for event in events:
+                    if not isinstance(event, dict):
+                        continue
+                    ev_url = event.get("url")
+                    start_date = event.get("startDate")
+                    status = event.get("eventStatus")
+                    is_scheduled = status == "Scheduled" or (
+                        isinstance(status, dict)
+                        and status.get("@id") == "https://schema.org/EventScheduled"
+                    )
+                    if ev_url and start_date and is_scheduled:
+                        ev_date = datetime.fromisoformat(
+                            start_date.replace("Z", "+00:00")
+                        ).date()
+                        if today <= ev_date <= max_date:
+                            links.append(ev_url)
+            except (json.JSONDecodeError, ValueError):
+                continue
+        return links
 
     def _process_batch(self, urls: list[str]) -> None:
+        """Process a batch of match URLs using browser session."""
         with browser(solve_cloudflare=True, headless=True) as session:
             for url in urls:
                 try:
-                    page = session.fetch(url)
-                    
-                    # Basic match info
-                    host_tag = page.find('[data-testid="game-host"] a')
-                    guest_tag = page.find('[data-testid="game-guest"] a')
-                    time_tag = page.find('[data-testid="game-time-item"] p')
-                    
-                    if not host_tag or not guest_tag:
-                        logger.warning(f"Failed to find teams on {url}")
-                        continue
-                        
-                    home_team = host_tag[0].text().strip()
-                    away_team = guest_tag[0].text().strip()
-                    
-                    # Date parsing (index 1 is usually the date)
-                    date_text = time_tag[1].text().strip().rstrip(",") if len(time_tag) > 1 else ""
-                    try:
-                        match_date = datetime.strptime(date_text, "%d %B %Y").replace(hour=0, minute=0, second=0)
-                    except ValueError:
-                        match_date = datetime.now().replace(hour=0, minute=0, second=0)
-
-                    # Odds containers
-                    odds_data = {}
-                    
-                    # 1. 1X2 Odds
-                    if session.click("li.odds-item", "1X2"):
-                        p = Page.from_html(session.page.content())
-                        cells = p.find('[data-testid="odd-container"]')
-                        if len(cells) >= 3:
-                            odds_data['1'] = cells[0].text().strip()
-                            odds_data['X'] = cells[1].text().strip()
-                            odds_data['2'] = cells[2].text().strip()
-
-                    # 2. BTTS
-                    if session.click("li.odds-item", "Both Teams to Score"):
-                        p = Page.from_html(session.page.content())
-                        cells = p.find('[data-testid="odd-container"]')
-                        if len(cells) >= 2:
-                            odds_data['btts_y'] = cells[0].text().strip()
-                            odds_data['btts_n'] = cells[1].text().strip()
-
-                    # 3. Double Chance
-                    if session.click("li.odds-item", "Double Chance"):
-                        p = Page.from_html(session.page.content())
-                        cells = p.find('[data-testid="odd-container"]')
-                        if len(cells) >= 3:
-                            odds_data['dc_1x'] = cells[0].text().strip()
-                            odds_data['dc_12'] = cells[1].text().strip()
-                            odds_data['dc_x2'] = cells[2].text().strip()
-
-                    # 4. Over/Under
-                    if session.click("li.odds-item", "Over/Under"):
-                        p = Page.from_html(session.page.content())
-                        rows = p.find('[data-testid="over-under-collapsed-row"]')
-                        for row in rows:
-                            opt = row.find('[data-testid="over-under-collapsed-option-box"]')
-                            conts = row.find('[data-testid="odd-container-default"]')
-                            if opt and len(conts) >= 2:
-                                name = opt[0].text().strip()
-                                over = conts[0].text().strip()
-                                under = conts[1].text().strip()
-                                if "+2.5" in name:
-                                    odds_data['over_25'] = over
-                                    odds_data['under_25'] = under
-                                elif "+1.5" in name:
-                                    odds_data['over_15'] = over
-                                    odds_data['under_15'] = under
-
-                    # Construct Odds object
-                    def to_float(val):
-                        if not val or val == "-": return None
-                        try: return float(val)
-                        except: return None
-
-                    odds = Odds(
-                        home=to_float(odds_data.get('1')),
-                        draw=to_float(odds_data.get('X')),
-                        away=to_float(odds_data.get('2')),
-                        over_15=to_float(odds_data.get('over_15')),
-                        under_15=to_float(odds_data.get('under_15')),
-                        over_25=to_float(odds_data.get('over_25')),
-                        under_25=to_float(odds_data.get('under_25')),
-                        btts_y=to_float(odds_data.get('btts_y')),
-                        btts_n=to_float(odds_data.get('btts_n')),
-                        dc_1x=to_float(odds_data.get('dc_1x')),
-                        dc_12=to_float(odds_data.get('dc_12')),
-                        dc_x2=to_float(odds_data.get('dc_x2')),
-                    )
-
-                    with self._add_match_lock:
-                        self.add_match(Match(home_team, away_team, match_date, None, odds))
-
+                    self._scrape_match_page(session, url)
                 except Exception as e:
                     logger.error(f"Error parsing {url}: {e}")
-                    continue
+
+    def _scrape_match_page(self, session, url: str) -> None:
+        """Scrape a single match page for odds data."""
+        page = session.fetch(url)
+
+        host_tag = page.select('[data-testid="game-host"] a')
+        guest_tag = page.select('[data-testid="game-guest"] a')
+        time_tag = page.select('[data-testid="game-time-item"] p')
+
+        if not host_tag or not guest_tag:
+            logger.warning(f"Failed to find teams on {url}")
+            return
+
+        home_team = host_tag[0].text().strip()
+        away_team = guest_tag[0].text().strip()
+
+        date_text = time_tag[1].text().strip().rstrip(",") if len(time_tag) > 1 else ""
+        try:
+            match_date = datetime.strptime(date_text, "%d %B %Y").replace(hour=0, minute=0, second=0)
+        except ValueError:
+            match_date = datetime.now().replace(hour=0, minute=0, second=0)
+
+        odds_data = self._collect_odds_data(session)
+        odds = self._build_odds(odds_data)
+
+        with self._add_match_lock:
+            self.add_match(Match(home_team, away_team, match_date, None, odds))
+
+    def _collect_odds_data(self, session) -> dict:
+        """Collect odds data by clicking through tabs."""
+        odds_data = {}
+
+        # 1X2 Odds
+        if session.click("li.odds-item", "1X2"):
+            p = Page.from_html(session.page.content())
+            cells = p.select('[data-testid="odd-container"]')
+            if len(cells) >= 3:
+                odds_data["1"] = cells[0].text().strip()
+                odds_data["X"] = cells[1].text().strip()
+                odds_data["2"] = cells[2].text().strip()
+
+        # BTTS
+        if session.click("li.odds-item", "Both Teams to Score"):
+            p = Page.from_html(session.page.content())
+            cells = p.select('[data-testid="odd-container"]')
+            if len(cells) >= 2:
+                odds_data["btts_y"] = cells[0].text().strip()
+                odds_data["btts_n"] = cells[1].text().strip()
+
+        # Double Chance
+        if session.click("li.odds-item", "Double Chance"):
+            p = Page.from_html(session.page.content())
+            cells = p.select('[data-testid="odd-container"]')
+            if len(cells) >= 3:
+                odds_data["dc_1x"] = cells[0].text().strip()
+                odds_data["dc_12"] = cells[1].text().strip()
+                odds_data["dc_x2"] = cells[2].text().strip()
+
+        # Over/Under
+        if session.click("li.odds-item", "Over/Under"):
+            p = Page.from_html(session.page.content())
+            rows = p.select('[data-testid="over-under-collapsed-row"]')
+            for row in rows:
+                opt = row.select('[data-testid="over-under-collapsed-option-box"]')
+                conts = row.select('[data-testid="odd-container-default"]')
+                if opt and len(conts) >= 2:
+                    name = opt[0].text().strip()
+                    over = conts[0].text().strip()
+                    under = conts[1].text().strip()
+                    if "+2.5" in name:
+                        odds_data["over_25"] = over
+                        odds_data["under_25"] = under
+                    elif "+1.5" in name:
+                        odds_data["over_15"] = over
+                        odds_data["under_15"] = under
+
+        return odds_data
+
+    def _build_odds(self, odds_data: dict) -> Odds:
+        """Build Odds object from collected data."""
+        def to_float(val):
+            if not val or val == "-":
+                return None
+            try:
+                return float(val)
+            except ValueError:
+                return None
+
+        return Odds(
+            home=to_float(odds_data.get("1")),
+            draw=to_float(odds_data.get("X")),
+            away=to_float(odds_data.get("2")),
+            over_15=to_float(odds_data.get("over_15")),
+            under_15=to_float(odds_data.get("under_15")),
+            over_25=to_float(odds_data.get("over_25")),
+            under_25=to_float(odds_data.get("under_25")),
+            btts_y=to_float(odds_data.get("btts_y")),
+            btts_n=to_float(odds_data.get("btts_n")),
+            dc_1x=to_float(odds_data.get("dc_1x")),
+            dc_12=to_float(odds_data.get("dc_12")),
+            dc_x2=to_float(odds_data.get("dc_x2")),
+        )

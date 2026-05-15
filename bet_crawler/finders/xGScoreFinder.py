@@ -18,28 +18,30 @@ class xGScoreFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        """Load predictions page, execute JS to expand, then parse."""
+        """Return discovery URL."""
+        return [XGSCORE_URL]
+
+    def get_match_urls(self) -> list[str]:
+        """Override to discover match URLs using browser (needs JS interaction)."""
         try:
             with browser(solve_cloudflare=True, headless=True) as session:
                 logger.info("Loading xGScore predictions page...")
                 session.fetch(XGSCORE_URL)
 
-                # Use the new session.click instead of manual execute_script for 'Week' button
                 if session.click(".mat-button-toggle-label-content", text="Week", idle_ms=5000):
                     logger.info("Successfully switched to Week view")
                 else:
                     logger.warning("Could not find 'Week' button")
 
                 page = Page.from_html(session.page.content())
-                
-                # Find match anchors
-                matches_anchors = page.find(".xgs-category-forecast-fixture")
+
+                matches_anchors = page.select(".xgs-category-forecast-fixture")
                 urls = []
                 for anchor in matches_anchors:
                     link = anchor.find("a.xgs-category-forecast-fixture_teams")
                     if link and link.attr("href"):
                         urls.append("https://xgscore.io" + link.attr("href"))
-                
+
                 logger.info(f"Found {len(urls)} xGScore matches.")
                 return list(set(urls))
         except Exception as e:

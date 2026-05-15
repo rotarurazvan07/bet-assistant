@@ -53,57 +53,76 @@ class BetExplorerFinder(BaseMatchFinder):
         self._add_match_lock = threading.Lock()
 
     def get_urls(self) -> list[str]:
-        urls = []
-        source_links = TOP_LEAGUES if self.top_leagues_only else [BETEXPLORER_URL]
+        """Return discovery URLs for scraping."""
+        return TOP_LEAGUES if self.top_leagues_only else [BETEXPLORER_URL]
 
-        for url in source_links:
+    def _parse_page(self, url: str, page: Page) -> None:
+        """Not used - this finder uses browser for match scraping."""
+        pass
+
+    def get_match_urls(self) -> list[str]:
+        """Override to return discovered match URLs for distributed scraping."""
+        discovery_urls = self.get_urls()
+        return self._discover_match_urls(discovery_urls)
+
+    def _discover_match_urls(self, discovery_urls: list[str]) -> list[str]:
+        """Extract match URLs from discovery pages using fetch()."""
+        all_urls = []
+        today = datetime.now(timezone.utc).date()
+        max_date = today + timedelta(days=self.num_days_ahead)
+
+        for url in discovery_urls:
             try:
                 page = fetch(url)
-                
-                today = datetime.now(timezone.utc).date()
-                max_date = today + timedelta(days=self.num_days_ahead)
-
-                scripts = page.find('script[type="application/ld+json"]')
-                links = []
-                for script in scripts:
-                    try:
-                        data = json.loads(script.text())
-                        events = data if isinstance(data, list) else [data]
-                        for event in events:
-                            if not isinstance(event, dict): continue
-                            
-                            ev_url = event.get("url")
-                            start_date = event.get("startDate")
-                            # BetExplorer often uses Scheduled status
-                            status = event.get("eventStatus")
-                            is_scheduled = (status == "Scheduled" or status == "EventScheduled" or 
-                                          (isinstance(status, dict) and "Scheduled" in str(status)))
-                            
-                            if ev_url and start_date and is_scheduled:
-                                ev_date = datetime.fromisoformat(start_date.replace("Z", "+00:00")).date()
-                                if today <= ev_date <= max_date:
-                                    links.append(ev_url)
-                    except (json.JSONDecodeError, ValueError):
-                        continue
-
+                links = self._extract_match_links_from_page(page, today, max_date)
                 unique_links = list(dict.fromkeys(links))
-                urls.extend(unique_links)
+                all_urls.extend(unique_links)
                 logger.info(f"Found {len(unique_links)} match URLs on {url}")
-                
             except Exception as e:
                 logger.error(f"Failed to discover matches on {url}: {e}")
 
-        return list(set(urls))
+        return list(set(all_urls))
 
-    def _parse_page(self, url: str, page: Page) -> None:
-        pass
+    def _extract_match_links_from_page(self, page: Page, today, max_date) -> list[str]:
+        """Extract match URLs from JSON-LD on a listing page."""
+        links = []
+        scripts = page.select('script[type="application/ld+json"]')
+
+        for script in scripts:
+            try:
+                data = json.loads(script.text())
+                events = data if isinstance(data, list) else [data]
+                for event in events:
+                    if not isinstance(event, dict):
+                        continue
+                    ev_url = event.get("url")
+                    start_date = event.get("startDate")
+                    status = event.get("eventStatus")
+                    is_scheduled = (
+                        status == "Scheduled"
+                        or status == "EventScheduled"
+                        or (isinstance(status, dict) and "Scheduled" in str(status))
+                    )
+                    if ev_url and start_date and is_scheduled:
+                        ev_date = datetime.fromisoformat(
+                            start_date.replace("Z", "+00:00")
+                        ).date()
+                        if today <= ev_date <= max_date:
+                            links.append(ev_url)
+            except (json.JSONDecodeError, ValueError):
+                continue
+        return links
 
     def scrape(self, urls: list[str] | None = None) -> None:
+        """Override scrape to handle discovery + browser-based match scraping."""
         if urls is None:
-            urls = self.get_urls()
-            
+            urls = self._discover_match_urls(self.get_urls())
+
         if not urls:
+            logger.warning("No match URLs discovered")
             return
+
+        logger.info(f"Total {len(urls)} match URLs to scrape")
 
         # 1 worker for browser stability
         chunk_size = 10

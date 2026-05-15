@@ -17,20 +17,35 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        try:
-            page = Page.from_url(WINDRAWWIN_URL)
-            # Find direct match links
-            links = page.find("a[href*='/predictions/match/']")
-            
-            urls = ["https://www.windrawwin.com" + link.attr("href") for link in links if link.attr("href")]
-            
-            logger.info(f"Found {len(urls)} WinDrawWin match URLs")
-            return urls
-        except Exception as e:
-            logger.error(f"Error discovering WinDrawWin matches: {e}")
-            return []
+        """Return discovery URL."""
+        return [WINDRAWWIN_URL]
 
     def _parse_page(self, url: str, page: Page) -> None:
+        """Parse either discovery page or match page."""
+        if url == WINDRAWWIN_URL:
+            self._parse_discovery_page(page)
+        else:
+            self._parse_match_page(url, page)
+
+    def _parse_discovery_page(self, page: Page) -> None:
+        """Extract match URLs from discovery page and scrape them."""
+        try:
+            links = page.select("a[href*='/predictions/match/']")
+            urls = [
+                "https://www.windrawwin.com" + link.attr("href")
+                for link in links
+                if link.attr("href")
+            ]
+
+            if urls:
+                logger.info(f"Found {len(urls)} WinDrawWin match URLs")
+                self.collect_urls(urls)
+            else:
+                logger.warning("No WinDrawWin match URLs found")
+        except Exception as e:
+            logger.error(f"Error discovering WinDrawWin matches: {e}")
+
+    def _parse_match_page(self, url: str, page: Page) -> None:
         try:
             # Match detail page parsing
             home_team = page.find(".wt-match-home").text().strip()

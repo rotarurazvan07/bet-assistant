@@ -23,8 +23,6 @@ class VitibetFinder(BaseMatchFinder):
 
     def _parse_page(self, url: str, page: Page) -> None:
         try:
-            # Note: page.find returns list of Elements. 
-            # Sub-elements are accessed via element.find
             rows = page.find("table.prediction tr")
             if not rows:
                 logger.warning(f"No table rows found for {url}")

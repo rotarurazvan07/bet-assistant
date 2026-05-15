@@ -38,12 +38,14 @@ class BaseMatchFinder(BaseFinder):
             skip_patterns (tuple[tuple[str, str], ...])
         """
         super().__init__(add_match_callback, **runtime_settings)
-        self.add_match_callback = add_match_callback
         self.contributes_odds = runtime_settings.get("contributes_odds", False)
         self.top_leagues_only = runtime_settings.get("top_leagues_only", False)
         self.num_days_ahead = runtime_settings.get("num_days_ahead", 1)
         self.local_timezone = runtime_settings.get("local_timezone", "UTC")
         self.skip_patterns = tuple(runtime_settings.get("skip_patterns", ()))
+        # Discovery mode for distributed scraping
+        self._discovery_mode = False
+        self._discovered_urls: list[str] = []
 
     @abstractmethod
     def get_urls(self) -> list[str]:
@@ -54,6 +56,35 @@ class BaseMatchFinder(BaseFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         """Parse a single Page object."""
         raise NotImplementedError()
+
+    # ─────────────────────────── Discovery mode for distributed scraping ──────
+
+    def get_match_urls(self) -> list[str]:
+        """Discover and return all final match URLs for distributed scraping.
+        
+        This method runs scrape() in discovery mode, collecting URLs instead
+        of parsing matches. Used by prepare_scrape for distributed workers.
+        """
+        self._discovery_mode = True
+        self._discovered_urls = []
+        try:
+            self.scrape()
+        finally:
+            self._discovery_mode = False
+        urls = self._discovered_urls
+        self._discovered_urls = []
+        return urls
+
+    def collect_urls(self, urls: list[str]) -> None:
+        """In discovery mode, collect URLs. Otherwise, scrape them.
+        
+        Subclasses should call this in _parse_discovery_page instead of
+        directly calling self.scrape(urls).
+        """
+        if self._discovery_mode:
+            self._discovered_urls.extend(urls)
+        else:
+            self.scrape(urls)
 
     # ─────────────────────────── Datetime normalisation ───────────────────────
 
@@ -97,7 +128,7 @@ class BaseMatchFinder(BaseFinder):
                 log_msg = f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
             logger.info(log_msg)
 
-            self.add_match_callback(match)
+            self.add_result(match)
             return True
         except Exception as e:
             logger.error(f"Error while adding match: {e}")

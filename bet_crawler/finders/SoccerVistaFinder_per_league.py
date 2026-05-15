@@ -17,26 +17,41 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        try:
-            page = Page.from_url(SOCCERVISTA_URL)
-            # Find league links
-            links = page.find(".leaguelist a")
-            if not links:
-                links = page.find("a[href*='/betting-tips/']")
-                
-            urls = ["https://www.soccervista.com" + link.attr("href") for link in links if link.attr("href")]
-            
-            if self.top_leagues_only:
-                # Filter or keep top ones
-                urls = urls[:20]
-                
-            logger.info(f"Found {len(urls)} SoccerVista league URLs")
-            return urls
-        except Exception as e:
-            logger.error(f"Error discovering SoccerVista leagues: {e}")
-            return []
+        """Return discovery URL."""
+        return [SOCCERVISTA_URL]
 
     def _parse_page(self, url: str, page: Page) -> None:
+        """Parse either discovery page or league page."""
+        if url == SOCCERVISTA_URL:
+            self._parse_discovery_page(page)
+        else:
+            self._parse_league_page(url, page)
+
+    def _parse_discovery_page(self, page: Page) -> None:
+        """Extract league URLs from discovery page and scrape them."""
+        try:
+            links = page.select(".leaguelist a")
+            if not links:
+                links = page.select("a[href*='/betting-tips/']")
+
+            urls = [
+                "https://www.soccervista.com" + link.attr("href")
+                for link in links
+                if link.attr("href")
+            ]
+
+            if self.top_leagues_only:
+                urls = urls[:20]
+
+            if urls:
+                logger.info(f"Found {len(urls)} SoccerVista league URLs")
+                self.collect_urls(urls)
+            else:
+                logger.warning("No SoccerVista league URLs found")
+        except Exception as e:
+            logger.error(f"Error discovering SoccerVista leagues: {e}")
+
+    def _parse_league_page(self, url: str, page: Page) -> None:
         try:
             # SoccerVista league page has matches in a table
             rows = page.find("table.main tr")

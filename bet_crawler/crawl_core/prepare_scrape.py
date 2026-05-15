@@ -26,7 +26,7 @@ def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int])
         for crawler in crawlers:
             for attempt in range(3):
                 try:
-                    new_urls = crawler.get_matches_urls()
+                    new_urls = crawler.get_match_urls()
                     if new_urls:
                         urls.extend(new_urls)
                         break

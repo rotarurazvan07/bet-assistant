@@ -41,26 +41,45 @@ class PredictzFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
+        """Return discovery URL or top leagues."""
         if self.top_leagues_only:
             return TOP_LEAGUES
-        
-        try:
-            page = Page.from_url(PREDICTZ_URL)
-            # Find the navigation menu
-            nav_select = page.find(".dd.nav-select")
-            if not nav_select:
-                return TOP_LEAGUES
-                
-            options = nav_select[0].find("option")
-            league_urls = [opt.attr("value") for opt in options if opt.attr("value") and "/predictions/" in opt.attr("value")]
-            
-            logger.info(f"Found {len(league_urls)} leagues to scrape")
-            return league_urls
-        except Exception as e:
-            logger.warning(f"Failed to discover leagues from {PREDICTZ_URL}: {e}")
-            return TOP_LEAGUES
+        return [PREDICTZ_URL]
 
     def _parse_page(self, url: str, page: Page) -> None:
+        """Parse either discovery page or league page."""
+        if url == PREDICTZ_URL:
+            self._parse_discovery_page(page)
+        else:
+            self._parse_league_page(url, page)
+
+    def _parse_discovery_page(self, page: Page) -> None:
+        """Extract league URLs from discovery page and scrape them."""
+        try:
+            nav_select = page.find(".dd.nav-select")
+            if not nav_select:
+                logger.warning("Nav select not found, falling back to TOP_LEAGUES")
+                self.collect_urls(TOP_LEAGUES)
+                return
+
+            options = nav_select.select("option")
+            league_urls = [
+                opt.attr("value")
+                for opt in options
+                if opt.attr("value") and "/predictions/" in opt.attr("value")
+            ]
+
+            if league_urls:
+                logger.info(f"Found {len(league_urls)} leagues to scrape")
+                self.collect_urls(league_urls)
+            else:
+                logger.warning("No league URLs found, falling back to TOP_LEAGUES")
+                self.collect_urls(TOP_LEAGUES)
+        except Exception as e:
+            logger.warning(f"Failed to parse discovery page: {e}, falling back to TOP_LEAGUES")
+            self.collect_urls(TOP_LEAGUES)
+
+    def _parse_league_page(self, url: str, page: Page) -> None:
         try:
             if "This could be due to games currently in play" in page.content:
                 logger.debug(f"No matches in {url}")

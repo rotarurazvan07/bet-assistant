@@ -17,20 +17,35 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        try:
-            page = Page.from_url(SOCCERVISTA_URL)
-            # Find direct match links
-            links = page.find("a[href*='/prediction-']")
-            
-            urls = ["https://www.soccervista.com" + link.attr("href") for link in links if link.attr("href")]
-            
-            logger.info(f"Found {len(urls)} SoccerVista match URLs")
-            return urls
-        except Exception as e:
-            logger.error(f"Error discovering SoccerVista matches: {e}")
-            return []
+        """Return discovery URL."""
+        return [SOCCERVISTA_URL]
 
     def _parse_page(self, url: str, page: Page) -> None:
+        """Parse either discovery page or match page."""
+        if url == SOCCERVISTA_URL:
+            self._parse_discovery_page(page)
+        else:
+            self._parse_match_page(url, page)
+
+    def _parse_discovery_page(self, page: Page) -> None:
+        """Extract match URLs from discovery page and scrape them."""
+        try:
+            links = page.select("a[href*='/prediction-']")
+            urls = [
+                "https://www.soccervista.com" + link.attr("href")
+                for link in links
+                if link.attr("href")
+            ]
+
+            if urls:
+                logger.info(f"Found {len(urls)} SoccerVista match URLs")
+                self.collect_urls(urls)
+            else:
+                logger.warning("No SoccerVista match URLs found")
+        except Exception as e:
+            logger.error(f"Error discovering SoccerVista matches: {e}")
+
+    def _parse_match_page(self, url: str, page: Page) -> None:
         try:
             # Match detail page parsing
             # Home/Away teams usually in h1 or specific div

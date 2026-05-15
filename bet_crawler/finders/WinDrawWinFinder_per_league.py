@@ -17,22 +17,40 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        try:
-            page = Page.from_url(WINDRAWWIN_URL)
-            # Find league links from a dropdown or list
-            links = page.find(".wt-league-link a")
-            if not links:
-                links = page.find("a[href*='/predictions/league/']")
-                
-            urls = ["https://www.windrawwin.com" + link.attr("href") for link in links if link.attr("href")]
-            
-            logger.info(f"Found {len(urls)} WinDrawWin league URLs")
-            return urls
-        except Exception as e:
-            logger.error(f"Error discovering WinDrawWin leagues: {e}")
-            return [WINDRAWWIN_URL]
+        """Return discovery URL."""
+        return [WINDRAWWIN_URL]
 
     def _parse_page(self, url: str, page: Page) -> None:
+        """Parse either discovery page or league page."""
+        if url == WINDRAWWIN_URL:
+            self._parse_discovery_page(page)
+        else:
+            self._parse_league_page(url, page)
+
+    def _parse_discovery_page(self, page: Page) -> None:
+        """Extract league URLs from discovery page and scrape them."""
+        try:
+            links = page.select(".wt-league-link a")
+            if not links:
+                links = page.select("a[href*='/predictions/league/']")
+
+            urls = [
+                "https://www.windrawwin.com" + link.attr("href")
+                for link in links
+                if link.attr("href")
+            ]
+
+            if urls:
+                logger.info(f"Found {len(urls)} WinDrawWin league URLs")
+                self.collect_urls(urls)
+            else:
+                logger.warning("No WinDrawWin league URLs found, parsing current page")
+                if not self._discovery_mode:
+                    self._parse_league_page(WINDRAWWIN_URL, page)
+        except Exception as e:
+            logger.error(f"Error discovering WinDrawWin leagues: {e}")
+
+    def _parse_league_page(self, url: str, page: Page) -> None:
         try:
             # WinDrawWin league page rows
             rows = page.find(".wt-match-row")

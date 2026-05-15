@@ -14,19 +14,28 @@ WHOSCORED_URL = "https://www.whoscored.com/"
 WHOSCORED_NAME = "whoscored"
 
 
+WHOSCORED_PREVIEWS_URL = WHOSCORED_URL + "previews"
+
+
 class WhoScoredFinder(BaseMatchFinder):
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        """Get match URLs via browser (needs JS rendering for Cloudflare)."""
+        """Return discovery URL."""
+        return [WHOSCORED_PREVIEWS_URL]
+
+    def get_match_urls(self) -> list[str]:
+        """Override to discover match URLs using browser (Cloudflare protected)."""
         try:
             with browser(solve_cloudflare=True, headless=True) as session:
-                page = session.fetch(WHOSCORED_URL + "previews")
-                # Find all links containing 'matches'
-                links = page.find("a[href*='/matches/']")
-                urls = [WHOSCORED_URL.rstrip("/") + link.attr("href") for link in links if link.attr("href")]
-                
+                page = session.fetch(WHOSCORED_PREVIEWS_URL)
+                links = page.select("a[href*='/matches/']")
+                urls = [
+                    WHOSCORED_URL.rstrip("/") + link.attr("href")
+                    for link in links
+                    if link.attr("href")
+                ]
                 logger.info(f"Found {len(urls)} WhoScored matches to scrape")
                 return list(set(urls))
         except Exception as e:
