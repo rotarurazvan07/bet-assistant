@@ -23,7 +23,7 @@ class VitibetFinder(BaseMatchFinder):
 
     def _parse_page(self, url: str, page: Page) -> None:
         try:
-            rows = page.find("table.prediction tr")
+            rows = page.select("table.prediction tr")
             if not rows:
                 logger.warning(f"No table rows found for {url}")
                 return
@@ -31,7 +31,7 @@ class VitibetFinder(BaseMatchFinder):
             # Skip header row
             for row in rows[1:]:
                 try:
-                    cols = row.find("td")
+                    cols = row.select("td")
                     if len(cols) < 5:
                         continue
 

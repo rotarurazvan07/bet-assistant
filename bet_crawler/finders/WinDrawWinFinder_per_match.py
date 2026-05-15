@@ -59,7 +59,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                     away_team = title.split(" vs ")[1].split("Prediction")[0].strip()
 
             # Prediction score
-            score_element = page.find(".wt-predicted-score")
+            score_element = page.select(".wt-predicted-score")
             if score_element:
                 score_text = score_element[0].text().strip()
                 if "-" in score_text:
@@ -71,7 +71,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                 return
 
             # Date
-            date_element = page.find(".wt-match-date-time")
+            date_element = page.select(".wt-match-date-time")
             if date_element:
                 date_text = date_element[0].text().strip()
                 try:

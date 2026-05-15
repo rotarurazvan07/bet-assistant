@@ -22,9 +22,9 @@ class FootballBettingTipsFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # Match containers
-            rows = page.find(".match-row")
+            rows = page.select(".match-row")
             if not rows:
-                rows = page.find("tr.prediction-row")
+                rows = page.select("tr.prediction-row")
 
             for row in rows:
                 try:
@@ -39,7 +39,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                     except ValueError:
                         match_date = datetime.now()
 
-                    score_div = row.find(".predicted-score")
+                    score_div = row.select(".predicted-score")
                     if score_div:
                         score_text = score_div[0].text().strip()
                         if "-" in score_text:

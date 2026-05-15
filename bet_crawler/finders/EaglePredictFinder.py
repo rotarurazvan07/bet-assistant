@@ -22,13 +22,13 @@ class EaglePredictFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # Find match containers
-            match_rows = page.find(".prediction-row")
+            match_rows = page.select(".prediction-row")
             if not match_rows:
-                match_rows = page.find("table tr")
+                match_rows = page.select("table tr")
 
             for row in match_rows:
                 try:
-                    cols = row.find("td")
+                    cols = row.select("td")
                     if len(cols) < 5:
                         continue
 

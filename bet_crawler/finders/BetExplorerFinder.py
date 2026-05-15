@@ -137,17 +137,17 @@ class BetExplorerFinder(BaseMatchFinder):
                     page = session.fetch(url)
                     
                     # BetExplorer specific team selectors
-                    teams = page.find(".list-details__item__title")
+                    teams = page.select(".list-details__item__title")
                     if len(teams) < 2:
                         # Fallback
-                        teams = page.find("h1") # Sometimes in h1
+                        teams = page.select("h1") # Sometimes in h1
                         if not teams: continue
                         
                     home_team = teams[0].text().strip()
                     away_team = teams[1].text().strip() if len(teams) > 1 else ""
                     
                     # Date
-                    date_tag = page.find("#match-date")
+                    date_tag = page.select("#match-date")
                     if date_tag:
                         date_str = date_tag[0].text().strip()
                         # Format "DD.MM.YYYY - HH:MM"
@@ -164,7 +164,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     # 1X2
                     if session.click('#bettype_menu_best li[title="1X2"]'):
                         p = Page.from_html(session.page.content())
-                        avg_odds = p.find(".oddsComparisonAll__average_text")
+                        avg_odds = p.select(".oddsComparisonAll__average_text")
                         if len(avg_odds) >= 3:
                             odds_data['1'] = avg_odds[0].text().strip()
                             odds_data['X'] = avg_odds[1].text().strip()
@@ -173,7 +173,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     # BTTS
                     if session.click('#bettype_menu_best li[title="Both Teams To Score"]'):
                         p = Page.from_html(session.page.content())
-                        avg_odds = p.find(".oddsComparisonAll__average_text")
+                        avg_odds = p.select(".oddsComparisonAll__average_text")
                         if len(avg_odds) >= 2:
                             odds_data['btts_y'] = avg_odds[0].text().strip()
                             odds_data['btts_n'] = avg_odds[1].text().strip()
@@ -181,7 +181,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     # DC
                     if session.click('#bettype_menu_best li[title="Double Chance"]'):
                         p = Page.from_html(session.page.content())
-                        avg_odds = p.find(".oddsComparisonAll__average_text")
+                        avg_odds = p.select(".oddsComparisonAll__average_text")
                         if len(avg_odds) >= 3:
                             odds_data['dc_1x'] = avg_odds[0].text().strip()
                             odds_data['dc_12'] = avg_odds[1].text().strip()
@@ -192,10 +192,10 @@ class BetExplorerFinder(BaseMatchFinder):
                         # Need to click "All" for all handicaps
                         session.click(".oddsComparison__ul.bestOddsComparison li#all")
                         p = Page.from_html(session.page.content())
-                        handicaps = p.find("[data-all-handicap]")
+                        handicaps = p.select("[data-all-handicap]")
                         for h in handicaps:
                             h_val = h.attr("data-all-handicap")
-                            cells = h.find(".oddsComparisonAll__average_text")
+                            cells = h.select(".oddsComparisonAll__average_text")
                             if len(cells) >= 2:
                                 if h_val == "2.50":
                                     odds_data['over_25'] = cells[0].text().strip()

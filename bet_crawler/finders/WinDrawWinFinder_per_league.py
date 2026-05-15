@@ -53,9 +53,9 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
     def _parse_league_page(self, url: str, page: Page) -> None:
         try:
             # WinDrawWin league page rows
-            rows = page.find(".wt-match-row")
+            rows = page.select(".wt-match-row")
             if not rows:
-                rows = page.find("table tr")
+                rows = page.select("table tr")
 
             for row in rows:
                 try:

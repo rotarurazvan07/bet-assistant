@@ -227,7 +227,7 @@ class ForebetFinder(BaseMatchFinder):
         return TOP_LEAGUES if self.top_leagues_only else ALL_LINKS
 
     def _parse_page(self, url: str, page: Page) -> None:
-        all_anchors = page.find("#body-main .rcnt")
+        all_anchors = page.select("#body-main .rcnt")
         logger.info(f"Found {len(all_anchors)} matches to scan on {url}")
 
         for anchor in all_anchors:
@@ -247,7 +247,7 @@ class ForebetFinder(BaseMatchFinder):
                 away_score = float(score_text.split("-")[1])
                 predictions = [Score(FOREBET_NAME, home_score, away_score)]
 
-                odds_tags = [o.text() for o in anchor.find(".haodd span")]
+                odds_tags = [o.text() for o in anchor.select(".haodd span")]
                 odds = Odds(
                     home=float(odds_tags[0]) if len(odds_tags) > 0 and odds_tags[0] not in ("", " - ") else None,
                     draw=float(odds_tags[1]) if len(odds_tags) > 1 and odds_tags[1] not in ("", " - ") else None,

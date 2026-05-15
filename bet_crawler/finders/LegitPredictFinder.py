@@ -22,13 +22,13 @@ class LegitPredictFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # Matches in rows
-            rows = page.find("table tr")
+            rows = page.select("table tr")
             if not rows:
-                rows = page.find(".prediction-item")
+                rows = page.select(".prediction-item")
 
             for row in rows:
                 try:
-                    cols = row.find("td")
+                    cols = row.select("td")
                     if len(cols) < 4:
                         continue
 

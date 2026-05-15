@@ -54,14 +54,14 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
     def _parse_league_page(self, url: str, page: Page) -> None:
         try:
             # SoccerVista league page has matches in a table
-            rows = page.find("table.main tr")
+            rows = page.select("table.main tr")
             if not rows:
-                rows = page.find(".match-row")
+                rows = page.select(".match-row")
 
             for row in rows:
                 try:
                     # SoccerVista layout parsing
-                    cols = row.find("td")
+                    cols = row.select("td")
                     if len(cols) < 6:
                         continue
 

@@ -61,7 +61,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     away_team = parts[1].split("-")[0].strip()
 
             # Prediction score
-            prediction_div = page.find(".score-prediction")
+            prediction_div = page.select(".score-prediction")
             if prediction_div:
                 score_text = prediction_div[0].text().strip()
                 if ":" in score_text:

@@ -25,14 +25,14 @@ class ScorePredictorFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # ScorePredictor usually has a table with class 'prediction'
-            rows = page.find("table.prediction tr")
+            rows = page.select("table.prediction tr")
             if not rows:
                 logger.warning(f"No prediction table found on {url}")
                 return
 
             for row in rows[1:]:  # Skip header
                 try:
-                    cols = row.find("td")
+                    cols = row.select("td")
                     if len(cols) < 5:
                         continue
 

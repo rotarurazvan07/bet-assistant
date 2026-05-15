@@ -81,18 +81,18 @@ class PredictzFinder(BaseMatchFinder):
 
     def _parse_league_page(self, url: str, page: Page) -> None:
         try:
-            if "This could be due to games currently in play" in page.content:
+            if page.contains("This could be due to games currently in play"):
                 logger.debug(f"No matches in {url}")
                 return
 
             match_datetime = None
             # Find the match containers
-            entries = page.find(".pzcnth")
+            entries = page.select(".pzcnth")
             
             for entry in entries:
                 try:
                     # Date header
-                    h2 = entry.find("h2")
+                    h2 = entry.select("h2")
                     if h2:
                         date_str = h2[0].text().strip()
                         # Clean ordinal suffixes (1st, 2nd, etc.)
@@ -111,7 +111,7 @@ class PredictzFinder(BaseMatchFinder):
                         continue
 
                     # Match row
-                    fixture_tag = entry.find(".fixt")
+                    fixture_tag = entry.select(".fixt")
                     if not fixture_tag:
                         continue
                         
@@ -123,7 +123,7 @@ class PredictzFinder(BaseMatchFinder):
                     away_team = teams[1].strip()
 
                     # Prediction score
-                    tds = entry.find("td")
+                    tds = entry.select("td")
                     if not tds:
                         continue
                         
@@ -135,7 +135,7 @@ class PredictzFinder(BaseMatchFinder):
                         continue
 
                     # Odds
-                    odds_elements = entry.find(".odds")
+                    odds_elements = entry.select(".odds")
                     odds = None
                     if len(odds_elements) >= 3:
                         try:

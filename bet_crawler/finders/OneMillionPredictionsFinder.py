@@ -25,10 +25,10 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # Match containers
-            match_cards = page.find(".match-card")
+            match_cards = page.select(".match-card")
             if not match_cards:
                 # Try table fallback if class changed
-                match_cards = page.find(".prediction-item")
+                match_cards = page.select(".prediction-item")
             
             for card in match_cards:
                 try:

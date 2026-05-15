@@ -66,7 +66,7 @@ class WhoScoredFinder(BaseMatchFinder):
                 match_datetime = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
             # 2. Extract score predictions from DOM
-            scores_tags = page.find("#preview-prediction .predicted-score")
+            scores_tags = page.select("#preview-prediction .predicted-score")
             if len(scores_tags) >= 2:
                 try:
                     home_p = scores_tags[0].text().strip()

@@ -22,9 +22,9 @@ class FootballPredictionsFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # Matches are usually in blocks
-            match_items = page.find(".match-item")
+            match_items = page.select(".match-item")
             if not match_items:
-                match_items = page.find(".prediction-card")
+                match_items = page.select(".prediction-card")
 
             for item in match_items:
                 try:

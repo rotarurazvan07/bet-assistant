@@ -51,14 +51,14 @@ class xGScoreFinder(BaseMatchFinder):
     def _parse_page(self, url: str, page: Page) -> None:
         try:
             # 1. Team Names
-            teams = page.find(".xgs-game-header_team-name")
+            teams = page.select(".xgs-game-header_team-name")
             if len(teams) < 2:
                 return
             home_team = teams[0].text().strip()
             away_team = teams[1].text().strip()
 
             # 2. Date
-            date_tag = page.find(".xgs-game-header_datetime")
+            date_tag = page.select(".xgs-game-header_datetime")
             if date_tag:
                 date_str = date_tag[0].text().strip()
                 # Regex match format like "May 15, 2026"
@@ -89,7 +89,7 @@ class xGScoreFinder(BaseMatchFinder):
 
     def _extract_odds(self, page: Page) -> Odds | None:
         try:
-            odds_elements = page.find("xgs-odds")
+            odds_elements = page.select("xgs-odds")
             if len(odds_elements) < 2:
                 return None
 
