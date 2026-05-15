@@ -37,12 +37,15 @@ class BaseMatchFinder(BaseFinder):
             local_timezone (str)
             skip_patterns (tuple[tuple[str, str], ...])
         """
-        super().__init__(add_match_callback, **runtime_settings)
-        self.contributes_odds = runtime_settings.get("contributes_odds", False)
-        self.top_leagues_only = runtime_settings.get("top_leagues_only", False)
-        self.num_days_ahead = runtime_settings.get("num_days_ahead", 1)
-        self.local_timezone = runtime_settings.get("local_timezone", "UTC")
-        self.skip_patterns = tuple(runtime_settings.get("skip_patterns", ()))
+        # Extract bet-assistant-specific settings before passing to scrape-kit
+        self.contributes_odds = runtime_settings.pop("contributes_odds", False)
+        self.top_leagues_only = runtime_settings.pop("top_leagues_only", False)
+        self.num_days_ahead = runtime_settings.pop("num_days_ahead", 1)
+        self.local_timezone = runtime_settings.pop("local_timezone", "UTC")
+        skip_patterns = runtime_settings.pop("skip_patterns", ())
+        self.skip_patterns = tuple(skip_patterns)
+        # Pass only scrape-kit compatible settings to parent
+        super().__init__(add_match_callback, skip_patterns=list(skip_patterns), **runtime_settings)
         # Discovery mode for distributed scraping
         self._discovery_mode = False
         self._discovered_urls: list[str] = []
