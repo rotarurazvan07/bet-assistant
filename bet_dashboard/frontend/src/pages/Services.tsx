@@ -5,24 +5,25 @@ import { TooltipIcon } from '../components/ui';
 import type { ServicesData } from '../types';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const INTERVALS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 
 export default function Services() {
     const [data, setData] = useState<ServicesData | null>(null);
-    const [pullHour, setPullHour] = useState(6);
+    const [pullInterval, setPullInterval] = useState(30);
     const [genHour, setGenHour] = useState(8);
     const [status, setStatus] = useState('');
 
     const load = useCallback(async () => {
         const d = await fetchServices();
         setData(d);
-        setPullHour(d.pull_hour);
+        setPullInterval(d.pull_interval_minutes);
         setGenHour(d.generate_hour);
     }, []);
 
     useEffect(() => { load(); }, [load]);
 
     async function handleSave() {
-        await saveServiceSettings(pullHour, genHour);
+        await saveServiceSettings(pullInterval, genHour);
         setStatus('✓ Settings saved — schedules recalculated');
         load();
     }
@@ -78,30 +79,30 @@ export default function Services() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
 
-                        {/* Pull DB hour */}
+                        {/* Pull DB interval */}
                         <div>
                             <div className="flex items-center gap-1.5 mb-3">
                                 <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
                                     Pull DB
-                                    <TooltipIcon text="Fetches match data and predictions from external sources. Runs daily at the scheduled hour." align="right" />
+                                    <TooltipIcon text="Checks for new match data every N minutes. Only downloads when changes are detected." align="right" />
                                 </span>
                                 <span className="font-mono text-[10px] px-1.5 py-0.5 rounded"
                                     style={{ background: 'var(--accent)', color: '#fff', opacity: .8 }}>
-                                    daily at {String(pullHour).padStart(2, '0')}:00
+                                    every {pullInterval} min
                                 </span>
                             </div>
-                            <div className="grid grid-cols-6 gap-1">
-                                {HOURS.map(h => (
-                                    <button key={h}
-                                        onClick={() => setPullHour(h)}
+                            <div className="grid grid-cols-5 gap-1">
+                                {INTERVALS.map(m => (
+                                    <button key={m}
+                                        onClick={() => setPullInterval(m)}
                                         className="h-8 rounded text-[11px] font-mono transition-all duration-100"
                                         style={{
-                                            background: h === pullHour ? 'var(--accent)' : 'var(--bg-raised)',
-                                            border: `1px solid ${h === pullHour ? 'var(--accent)' : 'var(--border)'}`,
-                                            color: h === pullHour ? '#fff' : 'var(--text-secondary)',
-                                            transform: h === pullHour ? 'scale(1.05)' : 'scale(1)',
+                                            background: m === pullInterval ? 'var(--accent)' : 'var(--bg-raised)',
+                                            border: `1px solid ${m === pullInterval ? 'var(--accent)' : 'var(--border)'}`,
+                                            color: m === pullInterval ? '#fff' : 'var(--text-secondary)',
+                                            transform: m === pullInterval ? 'scale(1.05)' : 'scale(1)',
                                         }}>
-                                        {String(h).padStart(2, '0')}
+                                        {m}
                                     </button>
                                 ))}
                             </div>

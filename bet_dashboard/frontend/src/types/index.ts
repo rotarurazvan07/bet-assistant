@@ -241,7 +241,7 @@ export interface ServiceInfo {
 
 export interface ServicesData {
     services: Record<string, ServiceInfo>;
-    pull_hour: number; generate_hour: number; server_time: string;
+    pull_interval_minutes: number; generate_hour: number; server_time: string;
 }
 
 // ── WebSocket events ──────────────────────────────────────────────────────────

@@ -108,8 +108,8 @@ export async function fetchServices(): Promise<ServicesData> {
     return res.data;
 }
 
-export async function saveServiceSettings(pull_hour: number, generate_hour: number): Promise<void> {
-    await client.post('/services/settings', { pull_hour, generate_hour });
+export async function saveServiceSettings(pull_interval_minutes: number, generate_hour: number): Promise<void> {
+    await client.post('/services/settings', { pull_interval_minutes, generate_hour });
 }
 
 export async function toggleService(name: string): Promise<{ name: string; enabled: boolean }> {

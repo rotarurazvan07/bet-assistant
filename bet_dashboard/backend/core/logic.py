@@ -68,13 +68,16 @@ class AppLogic:
         # Pre-load match data
         self.refresh_data()
 
+        # ETag tracking for change detection
+        self._last_etag: str | None = None
+
         # Initialize services
         svc_cfg = self._settings.get("services") or {}
         self._services: dict[str, TickerService] = {
             "puller": TickerService(
                 "puller",
                 self._do_pull,
-                hour=int(svc_cfg.get("pull_hour", 6)),
+                interval=int(svc_cfg.get("pull_interval_minutes", 30)) * 60,
             ),
             "generator": TickerService(
                 "generator",
@@ -118,8 +121,31 @@ class AppLogic:
 
     # ── TickerService callbacks ───────────────────────────────────────────────
 
+    def _check_for_changes(self) -> bool:
+        """HEAD request to check if GitHub release has changed via ETag."""
+        repo = os.environ.get("REPO", "rotarurazvan07/bet-assistant")
+        url = f"https://github.com/{repo}/releases/download/latest-db/final_matches.db"
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                etag = resp.headers.get("ETag")
+                if etag and etag != self._last_etag:
+                    self._last_etag = etag
+                    return True
+                elif not etag:
+                    # No ETag header, always download
+                    return True
+            return False
+        except Exception as exc:
+            print(f"[Puller] HEAD request failed: {exc}, will attempt download")
+            return True  # On error, try to download anyway
+
     def _do_pull(self) -> None:
         try:
+            if not self._check_for_changes():
+                print(f"[Puller] No changes detected, skipping download")
+                return
+            print(f"[Puller] Change detected, downloading...")
             self.pull_matches_db(self._matches_db_path)
             self._broadcast_matches_updated()
         except Exception as exc:
@@ -551,12 +577,14 @@ class AppLogic:
         )
         return new_state
 
-    def save_service_settings(self, pull_hour: int, generate_hour: int) -> None:
+    def save_service_settings(self, pull_interval_minutes: int, generate_hour: int) -> None:
         cfg = self._settings.get("services") or {}
-        cfg["pull_hour"] = pull_hour
+        cfg["pull_interval_minutes"] = pull_interval_minutes
         cfg["generate_hour"] = generate_hour
         self._settings.write("services", cfg)
-        self._services["puller"].update_config(hour=pull_hour, trigger_now=False)
+        # Update puller interval (convert minutes to seconds)
+        self._services["puller"].interval = pull_interval_minutes * 60
+        self._services["puller"]._wake_event.set()  # Wake to apply new interval
         self._services["generator"].update_config(hour=generate_hour, trigger_now=False)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
