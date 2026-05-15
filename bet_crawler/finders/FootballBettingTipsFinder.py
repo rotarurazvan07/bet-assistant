@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from scrape_kit import get_logger, Page
@@ -8,8 +9,23 @@ from .BaseMatchFinder import BaseMatchFinder
 
 logger = get_logger(__name__)
 
-FOOTBALL_BETTING_TIPS_URL = "https://www.footballbettingtips.org/predictions/"
-FOOTBALL_BETTING_TIPS_NAME = "footballbettingtips"
+FOOTBALLBETTINGTIPS_URL = "https://www.footballbettingtips.org.uk/"
+FOOTBALLBETTINGTIPS_NAME = "footballbettingtips"
+
+TOP_LEAGUES = [
+    "https://www.footballbettingtips.org.uk/correct-score-tips/premier-league.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/serie-a.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/la-liga.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/bundesliga.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/ligue-1.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/eredivisie.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/primeira-liga.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/championship.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/serie-b.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/segunda-division.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/2-bundesliga.html",
+    "https://www.footballbettingtips.org.uk/correct-score-tips/ligue-2.html",
+]
 
 
 class FootballBettingTipsFinder(BaseMatchFinder):
@@ -17,43 +33,36 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        return [FOOTBALL_BETTING_TIPS_URL]
+        return TOP_LEAGUES
+
+    def get_match_urls(self) -> list[str]:
+        return TOP_LEAGUES
 
     def _parse_page(self, url: str, page: Page) -> None:
+        """Parse match predictions from football betting tips page."""
         try:
-            # Match containers
-            rows = page.select(".match-row")
+            rows = page.select("table.table tr, table.predictions tr")
             if not rows:
-                rows = page.select("tr.prediction-row")
-
+                logger.debug(f"No prediction table on {url}")
+                return
             for row in rows:
                 try:
-                    home_team = row.find(".home-team-name").text().strip()
-                    away_team = row.find(".away-team-name").text().strip()
-                    
-                    # Date extraction
-                    date_text = row.find(".match-time").text().strip()
-                    try:
-                        # Assuming format like "15/05 20:45"
-                        match_date = datetime.strptime(date_text, "%d/%m %H:%M").replace(year=datetime.now().year)
-                    except ValueError:
-                        match_date = datetime.now()
-
-                    score_div = row.select(".predicted-score")
-                    if score_div:
-                        score_text = score_div[0].text().strip()
-                        if "-" in score_text:
-                            home_p, away_p = score_text.split("-")
-                            predictions = [Score(FOOTBALL_BETTING_TIPS_NAME, float(home_p), float(away_p))]
-                        else:
-                            continue
-                    else:
+                    cols = row.select("td")
+                    if len(cols) < 4:
                         continue
-
+                    date_str = cols[0].text().strip()
+                    match_date = self.parse_date_robust(date_str)
+                    if not match_date:
+                        match_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                    home_team = cols[1].text().strip()
+                    away_team = cols[2].text().strip()
+                    score_text = cols[3].text().strip()
+                    m = re.search(r"(\d+)\s*[-:]\s*(\d+)", score_text)
+                    if not m:
+                        continue
+                    predictions = [Score(FOOTBALLBETTINGTIPS_NAME, float(m.group(1)), float(m.group(2)))]
                     self.add_match(Match(home_team, away_team, match_date, predictions, None))
-
-                except Exception:
-                    continue
-
+                except Exception as e:
+                    logger.debug(f"Skipping row: {e}")
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

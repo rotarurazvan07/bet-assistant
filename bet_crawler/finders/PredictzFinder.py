@@ -1,5 +1,5 @@
-from datetime import datetime
 import re
+from datetime import datetime
 
 from scrape_kit import get_logger, Page
 
@@ -13,26 +13,36 @@ PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
 
 TOP_LEAGUES = [
-    "https://www.predictz.com/predictions/europe/champions-league/",
-    "https://www.predictz.com/predictions/europe/europa-league/",
-    "https://www.predictz.com/predictions/europe/europa-conference-league/",
-    "https://www.predictz.com/predictions/england/premier-league/",
-    "https://www.predictz.com/predictions/italy/serie-a/",
-    "https://www.predictz.com/predictions/spain/la-liga/",
-    "https://www.predictz.com/predictions/germany/bundesliga/",
-    "https://www.predictz.com/predictions/france/ligue-1/",
-    "https://www.predictz.com/predictions/belgium/first-division-a/",
-    "https://www.predictz.com/predictions/england/championship/",
-    "https://www.predictz.com/predictions/portugal/primeira-liga/",
-    "https://www.predictz.com/predictions/brazil/serie-a/",
-    "https://www.predictz.com/predictions/usa/major-league-soccer/",
-    "https://www.predictz.com/predictions/netherlands/eredivisie/",
-    "https://www.predictz.com/predictions/denmark/superliga/",
-    "https://www.predictz.com/predictions/poland/ekstraklasa/",
-    "https://www.predictz.com/predictions/argentina/liga-profesional/",
-    "https://www.predictz.com/predictions/japan/j-league/",
-    "https://www.predictz.com/predictions/turkey/super-lig/",
-    "https://www.predictz.com/predictions/sweden/allsvenskan/",
+    "https://www.predictz.com/predictions/champions-league/",
+    "https://www.predictz.com/predictions/europa-league/",
+    "https://www.predictz.com/predictions/conference-league/",
+    "https://www.predictz.com/predictions/england-premier-league/",
+    "https://www.predictz.com/predictions/italy-serie-a/",
+    "https://www.predictz.com/predictions/spain-la-liga/",
+    "https://www.predictz.com/predictions/germany-bundesliga/",
+    "https://www.predictz.com/predictions/france-ligue-1/",
+    "https://www.predictz.com/predictions/belgium-jupiler-league/",
+    "https://www.predictz.com/predictions/england-championship/",
+    "https://www.predictz.com/predictions/portugal-primeira-liga/",
+    "https://www.predictz.com/predictions/brazil-serie-a/",
+    "https://www.predictz.com/predictions/usa-mls/",
+    "https://www.predictz.com/predictions/netherlands-eredivisie/",
+    "https://www.predictz.com/predictions/denmark-superliga/",
+    "https://www.predictz.com/predictions/poland-ekstraklasa/",
+    "https://www.predictz.com/predictions/argentina-primera-division/",
+    "https://www.predictz.com/predictions/japan-j-league/",
+    "https://www.predictz.com/predictions/turkey-super-lig/",
+    "https://www.predictz.com/predictions/sweden-allsvenskan/",
+    "https://www.predictz.com/predictions/croatia-1-hnl/",
+    "https://www.predictz.com/predictions/mexico-liga-mx/",
+    "https://www.predictz.com/predictions/spain-segunda-division/",
+    "https://www.predictz.com/predictions/norway-eliteserien/",
+    "https://www.predictz.com/predictions/austria-bundesliga/",
+    "https://www.predictz.com/predictions/switzerland-super-league/",
+    "https://www.predictz.com/predictions/italy-serie-b/",
+    "https://www.predictz.com/predictions/germany-2-bundesliga/",
+    "https://www.predictz.com/predictions/france-ligue-2/",
+    "https://www.predictz.com/predictions/scotland-premiership/",
 ]
 
 
@@ -41,117 +51,68 @@ class PredictzFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_urls(self) -> list[str]:
-        """Return discovery URL or top leagues."""
-        if self.top_leagues_only:
-            return TOP_LEAGUES
-        return [PREDICTZ_URL]
+        """Return league URLs directly."""
+        return TOP_LEAGUES
+
+    def get_match_urls(self) -> list[str]:
+        """Return league URLs for scraping."""
+        return TOP_LEAGUES
 
     def _parse_page(self, url: str, page: Page) -> None:
-        """Parse either discovery page or league page."""
-        if url == PREDICTZ_URL:
-            self._parse_discovery_page(page)
-        else:
-            self._parse_league_page(url, page)
-
-    def _parse_discovery_page(self, page: Page) -> None:
-        """Extract league URLs from discovery page and scrape them."""
+        """Parse match predictions from a Predictz league page."""
         try:
-            nav_select = page.find(".dd.nav-select")
-            if not nav_select:
-                logger.warning("Nav select not found, falling back to TOP_LEAGUES")
-                self.collect_urls(TOP_LEAGUES)
+            current_date = None
+            items = page.select(".pzcnth")
+            if not items:
+                logger.debug(f"No prediction items on {url}")
                 return
-
-            options = nav_select.select("option")
-            league_urls = [
-                opt.attr("value")
-                for opt in options
-                if opt.attr("value") and "/predictions/" in opt.attr("value")
-            ]
-
-            if league_urls:
-                logger.info(f"Found {len(league_urls)} leagues to scrape")
-                self.collect_urls(league_urls)
-            else:
-                logger.warning("No league URLs found, falling back to TOP_LEAGUES")
-                self.collect_urls(TOP_LEAGUES)
-        except Exception as e:
-            logger.warning(f"Failed to parse discovery page: {e}, falling back to TOP_LEAGUES")
-            self.collect_urls(TOP_LEAGUES)
-
-    def _parse_league_page(self, url: str, page: Page) -> None:
-        try:
-            if page.contains("This could be due to games currently in play"):
-                logger.debug(f"No matches in {url}")
-                return
-
-            match_datetime = None
-            # Find the match containers
-            entries = page.select(".pzcnth")
-            
-            for entry in entries:
+            for item in items:
                 try:
-                    # Date header
-                    h2 = entry.select("h2")
-                    if h2:
-                        date_str = h2[0].text().strip()
-                        # Clean ordinal suffixes (1st, 2nd, etc.)
-                        clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
-                        
-                        # Try to find valid year
-                        current_year = datetime.now().year
-                        for y in [current_year, current_year + 1]:
-                            try:
-                                dt = datetime.strptime(f"{clean} {y}", "%A %B %d %Y")
-                                if dt.strftime("%A") in date_str:
-                                    match_datetime = dt.replace(hour=0, minute=0, second=0, microsecond=0)
-                                    break
-                            except ValueError:
-                                continue
+                    # Check if this is a date header
+                    text = item.text().strip()
+                    if not item.find(".fixt"):
+                        # Try to parse as date header
+                        cleaned = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", text)
+                        parsed = self.parse_date_robust(cleaned)
+                        if parsed:
+                            current_date = parsed
                         continue
-
-                    # Match row
-                    fixture_tag = entry.select(".fixt")
-                    if not fixture_tag:
+                    # Match row with "fixt" class
+                    fixt = item.find(".fixt")
+                    if not fixt:
                         continue
-                        
-                    teams = fixture_tag[0].text().split(" vs ")
-                    if len(teams) < 2:
+                    fixt_text = fixt.text().strip()
+                    if " vs " not in fixt_text:
                         continue
-                        
-                    home_team = teams[0].strip()
-                    away_team = teams[1].strip()
-
-                    # Prediction score
-                    tds = entry.select("td")
-                    if not tds:
+                    parts = fixt_text.split(" vs ")
+                    home_team = parts[0].strip()
+                    away_team = parts[1].strip()
+                    # Score prediction
+                    score_el = item.find(".pointed")
+                    if not score_el:
                         continue
-                        
-                    score_text = tds[0].text().strip()[-3:]
-                    if "-" in score_text:
-                        home_p, away_p = score_text.split("-")
-                        predictions = [Score(PREDICTZ_NAME, int(home_p), int(away_p))]
-                    else:
+                    score_text = score_el.text().strip()
+                    if "-" not in score_text:
                         continue
-
-                    # Odds
-                    odds_elements = entry.select(".odds")
+                    score_parts = score_text.split("-")
+                    home_score = float(score_parts[0].strip())
+                    away_score = float(score_parts[1].strip())
+                    predictions = [Score(PREDICTZ_NAME, home_score, away_score)]
+                    # Odds (optional)
                     odds = None
-                    if len(odds_elements) >= 3:
+                    odds_els = item.select(".pointed")
+                    if len(odds_els) >= 4:
                         try:
                             odds = Odds(
-                                home=float(odds_elements[0].text().strip()),
-                                draw=float(odds_elements[1].text().strip()),
-                                away=float(odds_elements[2].text().strip())
+                                home=odds_els[1].text().strip(),
+                                draw=odds_els[2].text().strip(),
+                                away=odds_els[3].text().strip(),
                             )
-                        except (ValueError, TypeError):
+                        except Exception:
                             pass
-
-                    self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
-
+                    match_date = current_date or datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                    self.add_match(Match(home_team, away_team, match_date, predictions, odds))
                 except Exception as e:
-                    logger.debug(f"Skipping entry in {url}: {e}")
-                    continue
-
+                    logger.debug(f"Skipping item: {e}")
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

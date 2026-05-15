@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from scrape_kit import get_logger, Page
+from scrape_kit import fetch, get_logger, Page
 
 from bet_framework.core.Match import Match, Score
 
@@ -27,33 +27,24 @@ class BetClanFinder(BaseMatchFinder):
         """Return discovery URLs for scraping."""
         return DISCOVERY_URLS
 
+    def get_match_urls(self) -> list[str]:
+        """Discover match URLs from listing pages via lightweight HTTP."""
+        all_urls = []
+        for url in DISCOVERY_URLS:
+            try:
+                page = fetch(url)
+                for anchor in page.select(".bclisttip"):
+                    link = anchor.find("a")
+                    if link:
+                        href = link.attr("href")
+                        if href:
+                            all_urls.append(href)
+                logger.info(f"Found {len(all_urls)} match URLs from {url}")
+            except Exception as e:
+                logger.warning(f"Failed to discover from {url}: {e}")
+        return list(set(all_urls))
+
     def _parse_page(self, url: str, page: Page) -> None:
-        """Parse either a listing page (extract match URLs) or a match page."""
-        if url in DISCOVERY_URLS:
-            self._parse_listing_page(url, page)
-        else:
-            self._parse_match_page(url, page)
-
-    def _parse_listing_page(self, url: str, page: Page) -> None:
-        """Extract match URLs from listing page and scrape them."""
-        try:
-            match_urls = []
-            for anchor in page.select(".bclisttip"):
-                link = anchor.find("a")
-                if link:
-                    href = link.attr("href")
-                    if href:
-                        match_urls.append(href)
-
-            if match_urls:
-                logger.info(f"Found {len(match_urls)} match URLs from {url}")
-                self.collect_urls(match_urls)
-            else:
-                logger.warning(f"No match URLs found on {url}")
-        except Exception as e:
-            logger.warning(f"Failed to parse listing page {url}: {e}")
-
-    def _parse_match_page(self, url: str, page: Page) -> None:
         """Parse individual match page for predictions."""
         try:
             home_team = page.find(".teamtophome").text().strip()

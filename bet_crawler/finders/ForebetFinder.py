@@ -226,6 +226,10 @@ class ForebetFinder(BaseMatchFinder):
     def get_urls(self) -> list[str]:
         return TOP_LEAGUES if self.top_leagues_only else ALL_LINKS
 
+    def get_match_urls(self) -> list[str]:
+        """Return listing URLs directly — matches are parsed from listing pages."""
+        return self.get_urls()
+
     def _parse_page(self, url: str, page: Page) -> None:
         all_anchors = page.select("#body-main .rcnt")
         logger.info(f"Found {len(all_anchors)} matches to scan on {url}")
