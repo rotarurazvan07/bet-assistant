@@ -53,6 +53,7 @@ from scrape_kit import BaseStorageManager, get_logger, scrape
 from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
+    adjusted_consensus,
     resolve_max_legs,
     resolve_max_single_leg_odds,
     resolve_min_pick_quality,
@@ -653,7 +654,21 @@ class BetAssistant(BaseStorageManager):
                 consensus = float(row.get(cons_col, 0))
                 odds = float(row.get(odds_col, 0))
                 if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
-                    opt = {
+                    sources = int(row.get("sources", 0))
+                    opt = CandidateLeg(
+                        match_name=match_name,
+                        datetime=row["datetime"],
+                        market=label,
+                        market_type=m_type,
+                        consensus=consensus,
+                        odds=odds,
+                        result_url=url,
+                        sources=sources,
+                    )
+                    ideal = cfg.target_odds ** (1.0 / max(1, cfg.target_legs))
+                    max_s = sources or 1
+                    tier, sc, qual = score_pick(opt, ideal, max_s, cfg)
+                    candidates.append({
                         "match": match_name,
                         "datetime": row["datetime"],
                         "market": label,
@@ -661,12 +676,11 @@ class BetAssistant(BaseStorageManager):
                         "consensus": consensus,
                         "odds": odds,
                         "result_url": url,
-                        "sources": int(row.get("sources", 0)),
-                    }
-                    ideal = cfg.target_odds ** (1.0 / max(1, cfg.target_legs))
-                    max_s = int(row.get("sources", 1)) or 1
-                    tier, sc = score_pick(opt, ideal, max_s, cfg)
-                    candidates.append({**opt, "tier": tier, "score": sc})
+                        "sources": sources,
+                        "tier": tier,
+                        "score": sc,
+                        "quality": qual,
+                    })
 
         return candidates
 
@@ -843,10 +857,14 @@ class BetAssistant(BaseStorageManager):
                         if odds > resolve_max_single_leg_odds(cfg):
                             continue
 
-                        # Apply min_source_edge hard filter
+                        # Apply shrinkage BEFORE edge check (Phase 1 fix)
+                        sources = int(row["sources"])
+                        shrinkage_k = resolve_shrinkage_k(cfg)
+                        adj_cons = adjusted_consensus(consensus, sources, shrinkage_k)
+                        # Apply min_source_edge hard filter with adjusted consensus
                         min_edge = resolve_min_source_edge(cfg)
                         implied_prob = 1.0 / odds
-                        source_edge = (consensus / 100.0) - implied_prob
+                        source_edge = (adj_cons / 100.0) - implied_prob
                         if source_edge < min_edge:
                             continue
                         candidates.append(
@@ -858,7 +876,8 @@ class BetAssistant(BaseStorageManager):
                                 consensus=consensus,
                                 odds=odds,
                                 result_url=row["result_url"],
-                                sources=int(row["sources"]),
+                                sources=sources,
+                                _adjusted_consensus=adj_cons,
                             )
                         )
 
@@ -888,44 +907,25 @@ class BetAssistant(BaseStorageManager):
             scored = []
             for c in candidates:
                 if c.match_name not in seen_matches:
-                    tier, score = score_pick(c, ideal_per_leg, max_sources, cfg)
-                    scored.append((tier, score, c))
+                    tier, score, quality = score_pick(c, ideal_per_leg, max_sources, cfg, use_preadjusted=True)
+                    scored.append((tier, score, quality, c))
 
             if not scored:
                 break
 
-            scored.sort(key=lambda x: (x[0], -x[1]))
-            tier, score, best = scored[0]
+            # Sort by score DESC (continuous penalty already applied), tier as tiebreaker
+            scored.sort(key=lambda x: (-x[1], x[0]))
+            tier, score, quality, best = scored[0]
 
-            # Quality floor stop condition: check if best candidate's quality score is too low
-            # We need to extract the quality component separately. For simplicity, we'll
-            # approximate quality by checking if final score is below threshold, but note
-            # that this includes balance component. A more precise implementation would
-            # require refactoring score_pick to return quality separately.
-            # However, per spec: "check if best candidate's quality score < min_pick_quality"
-            # Since quality is part of final score, and balance can be 0-1, we need to
-            # compute quality separately or use a heuristic.
-            # Let's compute quality score for the best candidate to check against min_pick_quality.
+            # Quality floor check using pre-computed value
             min_quality = resolve_min_pick_quality(cfg)
-            if min_quality > 0.0:
-                # Recompute quality component for the best candidate
-                from bet_framework.core.scoring import score_consensus, score_sources
-
-                consensus_val = best.consensus
-                shrinkage_k = resolve_shrinkage_k(cfg)
-                from bet_framework.core.scoring import adjusted_consensus
-
-                consensus_val = adjusted_consensus(consensus_val, best.sources, shrinkage_k)
-                c_score = score_consensus(consensus_val, cfg)
-                s_score = score_sources(best.sources, max_sources)
-                quality_score = cfg.consensus_vs_sources * c_score + (1 - cfg.consensus_vs_sources) * s_score
-                if quality_score < min_quality:
-                    # Stop building - no high-quality picks remaining
-                    break
+            if min_quality > 0.0 and quality < min_quality:
+                break
 
             # Populate UI-only fields
             best.tier = tier
             best.score = score
+            best.quality = quality
 
             selected.append(best)
             seen_matches.add(best.match_name)

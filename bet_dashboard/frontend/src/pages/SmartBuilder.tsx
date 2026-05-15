@@ -22,7 +22,7 @@ const DEFAULT_CFG: BuilderConfig = {
     max_single_leg_odds: null,
     tol_lower: null,
     tol_upper: null,
-    balance_decay: 'linear',
+    balance_decay: 'gaussian',
     min_pick_quality: null,
 };
 
@@ -162,7 +162,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             max_single_leg_odds: data.max_single_leg_odds ?? null,
             tol_lower: data.tol_lower ?? null,
             tol_upper: data.tol_upper ?? null,
-            balance_decay: data.balance_decay ?? 'linear',
+            balance_decay: data.balance_decay ?? 'gaussian',
             min_pick_quality: data.min_pick_quality ?? null,
         };
         setCfg(next);
