@@ -68,18 +68,25 @@ class AppLogic:
         # Pre-load match data
         self.refresh_data()
 
+        # ETag tracking for change detection
+        self._last_etag: str | None = None
+        # Last run tracking for hour-based services
+        self._last_generator_run: str | None = None
+
         # Initialize services
         svc_cfg = self._settings.get("services") or {}
         self._services: dict[str, TickerService] = {
             "puller": TickerService(
                 "puller",
                 self._do_pull,
-                hour=int(svc_cfg.get("pull_hour", 6)),
+                interval=5 * 60,  # Poll every 5 minutes
+                predicate=self._check_for_changes,
             ),
             "generator": TickerService(
                 "generator",
                 self._do_generate,
-                hour=int(svc_cfg.get("generate_hour", 8)),
+                interval=5 * 60,  # Poll every 5 minutes
+                predicate=self._is_generator_hour_met,
             ),
             "verifier": TickerService(
                 "verifier",
@@ -118,8 +125,43 @@ class AppLogic:
 
     # ── TickerService callbacks ───────────────────────────────────────────────
 
+    def _is_generator_hour_met(self) -> bool:
+        """Predicate to check if it's time to run the generator (once per hour window)."""
+        now = datetime.now()
+        current_hour = now.hour
+        today_key = now.strftime("%Y-%m-%d-%H")
+
+        # Get target hour from current settings
+        svc_cfg = self._settings.get("services") or {}
+        target_hour = int(svc_cfg.get("generate_hour", 8))
+
+        if current_hour == target_hour and self._last_generator_run != today_key:
+            self._last_generator_run = today_key
+            return True
+        return False
+
+    def _check_for_changes(self) -> bool:
+        """HEAD request to check if GitHub release has changed via ETag."""
+        repo = os.environ.get("REPO", "rotarurazvan07/bet-assistant")
+        url = f"https://github.com/{repo}/releases/download/latest-db/final_matches.db"
+        try:
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                etag = resp.headers.get("ETag")
+                if etag and etag != self._last_etag:
+                    self._last_etag = etag
+                    return True
+                elif not etag:
+                    # No ETag header, always download
+                    return True
+            return False
+        except Exception as exc:
+            print(f"[Puller] HEAD request failed: {exc}, will attempt download")
+            return True  # On error, try to download anyway
+
     def _do_pull(self) -> None:
         try:
+            print(f"[Puller] Change detected, downloading...")
             self.pull_matches_db(self._matches_db_path)
             self._broadcast_matches_updated()
         except Exception as exc:
@@ -551,13 +593,11 @@ class AppLogic:
         )
         return new_state
 
-    def save_service_settings(self, pull_hour: int, generate_hour: int) -> None:
+    def save_service_settings(self, generate_hour: int) -> None:
         cfg = self._settings.get("services") or {}
-        cfg["pull_hour"] = pull_hour
         cfg["generate_hour"] = generate_hour
         self._settings.write("services", cfg)
-        self._services["puller"].update_config(hour=pull_hour, trigger_now=False)
-        self._services["generator"].update_config(hour=generate_hour, trigger_now=False)
+        # Generator is already polling its interval; it will pick up the new hour from settings via its predicate
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

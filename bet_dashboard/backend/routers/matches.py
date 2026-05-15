@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+from core.market_config import CONSENSUS_COLUMNS
 from fastapi import APIRouter, Query, Request
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
@@ -57,27 +58,7 @@ def get_matches(
 
     # Apply min_consensus filter if provided
     if min_consensus is not None and min_consensus > 0:
-        consensus_cols = [
-            "cons_home",
-            "cons_draw",
-            "cons_away",
-            "cons_over_25",
-            "cons_under_25",
-            "cons_btts_yes",
-            "cons_btts_no",
-            "cons_over_05",
-            "cons_under_05",
-            "cons_over_15",
-            "cons_under_15",
-            "cons_over_35",
-            "cons_under_35",
-            "cons_over_45",
-            "cons_under_45",
-            "cons_dc_1x",
-            "cons_dc_12",
-            "cons_dc_x2",
-        ]
-        available_cols = [c for c in consensus_cols if c in df.columns]
+        available_cols = [c for c in CONSENSUS_COLUMNS if c in df.columns]
         if available_cols:
             # Keep rows where at least one consensus column meets the threshold
             mask = df[available_cols].ge(min_consensus).any(axis=1)
@@ -92,30 +73,7 @@ def get_matches(
             "matches": [],
         }
 
-    valid = {
-        "datetime",
-        "home",
-        "away",
-        "sources",
-        "cons_home",
-        "cons_draw",
-        "cons_away",
-        "cons_over_25",
-        "cons_under_25",
-        "cons_btts_yes",
-        "cons_btts_no",
-        "cons_over_05",
-        "cons_under_05",
-        "cons_over_15",
-        "cons_under_15",
-        "cons_over_35",
-        "cons_under_35",
-        "cons_over_45",
-        "cons_under_45",
-        "cons_dc_1x",
-        "cons_dc_12",
-        "cons_dc_x2",
-    }
+    valid = {"datetime", "home", "away", "sources"} | set(CONSENSUS_COLUMNS)
     col = sort_by if sort_by in valid and sort_by in df.columns else "datetime"
     df = df.sort_values(col, ascending=(sort_dir != "desc"), na_position="last")
 

@@ -125,5 +125,4 @@ class BetSlipOut(BaseModel):
 
 
 class ServicesSettingsIn(BaseModel):
-    pull_hour: int
     generate_hour: int
