@@ -73,7 +73,7 @@ class WhoScoredFinder(BaseMatchFinder):
                     away_p = scores_tags[1].text().strip()
                     predictions = [Score(WHOSCORED_NAME, float(home_p), float(away_p))]
                     
-                    self.add_match(Match(home_team, away_team, match_datetime, predictions))
+                    self.add_match(Match(home_team, away_team, match_datetime, predictions, None))
                 except (ValueError, TypeError):
                     logger.debug(f"Invalid scores on {url}")
             

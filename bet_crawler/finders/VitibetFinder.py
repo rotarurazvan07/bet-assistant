@@ -55,7 +55,7 @@ class VitibetFinder(BaseMatchFinder):
                         match_date = (datetime.now() + timedelta(days=day_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
 
                     predictions = [Score(VITIBET_NAME, home_score, away_score)]
-                    self.add_match(Match(home_team, away_team, match_date, predictions))
+                    self.add_match(Match(home_team, away_team, match_date, predictions, None))
 
                 except Exception as e:
                     logger.debug(f"Skipping row in {url}: {e}")

@@ -48,7 +48,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
                     else:
                         continue
 
-                    self.add_match(Match(home_team, away_team, match_date, predictions))
+                    self.add_match(Match(home_team, away_team, match_date, predictions, None))
 
                 except Exception:
                     continue

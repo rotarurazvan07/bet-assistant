@@ -79,7 +79,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             except ValueError:
                 match_date = datetime.now().replace(hour=0, minute=0, second=0)
 
-            self.add_match(Match(home_team, away_team, match_date, predictions))
+            self.add_match(Match(home_team, away_team, match_date, predictions, None))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

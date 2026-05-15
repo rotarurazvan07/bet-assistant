@@ -76,7 +76,7 @@ class BetClanFinder(BaseMatchFinder):
             home_score, away_score = score_str.split("-")
             predictions = [Score(BETCLAN_NAME, home_score.strip(), away_score.strip())]
 
-            self.add_match(Match(home_team, away_team, current_date, predictions))
+            self.add_match(Match(home_team, away_team, current_date, predictions, None))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

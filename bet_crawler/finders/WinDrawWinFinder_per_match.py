@@ -81,7 +81,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             else:
                 match_date = datetime.now()
 
-            self.add_match(Match(home_team, away_team, match_date, predictions))
+            self.add_match(Match(home_team, away_team, match_date, predictions, None))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
