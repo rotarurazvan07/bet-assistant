@@ -123,6 +123,7 @@ def _leg_to_dict(leg) -> dict:
         "odds": leg.odds,
         "status": _enum_or_str(leg.status),
         "result_url": leg.result_url,
+        "league": getattr(leg, "league", None),
     }
 
 

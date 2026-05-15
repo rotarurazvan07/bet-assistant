@@ -27,6 +27,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
         quality_vs_balance=body.quality_vs_balance,
         consensus_vs_sources=body.consensus_vs_sources,
         included_markets=body.included_markets,
+        included_leagues=body.included_leagues,
         date_from=body.date_from,
         date_to=body.date_to,
         # Advanced
@@ -64,6 +65,7 @@ def preview(request: Request, body: BetSlipConfigIn):
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,
+                "league": leg.league,
                 "sources": leg.sources,
                 "tier": leg.tier,
                 "score": round(leg.score, 4),
@@ -132,3 +134,9 @@ def remove_excluded(request: Request, body: ExcludeUrlIn):
 def clear_excluded(request: Request):
     _get(request).clear_excluded()
     return {"excluded": []}
+
+
+@router.get("/leagues")
+def get_leagues(request: Request):
+    app = _get(request)
+    return app.get_leagues()

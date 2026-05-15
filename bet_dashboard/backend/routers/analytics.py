@@ -96,6 +96,49 @@ def _market_breakdown(slips) -> list[dict]:
     return sorted(result, key=lambda x: x["edge"], reverse=True)
 
 
+# ── League breakdown (same pattern as market) ──────────────────────────────────
+
+
+def _league_breakdown(slips) -> list[dict]:
+    data: dict[str, dict] = {}
+    for slip in slips:
+        s_status = _get_status_value(slip.slip_status)
+        if s_status not in ("Won", "Lost"):
+            continue
+        n_legs = max(len(slip.legs), 1)
+        per_leg_stake = slip.units / n_legs
+        for leg in slip.legs:
+            l_status = _get_status_value(leg.status)
+            if l_status not in ("Won", "Lost"):
+                continue
+            lg = getattr(leg, "league", None) or "Unknown"
+            if lg not in data:
+                data[lg] = {"league": lg, "legs": 0, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
+            data[lg]["legs"] += 1
+            data[lg]["sum_odds"] += leg.odds
+            data[lg]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
+            if l_status == "Won":
+                data[lg]["won"] += 1
+                data[lg]["net_profit"] += (leg.odds - 1) * per_leg_stake
+            else:
+                data[lg]["lost"] += 1
+                data[lg]["net_profit"] -= per_leg_stake
+
+    result = []
+    for lg, d in data.items():
+        total = d["legs"]
+        win_rate = round(d["won"] / total * 100, 1) if total else 0.0
+        implied = round(d["sum_implied"] / total * 100, 1) if total else 0.0
+        result.append({
+            "league": lg, "legs": total, "won": d["won"], "lost": d["lost"],
+            "win_rate": win_rate, "implied_win_rate": implied,
+            "edge": round(win_rate - implied, 1),
+            "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
+            "net_profit": round(d["net_profit"], 2),
+        })
+    return sorted(result, key=lambda x: x["edge"], reverse=True)
+
+
 # ── Existing helpers (unchanged) ───────────────────────────────────────────────
 
 
@@ -195,4 +238,5 @@ def get_analytics(
         "rolling_edge": calculate_rolling_edge(slips, 14),
         "drawdown": _drawdown_data(calculate_daily_summary(daily_summary_slips, prof, df_, dt_)),
         "market_breakdown": _market_breakdown(slips),
+        "league_breakdown": _league_breakdown(slips),
     }

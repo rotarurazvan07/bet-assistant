@@ -199,6 +199,14 @@ class AppLogic:
     def config_path(self) -> str:
         return self._config_path
 
+    # ── League helpers ────────────────────────────────────────────────────────
+
+    def get_leagues(self) -> list[str]:
+        df = self._assistant._df
+        if df is None or "league" not in df.columns:
+            return []
+        return sorted(df["league"].dropna().unique().tolist())
+
     # ── Match data ────────────────────────────────────────────────────────────
 
     def refresh_data(self) -> pd.DataFrame:
