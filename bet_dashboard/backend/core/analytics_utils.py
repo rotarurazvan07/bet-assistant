@@ -217,6 +217,8 @@ def calculate_daily_summary(
 
 def calculate_market_accuracy(slips) -> list[dict[str, Any]]:
     market_stats = {}
+    processed_legs = set()
+
     for slip in slips:
         for leg in slip.legs:
             leg_status = _get_status_value(leg.status)
@@ -224,6 +226,11 @@ def calculate_market_accuracy(slips) -> list[dict[str, Any]]:
                 continue
 
             mtype = leg.market or "Unknown"
+            fingerprint = (leg.result_url, mtype)
+            if fingerprint in processed_legs:
+                continue
+            processed_legs.add(fingerprint)
+
             if mtype not in market_stats:
                 market_stats[mtype] = {
                     "market": mtype,
