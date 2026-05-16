@@ -41,6 +41,7 @@ def save_profile(request: Request, body: ProfileIn):
             quality_vs_balance=body.quality_vs_balance,
             consensus_vs_sources=body.consensus_vs_sources,
             included_markets=body.included_markets,
+            included_leagues=body.included_leagues,
             # Advanced
             consensus_shrinkage_k=body.consensus_shrinkage_k,
             min_source_edge=body.min_source_edge,
