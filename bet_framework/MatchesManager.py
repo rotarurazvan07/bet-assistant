@@ -282,7 +282,7 @@ class MatchesManager(BufferedStorageManager):
                         else [],
                         odds=Odds(**json.loads(row["odds"])) if row["odds"] else None,
                         result_url=row["result_url"],
-                        league=row.get("league", None),
+                        league=row["league"],
                     )
                 )
                 new_count = len(self._buffer) if self._buffer is not None else 0
