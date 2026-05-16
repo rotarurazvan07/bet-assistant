@@ -96,6 +96,7 @@ class ManualLegIn(BaseModel):
     datetime: str  # ISO format datetime, required for filtering/sorting
     consensus: float  # 0-100 percentage, required for scoring
     sources: int  # number of sources, required for scoring
+    league: str | None = None
 
 
 class SlipIn(BaseModel):

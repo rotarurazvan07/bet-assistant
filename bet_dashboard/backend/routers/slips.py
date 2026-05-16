@@ -180,6 +180,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         odds=odds_val,
         result_url=d["result_url"],
         sources=sources_val,
+        league=d.get("league"),
         tier=d.get("tier", 1),
         score=d.get("score", 0.0),
     )

@@ -228,6 +228,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             datetime: leg.datetime!,
             consensus: leg.consensus,
             sources: leg.sources,
+            league: leg.league,
         }));
 
         const id = await addSlip(activeName, manualLegs, units);
