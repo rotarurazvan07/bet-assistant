@@ -19,7 +19,7 @@ jobs:
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+          pip install --no-cache-dir -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Install Playwright browsers
         run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
       - name: Generate Matrix
@@ -59,7 +59,7 @@ jobs:
         run: |
           python3 -m venv venv
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+          pip install --no-cache-dir -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Install Playwright browsers
         run: ./venv/bin/scrapling install 2>&1 | tee -a /tmp/job_log.txt
       - name: Download URL files
@@ -117,11 +117,11 @@ jobs:
             New-Item -ItemType Directory -Path "./tmp_build" | Out-Null
           }
           $env:TMPDIR        = (Resolve-Path "./tmp_build").Path
-          $env:PIP_CACHE_DIR = $env:TMPDIR
-          if (-not (Test-Path "venv")) { python -m venv venv }
-          & "./venv/Scripts/python.exe" -m pip install --upgrade pip setuptools wheel
+          if (Test-Path "venv") { Remove-Item -Recurse -Force "venv" }
+          python -m venv venv
+          & "./venv/Scripts/python.exe" -m pip install --no-cache-dir --upgrade pip setuptools wheel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & "./venv/Scripts/python.exe" -m pip install -r setup/requirements-scrape.txt
+          & "./venv/Scripts/python.exe" -m pip install --no-cache-dir -r setup/requirements-scrape.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "./venv/Scripts/scrapling.exe" install
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -132,10 +132,10 @@ jobs:
           echo "==> Installing dependencies..."
           mkdir -p ./tmp_build
           export TMPDIR=$PWD/tmp_build
-          export PIP_CACHE_DIR=$PWD/tmp_build
-          [ ! -d "venv" ] && python3 -m venv venv
+          rm -rf venv
+          python3 -m venv venv
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt
+          pip install --no-cache-dir -r setup/requirements-scrape.txt
           ./venv/bin/scrapling install
           echo "==> Dependencies installed."
       - name: Generate Matrix (Windows)
@@ -245,11 +245,11 @@ jobs:
             New-Item -ItemType Directory -Path "./tmp_build" | Out-Null
           }
           $env:TMPDIR        = (Resolve-Path "./tmp_build").Path
-          $env:PIP_CACHE_DIR = $env:TMPDIR
-          if (-not (Test-Path "venv")) { python -m venv venv }
-          & "./venv/Scripts/python.exe" -m pip install --upgrade pip setuptools wheel
+          if (Test-Path "venv") { Remove-Item -Recurse -Force "venv" }
+          python -m venv venv
+          & "./venv/Scripts/python.exe" -m pip install --no-cache-dir --upgrade pip setuptools wheel
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & "./venv/Scripts/python.exe" -m pip install -r setup/requirements-scrape.txt
+          & "./venv/Scripts/python.exe" -m pip install --no-cache-dir -r setup/requirements-scrape.txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & "./venv/Scripts/scrapling.exe" install
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -260,10 +260,10 @@ jobs:
           echo "==> Installing dependencies..."
           mkdir -p ./tmp_build
           export TMPDIR=$PWD/tmp_build
-          export PIP_CACHE_DIR=$PWD/tmp_build
-          [ ! -d "venv" ] && python3 -m venv venv
+          rm -rf venv
+          python3 -m venv venv
           source venv/bin/activate
-          pip install -r setup/requirements-scrape.txt
+          pip install --no-cache-dir -r setup/requirements-scrape.txt
           ./venv/bin/scrapling install
           echo "==> Dependencies installed."
       - name: Download URL files
@@ -352,7 +352,7 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install dependencies
-        run: pip install -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
+        run: pip install --no-cache-dir -r setup/requirements-scrape.txt 2>&1 | tee -a /tmp/job_log.txt
       - name: Merge Databases
         run: |
           set -o pipefail
