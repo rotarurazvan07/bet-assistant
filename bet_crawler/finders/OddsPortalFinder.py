@@ -370,8 +370,8 @@ class OddsPortalFinder(BaseMatchFinder):
                         odds_1 = odds_1 if odds_1 != "-" else None
                         odds_X = odds_X if odds_X != "-" else None
                         odds_2 = odds_2 if odds_2 != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape 1X2 odds: %s", thread_name, str(e))
 
                     try:
                         logger.info("[%s] Extracting BTTS odds", thread_name)
@@ -384,8 +384,8 @@ class OddsPortalFinder(BaseMatchFinder):
                         odds_btts_n = cells[1].find("a", class_="odds-link").get_text(strip=True)
                         odds_btts_y = odds_btts_y if odds_btts_y != "-" else None
                         odds_btts_n = odds_btts_n if odds_btts_n != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, str(e))
 
                     try:
                         logger.info("[%s] Extracting DC odds", thread_name)
@@ -400,8 +400,8 @@ class OddsPortalFinder(BaseMatchFinder):
                         odds_dc_1x = odds_dc_1x if odds_dc_1x != "-" else None
                         odds_dc_12 = odds_dc_12 if odds_dc_12 != "-" else None
                         odds_dc_x2 = odds_dc_x2 if odds_dc_x2 != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape DC odds", thread_name)
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape DC odds: %s", thread_name, str(e))
 
                     try:
                         logger.info("[%s] Extracting O/U odds", thread_name)
@@ -427,8 +427,8 @@ class OddsPortalFinder(BaseMatchFinder):
                             if "+4.5" in name:
                                 odds_over45 = over if over != "-" else None
                                 odds_under45 = under if under != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape O/U odds", thread_name)
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, str(e))
 
                     odds = Odds(
                         home=odds_1,

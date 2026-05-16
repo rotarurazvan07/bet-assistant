@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
     ResponsiveContainer, Line, BarChart, Bar, AreaChart, Area,
     XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ComposedChart, Cell,
@@ -24,11 +24,12 @@ const TT: React.CSSProperties = {
 
 // ── Chart wrapper ──────────────────────────────────────────────────────────────
 
-function ChartCard({ title, tip, children, className = '' }: {
+function ChartCard({ title, tip, children, className = '', style }: {
     title: string; tip?: string; children: React.ReactNode; className?: string;
+    style?: React.CSSProperties;
 }) {
     return (
-        <div className={`card p-4 ${className}`}>
+        <div className={`card p-4 ${className}`} style={style}>
             <div className="flex items-center gap-2 mb-4">
                 <p className="font-mono text-[11px] tracking-widest uppercase"
                     style={{ color: 'var(--text-secondary)' }}>{title}</p>
@@ -775,6 +776,27 @@ export default function Analytics({ filters, refreshKey }: Props) {
     });
     const [loading, setLoading] = useState(false);
 
+    // Refs for height synchronization
+    const marketTableRef = useRef<HTMLDivElement>(null);
+    const leagueTableRef = useRef<HTMLDivElement>(null);
+    const [marketTableHeight, setMarketTableHeight] = useState<number>(360);
+    const [leagueTableHeight, setLeagueTableHeight] = useState<number>(400);
+
+    const updateHeights = useCallback(() => {
+        if (marketTableRef.current) {
+            setMarketTableHeight(marketTableRef.current.offsetHeight);
+        }
+        if (leagueTableRef.current) {
+            setLeagueTableHeight(leagueTableRef.current.offsetHeight);
+        }
+    }, []);
+
+    useEffect(() => {
+        updateHeights();
+        window.addEventListener('resize', updateHeights);
+        return () => window.removeEventListener('resize', updateHeights);
+    }, [updateHeights, data]);
+
     const load = useCallback(async () => {
         setLoading(true);
         try {
@@ -1131,7 +1153,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 style={{ color: 'var(--text-secondary)' }}>Market Breakdown</p>
                             <TooltipIcon text="Per-market stats with implied win rate from per-leg odds. Edge = Actual − Implied. Sort any column." align="right" />
                         </div>
-                        <div className="flex-1 overflow-y-auto min-h-[360px] max-h-[360px] rounded-xl border border-white/5">
+                        <div ref={marketTableRef} className="flex-1 overflow-y-auto max-h-[500px] rounded-xl border border-white/5">
                             {(data.market_breakdown ?? []).length === 0 ? (
                                 <p className="font-mono text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>
                                     No per-leg data yet.
@@ -1146,7 +1168,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 {/* Edge per market — 1/3 width */}
                 <ChartCard title="Edge by Market" className="h-full flex flex-col"
                     tip="Your edge (actual − implied win rate) per market. Green = profitable, Red = losing value.">
-                    <div className="flex-1 min-h-[360px] max-h-[360px]">
+                    <div className="flex-1" style={{ height: marketTableHeight }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart
                                 data={[...(data.market_breakdown ?? [])].sort((a, b) => b.edge - a.edge)}
@@ -1174,7 +1196,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 }} />
                                 <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
                                 <Bar dataKey="edge" radius={[0, 3, 3, 0]}>
-                                    {(data.market_breakdown ?? []).map((entry, i) => (
+                                    {[...(data.market_breakdown ?? [])].sort((a, b) => b.edge - a.edge).map((entry, i) => (
                                         <Cell key={i} fill={entry.edge >= 0 ? 'var(--win)' : 'var(--loss)'} fillOpacity={0.8} />
                                     ))}
                                 </Bar>
@@ -1194,7 +1216,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 style={{ color: 'var(--text-secondary)' }}>League Breakdown</p>
                             <TooltipIcon text="Per-league stats with implied win rate. Edge = Actual − Implied. Sort any column." align="right" />
                         </div>
-                        <div className="flex-1 overflow-y-auto min-h-[400px] max-h-[400px] rounded-xl border border-white/5">
+                        <div ref={leagueTableRef} className="flex-1 overflow-y-auto max-h-[600px] rounded-xl border border-white/5">
                             {(data.league_breakdown ?? []).length === 0 ? (
                                 <p className="font-mono text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>
                                     No per-leg data yet.
@@ -1207,7 +1229,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </div>
                 <ChartCard title="Edge by League" className="h-full flex flex-col"
                     tip="Your edge per league. Green = profitable, Red = losing value.">
-                    <div className="flex-1 min-h-[400px] max-h-[400px]">
+                    <div className="flex-1" style={{ height: leagueTableHeight }}>
                         {(data.league_breakdown ?? []).length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
