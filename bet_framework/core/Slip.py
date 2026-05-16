@@ -43,8 +43,11 @@ class CandidateLeg:
     odds: float
     result_url: str
     sources: int  # Must be provided, no default
+    league: str | None = None
+    _adjusted_consensus: float = 0.0  # Internal: pre-computed shrunk consensus
     tier: int = 1  # UI only: 1=balanced, 2=drift
     score: float = 0.0  # UI only: quality score
+    quality: float = 0.0  # UI only: quality component
 
 
 @dataclass
@@ -97,6 +100,7 @@ class BetLeg:
     odds: float
     status: Outcome
     result_url: str
+    league: str | None = None
 
 
 @dataclass
@@ -163,6 +167,7 @@ class BetSlipConfig:
     date_to: str | None = None
     excluded_urls: list[str] | None = None
     included_markets: list[str] | None = None
+    included_leagues: list[str] | None = None
 
     # Shape
     target_odds: float = 3.0
@@ -190,7 +195,7 @@ class BetSlipConfig:
     max_single_leg_odds: float | None = None
     tol_lower: float | None = None
     tol_upper: float | None = None
-    balance_decay: str = "linear"
+    balance_decay: str = "gaussian"
     min_pick_quality: float | None = None
 
     def __post_init__(self) -> None:
@@ -221,7 +226,7 @@ class BetSlipConfig:
         if self.tol_upper is not None:
             self.tol_upper = max(0.01, min(1.00, self.tol_upper))
         if self.balance_decay not in ("linear", "gaussian"):
-            self.balance_decay = "linear"
+            self.balance_decay = "gaussian"
         if self.min_pick_quality is not None:
             self.min_pick_quality = max(0.0, min(1.00, self.min_pick_quality))
 

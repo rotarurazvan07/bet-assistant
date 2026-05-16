@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
 from utils.profile_utils import get_profile_params
@@ -20,28 +21,6 @@ def _enum_or_str(val):
     if hasattr(val, "value"):
         return val.value
     return str(val)
-
-
-ALLOWED_MARKETS = {
-    "1",
-    "X",
-    "2",
-    "Over 2.5",
-    "Under 2.5",
-    "BTTS Yes",
-    "BTTS No",
-    "Over 0.5",
-    "Under 0.5",
-    "Over 1.5",
-    "Under 1.5",
-    "Over 3.5",
-    "Under 3.5",
-    "Over 4.5",
-    "Under 4.5",
-    "1X",
-    "12",
-    "X2",
-}
 
 
 def validate_manual_leg(leg: dict, logic) -> dict:
@@ -123,6 +102,7 @@ def _leg_to_dict(leg) -> dict:
         "odds": leg.odds,
         "status": _enum_or_str(leg.status),
         "result_url": leg.result_url,
+        "league": getattr(leg, "league", None),
     }
 
 

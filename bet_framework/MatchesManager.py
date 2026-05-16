@@ -61,7 +61,8 @@ class MatchesManager(BufferedStorageManager):
                     datetime           TEXT NOT NULL,
                     predictions_scores TEXT,
                     odds               TEXT,
-                    result_url         TEXT
+                    result_url         TEXT,
+                    league             TEXT
                 )
             """)
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_datetime  ON matches(datetime)")
@@ -116,6 +117,7 @@ class MatchesManager(BufferedStorageManager):
                         "scores": self.deserialize_json(row["predictions_scores"]) or [],
                         "odds": self.deserialize_json(row["odds"]),
                         "result_url": row["result_url"],
+                        "league": row.get("league"),
                     }
                 )
             except Exception as exc:
@@ -166,6 +168,7 @@ class MatchesManager(BufferedStorageManager):
                 else None,
                 "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
                 "result_url": match.result_url,
+                "league": match.league,
             }
         )
         return len(self._buffer) - 1
@@ -201,6 +204,11 @@ class MatchesManager(BufferedStorageManager):
         if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
             logger.info(f"Updating result_url for {match.home_team} vs {match.away_team} from None to {match.result_url}")
             self._buffer.at[idx, "result_url"] = match.result_url
+            changed = True
+
+        if not _is_empty(match.league) and _is_empty(found.get("league")):
+            logger.info(f"Updating league for {match.home_team} vs {match.away_team} to {match.league}")
+            self._buffer.at[idx, "league"] = match.league
             changed = True
 
         return changed
@@ -267,6 +275,7 @@ class MatchesManager(BufferedStorageManager):
                         else [],
                         odds=Odds(**json.loads(row["odds"])) if row["odds"] else None,
                         result_url=row["result_url"],
+                        league=row["league"] if "league" in row.keys() else None,
                     )
                 )
                 new_count = len(self._buffer) if self._buffer is not None else 0

@@ -18,7 +18,7 @@ def _get(request: Request):
     return request.app.state.app_logic
 
 
-def _next_run(hour: int | None) -> str | None:
+def _next_run_hour(hour: int | None) -> str | None:
     """Human-readable 'next run' for scheduled (hourly) services."""
     if hour is None:
         return None
@@ -33,6 +33,14 @@ def _next_run(hour: int | None) -> str | None:
     return f"{label} {target.strftime('%H:%M')} (in {h}h {m:02d}m)"
 
 
+def _next_run_interval(interval_seconds: int | None) -> str | None:
+    """Human-readable 'next run' for interval-based services."""
+    if interval_seconds is None:
+        return None
+    minutes = interval_seconds // 60
+    return f"Every {minutes} min"
+
+
 @router.get("")
 def get_services(request: Request):
     app = _get(request)
@@ -41,19 +49,31 @@ def get_services(request: Request):
 
     services_out = {}
     for name, svc in app.services.items():
+        # Determine next_run based on whether service is hour-based or interval-based
+        # We now look at the config for 'hour' metadata as TickerService is pure polling
+        hour = None
+        if name == "generator":
+            hour = svc_cfg.get("generate_hour")
+
+        if hour is not None:
+            next_run = _next_run_hour(hour)
+        elif svc.interval is not None:
+            next_run = _next_run_interval(svc.interval)
+        else:
+            next_run = "Unknown"
+
         services_out[name] = {
             "name": name,
             "description": _DESCRIPTIONS.get(name, ""),
             "enabled": getattr(svc, "enabled", True),
             "alive": svc.is_alive(),
-            "hour": svc.hour,
+            "hour": hour,
             "interval_seconds": svc.interval,
-            "next_run": _next_run(svc.hour) if svc.hour is not None else "Every 60 s",
+            "next_run": next_run,
         }
 
     return {
         "services": services_out,
-        "pull_hour": svc_cfg.get("pull_hour", 6),
         "generate_hour": svc_cfg.get("generate_hour", 8),
         "server_time": now,
     }
@@ -61,8 +81,8 @@ def get_services(request: Request):
 
 @router.post("/settings")
 def save_settings(request: Request, body: ServicesSettingsIn):
-    _get(request).save_service_settings(body.pull_hour, body.generate_hour)
-    return {"pull_hour": body.pull_hour, "generate_hour": body.generate_hour}
+    _get(request).save_service_settings(body.generate_hour)
+    return {"generate_hour": body.generate_hour}
 
 
 @router.post("/{name}/toggle")

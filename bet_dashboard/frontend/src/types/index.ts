@@ -32,7 +32,9 @@ export interface MatchesPage {
 
 // ── Builder ───────────────────────────────────────────────────────────────────
 
-export const ALL_MARKETS = ['1', 'X', '2', 'Over 2.5', 'Under 2.5', 'BTTS Yes', 'BTTS No', 'Over 0.5', 'Under 0.5', 'Over 1.5', 'Under 1.5', 'Over 3.5', 'Under 3.5', 'Over 4.5', 'Under 4.5', '1X', '12', 'X2'];
+// ALL_MARKETS is now exported from config/marketConfig.ts
+// Re-export here for backward compatibility
+export { ALL_MARKETS } from '../config/marketConfig';
 
 export interface BuilderConfig {
     target_odds: number;
@@ -41,6 +43,7 @@ export interface BuilderConfig {
     consensus_floor: number;
     min_odds: number;
     included_markets: string[] | null;
+    included_leagues: string[] | null;
     tolerance_factor: number | null;
     stop_threshold: number | null;
     min_legs_fill_ratio: number;
@@ -66,6 +69,7 @@ export interface CandidateLeg {
     consensus: number;
     odds: number;
     result_url: string | null;
+    league?: string | null;
     sources: number;
     tier: number;
     score: number;
@@ -84,6 +88,7 @@ export interface Profile {
     max_legs_overflow: number | null;
     consensus_floor: number; min_odds: number;
     included_markets: string[] | null;
+    included_leagues: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
     min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
     units: number;
@@ -119,6 +124,7 @@ export interface BetLeg {
     match_name: string; datetime: string | null;
     market: string; market_type: string | null;
     odds: number; status: string; result_url: string | null;
+    league: string | null;
 }
 
 export interface BetSlip {
@@ -193,6 +199,12 @@ export interface MarketBreakdown {
     avg_odds: number; net_profit: number;
 }
 
+export interface LeagueBreakdown {
+    league: string; legs: number; won: number; lost: number;
+    win_rate: number; implied_win_rate: number; edge: number;
+    avg_odds: number; net_profit: number;
+}
+
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -224,6 +236,7 @@ export interface AnalyticsData {
     stats: SlipStats;
     profiles: string[];
     market_breakdown: MarketBreakdown[];
+    league_breakdown: LeagueBreakdown[];
     rolling_edge: RollingEdgePoint[];
     drawdown: DrawdownPoint[];
     return_distribution: ReturnDistribution | null;
@@ -241,7 +254,7 @@ export interface ServiceInfo {
 
 export interface ServicesData {
     services: Record<string, ServiceInfo>;
-    pull_hour: number; generate_hour: number; server_time: string;
+    generate_hour: number; server_time: string;
 }
 
 // ── WebSocket events ──────────────────────────────────────────────────────────

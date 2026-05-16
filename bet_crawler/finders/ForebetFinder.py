@@ -9,44 +9,45 @@ from bs4 import BeautifulSoup
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
+from bet_framework.core.leagues import *
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
 MAX_CONCURRENCY = 1
 
-TOP_LEAGUES = [
-    "https://www.forebet.com/en/predictions-europe/uefa-champions-league",
-    "https://www.forebet.com/en/predictions-europe/uefa-europa-league",
-    "https://www.forebet.com/en/predictions-europe/uefa-europa-conference-league",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-england/premier-league",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-a",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-spain/primera-division",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-germany/bundesliga",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue1",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-belgium/jupiler-pro-league",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-england/championship",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-portugal/liga-portugal",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-brazil/serie-a",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-usa/mls",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-netherlands/eredivisie",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-denmark/superliga",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-poland/ekstraklasa",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-argentina/liga-profesional",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-japan/j1-league",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-turkey/super-lig",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-sweden/allsvenskan",
-    "https://www.forebet.com/en/football-predictions-for-croatia/hnl",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-mexico/liga-mx",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-spain/segunda-division",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-norway/eliteserien",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-austria/bundesliga",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-switzerland/super-league",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-b",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-germany/2-bundesliga",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue2",
-    "https://www.forebet.com/en/football-tips-and-predictions-for-scotland/premiership",
-]
+TOP_LEAGUES = {
+    "https://www.forebet.com/en/predictions-europe/uefa-champions-league": CHAMPIONS_LEAGUE,
+    "https://www.forebet.com/en/predictions-europe/uefa-europa-league": EUROPA_LEAGUE,
+    "https://www.forebet.com/en/predictions-europe/uefa-europa-conference-league": CONFERENCE_LEAGUE,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-england/premier-league": PREMIER_LEAGUE,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-a": SERIE_A,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-spain/primera-division": LA_LIGA,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-germany/bundesliga": BUNDESLIGA,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue1": LIGUE_1,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-belgium/jupiler-pro-league": JUPILER_PRO_LEAGUE,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-england/championship": CHAMPIONSHIP,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-portugal/liga-portugal": LIGA_PORTUGAL,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-brazil/serie-a": SERIE_A_BRAZIL,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-usa/mls": MLS,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-netherlands/eredivisie": EREDIVISIE,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-denmark/superliga": SUPERLIGA_DENMARK,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-poland/ekstraklasa": EKSTRAKLASA,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-argentina/liga-profesional": LIGA_PROFESIONAL,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-japan/j1-league": J1_LEAGUE,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-turkey/super-lig": SUPER_LIG,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-sweden/allsvenskan": ALLSVENSKAN,
+    "https://www.forebet.com/en/football-predictions-for-croatia/hnl": HNL,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-mexico/liga-mx": LIGA_MX,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-spain/segunda-division": SEGUNDA_DIVISION,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-norway/eliteserien": ELITESERIEN,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-austria/bundesliga": BUNDESLIGA_AUSTRIA,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-switzerland/super-league": SUPER_LEAGUE_SWITZERLAND,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-italy/serie-b": SERIE_B,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-germany/2-bundesliga": BUNDESLIGA_2,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-france/ligue2": LIGUE_2,
+    "https://www.forebet.com/en/football-tips-and-predictions-for-scotland/premiership": SCOTTISH_PREMIERSHIP,
+}
 
 ALL_LINKS = [
     "https://www.forebet.com/en/football-tips-and-predictions-for-albania",
@@ -228,7 +229,7 @@ class ForebetFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        return TOP_LEAGUES if self.top_leagues_only else ALL_LINKS
+        return list(TOP_LEAGUES.keys()) if self.top_leagues_only else ALL_LINKS
 
     def get_matches(self, urls) -> None:
         scrape(
@@ -238,7 +239,8 @@ class ForebetFinder(BaseMatchFinder):
             max_concurrency=MAX_CONCURRENCY,
         )
 
-    def _parse_page(self, _, html) -> None:
+    def _parse_page(self, url, html) -> None:
+        league = TOP_LEAGUES.get(url, None)
         soup = BeautifulSoup(html, "html.parser")
         all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
         logger.info(f"Found {len(all_anchors)} matches to scan")
@@ -266,7 +268,7 @@ class ForebetFinder(BaseMatchFinder):
                     away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
                 )
 
-                self.add_match(Match(home_team, away_team, match_date, predictions, odds))
+                self.add_match(Match(home_team, away_team, match_date, predictions, odds, league=league))
 
             except Exception as e:
                 logger.error(f"SKIPPED: Parse error - {e}")

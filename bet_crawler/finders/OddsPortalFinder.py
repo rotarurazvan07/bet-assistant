@@ -268,38 +268,54 @@ class OddsPortalFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         urls = []
+        today = datetime.now(timezone.utc).date()
+        max_date = today + timedelta(days=self.num_days_ahead)
 
         for url in TOP_LEAGUES if self.top_leagues_only else ALL_LINKS:
             try:
                 html = fetch(url)
                 soup = BeautifulSoup(html, "html.parser")
 
-                today = datetime.now(timezone.utc).date()
-                max_date = today + timedelta(days=self.num_days_ahead)
+                links = []
+                for script in soup.find_all("script", type="application/ld+json"):
+                    if not script.string:
+                        continue
+                    try:
+                        data = json.loads(script.string)
+                        # Normalize data to a list of candidates (handle list, @graph, or single object)
+                        candidates = []
+                        if isinstance(data, list):
+                            candidates = data
+                        elif isinstance(data, dict):
+                            candidates = data.get("@graph", [data])
+                        
+                        for event in candidates:
+                            if not isinstance(event, dict):
+                                continue
+                            
+                            match_url = event.get("url")
+                            start_date_str = event.get("startDate")
+                            
+                            if match_url and start_date_str:
+                                # eventStatus check: handles strings, URIs, and missing fields
+                                status_obj = event.get("eventStatus", "Scheduled")
+                                status_str = ""
+                                if isinstance(status_obj, str):
+                                    status_str = status_obj
+                                elif isinstance(status_obj, dict):
+                                    status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
+                                
+                                if "Scheduled" in status_str:
+                                    try:
+                                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
+                                        if today <= match_date <= max_date:
+                                            links.append(match_url)
+                                    except Exception:
+                                        continue
+                    except (json.JSONDecodeError, TypeError):
+                        continue
 
-                links = list(
-                    dict.fromkeys(
-                        [
-                            event["url"]
-                            for script in soup.find_all("script", type="application/ld+json")
-                            for data in [json.loads(script.string)]
-                            for event in (data if isinstance(data, list) else [data])
-                            if isinstance(event, dict)
-                            and event.get("url")
-                            and event.get("startDate")
-                            and (
-                                event.get("eventStatus") == "Scheduled"
-                                or (
-                                    isinstance(event.get("eventStatus"), dict)
-                                    and event["eventStatus"].get("@type") == "EventStatusType"
-                                    and event["eventStatus"].get("@id") == "https://schema.org/EventScheduled"
-                                )
-                            )
-                            and today <= datetime.fromisoformat(event["startDate"].replace("Z", "+00:00")).date() <= max_date
-                        ]
-                    )
-                )
-
+                links = list(dict.fromkeys(links))
                 urls.extend(links)
                 logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:

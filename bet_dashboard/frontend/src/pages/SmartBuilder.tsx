@@ -6,6 +6,7 @@ import { TooltipIcon } from '../components/ui';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
+    fetchLeagues,
     type ExcludedMatch
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
@@ -13,7 +14,7 @@ import type { BuilderConfig, ProfilesMap, PreviewResult, ManualLegIn } from '../
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
-    consensus_floor: 50, min_odds: 1.05, included_markets: null,
+    consensus_floor: 50, min_odds: 1.05, included_markets: null, included_leagues: null,
     tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
     date_from: null, date_to: null,
@@ -22,7 +23,7 @@ const DEFAULT_CFG: BuilderConfig = {
     max_single_leg_odds: null,
     tol_lower: null,
     tol_upper: null,
-    balance_decay: 'linear',
+    balance_decay: 'gaussian',
     min_pick_quality: null,
 };
 
@@ -63,6 +64,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState<ProfilesMap>({});
     const [excludedDetails, setExcludedDetails] = useState<ExcludedMatch[]>([]);
+    const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
     const [status, setStatus] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -81,6 +83,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => {
         fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+        fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
     }, []);
 
     // Compute merged config with global date filters (for preview only)
@@ -150,6 +153,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             consensus_floor: data.consensus_floor ?? 50,
             min_odds: data.min_odds ?? 1.05,
             included_markets: data.included_markets ?? null,
+            included_leagues: data.included_leagues ?? null,
             tolerance_factor: data.tolerance_factor ?? null,
             stop_threshold: data.stop_threshold ?? null,
             min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
@@ -162,7 +166,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             max_single_leg_odds: data.max_single_leg_odds ?? null,
             tol_lower: data.tol_lower ?? null,
             tol_upper: data.tol_upper ?? null,
-            balance_decay: data.balance_decay ?? 'linear',
+            balance_decay: data.balance_decay ?? 'gaussian',
             min_pick_quality: data.min_pick_quality ?? null,
         };
         setCfg(next);
@@ -274,7 +278,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             </div>
                         </div>
                         <div className="px-3 py-4">
-                            <BuilderPanel cfg={cfg} onChange={handleCfgChange} />
+                            <BuilderPanel
+                                cfg={cfg}
+                                availableLeagues={availableLeagues}
+                                onChange={handleCfgChange}
+                            />
                         </div>
                     </div>
                 </div>

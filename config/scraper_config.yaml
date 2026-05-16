@@ -116,7 +116,9 @@ RUNNER_SETS:
     - forebet
     - betexplorer
   test:
-    - footballpredictions
+    - betexplorer
+
+#TEST
 
 MAX_CHUNK_SIZE:
   actions: 100

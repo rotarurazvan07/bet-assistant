@@ -251,30 +251,44 @@ class TestScoringFunctions:
         cfg = BetSlipConfig()
         assert score_balance(1.50, 1.50, 0.20, cfg) == 1.0
 
-    def test_score_balance_at_edge(self):
-        # deviation = |1.80 - 1.50| / 1.50 = 0.20, tolerance 0.20 → score 0.0
-        cfg = BetSlipConfig()
+    def test_score_balance_at_edge_linear(self):
+        # With linear decay: deviation = tolerance → score 0.0
+        cfg = BetSlipConfig(balance_decay="linear")
         assert score_balance(1.80, 1.50, 0.20, cfg) == pytest.approx(0.0)
 
-    def test_score_balance_beyond_edge(self):
+    def test_score_balance_at_edge_gaussian(self):
+        # With gaussian (default): score never reaches exactly 0
         cfg = BetSlipConfig()
+        score = score_balance(1.80, 1.50, 0.20, cfg)
+        assert 0.0 < score < 0.5  # Gaussian gives ~0.25 at 1σ
+
+    def test_score_balance_beyond_edge_linear(self):
+        cfg = BetSlipConfig(balance_decay="linear")
         assert score_balance(3.00, 1.50, 0.20, cfg) == 0.0
 
-    def test_score_pick_returns_tier_and_score(self):
+    def test_score_balance_beyond_edge_gaussian(self):
+        # Gaussian never exactly 0, but very small far from ideal
+        cfg = BetSlipConfig()
+        score = score_balance(3.00, 1.50, 0.20, cfg)
+        assert score > 0.0
+        assert score < 0.01
+
+    def test_score_pick_returns_tier_score_quality(self):
         opt = CandidateLeg(
-            match_name="Team A vs Team B",
-            datetime=datetime.now(),
+            match_name="A vs B",
+            datetime="2025-01-01",
             market=MarketLabel.HOME,
             market_type=MarketType.RESULT,
-            consensus=80.0,
+            consensus=70.0,
             odds=1.50,
-            result_url="http://test.url",
-            sources=5,
+            result_url="http://x.com",
+            sources=3,
         )
         cfg = BetSlipConfig()
-        tier, score = score_pick(opt, 1.50, 10, cfg)
+        tier, score, quality = score_pick(opt, 1.50, 10, cfg)
         assert tier in (1, 2)
         assert 0.0 <= score <= 1.0
+        assert 0.0 <= quality <= 1.0
 
 
 # ── parse_score and determine_outcome ───────────────────────────────────────
@@ -392,7 +406,7 @@ class TestLoadMatches:
     def test_normal_computes_consensus_columns(self, ba):
         df = make_matches_df(3, sources_per_match=4)
         ba.load_matches(df)
-        for col in ["cons_home", "cons_draw", "cons_away", "cons_over", "cons_under"]:
+        for col in ["cons_home", "cons_draw", "cons_away", "cons_over_25", "cons_under_25"]:
             assert col in ba._df.columns
 
     def test_normal_computes_odds_columns(self, ba):
@@ -747,6 +761,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.PENDING,
                 "http://x",
+                None,
             ),
             (
                 1,
@@ -761,6 +776,7 @@ class TestRowsToSlips:
                 2.0,
                 Outcome.PENDING,
                 "http://y",
+                None,
             ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
@@ -782,6 +798,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.PENDING,
                 None,
+                None,
             ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
@@ -801,6 +818,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
+                None,
                 None,
             ),
         ]
@@ -822,6 +840,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.WON,
                 None,
+                None,
             ),
             (
                 1,
@@ -835,6 +854,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.LOST,
+                None,
                 None,
             ),
         ]
@@ -856,6 +876,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.LIVE,
                 None,
+                None,
             ),
             (
                 1,
@@ -869,6 +890,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
+                None,
                 None,
             ),
         ]
@@ -890,6 +912,7 @@ class TestRowsToSlips:
                 1.5,
                 Outcome.PENDING,
                 None,
+                None,
             ),
             (
                 2,
@@ -903,6 +926,7 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.WON,
+                None,
                 None,
             ),
         ]

@@ -305,21 +305,40 @@ class BetExplorerFinder(BaseMatchFinder):
                 today = datetime.now(timezone.utc).date()
                 max_date = today + timedelta(days=self.num_days_ahead)
 
-                links = list(
-                    dict.fromkeys(
-                        [
-                            event["url"]
-                            for script in soup.find_all("script", type="application/ld+json")
-                            for data in [json.loads(script.string)]
-                            for event in (data if isinstance(data, list) else [data])
-                            if isinstance(event, dict)
-                            and event.get("eventStatus") == "Scheduled"
-                            and event.get("url")
-                            and event.get("startDate")
-                            and today <= datetime.fromisoformat(event["startDate"].replace("Z", "+00:00")).date() <= max_date
-                        ]
-                    )
-                )
+                links = []
+                for script in soup.find_all("script", type="application/ld+json"):
+                    if not script.string:
+                        continue
+                    try:
+                        data = json.loads(script.string)
+                        # Normalize data to a list of candidates (handle list, @graph, or single object)
+                        candidates = []
+                        if isinstance(data, list):
+                            candidates = data
+                        elif isinstance(data, dict):
+                            candidates = data.get("@graph", [data])
+                        
+                        for event in candidates:
+                            if not isinstance(event, dict):
+                                continue
+                            
+                            match_url = event.get("url")
+                            start_date_str = event.get("startDate")
+                            
+                            if match_url and start_date_str:
+                                # eventStatus: assume Scheduled if missing, otherwise check for 'Scheduled'
+                                status = str(event.get("eventStatus", "Scheduled"))
+                                if "Scheduled" in status:
+                                    try:
+                                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
+                                        if today <= match_date <= max_date:
+                                            links.append(match_url)
+                                    except Exception:
+                                        continue
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+
+                links = list(dict.fromkeys(links))
                 urls.extend(links)
                 logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:

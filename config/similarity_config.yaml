@@ -246,6 +246,8 @@ weights:
   partial: 0.10        # partial_ratio, only applied for short strings (≤ 8 chars)
   strong_mismatch_cap: 35.0   # score ceiling when strong tokens are disjoint
 
+#TEST
+
 # The cap (35) sits comfortably below threshold (65), so disjoint-strong pairs
 # never merge.  Raise it slightly (e.g. 45) only if you see legitimate matches
 # being blocked; lower it (e.g. 25) to tighten the guard further.
