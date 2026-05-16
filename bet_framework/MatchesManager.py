@@ -68,6 +68,13 @@ class MatchesManager(BufferedStorageManager):
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_datetime  ON matches(datetime)")
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)")
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)")
+
+            # Schema Migration: Add league column to matches if it doesn't exist
+            cursor = self.conn.execute("PRAGMA table_info(matches)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "league" not in columns:
+                self.conn.execute("ALTER TABLE matches ADD COLUMN league TEXT")
+
             self.conn.commit()
 
     # ── Similarity search inside the buffer ───────────────────────────────────

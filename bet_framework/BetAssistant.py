@@ -278,6 +278,14 @@ class BetAssistant(BaseStorageManager):
                     FOREIGN KEY(slip_id) REFERENCES slips(slip_id)
                 );
             """)
+
+            # Schema Migration: Add league column to legs if it doesn't exist
+            # (sqlite's CREATE TABLE IF NOT EXISTS won't add columns to existing tables)
+            cursor = self.conn.execute("PRAGMA table_info(legs)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if "league" not in columns:
+                self.conn.execute("ALTER TABLE legs ADD COLUMN league TEXT")
+
             self.conn.commit()
 
     def close(self) -> None:
