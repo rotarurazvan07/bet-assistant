@@ -162,7 +162,7 @@ class AppLogic:
 
     def _do_pull(self) -> None:
         try:
-            print(f"[Puller] Change detected, downloading...")
+            print("[Puller] Change detected, downloading...")
             self.pull_matches_db(self._matches_db_path)
             self._broadcast_matches_updated()
         except Exception as exc:
@@ -259,7 +259,7 @@ class AppLogic:
             db_leagues = df["league"].dropna().unique().tolist()
 
         # 3. Merge and sort
-        return sorted(list(set(framework_leagues) | set(db_leagues)))
+        return sorted(set(framework_leagues) | set(db_leagues))
 
     # ── Match data ────────────────────────────────────────────────────────────
 

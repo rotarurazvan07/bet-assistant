@@ -317,14 +317,14 @@ class BetExplorerFinder(BaseMatchFinder):
                             candidates = data
                         elif isinstance(data, dict):
                             candidates = data.get("@graph", [data])
-                        
+
                         for event in candidates:
                             if not isinstance(event, dict):
                                 continue
-                            
+
                             match_url = event.get("url")
                             start_date_str = event.get("startDate")
-                            
+
                             if match_url and start_date_str:
                                 # eventStatus: assume Scheduled if missing, otherwise check for 'Scheduled'
                                 status = str(event.get("eventStatus", "Scheduled"))

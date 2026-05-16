@@ -671,19 +671,21 @@ class BetAssistant(BaseStorageManager):
                     ideal = cfg.target_odds ** (1.0 / max(1, cfg.target_legs))
                     max_s = sources or 1
                     tier, sc, qual = score_pick(opt, ideal, max_s, cfg)
-                    candidates.append({
-                        "match": match_name,
-                        "datetime": row["datetime"],
-                        "market": label,
-                        "market_type": m_type,
-                        "consensus": consensus,
-                        "odds": odds,
-                        "result_url": url,
-                        "sources": sources,
-                        "tier": tier,
-                        "score": sc,
-                        "quality": qual,
-                    })
+                    candidates.append(
+                        {
+                            "match": match_name,
+                            "datetime": row["datetime"],
+                            "market": label,
+                            "market_type": m_type,
+                            "consensus": consensus,
+                            "odds": odds,
+                            "result_url": url,
+                            "sources": sources,
+                            "tier": tier,
+                            "score": sc,
+                            "quality": qual,
+                        }
+                    )
 
         return candidates
 

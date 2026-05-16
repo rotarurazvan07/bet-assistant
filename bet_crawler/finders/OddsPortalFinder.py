@@ -288,14 +288,14 @@ class OddsPortalFinder(BaseMatchFinder):
                             candidates = data
                         elif isinstance(data, dict):
                             candidates = data.get("@graph", [data])
-                        
+
                         for event in candidates:
                             if not isinstance(event, dict):
                                 continue
-                            
+
                             match_url = event.get("url")
                             start_date_str = event.get("startDate")
-                            
+
                             if match_url and start_date_str:
                                 # eventStatus check: handles strings, URIs, and missing fields
                                 status_obj = event.get("eventStatus", "Scheduled")
@@ -304,7 +304,7 @@ class OddsPortalFinder(BaseMatchFinder):
                                     status_str = status_obj
                                 elif isinstance(status_obj, dict):
                                     status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
-                                
+
                                 if "Scheduled" in status_str:
                                     try:
                                         match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()

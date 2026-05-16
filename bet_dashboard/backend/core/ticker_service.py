@@ -43,10 +43,10 @@ class TickerService:
         """Update service rhythm."""
         if interval is not None:
             self.interval = interval
-        
+
         if trigger_now:
             self._force_run = True
-        
+
         self._wake_event.set()
 
     def set_enabled(self, enabled: bool) -> None:

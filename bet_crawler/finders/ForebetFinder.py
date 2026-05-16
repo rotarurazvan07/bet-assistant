@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 
+from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
-from bet_framework.core.leagues import *
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
@@ -240,7 +240,7 @@ class ForebetFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
-        league = TOP_LEAGUES.get(url, None)
+        league = TOP_LEAGUES.get(url)
         soup = BeautifulSoup(html, "html.parser")
         all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
         logger.info(f"Found {len(all_anchors)} matches to scan")

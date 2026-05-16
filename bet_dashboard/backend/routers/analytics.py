@@ -113,7 +113,15 @@ def _league_breakdown(slips) -> list[dict]:
                 continue
             lg = getattr(leg, "league", None) or "Unknown"
             if lg not in data:
-                data[lg] = {"league": lg, "legs": 0, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
+                data[lg] = {
+                    "league": lg,
+                    "legs": 0,
+                    "won": 0,
+                    "lost": 0,
+                    "sum_odds": 0.0,
+                    "sum_implied": 0.0,
+                    "net_profit": 0.0,
+                }
             data[lg]["legs"] += 1
             data[lg]["sum_odds"] += leg.odds
             data[lg]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
@@ -129,13 +137,19 @@ def _league_breakdown(slips) -> list[dict]:
         total = d["legs"]
         win_rate = round(d["won"] / total * 100, 1) if total else 0.0
         implied = round(d["sum_implied"] / total * 100, 1) if total else 0.0
-        result.append({
-            "league": lg, "legs": total, "won": d["won"], "lost": d["lost"],
-            "win_rate": win_rate, "implied_win_rate": implied,
-            "edge": round(win_rate - implied, 1),
-            "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
-            "net_profit": round(d["net_profit"], 2),
-        })
+        result.append(
+            {
+                "league": lg,
+                "legs": total,
+                "won": d["won"],
+                "lost": d["lost"],
+                "win_rate": win_rate,
+                "implied_win_rate": implied,
+                "edge": round(win_rate - implied, 1),
+                "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
+                "net_profit": round(d["net_profit"], 2),
+            }
+        )
     return sorted(result, key=lambda x: x["edge"], reverse=True)
 
 
