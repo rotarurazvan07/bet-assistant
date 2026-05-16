@@ -241,6 +241,11 @@ export interface AnalyticsData {
     drawdown: DrawdownPoint[];
     return_distribution: ReturnDistribution | null;
     time_patterns: { day_of_week: TimePatternItem[]; hour: TimePatternItem[] } | null;
+    correlation_matrix?: {
+        leagues: string[];
+        markets: string[];
+        matrix: Record<string, Record<string, { win_rate: number; edge: number; total: number }>>;
+    };
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

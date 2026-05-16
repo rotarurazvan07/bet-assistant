@@ -455,7 +455,7 @@ class AppLogic:
             daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
 
         sharpe_ratio: float | None = None
-        if len(daily_pnl) >= 7:
+        if len(daily_pnl) >= 3:
             vals = list(daily_pnl.values())
             _m = sum(vals) / len(vals)
             _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
