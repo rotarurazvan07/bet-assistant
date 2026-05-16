@@ -134,7 +134,15 @@ def _league_breakdown(slips) -> list[dict]:
 
             lg = getattr(leg, "league", None) or "Unknown"
             if lg not in data:
-                data[lg] = {"league": lg, "legs": 0, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
+                data[lg] = {
+                    "league": lg,
+                    "legs": 0,
+                    "won": 0,
+                    "lost": 0,
+                    "sum_odds": 0.0,
+                    "sum_implied": 0.0,
+                    "net_profit": 0.0,
+                }
 
             # Always aggregate profit
             if l_status == "Won":
@@ -339,14 +347,6 @@ def _correlation_matrix(slips) -> dict:
             d = data[lg][m]
             wr = round(d["won"] / d["total"] * 100, 1)
             implied = round(d["sum_implied"] / d["total"] * 100, 1)
-            matrix[lg][m] = {
-                "win_rate": wr,
-                "edge": round(wr - implied, 1),
-                "total": d["total"]
-            }
+            matrix[lg][m] = {"win_rate": wr, "edge": round(wr - implied, 1), "total": d["total"]}
 
-    return {
-        "leagues": sorted(list(leagues)),
-        "markets": sorted(list(markets)),
-        "matrix": matrix
-    }
+    return {"leagues": sorted(leagues), "markets": sorted(markets), "matrix": matrix}
