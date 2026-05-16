@@ -6,6 +6,7 @@ import { TooltipIcon } from '../components/ui';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
+    fetchLeagues,
     type ExcludedMatch
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
@@ -13,7 +14,7 @@ import type { BuilderConfig, ProfilesMap, PreviewResult, ManualLegIn } from '../
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
-    consensus_floor: 50, min_odds: 1.05, included_markets: null,
+    consensus_floor: 50, min_odds: 1.05, included_markets: null, included_leagues: null,
     tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
     date_from: null, date_to: null,
@@ -63,6 +64,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [loading, setLoading] = useState(false);
     const [profiles, setProfiles] = useState<ProfilesMap>({});
     const [excludedDetails, setExcludedDetails] = useState<ExcludedMatch[]>([]);
+    const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
     const [status, setStatus] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -81,6 +83,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => {
         fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+        fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
     }, []);
 
     // Compute merged config with global date filters (for preview only)
@@ -150,6 +153,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             consensus_floor: data.consensus_floor ?? 50,
             min_odds: data.min_odds ?? 1.05,
             included_markets: data.included_markets ?? null,
+            included_leagues: data.included_leagues ?? null,
             tolerance_factor: data.tolerance_factor ?? null,
             stop_threshold: data.stop_threshold ?? null,
             min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
@@ -274,7 +278,52 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             </div>
                         </div>
                         <div className="px-3 py-4">
-                            <BuilderPanel cfg={cfg} onChange={handleCfgChange} />
+                    <BuilderPanel cfg={cfg} onChange={handleCfgChange} />
+
+                    {/* League Filter Panel */}
+                    {availableLeagues.length > 0 && (
+                        <div className="rounded-xl overflow-hidden"
+                            style={{
+                                background: 'var(--bg-surface)',
+                                border: '1px solid var(--border)',
+                                boxShadow: 'var(--shadow-md)',
+                            }}>
+                            <div className="px-4 py-3 flex items-center justify-between"
+                                style={{ borderBottom: '1px solid var(--border)' }}>
+                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
+                                    style={{ color: 'var(--text-secondary)' }}>
+                                    🏆 Leagues {cfg.included_leagues ? `(${cfg.included_leagues.length})` : '(All)'}
+                                </span>
+                                {cfg.included_leagues && (
+                                    <button className="text-[10px] font-mono uppercase px-2 py-1 rounded"
+                                        style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                                        onClick={() => handleCfgChange({ ...cfg, included_leagues: null })}>Clear</button>
+                                )}
+                            </div>
+                            <div className="px-4 py-2 space-y-1 max-h-48 overflow-y-auto">
+                                {availableLeagues.map(league => {
+                                    const checked = cfg.included_leagues?.includes(league) ?? false;
+                                    return (
+                                        <label key={league} className="flex items-center gap-2 py-0.5 cursor-pointer">
+                                            <input type="checkbox" checked={checked}
+                                                onChange={() => {
+                                                    let next: string[] | null;
+                                                    if (checked) {
+                                                        next = (cfg.included_leagues ?? []).filter(l => l !== league);
+                                                        if (next.length === 0) next = null;
+                                                    } else {
+                                                        next = [...(cfg.included_leagues ?? []), league];
+                                                    }
+                                                    handleCfgChange({ ...cfg, included_leagues: next });
+                                                }}
+                                            />
+                                            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{league}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
                         </div>
                     </div>
                 </div>

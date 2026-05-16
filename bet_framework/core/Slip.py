@@ -43,6 +43,7 @@ class CandidateLeg:
     odds: float
     result_url: str
     sources: int  # Must be provided, no default
+    league: str | None = None
     _adjusted_consensus: float = 0.0  # Internal: pre-computed shrunk consensus
     tier: int = 1  # UI only: 1=balanced, 2=drift
     score: float = 0.0  # UI only: quality score
@@ -99,6 +100,7 @@ class BetLeg:
     odds: float
     status: Outcome
     result_url: str
+    league: str | None = None
 
 
 @dataclass
@@ -165,6 +167,7 @@ class BetSlipConfig:
     date_to: str | None = None
     excluded_urls: list[str] | None = None
     included_markets: list[str] | None = None
+    included_leagues: list[str] | None = None
 
     # Shape
     target_odds: float = 3.0

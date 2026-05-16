@@ -7,7 +7,7 @@ import { fetchAnalytics } from '../api/data';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { AnalyticsData, MarketBreakdown, SlipStats } from '../types';
+import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
@@ -596,6 +596,72 @@ function MarketTable({ data }: { data: MarketBreakdown[] }) {
     );
 }
 
+// ── League breakdown table ─────────────────────────────────────────────────────
+
+function LeagueTable({ data }: { data: LeagueBreakdown[] }) {
+    const [sortKey, setSortKey] = useState<keyof LeagueBreakdown>('edge');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+    const sorted = useMemo(() => {
+        return [...data].sort((a, b) => {
+            const va = a[sortKey] as number;
+            const vb = b[sortKey] as number;
+            return sortDir === 'desc' ? vb - va : va - vb;
+        });
+    }, [data, sortKey, sortDir]);
+    const handleSort = (k: keyof LeagueBreakdown) => {
+        if (k === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+        else { setSortKey(k); setSortDir('desc'); }
+    };
+    const cols: { key: keyof LeagueBreakdown; label: string; tip: string }[] = [
+        { key: 'league', label: 'League', tip: 'League name' },
+        { key: 'legs', label: 'Legs', tip: 'Total settled legs' },
+        { key: 'win_rate', label: 'Win %', tip: 'Actual win rate' },
+        { key: 'implied_win_rate', label: 'Implied %', tip: 'Market-implied win rate' },
+        { key: 'edge', label: 'Edge', tip: 'Actual − Implied' },
+        { key: 'avg_odds', label: 'Avg Odds', tip: 'Average leg odds' },
+        { key: 'net_profit', label: 'P&L (U)', tip: 'Net profit from legs in this league' },
+    ];
+    return (
+        <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
+            <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
+                        {cols.map(col => (
+                            <th key={col.key} className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => col.key !== 'league' && handleSort(col.key)}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === col.key ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        {col.label}</span>
+                                    <TooltipIcon text={col.tip} align="center" />
+                                    {sortKey === col.key && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </div>
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {sorted.map((row, i) => {
+                        const edgeColor = row.edge > 2 ? 'var(--win)' : row.edge > 0 ? 'var(--pending)' : 'var(--loss)';
+                        const edgeBg = row.edge > 2 ? 'var(--win-bg)' : row.edge > 0 ? 'var(--pending-bg)' : 'var(--loss-bg)';
+                        return (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                                <td className="px-4 py-3"><span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>{row.league}</span></td>
+                                <td className="px-4 py-3"><span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{row.legs}</span></td>
+                                <td className="px-4 py-3"><span className="font-mono text-sm" style={{ color: row.win_rate >= 50 ? 'var(--win)' : 'var(--loss)' }}>{row.win_rate}%</span></td>
+                                <td className="px-4 py-3"><span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{row.implied_win_rate}%</span></td>
+                                <td className="px-4 py-3"><span className="font-mono font-bold text-sm px-2 py-0.5 rounded" style={{ color: edgeColor, background: edgeBg }}>{row.edge > 0 ? '+' : ''}{row.edge}%</span></td>
+                                <td className="px-4 py-3"><span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>@{row.avg_odds}</span></td>
+                                <td className="px-4 py-3"><span className="font-mono font-bold text-sm" style={{ color: row.net_profit >= 0 ? 'var(--win)' : 'var(--loss)' }}>{row.net_profit >= 0 ? '+' : ''}{row.net_profit}U</span></td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 // ── Custom weekend X-axis tick ─────────────────────────────────────────────────
 
 function WeekendTick({ x, y, payload }: any) {
@@ -656,7 +722,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 },
                 history: [], odds_distribution: [], pnl_by_market: [],
                 market_accuracy: [], correlation: [], profile_scatter: [],
-                profiles: [], market_breakdown: [], rolling_edge: [],
+                profiles: [], market_breakdown: [], league_breakdown: [], rolling_edge: [],
                 drawdown: [], return_distribution: null, time_patterns: null,
             });
         } finally { setLoading(false); }
@@ -798,10 +864,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 if (!active || !payload?.length) return null;
                                 const daily = payload.find(p => p.dataKey === 'net_profit');
                                 const cumulative = payload.find(p => p.dataKey === 'cumulative_profit');
-                                
+
                                 const dailyNum = daily?.value as number | undefined;
                                 const cumulativeNum = cumulative?.value as number | undefined;
-                                
+
                                 return (
                                     <div style={TT}>
                                         <p style={{ color: 'var(--text-bright)', marginBottom: 4, fontWeight: 'bold' }}>{label}</p>
@@ -1027,6 +1093,63 @@ export default function Analytics({ filters, refreshKey }: Props) {
                     </ResponsiveContainer>
                 </ChartCard>
             </div>
+
+            {/* ── League Intelligence ─────────────────────────────────────────── */}
+            <SectionHeader icon="🏆" title="League Intelligence" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+                <div className="lg:col-span-2">
+                    <div className="card p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                            <p className="font-mono text-[11px] tracking-widest uppercase"
+                                style={{ color: 'var(--text-secondary)' }}>League Breakdown</p>
+                            <TooltipIcon text="Per-league stats with implied win rate. Edge = Actual − Implied. Sort any column." align="right" />
+                        </div>
+                        {(data.league_breakdown ?? []).length === 0 ? (
+                            <p className="font-mono text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>
+                                No per-leg data yet.
+                            </p>
+                        ) : (
+                            <LeagueTable data={data.league_breakdown ?? []} />
+                        )}
+                    </div>
+                </div>
+                <ChartCard title="Edge by League"
+                    tip="Your edge per league. Green = profitable, Red = losing value.">
+                    {(data.league_breakdown ?? []).length > 0 ? (
+                        <ResponsiveContainer width="100%" height={Math.max(180, (data.league_breakdown ?? []).length * 28)}>
+                            <BarChart
+                                data={[...(data.league_breakdown ?? [])].sort((a, b) => b.edge - a.edge)}
+                                layout="vertical"
+                                margin={{ left: 0, right: 30, top: 5, bottom: 0 }}>
+                                <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} strokeOpacity={0.4} />
+                                <XAxis type="number" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                    tickLine={false} tickFormatter={v => `${v}%`} axisLine={{ stroke: 'var(--border)' }} />
+                                <YAxis type="category" dataKey="league" width={80}
+                                    tick={{ fill: 'var(--text-secondary)', fontSize: 9 }} tickLine={false} axisLine={false} />
+                                <Tooltip contentStyle={TT} content={({ active, payload }) => {
+                                    if (!active || !payload?.length) return null;
+                                    const d = payload[0]?.payload;
+                                    return (
+                                        <div style={TT}>
+                                            <p style={{ color: 'var(--text-bright)', fontWeight: 'bold', marginBottom: 4 }}>{d.league}</p>
+                                            <p><span style={{ color: 'var(--text-secondary)' }}>Edge: </span>
+                                                <span style={{ color: d.edge >= 0 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>
+                                                    {d.edge >= 0 ? '+' : ''}{d.edge}%</span></p>
+                                        </div>
+                                    );
+                                }} />
+                                <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
+                                <Bar dataKey="edge" radius={[0, 3, 3, 0]}>
+                                    {[...(data.league_breakdown ?? [])].sort((a, b) => b.edge - a.edge).map((entry, i) => (
+                                        <Cell key={i} fill={entry.edge >= 0 ? 'var(--win)' : 'var(--loss)'} fillOpacity={0.8} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <p className="font-mono text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>No data</p>
+                    )}
+                </ChartCard>
+            </div>
         </div>
-    );
-}
+    )}

@@ -14,6 +14,11 @@ export async function fetchPreview(cfg: BuilderConfig): Promise<PreviewResult> {
     return res.data;
 }
 
+export async function fetchLeagues(): Promise<string[]> {
+    const res = await client.get<string[]>('/builder/leagues');
+    return res.data;
+}
+
 export async function fetchExcluded(): Promise<string[]> {
     const res = await client.get<{ excluded: string[] }>('/builder/excluded');
     return res.data.excluded;

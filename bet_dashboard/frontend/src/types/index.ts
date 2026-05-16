@@ -43,6 +43,7 @@ export interface BuilderConfig {
     consensus_floor: number;
     min_odds: number;
     included_markets: string[] | null;
+    included_leagues: string[] | null;
     tolerance_factor: number | null;
     stop_threshold: number | null;
     min_legs_fill_ratio: number;
@@ -68,6 +69,7 @@ export interface CandidateLeg {
     consensus: number;
     odds: number;
     result_url: string | null;
+    league?: string | null;
     sources: number;
     tier: number;
     score: number;
@@ -86,6 +88,7 @@ export interface Profile {
     max_legs_overflow: number | null;
     consensus_floor: number; min_odds: number;
     included_markets: string[] | null;
+    included_leagues: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
     min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
     units: number;
@@ -121,6 +124,7 @@ export interface BetLeg {
     match_name: string; datetime: string | null;
     market: string; market_type: string | null;
     odds: number; status: string; result_url: string | null;
+    league: string | null;
 }
 
 export interface BetSlip {
@@ -195,6 +199,12 @@ export interface MarketBreakdown {
     avg_odds: number; net_profit: number;
 }
 
+export interface LeagueBreakdown {
+    league: string; legs: number; won: number; lost: number;
+    win_rate: number; implied_win_rate: number; edge: number;
+    avg_odds: number; net_profit: number;
+}
+
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -226,6 +236,7 @@ export interface AnalyticsData {
     stats: SlipStats;
     profiles: string[];
     market_breakdown: MarketBreakdown[];
+    league_breakdown: LeagueBreakdown[];
     rolling_edge: RollingEdgePoint[];
     drawdown: DrawdownPoint[];
     return_distribution: ReturnDistribution | null;
