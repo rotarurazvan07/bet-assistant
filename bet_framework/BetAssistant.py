@@ -326,6 +326,7 @@ class BetAssistant(BaseStorageManager):
                         "away": row["away_name"],
                         "sources": n_sources,
                         "result_url": row.get("result_url"),
+                        "league": row.get("league"),
                         # Consensus
                         "cons_home": cons_data["result"]["home"],
                         "cons_draw": cons_data["result"]["draw"],

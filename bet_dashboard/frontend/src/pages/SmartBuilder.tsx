@@ -278,52 +278,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             </div>
                         </div>
                         <div className="px-3 py-4">
-                    <BuilderPanel cfg={cfg} onChange={handleCfgChange} />
-
-                    {/* League Filter Panel */}
-                    {availableLeagues.length > 0 && (
-                        <div className="rounded-xl overflow-hidden"
-                            style={{
-                                background: 'var(--bg-surface)',
-                                border: '1px solid var(--border)',
-                                boxShadow: 'var(--shadow-md)',
-                            }}>
-                            <div className="px-4 py-3 flex items-center justify-between"
-                                style={{ borderBottom: '1px solid var(--border)' }}>
-                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
-                                    style={{ color: 'var(--text-secondary)' }}>
-                                    🏆 Leagues {cfg.included_leagues ? `(${cfg.included_leagues.length})` : '(All)'}
-                                </span>
-                                {cfg.included_leagues && (
-                                    <button className="text-[10px] font-mono uppercase px-2 py-1 rounded"
-                                        style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-                                        onClick={() => handleCfgChange({ ...cfg, included_leagues: null })}>Clear</button>
-                                )}
-                            </div>
-                            <div className="px-4 py-2 space-y-1 max-h-48 overflow-y-auto">
-                                {availableLeagues.map(league => {
-                                    const checked = cfg.included_leagues?.includes(league) ?? false;
-                                    return (
-                                        <label key={league} className="flex items-center gap-2 py-0.5 cursor-pointer">
-                                            <input type="checkbox" checked={checked}
-                                                onChange={() => {
-                                                    let next: string[] | null;
-                                                    if (checked) {
-                                                        next = (cfg.included_leagues ?? []).filter(l => l !== league);
-                                                        if (next.length === 0) next = null;
-                                                    } else {
-                                                        next = [...(cfg.included_leagues ?? []), league];
-                                                    }
-                                                    handleCfgChange({ ...cfg, included_leagues: next });
-                                                }}
-                                            />
-                                            <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{league}</span>
-                                        </label>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
+                            <BuilderPanel
+                                cfg={cfg}
+                                availableLeagues={availableLeagues}
+                                onChange={handleCfgChange}
+                            />
                         </div>
                     </div>
                 </div>

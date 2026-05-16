@@ -117,6 +117,7 @@ class MatchesManager(BufferedStorageManager):
                         "scores": self.deserialize_json(row["predictions_scores"]) or [],
                         "odds": self.deserialize_json(row["odds"]),
                         "result_url": row["result_url"],
+                        "league": row.get("league"),
                     }
                 )
             except Exception as exc:

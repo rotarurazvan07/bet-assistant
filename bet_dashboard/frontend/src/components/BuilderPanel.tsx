@@ -7,6 +7,7 @@ import { ALL_MARKETS } from '../types';
 
 interface Props {
     cfg: BuilderConfig;
+    availableLeagues: string[];
     onChange: (c: BuilderConfig) => void;
 }
 
@@ -250,7 +251,7 @@ function DualSlider({ label, tip, left, right, value, onChange, disabled = false
 
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
-export default function BuilderPanel({ cfg, onChange }: Props) {
+export default function BuilderPanel({ cfg, availableLeagues, onChange }: Props) {
     const up = <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => onChange(set(cfg, k, v));
 
     const allSelected = !cfg.included_markets ||
@@ -330,6 +331,65 @@ export default function BuilderPanel({ cfg, onChange }: Props) {
                     })}
                 </div>
             </AccordionSection>
+
+            {/* ── Leagues ──────────────────────────────────────────── */}
+            {availableLeagues.length > 0 && (
+                <AccordionSection
+                    title={`Leagues ${cfg.included_leagues ? `(${cfg.included_leagues.length})` : '(All)'}`}
+                    icon="🏆"
+                    defaultOpen={false}
+                >
+                    <div className="grid grid-cols-3 gap-1.5 py-2">
+                        {availableLeagues.map(league => {
+                            const active = cfg.included_leagues?.includes(league) ?? false;
+                            return (
+                                <button
+                                    key={league}
+                                    type="button"
+                                    onClick={() => {
+                                        let next: string[] | null;
+                                        if (active) {
+                                            next = (cfg.included_leagues ?? []).filter(l => l !== league);
+                                            if (next.length === 0) next = null;
+                                        } else {
+                                            next = [...(cfg.included_leagues ?? []), league];
+                                        }
+                                        up('included_leagues', next);
+                                    }}
+                                    className="px-2 py-2 rounded-lg text-[9px] font-sans font-bold uppercase
+                                               transition-all duration-200 text-center leading-tight truncate"
+                                    title={league}
+                                    style={{
+                                        background: active
+                                            ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+                                            : 'var(--bg-card)',
+                                        color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
+                                        border: active
+                                            ? '1px solid var(--border-accent)'
+                                            : '1px solid var(--border)',
+                                        boxShadow: active
+                                            ? '0 2px 8px var(--accent-glow)'
+                                            : 'none',
+                                    }}
+                                >
+                                    {league}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {cfg.included_leagues && (
+                        <div className="mt-2 pt-2 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
+                            <button
+                                className="text-[10px] font-mono uppercase px-2 py-1 rounded hover:bg-white/5 transition-colors"
+                                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+                                onClick={() => up('included_leagues', null)}
+                            >
+                                Clear All
+                            </button>
+                        </div>
+                    )}
+                </AccordionSection>
+            )}
 
             {/* ── Tolerance & Stop ──────────────────────────────────── */}
             <AccordionSection title="Tolerance & Stop" icon="⚡" defaultOpen={false}>

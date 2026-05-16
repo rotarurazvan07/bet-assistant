@@ -26,6 +26,7 @@ from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
 
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.core import leagues
 from bet_framework.MatchesManager import MatchesManager
 
 
@@ -244,10 +245,21 @@ class AppLogic:
     # ── League helpers ────────────────────────────────────────────────────────
 
     def get_leagues(self) -> list[str]:
+        # 1. Get leagues from the core framework definitions
+        framework_leagues = [
+            getattr(leagues, name)
+            for name in dir(leagues)
+            if not name.startswith("__") and isinstance(getattr(leagues, name), str)
+        ]
+
+        # 2. Get leagues currently present in the matches database
         df = self._assistant._df
-        if df is None or "league" not in df.columns:
-            return []
-        return sorted(df["league"].dropna().unique().tolist())
+        db_leagues = []
+        if df is not None and "league" in df.columns:
+            db_leagues = df["league"].dropna().unique().tolist()
+
+        # 3. Merge and sort
+        return sorted(list(set(framework_leagues) | set(db_leagues)))
 
     # ── Match data ────────────────────────────────────────────────────────────
 

@@ -150,6 +150,10 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                             <p className="text-[10px] font-mono mt-1.5"
                                                 style={{ color: 'white' }}>{dt}</p>
                                         )}
+                                        {leg.league && (
+                                            <p className="text-[9px] font-mono mt-0.5 opacity-60 uppercase tracking-wider"
+                                                style={{ color: 'var(--text-secondary)' }}>{leg.league}</p>
+                                        )}
                                     </div>
                                     <button
                                         className="btn-icon shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -567,6 +571,10 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                                                 </p>
                                             )}
                                             <p className="text-sm font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>{dt}</p>
+                                            {leg.league && (
+                                                <p className="text-[10px] font-mono mt-0.5 opacity-60 uppercase tracking-wider"
+                                                    style={{ color: 'var(--text-secondary)' }}>{leg.league}</p>
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0">
                                             <span className="font-display font-bold text-xl px-4 py-2 rounded-full"
