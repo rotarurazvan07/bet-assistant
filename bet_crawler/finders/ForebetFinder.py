@@ -242,32 +242,101 @@ class ForebetFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         league = TOP_LEAGUES.get(url)
         soup = BeautifulSoup(html, "html.parser")
-        all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
+        
+        # Extract match rows from schema containers to bypass broken/prematurely closed #body-main structures
+        all_anchors = []
+        for schema in soup.find_all(class_="schema"):
+            all_anchors.extend(schema.find_all(class_="rcnt"))
+            
+        # Safe fallback in case no schema containers are found
+        if not all_anchors:
+            body_main = soup.find("div", id="body-main")
+            all_anchors = (body_main or soup).find_all(class_="rcnt")
+            
         logger.info(f"Found {len(all_anchors)} matches to scan")
 
-        for anchor in all_anchors:
+        for idx, anchor in enumerate(all_anchors, start=1):
             try:
-                home_team = anchor.find("div", class_="tnms").find("span", class_="homeTeam").get_text()
-                away_team = anchor.find("div", class_="tnms").find("span", class_="awayTeam").get_text()
-
-                if anchor.find("div", class_="scoreLnk").get_text().strip() != "":
-                    logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
+                # 1. Extract Team Names Safely
+                tnms_div = anchor.find(class_="tnms")
+                if not tnms_div:
+                    logger.debug(f"Match #{idx}: Skipping - No tnms container found")
                     continue
 
-                match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
-                match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M") + timedelta(hours=1)
+                home_team_elem = tnms_div.find(class_="homeTeam")
+                away_team_elem = tnms_div.find(class_="awayTeam")
+                if not home_team_elem or not away_team_elem:
+                    logger.debug(f"Match #{idx}: Skipping - No home/away team elements found")
+                    continue
 
-                home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
-                away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
+                home_team = home_team_elem.get_text().strip()
+                away_team = away_team_elem.get_text().strip()
+
+                # 2. Check Match Status Safely (Ongoing / Completed Matches)
+                score_lnk_elem = anchor.find(class_="scoreLnk")
+                if score_lnk_elem:
+                    score_text = score_lnk_elem.get_text().strip()
+                    if score_text != "":
+                        logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing or finished ('{score_text}')")
+                        continue
+
+                # 3. Extract Match Date Safely
+                date_bah_elem = anchor.find(class_="date_bah")
+                if not date_bah_elem:
+                    logger.warning(f"SKIPPED [{home_team} vs {away_team}]: No match date element found")
+                    continue
+
+                match_date_str = date_bah_elem.get_text().strip()
+                try:
+                    match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M") + timedelta(hours=1)
+                except ValueError as ve:
+                    logger.error(f"SKIPPED [{home_team} vs {away_team}]: Date format mismatch '{match_date_str}' - {ve}")
+                    continue
+
+                # 4. Extract Predicted Score Safely
+                ex_sc_elem = anchor.find(class_="ex_sc")
+                if not ex_sc_elem:
+                    logger.debug(f"SKIPPED [{home_team} vs {away_team}]: No score prediction found")
+                    continue
+
+                ex_sc_text = ex_sc_elem.get_text().strip()
+                if "-" not in ex_sc_text:
+                    logger.debug(f"SKIPPED [{home_team} vs {away_team}]: Invalid score prediction format '{ex_sc_text}'")
+                    continue
+
+                try:
+                    home_pred_str, away_pred_str = ex_sc_text.split("-")
+                    home = float(home_pred_str.strip())
+                    away = float(away_pred_str.strip())
+                except Exception as e:
+                    logger.error(f"SKIPPED [{home_team} vs {away_team}]: Score parse error on '{ex_sc_text}' - {e}")
+                    continue
+
                 predictions = [Score(FOREBET_NAME, home, away)]
 
-                odds_tags = [o.get_text() for o in anchor.find("div", class_="haodd").find_all("span")]
-                odds = Odds(
-                    home=float(odds_tags[0]) if odds_tags[0] not in ("", " - ") else None,
-                    draw=float(odds_tags[1]) if odds_tags[1] not in ("", " - ") else None,
-                    away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
-                )
+                # 5. Extract Odds Safely
+                home_odds = None
+                draw_odds = None
+                away_odds = None
 
+                haodd_elem = anchor.find(class_="haodd")
+                if haodd_elem:
+                    odds_spans = haodd_elem.find_all("span")
+                    if len(odds_spans) >= 3:
+                        odds_tags = [o.get_text().strip() for o in odds_spans]
+                        try:
+                            if odds_tags[0] not in ("", " - "):
+                                home_odds = float(odds_tags[0])
+                            if odds_tags[1] not in ("", " - "):
+                                draw_odds = float(odds_tags[1])
+                            if odds_tags[2] not in ("", " - "):
+                                away_odds = float(odds_tags[2])
+                        except ValueError:
+                            pass
+
+                odds = Odds(home=home_odds, draw=draw_odds, away=away_odds)
+
+                # 6. Add Match
                 self.add_match(Match(home_team, away_team, match_date, predictions, odds, league=league))
 
             except Exception as e:
