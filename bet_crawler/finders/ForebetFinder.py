@@ -14,7 +14,7 @@ from .BaseMatchFinder import BaseMatchFinder
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 10
 
 TOP_LEAGUES = {
     "https://www.forebet.com/en/predictions-europe/uefa-champions-league": CHAMPIONS_LEAGUE,
@@ -235,7 +235,7 @@ class ForebetFinder(BaseMatchFinder):
         scrape(
             urls,
             self._parse_page,
-            mode=ScrapeMode.FAST,
+            mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
 
