@@ -64,7 +64,14 @@ class WhoScoredFinder(BaseMatchFinder):
             # 2. Extract score predictions from DOM
             soup = BeautifulSoup(html, "html.parser")
             score_container = soup.find("div", id="preview-prediction")
-            score = score_container.find_all("span", class_="predicted-score")
+            if not score_container:
+                logger.warning(f"[{url}] WhoScored: Could not find preview-prediction container.")
+                return
+                
+            score_elems = score_container.find_all("span", class_="predicted-score")
+            if len(score_elems) < 2:
+                logger.warning(f"[{url}] WhoScored: Could not find predicted-score spans.")
+                return
 
             # Try to create the match object, but handle exceptions for individual matches
             try:

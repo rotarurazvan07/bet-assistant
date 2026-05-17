@@ -101,26 +101,44 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         continue
 
                     inner = match_div.contents[:-1]
-                    home_team = inner[0].find("div").get_text()
-                    away_team = inner[1].find("div").get_text()
+                    if len(inner) < 2:
+                        continue
+                        
+                    home_div = inner[0].find("div")
+                    away_div = inner[1].find("div")
+                    if not home_div or not away_div:
+                        continue
+                        
+                    home_team = home_div.get_text(strip=True)
+                    away_team = away_div.get_text(strip=True)
 
-                    score_text = inner[-1].get_text()
-                    home = float(score_text.split("-")[0])
-                    away = float(score_text.split("-")[1])
+                    score_text = inner[-1].get_text(strip=True)
+                    if "-" not in score_text:
+                        continue
+                        
+                    try:
+                        home = float(score_text.split("-")[0])
+                        away = float(score_text.split("-")[1])
+                    except ValueError:
+                        continue
+                        
                     predictions = [Score(WINDRAWWIN_NAME, home, away)]
 
                     mo_tag = match_div.find("div", class_="wtmo")
                     ou_tag = match_div.find("div", class_="wtou")
                     bt_tag = match_div.find("div", class_="wtbt")
 
+                    def safe_get(tag, idx):
+                        return tag.contents[idx].get_text(strip=True) if tag and len(tag.contents) > idx else None
+
                     odds = Odds(
-                        home=mo_tag.contents[1].get_text() if mo_tag else None,
-                        draw=mo_tag.contents[2].get_text() if mo_tag else None,
-                        away=mo_tag.contents[3].get_text() if mo_tag else None,
-                        over_25=ou_tag.contents[1].get_text() if ou_tag else None,
-                        under_25=ou_tag.contents[2].get_text() if ou_tag else None,
-                        btts_y=bt_tag.contents[1].get_text() if bt_tag else None,
-                        btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
+                        home=safe_get(mo_tag, 1),
+                        draw=safe_get(mo_tag, 2),
+                        away=safe_get(mo_tag, 3),
+                        over_25=safe_get(ou_tag, 1),
+                        under_25=safe_get(ou_tag, 2),
+                        btts_y=safe_get(bt_tag, 1),
+                        btts_n=safe_get(bt_tag, 2),
                     )
 
                     self.add_match(Match(home_team, away_team, current_date, predictions, odds))

@@ -79,21 +79,34 @@ class xGScoreFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         soup = BeautifulSoup(html, "html.parser")
         try:
-            home_team = soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()
-            away_team = soup.find_all("strong", class_="xgs-game-header_team-name")[1].get_text().strip()
+            team_nodes = soup.find_all("strong", class_="xgs-game-header_team-name")
+            if len(team_nodes) < 2:
+                logger.warning(f"Could not extract teams on {url}")
+                return
+                
+            home_team = team_nodes[0].get_text(strip=True)
+            away_team = team_nodes[1].get_text(strip=True)
 
             try:
-                date_str = soup.find("div", class_="xgs-game-header_datetime").get_text().strip()
+                date_node = soup.find("div", class_="xgs-game-header_datetime")
+                if not date_node:
+                    raise Exception("Missing date node")
+                    
+                date_str = date_node.get_text(strip=True)
                 match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
                     hour=0, minute=0
                 )
             except Exception:
-                logger.error("Match finished")
+                logger.error("Match finished or date parse failed")
                 return
 
-            home, away = re.search(r"Correct Score:\s*(\d+)-(\d+)", html).groups()
-
-            predictions = [Score(XGSCORE_NAME, home, away)]
+            score_match = re.search(r"Correct Score:\s*(\d+)-(\d+)", html)
+            if not score_match:
+                logger.warning(f"Could not extract correct score on {url}")
+                return
+                
+            home_val, away_val = score_match.groups()
+            predictions = [Score(XGSCORE_NAME, int(home_val), int(away_val))]
 
             # Extract odds from the HTML div elements
             odds = self._extract_odds_from_html(soup)

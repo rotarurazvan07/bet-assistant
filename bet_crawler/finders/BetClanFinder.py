@@ -51,15 +51,49 @@ class BetClanFinder(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
 
-            home_team = soup.find("div", class_="teamtophome").get_text().strip()
-            away_team = soup.find("div", class_="teamtopaway").get_text().strip()
-            date_str = soup.find("span", class_="dategamedetailsis").get_text().strip().replace("Date ", "").split(" ")[0]
-            current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
-            score_str = soup.find("div", class_="predione").find("div", class_="parttwo").find_all("h5")[-1].get_text().strip()
-            predictions = [Score(BETCLAN_NAME, home=(score_str.split("-")[0]), away=(score_str.split("-")[1]))]
-            odds = None
+            home_div = soup.find("div", class_="teamtophome")
+            away_div = soup.find("div", class_="teamtopaway")
+            if not home_div or not away_div:
+                logger.warning(f"Could not find team names in {url}")
+                return
 
-            self.add_match(Match(home_team, away_team, current_date, predictions, odds))
+            home_team = home_div.get_text(strip=True)
+            away_team = away_div.get_text(strip=True)
+
+            date_span = soup.find("span", class_="dategamedetailsis")
+            if not date_span:
+                logger.warning(f"Could not find date in {url}")
+                return
+
+            date_str = date_span.get_text(strip=True).replace("Date ", "").split(" ")[0]
+            try:
+                current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+            except ValueError:
+                logger.warning(f"Failed to parse date string: {date_str} in {url}")
+                return
+
+            predione = soup.find("div", class_="predione")
+            if not predione:
+                return
+            parttwo = predione.find("div", class_="parttwo")
+            if not parttwo:
+                return
+
+            h5_elements = parttwo.find_all("h5")
+            if not h5_elements:
+                return
+
+            score_str = h5_elements[-1].get_text(strip=True)
+            if "-" not in score_str:
+                return
+
+            try:
+                home_pred, away_pred = score_str.split("-", 1)
+                predictions = [Score(BETCLAN_NAME, home=home_pred.strip(), away=away_pred.strip())]
+            except ValueError:
+                return
+
+            self.add_match(Match(home_team, away_team, current_date, predictions, None))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
