@@ -8,6 +8,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -15,27 +16,27 @@ FOOTBALLPREDICTIONS_URL = "https://footballpredictions.com/"
 FOOTBALLPREDICTIONS_NAME = "footballpredictions"
 MAX_CONCURRENCY = 1
 
-TOP_LEAGUES = [
-    "https://footballpredictions.com/footballpredictions/championsleaguepredictions/",
-    "https://footballpredictions.com/footballpredictions/europaleaguepredictions/",
-    "https://footballpredictions.com/footballpredictions/europa-conference-league-predictions/",
-    "https://footballpredictions.com/footballpredictions/premierleaguepredictions/",
-    "https://footballpredictions.com/footballpredictions/serieapredictions/",
-    "https://footballpredictions.com/footballpredictions/primeradivisionpredictions/",
-    "https://footballpredictions.com/footballpredictions/bundesligapredictions/",
-    "https://footballpredictions.com/footballpredictions/ligue1predictions/",
-    "https://footballpredictions.com/footballpredictions/belgium-pro-league-predictions/",
-    "https://footballpredictions.com/footballpredictions/championshippredictions/",
-    "https://footballpredictions.com/footballpredictions/portugal-primeira-liga-predictions/",
-    "https://footballpredictions.com/footballpredictions/mlspredictions/",
-    "https://footballpredictions.com/footballpredictions/netherlands-eredivisie-predictions/",
-    "https://footballpredictions.com/footballpredictions/sweden-allsvenskan-predictions/",
-    "https://footballpredictions.com/footballpredictions/segunda-division-predictions/",
-    "https://footballpredictions.com/footballpredictions/norway-eliteserien-predictions/",
-    "https://footballpredictions.com/footballpredictions/serie-b-predictions/",
-    "https://footballpredictions.com/footballpredictions/bundesliga-2-predictions/",
-    "https://footballpredictions.com/footballpredictions/scottish-premiership-predictions/",
-]
+TOP_LEAGUES = {
+    "https://footballpredictions.com/footballpredictions/championsleaguepredictions/": CHAMPIONS_LEAGUE,
+    "https://footballpredictions.com/footballpredictions/europaleaguepredictions/": EUROPA_LEAGUE,
+    "https://footballpredictions.com/footballpredictions/europa-conference-league-predictions/": CONFERENCE_LEAGUE,
+    "https://footballpredictions.com/footballpredictions/premierleaguepredictions/": PREMIER_LEAGUE,
+    "https://footballpredictions.com/footballpredictions/serieapredictions/": SERIE_A,
+    "https://footballpredictions.com/footballpredictions/primeradivisionpredictions/": LA_LIGA,
+    "https://footballpredictions.com/footballpredictions/bundesligapredictions/": BUNDESLIGA,
+    "https://footballpredictions.com/footballpredictions/ligue1predictions/": LIGUE_1,
+    "https://footballpredictions.com/footballpredictions/belgium-pro-league-predictions/": JUPILER_PRO_LEAGUE,
+    "https://footballpredictions.com/footballpredictions/championshippredictions/": CHAMPIONSHIP,
+    "https://footballpredictions.com/footballpredictions/portugal-primeira-liga-predictions/": LIGA_PORTUGAL,
+    "https://footballpredictions.com/footballpredictions/mlspredictions/": MLS,
+    "https://footballpredictions.com/footballpredictions/netherlands-eredivisie-predictions/": EREDIVISIE,
+    "https://footballpredictions.com/footballpredictions/sweden-allsvenskan-predictions/": ALLSVENSKAN,
+    "https://footballpredictions.com/footballpredictions/segunda-division-predictions/": SEGUNDA_DIVISION,
+    "https://footballpredictions.com/footballpredictions/norway-eliteserien-predictions/": ELITESERIEN,
+    "https://footballpredictions.com/footballpredictions/serie-b-predictions/": SERIE_B,
+    "https://footballpredictions.com/footballpredictions/bundesliga-2-predictions/": BUNDESLIGA_2,
+    "https://footballpredictions.com/footballpredictions/scottish-premiership-predictions/": SCOTTISH_PREMIERSHIP,
+}
 
 
 class FootballPredictionsFinder(BaseMatchFinder):
@@ -43,7 +44,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
-        return TOP_LEAGUES
+        return list(TOP_LEAGUES.keys())
 
     def get_matches(self, urls) -> None:
         scrape(
@@ -84,7 +85,8 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 prediction = Score(FOOTBALLPREDICTIONS_NAME, home_goals, away_goals)
 
                 # Add match to the collector
-                self.add_match(Match(home_team, away_team, match_date, [prediction], None))
+                league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                self.add_match(Match(home_team, away_team, match_date, [prediction], None, league=league))
 
             except Exception as e:
                 logger.error(f"SKIPPED: Parse error - {e}")

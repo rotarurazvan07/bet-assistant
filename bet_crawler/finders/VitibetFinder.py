@@ -9,6 +9,7 @@ logger = get_logger(__name__)
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -16,38 +17,38 @@ VITIBET_URL = "https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&l
 VITIBET_NAME = "vitibet"
 MAX_CONCURRENCY = 3
 
-TOP_LEAGUES = [
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=2&lang=en",  # Champions League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=3&lang=en",  # Europa League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=848&lang=en",  # Conference League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=39&lang=en",  # Premier League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=135&lang=en",  # Serie A
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=140&lang=en",  # LaLiga
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=78&lang=en",  # Bundesliga
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=61&lang=en",  # Ligue 1
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=144&lang=en",  # Jupiler Pro League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=40&lang=en",  # Championship
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=94&lang=en",  # Primeira Liga
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=71&lang=en",  # Brazil Serie A
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=253&lang=en",  # MLS
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=88&lang=en",  # Eredivisie
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=119&lang=en",  # Denmark Superliga
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=106&lang=en",  # Ekstraklasa
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=128&lang=en",  # Argentina Liga Profesional
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=98&lang=en",  # Japan J1 League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=203&lang=en",  # Süper Lig
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=113&lang=en",  # Allsvenskan
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=210&lang=en",  # Croatia HNL
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=262&lang=en",  # Liga MX
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=141&lang=en",  # Segunda Division
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=103&lang=en",  # Eliteserien
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=218&lang=en",  # Austria Bundesliga
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=207&lang=en",  # Switzerland Super League
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=136&lang=en",  # Serie B
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=79&lang=en",  # 2. Bundesliga
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=62&lang=en",  # Ligue 2
-    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=179&lang=en",  # Scotland Premiership
-]
+TOP_LEAGUES = {
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=2&lang=en": CHAMPIONS_LEAGUE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=3&lang=en": EUROPA_LEAGUE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=848&lang=en": CONFERENCE_LEAGUE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=39&lang=en": PREMIER_LEAGUE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=135&lang=en": SERIE_A,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=140&lang=en": LA_LIGA,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=78&lang=en": BUNDESLIGA,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=61&lang=en": LIGUE_1,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=144&lang=en": JUPILER_PRO_LEAGUE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=40&lang=en": CHAMPIONSHIP,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=94&lang=en": LIGA_PORTUGAL,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=71&lang=en": SERIE_A_BRAZIL,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=253&lang=en": MLS,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=88&lang=en": EREDIVISIE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=119&lang=en": SUPERLIGA_DENMARK,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=106&lang=en": EKSTRAKLASA,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=128&lang=en": LIGA_PROFESIONAL,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=98&lang=en": J1_LEAGUE,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=203&lang=en": SUPER_LIG,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=113&lang=en": ALLSVENSKAN,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=210&lang=en": HNL,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=262&lang=en": LIGA_MX,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=141&lang=en": SEGUNDA_DIVISION,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=103&lang=en": ELITESERIEN,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=218&lang=en": BUNDESLIGA_AUSTRIA,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=207&lang=en": SUPER_LEAGUE_SWITZERLAND,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=136&lang=en": SERIE_B,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=79&lang=en": BUNDESLIGA_2,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=62&lang=en": LIGUE_2,
+    "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=179&lang=en": SCOTTISH_PREMIERSHIP,
+}
 
 
 class VitibetFinder(BaseMatchFinder):
@@ -56,7 +57,7 @@ class VitibetFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         if self.top_leagues_only:
-            return TOP_LEAGUES
+            return list(TOP_LEAGUES.keys())
         else:
             html = fetch(VITIBET_URL, stealthy_headers=True)
             soup = BeautifulSoup(html, "html.parser")
@@ -111,6 +112,7 @@ class VitibetFinder(BaseMatchFinder):
                         )
                     ]
 
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
                         Match(
                             home_team=home_team,
@@ -118,6 +120,7 @@ class VitibetFinder(BaseMatchFinder):
                             datetime=match_datetime,
                             predictions=predictions,
                             odds=None,
+                            league=league,
                         )
                     )
 

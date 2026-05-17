@@ -9,6 +9,7 @@ from itertools import takewhile
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -16,22 +17,22 @@ ONE_MILLION_PREDICTIONS_NAME = "onemillionpredictions"
 ONE_MILLION_PREDICTIONS_URL = "https://onemillionpredictions.com"
 MAX_CONCURRENCY = 1
 
-TOP_LEAGUES = [
-    "https://onemillionpredictions.com/england-premier-league/predictions/",
-    "https://onemillionpredictions.com/italy-serie-a/predictions/",
-    "https://onemillionpredictions.com/spain-la-liga/predictions/",
-    "https://onemillionpredictions.com/germany-bundesliga/predictions/",
-    "https://onemillionpredictions.com/france-ligue-1/predictions/",
-    "https://onemillionpredictions.com/netherland-eredivisie/predictions/",
-    "https://onemillionpredictions.com/portugal-primeira-liga/predictions/",
-    "https://onemillionpredictions.com/argentina-liga-profesional/predictions/",
-    "https://onemillionpredictions.com/brazil-serie-a/predictions/",
-    "https://onemillionpredictions.com/mexico-liga-mx/predictions/",
-    "https://onemillionpredictions.com/usa-mls/predictions/",
-    "https://onemillionpredictions.com/uefa-champions-league/predictions/",
-    "https://onemillionpredictions.com/uefa-europa-league/predictions/",
-    "https://onemillionpredictions.com/uefa-europa-conference-league/predictions/",
-]
+TOP_LEAGUES = {
+    "https://onemillionpredictions.com/england-premier-league/predictions/": PREMIER_LEAGUE,
+    "https://onemillionpredictions.com/italy-serie-a/predictions/": SERIE_A,
+    "https://onemillionpredictions.com/spain-la-liga/predictions/": LA_LIGA,
+    "https://onemillionpredictions.com/germany-bundesliga/predictions/": BUNDESLIGA,
+    "https://onemillionpredictions.com/france-ligue-1/predictions/": LIGUE_1,
+    "https://onemillionpredictions.com/netherland-eredivisie/predictions/": EREDIVISIE,
+    "https://onemillionpredictions.com/portugal-primeira-liga/predictions/": LIGA_PORTUGAL,
+    "https://onemillionpredictions.com/argentina-liga-profesional/predictions/": LIGA_PROFESIONAL,
+    "https://onemillionpredictions.com/brazil-serie-a/predictions/": SERIE_A_BRAZIL,
+    "https://onemillionpredictions.com/mexico-liga-mx/predictions/": LIGA_MX,
+    "https://onemillionpredictions.com/usa-mls/predictions/": MLS,
+    "https://onemillionpredictions.com/uefa-champions-league/predictions/": CHAMPIONS_LEAGUE,
+    "https://onemillionpredictions.com/uefa-europa-league/predictions/": EUROPA_LEAGUE,
+    "https://onemillionpredictions.com/uefa-europa-conference-league/predictions/": CONFERENCE_LEAGUE,
+}
 
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
@@ -40,7 +41,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         if self.top_leagues_only:
-            return TOP_LEAGUES
+            return list(TOP_LEAGUES.keys())
         else:
             page = fetch(ONE_MILLION_PREDICTIONS_URL, stealthy_headers=True)
             soup = BeautifulSoup(page, "html.parser")
@@ -90,7 +91,8 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         ]
                         odds = None
 
-                        self.add_match(Match(home_team, away_team, dt_obj, predictions, odds))
+                        league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                        self.add_match(Match(home_team, away_team, dt_obj, predictions, odds, league=league))
 
                 except Exception as e:
                     logger.error(f"SKIPPED [{url}]: {e}")

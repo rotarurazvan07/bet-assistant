@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -15,38 +16,38 @@ SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
 MAX_CONCURRENCY = 10
 
-TOP_LEAGUES = [
-    "https://www.soccervista.com/europe/champions-league/xGrwqq16/",
-    "https://www.soccervista.com/europe/europa-league/ClDjv3V5/",
-    "https://www.soccervista.com/europe/conference-league/GfRbsVWM/",
-    "https://www.soccervista.com/england/championship/2DSCa5fE/",
-    "https://www.soccervista.com/italy/serie-b/6oug4RRc/",
-    "https://www.soccervista.com/spain/laliga2/vZiPmPJi/",
-    "https://www.soccervista.com/germany/2-bundesliga/tKH71vSe/",
-    "https://www.soccervista.com/france/ligue-2/Y35Jer59/",
-    "https://www.soccervista.com/england/premier-league/dYlOSQOD/",
-    "https://www.soccervista.com/spain/laliga/QVmLl54o/",
-    "https://www.soccervista.com/germany/bundesliga/W6BOzpK2/",
-    "https://www.soccervista.com/italy/serie-a/COuk57Ci/",
-    "https://www.soccervista.com/france/ligue-1/KIShoMk3/",
-    "https://www.soccervista.com/belgium/jupiler-pro-league/dG2SqPrf/",
-    "https://www.soccervista.com/portugal/liga-portugal/UmMRoGzp/",
-    "https://www.soccervista.com/brazil/serie-a-betano/Yq4hUnzQ/",
-    "https://www.soccervista.com/usa/mls/CQv5qrFt/",
-    "https://www.soccervista.com/netherlands/eredivisie/Or1bBrWD/",
-    "https://www.soccervista.com/denmark/superliga/O6W7GIaF/",
-    "https://www.soccervista.com/poland/ekstraklasa/lrMHUHDc/",
-    "https://www.soccervista.com/argentina/liga-profesional/naYhNOaA/",
-    "https://www.soccervista.com/japan/j1-league/pAq4eRQ9/",
-    "https://www.soccervista.com/turkey/super-lig/Opdcd08Q/",
-    "https://www.soccervista.com/sweden/allsvenskan/nXxWpLmT/",
-    "https://www.soccervista.com/croatia/hnl/nqMxclRN/",
-    "https://www.soccervista.com/mexico/liga-mx/bm2Vlsfl/",
-    "https://www.soccervista.com/norway/eliteserien/GOvB22xg/",
-    "https://www.soccervista.com/austria/bundesliga/rJg7S7Me/",
-    "https://www.soccervista.com/switzerland/super-league/KAjTCI1l/",
-    "https://www.soccervista.com/scotland/premiership/tGwiyvJ1/",
-]
+TOP_LEAGUES = {
+    "https://www.soccervista.com/europe/champions-league/xGrwqq16/": CHAMPIONS_LEAGUE,
+    "https://www.soccervista.com/europe/europa-league/ClDjv3V5/": EUROPA_LEAGUE,
+    "https://www.soccervista.com/europe/conference-league/GfRbsVWM/": CONFERENCE_LEAGUE,
+    "https://www.soccervista.com/england/championship/2DSCa5fE/": CHAMPIONSHIP,
+    "https://www.soccervista.com/italy/serie-b/6oug4RRc/": SERIE_B,
+    "https://www.soccervista.com/spain/laliga2/vZiPmPJi/": SEGUNDA_DIVISION,
+    "https://www.soccervista.com/germany/2-bundesliga/tKH71vSe/": BUNDESLIGA_2,
+    "https://www.soccervista.com/france/ligue-2/Y35Jer59/": LIGUE_2,
+    "https://www.soccervista.com/england/premier-league/dYlOSQOD/": PREMIER_LEAGUE,
+    "https://www.soccervista.com/spain/laliga/QVmLl54o/": LA_LIGA,
+    "https://www.soccervista.com/germany/bundesliga/W6BOzpK2/": BUNDESLIGA,
+    "https://www.soccervista.com/italy/serie-a/COuk57Ci/": SERIE_A,
+    "https://www.soccervista.com/france/ligue-1/KIShoMk3/": LIGUE_1,
+    "https://www.soccervista.com/belgium/jupiler-pro-league/dG2SqPrf/": JUPILER_PRO_LEAGUE,
+    "https://www.soccervista.com/portugal/liga-portugal/UmMRoGzp/": LIGA_PORTUGAL,
+    "https://www.soccervista.com/brazil/serie-a-betano/Yq4hUnzQ/": SERIE_A_BRAZIL,
+    "https://www.soccervista.com/usa/mls/CQv5qrFt/": MLS,
+    "https://www.soccervista.com/netherlands/eredivisie/Or1bBrWD/": EREDIVISIE,
+    "https://www.soccervista.com/denmark/superliga/O6W7GIaF/": SUPERLIGA_DENMARK,
+    "https://www.soccervista.com/poland/ekstraklasa/lrMHUHDc/": EKSTRAKLASA,
+    "https://www.soccervista.com/argentina/liga-profesional/naYhNOaA/": LIGA_PROFESIONAL,
+    "https://www.soccervista.com/japan/j1-league/pAq4eRQ9/": J1_LEAGUE,
+    "https://www.soccervista.com/turkey/super-lig/Opdcd08Q/": SUPER_LIG,
+    "https://www.soccervista.com/sweden/allsvenskan/nXxWpLmT/": ALLSVENSKAN,
+    "https://www.soccervista.com/croatia/hnl/nqMxclRN/": HNL,
+    "https://www.soccervista.com/mexico/liga-mx/bm2Vlsfl/": LIGA_MX,
+    "https://www.soccervista.com/norway/eliteserien/GOvB22xg/": ELITESERIEN,
+    "https://www.soccervista.com/austria/bundesliga/rJg7S7Me/": BUNDESLIGA_AUSTRIA,
+    "https://www.soccervista.com/switzerland/super-league/KAjTCI1l/": SUPER_LEAGUE_SWITZERLAND,
+    "https://www.soccervista.com/scotland/premiership/tGwiyvJ1/": SCOTTISH_PREMIERSHIP,
+}
 
 
 class SoccerVistaFinder_per_league(BaseMatchFinder):
@@ -55,7 +56,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
 
     def get_matches_urls(self):
         if self.top_leagues_only:
-            return TOP_LEAGUES
+            return list(TOP_LEAGUES.keys())
         else:
             html = fetch(SOCCERVISTA_URL, stealthy_headers=True)
             soup = BeautifulSoup(html, "html.parser")
@@ -130,6 +131,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         )
                     ]
 
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
                         Match(
                             home_team=home_team,
@@ -137,6 +139,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                             datetime=match_datetime,
                             predictions=scores,
                             odds=None,
+                            league=league,
                             result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
                         )
                     )

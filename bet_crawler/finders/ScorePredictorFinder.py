@@ -8,6 +8,7 @@ logger = get_logger(__name__)
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -15,33 +16,33 @@ SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
 MAX_CONCURRENCY = 3
 
-TOP_LEAGUES = [
-    "https://scorepredictor.net/index.php?section=football&season=ChampionsLeague",
-    "https://scorepredictor.net/index.php?section=football&season=EuropaLeague",
-    "https://scorepredictor.net/index.php?section=football&season=ConferenceLeague",
-    "https://scorepredictor.net/index.php?section=football&season=England",
-    "https://scorepredictor.net/index.php?section=football&season=Italy",
-    "https://scorepredictor.net/index.php?section=football&season=Spain",
-    "https://scorepredictor.net/index.php?section=football&season=Germany",
-    "https://scorepredictor.net/index.php?section=football&season=France",
-    "https://scorepredictor.net/index.php?section=football&season=Belgium",
-    "https://scorepredictor.net/index.php?section=football&season=England2",
-    "https://scorepredictor.net/index.php?section=football&season=Portugal",
-    "https://scorepredictor.net/index.php?section=football&season=Netherlands",
-    "https://scorepredictor.net/index.php?section=football&season=Denmark",
-    "https://scorepredictor.net/index.php?section=football&season=Poland",
-    "https://scorepredictor.net/index.php?section=football&season=Turkey",
-    "https://scorepredictor.net/index.php?section=football&season=Sweden",
-    "https://scorepredictor.net/index.php?section=football&season=Croatia",
-    "https://scorepredictor.net/index.php?section=football&season=Spain2",
-    "https://scorepredictor.net/index.php?section=football&season=Norway",
-    "https://scorepredictor.net/index.php?section=football&season=Austria",
-    "https://scorepredictor.net/index.php?section=football&season=Switzerland",
-    "https://scorepredictor.net/index.php?section=football&season=Italy2",
-    "https://scorepredictor.net/index.php?section=football&season=Germany2",
-    "https://scorepredictor.net/index.php?section=football&season=France2",
-    "https://scorepredictor.net/index.php?section=football&season=Scotland",
-]
+TOP_LEAGUES = {
+    "https://scorepredictor.net/index.php?section=football&season=ChampionsLeague": CHAMPIONS_LEAGUE,
+    "https://scorepredictor.net/index.php?section=football&season=EuropaLeague": EUROPA_LEAGUE,
+    "https://scorepredictor.net/index.php?section=football&season=ConferenceLeague": CONFERENCE_LEAGUE,
+    "https://scorepredictor.net/index.php?section=football&season=England": PREMIER_LEAGUE,
+    "https://scorepredictor.net/index.php?section=football&season=Italy": SERIE_A,
+    "https://scorepredictor.net/index.php?section=football&season=Spain": LA_LIGA,
+    "https://scorepredictor.net/index.php?section=football&season=Germany": BUNDESLIGA,
+    "https://scorepredictor.net/index.php?section=football&season=France": LIGUE_1,
+    "https://scorepredictor.net/index.php?section=football&season=Belgium": JUPILER_PRO_LEAGUE,
+    "https://scorepredictor.net/index.php?section=football&season=England2": CHAMPIONSHIP,
+    "https://scorepredictor.net/index.php?section=football&season=Portugal": LIGA_PORTUGAL,
+    "https://scorepredictor.net/index.php?section=football&season=Netherlands": EREDIVISIE,
+    "https://scorepredictor.net/index.php?section=football&season=Denmark": SUPERLIGA_DENMARK,
+    "https://scorepredictor.net/index.php?section=football&season=Poland": EKSTRAKLASA,
+    "https://scorepredictor.net/index.php?section=football&season=Turkey": SUPER_LIG,
+    "https://scorepredictor.net/index.php?section=football&season=Sweden": ALLSVENSKAN,
+    "https://scorepredictor.net/index.php?section=football&season=Croatia": HNL,
+    "https://scorepredictor.net/index.php?section=football&season=Spain2": SEGUNDA_DIVISION,
+    "https://scorepredictor.net/index.php?section=football&season=Norway": ELITESERIEN,
+    "https://scorepredictor.net/index.php?section=football&season=Austria": BUNDESLIGA_AUSTRIA,
+    "https://scorepredictor.net/index.php?section=football&season=Switzerland": SUPER_LEAGUE_SWITZERLAND,
+    "https://scorepredictor.net/index.php?section=football&season=Italy2": SERIE_B,
+    "https://scorepredictor.net/index.php?section=football&season=Germany2": BUNDESLIGA_2,
+    "https://scorepredictor.net/index.php?section=football&season=France2": LIGUE_2,
+    "https://scorepredictor.net/index.php?section=football&season=Scotland": SCOTTISH_PREMIERSHIP,
+}
 
 
 class ScorePredictorFinder(BaseMatchFinder):
@@ -50,7 +51,7 @@ class ScorePredictorFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         if self.top_leagues_only:
-            return TOP_LEAGUES
+            return list(TOP_LEAGUES.keys())
         else:
             html = fetch(SCOREPREDICTOR_URL + "index.php?section=football")
             soup = BeautifulSoup(html, "html.parser")
@@ -115,8 +116,9 @@ class ScorePredictorFinder(BaseMatchFinder):
                         )
                     ]
 
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
-                        Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None)
+                        Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None, league=league)
                     )
 
                 except ValueError as e:

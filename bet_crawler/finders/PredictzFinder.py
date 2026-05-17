@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -16,38 +17,38 @@ PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
 MAX_CONCURRENCY = 1
 
-TOP_LEAGUES = [
-    "https://www.predictz.com/predictions/europe/champions-league/",
-    "https://www.predictz.com/predictions/europe/europa-league/",
-    "https://www.predictz.com/predictions/europe/europa-conference-league/",
-    "https://www.predictz.com/predictions/england/premier-league/",
-    "https://www.predictz.com/predictions/italy/serie-a/",
-    "https://www.predictz.com/predictions/spain/la-liga/",
-    "https://www.predictz.com/predictions/germany/bundesliga/",
-    "https://www.predictz.com/predictions/france/ligue-1/",
-    "https://www.predictz.com/predictions/belgium/first-division-a/",
-    "https://www.predictz.com/predictions/england/championship/",
-    "https://www.predictz.com/predictions/portugal/primeira-liga/",
-    "https://www.predictz.com/predictions/brazil/serie-a/",
-    "https://www.predictz.com/predictions/usa/major-league-soccer/",
-    "https://www.predictz.com/predictions/netherlands/eredivisie/",
-    "https://www.predictz.com/predictions/denmark/superliga/",
-    "https://www.predictz.com/predictions/poland/ekstraklasa/",
-    "https://www.predictz.com/predictions/argentina/liga-profesional/",
-    "https://www.predictz.com/predictions/japan/j-league/",
-    "https://www.predictz.com/predictions/turkey/super-lig/",
-    "https://www.predictz.com/predictions/sweden/allsvenskan/",
-    "https://www.predictz.com/predictions/croatia/1-hnl/",
-    "https://www.predictz.com/predictions/mexico/la-division/",
-    "https://www.predictz.com/predictions/spain/segunda-division/",
-    "https://www.predictz.com/predictions/norway/eliteserien/",
-    "https://www.predictz.com/predictions/austria/bundesliga/",
-    "https://www.predictz.com/predictions/switzerland/super-league/",
-    "https://www.predictz.com/predictions/italy/serie-b/",
-    "https://www.predictz.com/predictions/germany/2-bundesliga/",
-    "https://www.predictz.com/predictions/france/ligue-2/",
-    "https://www.predictz.com/predictions/scotland/premiership/",
-]
+TOP_LEAGUES = {
+    "https://www.predictz.com/predictions/europe/champions-league/": CHAMPIONS_LEAGUE,
+    "https://www.predictz.com/predictions/europe/europa-league/": EUROPA_LEAGUE,
+    "https://www.predictz.com/predictions/europe/europa-conference-league/": CONFERENCE_LEAGUE,
+    "https://www.predictz.com/predictions/england/premier-league/": PREMIER_LEAGUE,
+    "https://www.predictz.com/predictions/italy/serie-a/": SERIE_A,
+    "https://www.predictz.com/predictions/spain/la-liga/": LA_LIGA,
+    "https://www.predictz.com/predictions/germany/bundesliga/": BUNDESLIGA,
+    "https://www.predictz.com/predictions/france/ligue-1/": LIGUE_1,
+    "https://www.predictz.com/predictions/belgium/first-division-a/": JUPILER_PRO_LEAGUE,
+    "https://www.predictz.com/predictions/england/championship/": CHAMPIONSHIP,
+    "https://www.predictz.com/predictions/portugal/primeira-liga/": LIGA_PORTUGAL,
+    "https://www.predictz.com/predictions/brazil/serie-a/": SERIE_A_BRAZIL,
+    "https://www.predictz.com/predictions/usa/major-league-soccer/": MLS,
+    "https://www.predictz.com/predictions/netherlands/eredivisie/": EREDIVISIE,
+    "https://www.predictz.com/predictions/denmark/superliga/": SUPERLIGA_DENMARK,
+    "https://www.predictz.com/predictions/poland/ekstraklasa/": EKSTRAKLASA,
+    "https://www.predictz.com/predictions/argentina/liga-profesional/": LIGA_PROFESIONAL,
+    "https://www.predictz.com/predictions/japan/j-league/": J1_LEAGUE,
+    "https://www.predictz.com/predictions/turkey/super-lig/": SUPER_LIG,
+    "https://www.predictz.com/predictions/sweden/allsvenskan/": ALLSVENSKAN,
+    "https://www.predictz.com/predictions/croatia/1-hnl/": HNL,
+    "https://www.predictz.com/predictions/mexico/la-division/": LIGA_MX,
+    "https://www.predictz.com/predictions/spain/segunda-division/": SEGUNDA_DIVISION,
+    "https://www.predictz.com/predictions/norway/eliteserien/": ELITESERIEN,
+    "https://www.predictz.com/predictions/austria/bundesliga/": BUNDESLIGA_AUSTRIA,
+    "https://www.predictz.com/predictions/switzerland/super-league/": SUPER_LEAGUE_SWITZERLAND,
+    "https://www.predictz.com/predictions/italy/serie-b/": SERIE_B,
+    "https://www.predictz.com/predictions/germany/2-bundesliga/": BUNDESLIGA_2,
+    "https://www.predictz.com/predictions/france/ligue-2/": LIGUE_2,
+    "https://www.predictz.com/predictions/scotland/premiership/": SCOTTISH_PREMIERSHIP,
+}
 
 
 class PredictzFinder(BaseMatchFinder):
@@ -56,7 +57,7 @@ class PredictzFinder(BaseMatchFinder):
 
     def get_matches_urls(self):
         if self.top_leagues_only:
-            return TOP_LEAGUES
+            return list(TOP_LEAGUES.keys())
         else:
             page = fetch(PREDICTZ_URL, stealthy_headers=False)
             soup = BeautifulSoup(page, "html.parser")
@@ -116,7 +117,8 @@ class PredictzFinder(BaseMatchFinder):
                     except (AttributeError, IndexError):
                         odds = None
 
-                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds, league=league))
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

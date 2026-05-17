@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.core.leagues import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -16,38 +17,38 @@ WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
 MAX_CONCURRENCY = 1
 
-TOP_LEAGUES = [
-    "https://www.windrawwin.com/tips/champions-league/",
-    "https://www.windrawwin.com/tips/europa-league/",
-    "https://www.windrawwin.com/tips/europa-conference-league/",
-    "https://www.windrawwin.com/tips/england-premier-league/",
-    "https://www.windrawwin.com/tips/italy-serie-a/",
-    "https://www.windrawwin.com/tips/spain-la-liga/",
-    "https://www.windrawwin.com/tips/germany-bundesliga/",
-    "https://www.windrawwin.com/tips/france-ligue-1/",
-    "https://www.windrawwin.com/tips/belgium-first-division-a/",  # Jupiler Pro League
-    "https://www.windrawwin.com/tips/england-championship/",
-    "https://www.windrawwin.com/tips/portugal-primeira-liga/",
-    "https://www.windrawwin.com/tips/brazil-serie-a/",
-    "https://www.windrawwin.com/tips/usa-major-league-soccer/",  # MLS
-    "https://www.windrawwin.com/tips/netherlands-eredivisie/",
-    "https://www.windrawwin.com/tips/denmark-superliga/",
-    "https://www.windrawwin.com/tips/poland-ekstraklasa/",
-    "https://www.windrawwin.com/tips/argentina-liga-profesional/",
-    "https://www.windrawwin.com/tips/japan-j-league/",  # J1 League
-    "https://www.windrawwin.com/tips/turkey-super-lig/",
-    "https://www.windrawwin.com/tips/sweden-allsvenskan/",
-    "https://www.windrawwin.com/tips/croatia-1-hnl/",  # HNL
-    "https://www.windrawwin.com/tips/mexico-liga-mx/",
-    "https://www.windrawwin.com/tips/spain-segunda-division/",
-    "https://www.windrawwin.com/tips/norway-eliteserien/",
-    "https://www.windrawwin.com/tips/austria-bundesliga/",
-    "https://www.windrawwin.com/tips/switzerland-super-league/",
-    "https://www.windrawwin.com/tips/italy-serie-b/",
-    "https://www.windrawwin.com/tips/germany-2-bundesliga/",
-    "https://www.windrawwin.com/tips/france-ligue-2/",
-    "https://www.windrawwin.com/tips/scotland-premiership/",
-]
+TOP_LEAGUES = {
+    "https://www.windrawwin.com/tips/champions-league/": CHAMPIONS_LEAGUE,
+    "https://www.windrawwin.com/tips/europa-league/": EUROPA_LEAGUE,
+    "https://www.windrawwin.com/tips/europa-conference-league/": CONFERENCE_LEAGUE,
+    "https://www.windrawwin.com/tips/england-premier-league/": PREMIER_LEAGUE,
+    "https://www.windrawwin.com/tips/italy-serie-a/": SERIE_A,
+    "https://www.windrawwin.com/tips/spain-la-liga/": LA_LIGA,
+    "https://www.windrawwin.com/tips/germany-bundesliga/": BUNDESLIGA,
+    "https://www.windrawwin.com/tips/france-ligue-1/": LIGUE_1,
+    "https://www.windrawwin.com/tips/belgium-first-division-a/": JUPILER_PRO_LEAGUE,  # Jupiler Pro League
+    "https://www.windrawwin.com/tips/england-championship/": CHAMPIONSHIP,
+    "https://www.windrawwin.com/tips/portugal-primeira-liga/": LIGA_PORTUGAL,
+    "https://www.windrawwin.com/tips/brazil-serie-a/": SERIE_A_BRAZIL,
+    "https://www.windrawwin.com/tips/usa-major-league-soccer/": MLS,  # MLS
+    "https://www.windrawwin.com/tips/netherlands-eredivisie/": EREDIVISIE,
+    "https://www.windrawwin.com/tips/denmark-superliga/": SUPERLIGA_DENMARK,
+    "https://www.windrawwin.com/tips/poland-ekstraklasa/": EKSTRAKLASA,
+    "https://www.windrawwin.com/tips/argentina-liga-profesional/": LIGA_PROFESIONAL,
+    "https://www.windrawwin.com/tips/japan-j-league/": J1_LEAGUE,  # J1 League
+    "https://www.windrawwin.com/tips/turkey-super-lig/": SUPER_LIG,
+    "https://www.windrawwin.com/tips/sweden-allsvenskan/": ALLSVENSKAN,
+    "https://www.windrawwin.com/tips/croatia-1-hnl/": HNL,  # HNL
+    "https://www.windrawwin.com/tips/mexico-liga-mx/": LIGA_MX,
+    "https://www.windrawwin.com/tips/spain-segunda-division/": SEGUNDA_DIVISION,
+    "https://www.windrawwin.com/tips/norway-eliteserien/": ELITESERIEN,
+    "https://www.windrawwin.com/tips/austria-bundesliga/": BUNDESLIGA_AUSTRIA,
+    "https://www.windrawwin.com/tips/switzerland-super-league/": SUPER_LEAGUE_SWITZERLAND,
+    "https://www.windrawwin.com/tips/italy-serie-b/": SERIE_B,
+    "https://www.windrawwin.com/tips/germany-2-bundesliga/": BUNDESLIGA_2,
+    "https://www.windrawwin.com/tips/france-ligue-2/": LIGUE_2,
+    "https://www.windrawwin.com/tips/scotland-premiership/": SCOTTISH_PREMIERSHIP,
+}
 
 
 class WinDrawWinFinder_per_league(BaseMatchFinder):
@@ -56,7 +57,7 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
 
     def get_matches_urls(self):
         if self.top_leagues_only:
-            return TOP_LEAGUES
+            return list(TOP_LEAGUES.keys())
         else:
             page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
             soup = BeautifulSoup(page, "html.parser")
@@ -123,7 +124,8 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
                     )
 
-                    self.add_match(Match(home_team, away_team, current_date, predictions, odds))
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                    self.add_match(Match(home_team, away_team, current_date, predictions, odds, league=league))
 
                 except Exception as e:
                     logger.error(f"SKIPPED [{url}]: {e}")
