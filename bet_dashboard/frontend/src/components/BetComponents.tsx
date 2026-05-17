@@ -483,7 +483,7 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
 
             {/* Modal Content */}
             <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-xl shadow-2xl"
-                style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
 
                 {/* Header */}
                 <div className="px-6 py-4 border-b flex justify-between items-center"
