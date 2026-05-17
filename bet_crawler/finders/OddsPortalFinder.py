@@ -16,7 +16,7 @@ from bet_framework.core.Match import *
 from .BaseMatchFinder import BaseMatchFinder
 
 ODDSPORTAL_NAME = "oddsportal"
-MAX_CONCURRENCY = 1
+MAX_CONCURRENCY = 10
 
 TOP_LEAGUES = [
     "https://www.oddsportal.com/football/europe/champions-league/",
