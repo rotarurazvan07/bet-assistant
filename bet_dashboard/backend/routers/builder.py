@@ -4,6 +4,7 @@ import math
 
 from core.schemas import BetSlipConfigIn, ExcludeUrlIn
 from fastapi import APIRouter, Request
+from utils.json_utils import sanitize_floats
 
 from bet_framework.core.Slip import BetSlipConfig
 
@@ -49,27 +50,6 @@ def preview(request: Request, body: BetSlipConfigIn):
     total_odds = math.prod(leg.odds for leg in legs) if legs else 1.0
     pending_urls = list(app.logic.get_pending_urls())
 
-    def _sanitize(val):
-        if isinstance(val, dict):
-            return {k: _sanitize(v) for k, v in val.items()}
-        elif isinstance(val, list):
-            return [_sanitize(v) for v in val]
-        elif isinstance(val, float):
-            if math.isnan(val) or math.isinf(val):
-                return None
-        return val
-
-    # Helper function to clean league strings
-    def _clean_league(league) -> str | None:
-        if league is None:
-            return None
-        if isinstance(league, float) and math.isnan(league):
-            return None
-        league_str = str(league)
-        if league_str.lower() in ("nan", "none", "null"):
-            return None
-        return league_str
-
     response_data = {
         "total_odds": round(total_odds, 4),
         "pending_urls": pending_urls,
@@ -86,7 +66,7 @@ def preview(request: Request, body: BetSlipConfigIn):
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,
-                "league": _clean_league(leg.league),
+                "league": leg.league,
                 "sources": leg.sources,
                 "tier": leg.tier,
                 "score": round(leg.score, 4),
@@ -95,7 +75,7 @@ def preview(request: Request, body: BetSlipConfigIn):
         ],
     }
 
-    return _sanitize(response_data)
+    return sanitize_floats(response_data)
 
 
 @router.get("/excluded")

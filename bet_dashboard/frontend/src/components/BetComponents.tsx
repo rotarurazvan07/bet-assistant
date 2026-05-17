@@ -128,7 +128,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                             )}
 
                             {/* Card Content */}
-                            <div className="p-4" style={{border: '1px solid var(--border-accent)',}}>
+                            <div className="p-4" style={{ border: '1px solid var(--border-accent)', }}>
                                 {/* Top: Teams + Date + Exclude */}
                                 <div className="flex items-start justify-between gap-1.5 mb-3">
                                     <div className="min-w-0 flex-1">
@@ -181,7 +181,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                 {/* Bottom: Quality Indicator + Tier */}
                                 <div className="flex items-center justify-between">
                                     <QualityIndicator score={leg.score} />
-                                    <TierBadge tier={leg.tier}/>
+                                    <TierBadge tier={leg.tier} />
                                 </div>
                             </div>
                         </div>
@@ -228,7 +228,7 @@ export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
             }}
         >
             {/* Left Status Icon */}
-            <div
+            {/* <div
                 className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full shrink-0"
                 style={{
                     background: legStatusColor + '15',
@@ -237,7 +237,7 @@ export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
                 }}
             >
                 <span className="text-sm sm:text-base font-bold">{legStatusIcon}</span>
-            </div>
+            </div> */}
 
             {/* Leg Details */}
             <div className="flex-1 min-w-0">

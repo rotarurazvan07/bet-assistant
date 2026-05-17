@@ -49,6 +49,22 @@ class CandidateLeg:
     score: float = 0.0  # UI only: quality score
     quality: float = 0.0  # UI only: quality component
 
+    def __post_init__(self) -> None:
+        import math
+        # Clean league
+        if self.league is None or (isinstance(self.league, float) and math.isnan(self.league)) or str(self.league).lower() in ("nan", "none", "null"):
+            self.league = None
+        else:
+            self.league = str(self.league)
+
+        # Clean float fields to prevent NaN or Inf
+        if isinstance(self.consensus, float) and (math.isnan(self.consensus) or math.isinf(self.consensus)):
+            self.consensus = 0.0
+        if isinstance(self.odds, float) and (math.isnan(self.odds) or math.isinf(self.odds)):
+            self.odds = 1.00
+        if isinstance(self.score, float) and (math.isnan(self.score) or math.isinf(self.score)):
+            self.score = 0.0
+
 
 @dataclass
 class MatchResultInfo:
@@ -102,6 +118,18 @@ class BetLeg:
     result_url: str
     league: str | None = None
 
+    def __post_init__(self) -> None:
+        import math
+        # Clean league
+        if self.league is None or (isinstance(self.league, float) and math.isnan(self.league)) or str(self.league).lower() in ("nan", "none", "null"):
+            self.league = None
+        else:
+            self.league = str(self.league)
+
+        # Clean float fields
+        if isinstance(self.odds, float) and (math.isnan(self.odds) or math.isinf(self.odds)):
+            self.odds = 1.00
+
 
 @dataclass
 class BetSlip:
@@ -116,6 +144,13 @@ class BetSlip:
     units: float
     legs: list[BetLeg] = field(default_factory=list)
     slip_status: Outcome = Outcome.PENDING
+
+    def __post_init__(self) -> None:
+        import math
+        if isinstance(self.total_odds, float) and (math.isnan(self.total_odds) or math.isinf(self.total_odds)):
+            self.total_odds = 1.00
+        if isinstance(self.units, float) and (math.isnan(self.units) or math.isinf(self.units)):
+            self.units = 1.0
 
 
 # ── Slip configuration ────────────────────────────────────────────────────────

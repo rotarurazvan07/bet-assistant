@@ -9,6 +9,7 @@ from core.analytics_utils import (
     calculate_rolling_edge,
 )
 from fastapi import APIRouter, Request
+from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -132,11 +133,7 @@ def _league_breakdown(slips) -> list[dict]:
             if l_status not in ("Won", "Lost"):
                 continue
 
-            lg = getattr(leg, "league", None)
-            if lg is None or (isinstance(lg, float) and math.isnan(lg)) or str(lg).lower() in ("nan", "none", "null"):
-                lg = "Unknown"
-            else:
-                lg = str(lg)
+            lg = getattr(leg, "league", None) or "Unknown"
             if lg not in data:
                 data[lg] = {"league": lg, "legs": 0, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
 
@@ -280,17 +277,6 @@ def get_analytics(
     # Get slips for daily summary calculation
     daily_summary_slips = logic.get_slips(prof or "all", df_, dt_)
 
-    import math
-    def _sanitize(val):
-        if isinstance(val, dict):
-            return {k: _sanitize(v) for k, v in val.items()}
-        elif isinstance(val, list):
-            return [_sanitize(v) for v in val]
-        elif isinstance(val, float):
-            if math.isnan(val) or math.isinf(val):
-                return None
-        return val
-
     response_data = {
         "history": calculate_daily_summary(daily_summary_slips, prof, df_, dt_),
         "market_accuracy": calculate_market_accuracy(daily_summary_slips),
@@ -306,7 +292,7 @@ def get_analytics(
         "league_breakdown": _league_breakdown(slips),
         "correlation_matrix": _correlation_matrix(slips),
     }
-    return _sanitize(response_data)
+    return sanitize_floats(response_data)
 
 
 def _correlation_matrix(slips) -> dict:
@@ -327,11 +313,7 @@ def _correlation_matrix(slips) -> dict:
                 continue
 
             m = str(leg.market)
-            lg = getattr(leg, "league", None)
-            if lg is None or (isinstance(lg, float) and math.isnan(lg)) or str(lg).lower() in ("nan", "none", "null"):
-                lg = "Unknown"
-            else:
-                lg = str(lg)
+            lg = getattr(leg, "league", None) or "Unknown"
 
             fingerprint = (leg.result_url, m)
             if fingerprint in processed_legs:
