@@ -40,7 +40,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                     return parsed.sortBy as SortOption;
                 }
             }
-        } catch (e) {
+        } catch {
             // Invalid localStorage, use default
         }
         return 'net_profit_desc';
