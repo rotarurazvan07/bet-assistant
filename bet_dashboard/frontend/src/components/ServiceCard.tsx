@@ -48,17 +48,22 @@ export default function ServiceCard({ info, onToggle }: Props) {
     </div>
   );
 
-  // Card footer with next run information
-  const footer = info.next_run && (
-    <div className="flex items-center gap-2 px-3 py-2 rounded"
+  // Card footer with last generated information (generator only)
+  const footer = info.name === 'generator' ? (
+    <div className="flex items-center justify-between px-3 py-2 rounded w-full"
       style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
       <span className="text-[10px] font-mono tracking-wide uppercase"
-        style={{ color: 'var(--text-secondary)' }}>Next run</span>
+        style={{ color: 'var(--text-secondary)' }}>Last Generated</span>
       <span className="font-mono text-[11px]" style={{ color: 'var(--accent)' }}>
-        {info.next_run}
+        {info.last_time_generated ? new Date(info.last_time_generated).toLocaleString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : 'Never'}
       </span>
     </div>
-  );
+  ) : null;
 
   return (
     <BaseCard
@@ -79,9 +84,9 @@ export default function ServiceCard({ info, onToggle }: Props) {
 
 function getServiceTooltip(name: string): React.ReactNode {
   const tooltips: Record<string, string> = {
-    puller: 'Fetches match data and predictions from external sources. Runs daily at scheduled hour.',
-    generator: 'Creates betting slips based on builder configurations and predictions. Runs daily at scheduled hour.',
-    verifier: 'Validates and settles betting slips by checking match results. Updates slip status and calculates P&L.'
+    puller: 'Runs in the background, polling GitHub every 5 minutes. It checks the remote database ETag; if the release has changed, it automatically downloads and hot-swaps the active SQLite database.',
+    generator: 'Polls every 5 minutes to check if the current time matches your scheduled hour. If the hour matches and the service hasn\'t run yet today, it automatically generates and saves betting slips for all active profiles.',
+    verifier: 'Runs in the background, polling live match score APIs every 60 seconds. It checks the progress and status of active match legs, updates scores in real-time, and settles slips as Won or Lost once all legs complete.'
   };
 
   const text = tooltips[name] || 'Service description not available.';

@@ -3,6 +3,7 @@ from __future__ import annotations
 from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
+from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 from bet_framework.core.Slip import CandidateLeg
@@ -102,7 +103,7 @@ def _leg_to_dict(leg) -> dict:
         "odds": leg.odds,
         "status": _enum_or_str(leg.status),
         "result_url": leg.result_url,
-        "league": getattr(leg, "league", None),
+        "league": leg.league,
     }
 
 
@@ -264,11 +265,12 @@ def get_slips(
     # Ensure 'manual' is always included if there are any manual slips
     # (get_slips already includes it, but this ensures consistency)
 
-    return {
+    response_data = {
         "slips": [_slip_to_dict(s) for s in slips],
         "stats": stats,
         "profiles": profiles_with_slips,
     }
+    return sanitize_floats(response_data)
 
 
 @router.post("/validate_manual")

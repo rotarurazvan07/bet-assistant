@@ -128,7 +128,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                             )}
 
                             {/* Card Content */}
-                            <div className="p-4" style={{border: '1px solid var(--border-accent)',}}>
+                            <div className="p-4" style={{ border: '1px solid var(--border-accent)', }}>
                                 {/* Top: Teams + Date + Exclude */}
                                 <div className="flex items-start justify-between gap-1.5 mb-3">
                                     <div className="min-w-0 flex-1">
@@ -181,7 +181,7 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                 {/* Bottom: Quality Indicator + Tier */}
                                 <div className="flex items-center justify-between">
                                     <QualityIndicator score={leg.score} />
-                                    <TierBadge tier={leg.tier}/>
+                                    <TierBadge tier={leg.tier} />
                                 </div>
                             </div>
                         </div>
@@ -192,9 +192,112 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
     );
 }
 
-// ── SlipCard ──────────────────────────────────────────────────────────────────
+// ── BetLegRow (Unified Leg Component) ──────────────────────────────────────────
 
-// ── SlipCard (Grid Layout) ──────────────────────────────────────────────────────
+interface BetLegRowProps {
+    leg: CandidateLeg | any; // Accept BetLeg or CandidateLeg
+    liveData?: LiveData;
+    slipStatus: string;
+}
+
+export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
+    const dt = formatBetDate(leg.datetime, {
+        includeWeekday: true,
+        includeYear: false
+    });
+    const legStatusColor = getStatusColor(leg.status);
+    const legStatusIcon = getStatusIcon(leg.status);
+    const live = liveData[leg.match_name];
+
+    // For live pending slips, compute potential outcome color for market@odds badge only
+    let marketOddsColor: string;
+    if ((slipStatus === 'Pending' || slipStatus === 'Live') && leg.status === 'Live') {
+        const potentialColor = getPotentialStatusColor(leg, live?.score);
+        marketOddsColor = potentialColor || legStatusColor;
+    } else {
+        marketOddsColor = legStatusColor;
+    }
+
+    return (
+        <div
+            className="p-3 sm:p-4 rounded-lg flex items-start gap-3 sm:gap-4 transition-all"
+            style={{
+                background: 'var(--bg-raised)',
+                border: `1px solid ${legStatusColor}40`,
+                borderLeft: `4px solid ${legStatusColor}`,
+            }}
+        >
+            {/* Left Status Icon */}
+            {/* <div
+                className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full shrink-0"
+                style={{
+                    background: legStatusColor + '15',
+                    color: legStatusColor,
+                    border: `1.5px solid ${legStatusColor}`
+                }}
+            >
+                <span className="text-sm sm:text-base font-bold">{legStatusIcon}</span>
+            </div> */}
+
+            {/* Leg Details */}
+            <div className="flex-1 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                        {leg.result_url ? (
+                            <a
+                                href={leg.result_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-sans font-bold text-sm sm:text-base leading-tight hover:underline block"
+                                style={{ color: 'var(--text-bright)' }}
+                                onClick={e => e.stopPropagation()}
+                            >
+                                {leg.match_name}
+                            </a>
+                        ) : (
+                            <p className="font-sans font-bold text-sm sm:text-base leading-tight" style={{ color: 'var(--text-bright)' }}>
+                                {leg.match_name}
+                            </p>
+                        )}
+                        <p className="text-[11px] sm:text-xs font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>{dt}</p>
+                        {leg.league && (
+                            <p className="text-[9px] sm:text-[10px] font-mono mt-0.5 opacity-60 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+                                {leg.league}
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 shrink-0 flex-wrap">
+                        <span
+                            className="font-display font-bold text-[11px] sm:text-sm px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full"
+                            style={{
+                                background: 'var(--bg-card)',
+                                border: `2px solid ${marketOddsColor}`,
+                                color: 'white'
+                            }}
+                        >
+                            {leg.market} @{leg.odds.toFixed(2)}
+                        </span>
+                        {live && leg.status === 'Live' && (
+                            <div className="flex flex-col items-center gap-0.5">
+                                <span
+                                    className="font-mono text-xs sm:text-sm font-bold px-2 py-0.5 sm:py-1 rounded animate-pulse"
+                                    style={{ background: 'var(--live-bg)', color: 'var(--live)' }}
+                                >
+                                    {live.score}
+                                </span>
+                                <span className="font-mono text-[9px] sm:text-[11px] font-bold" style={{ color: 'var(--live)' }}>
+                                    {live.minute}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── SlipCard ──────────────────────────────────────────────────────────────────
 
 interface SlipCardProps {
     slip: BetSlip;
@@ -203,29 +306,25 @@ interface SlipCardProps {
     onCardClick?: () => void;
 }
 
-export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCardProps & { onCardClick?: () => void }) {
+export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCardProps) {
     const hdrBg = slip.slip_status === 'Live' ? 'var(--live-bg)' : (slip.slip_status === 'Won' ? 'var(--win-bg)' : slip.slip_status === 'Lost' ? 'var(--loss-bg)' : 'var(--pending-bg)');
-
-    // Status border colors
     const statusBorderColor = getStatusColor(slip.slip_status);
 
     // Sort legs: live legs first, then others by datetime
     const sortedLegs = useMemo(() => {
         const legs = [...slip.legs];
         return legs.sort((a, b) => {
-            // Live legs come first
             const aIsLive = a.status === 'Live';
             const bIsLive = b.status === 'Live';
             if (aIsLive && !bIsLive) return -1;
             if (!aIsLive && bIsLive) return 1;
-            // Then sort by datetime (ascending)
             const aTime = a.datetime ? new Date(a.datetime).getTime() : 0;
             const bTime = b.datetime ? new Date(b.datetime).getTime() : 0;
             return aTime - bTime;
         });
     }, [slip.legs]);
 
-    // Display logic based on live matches count:
+    // Truncated display logic based on live matches count:
     // - If live >= 2: show only live matches
     // - If live = 1: show 1 live + 1 non-live
     // - If live = 0: show 2 non-live
@@ -279,81 +378,16 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                 </div>
             </div>
 
-            {/* Legs - truncated display */}
+            {/* Legs - using the recycled BetLegRow component for each displayed leg */}
             <div className="flex-1 p-3 space-y-2">
-                {displayedLegs.map((leg, idx) => {
-                    const live = liveData[leg.match_name];
-                    const dt = formatBetDate(leg.datetime, {
-                        includeWeekday: true,
-                        includeYear: false
-                    });
-                    const legStatusColor = getStatusColor(leg.status);
-
-                    // For live pending slips, compute potential outcome color for market@odds badge only
-                    let marketOddsColor: string;
-                    if ((slip.slip_status === 'Pending' || slip.slip_status === 'Live') && leg.status === 'Live') {
-                        const potentialColor = getPotentialStatusColor(leg, live?.score);
-                        marketOddsColor = potentialColor || legStatusColor;
-                    } else {
-                        marketOddsColor = legStatusColor;
-                    }
-
-                    return (
-                        <div key={idx} className="p-2 rounded" style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="flex-1 min-w-0">
-                                    {leg.result_url ? (
-                                        <a
-                                            href={leg.result_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="font-sans font-bold text-sm leading-tight hover:underline"
-                                            style={{ color: 'var(--text-bright)' }}
-                                            onClick={e => e.stopPropagation()}
-                                        >
-                                            {leg.match_name}
-                                        </a>
-                                    ) : (
-                                        <p className="font-sans font-bold text-sm leading-tight" style={{ color: 'var(--text-bright)' }}>
-                                            {leg.match_name}
-                                        </p>
-                                    )}
-                                    <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>{dt}</p>
-                                </div>
-                                {leg.status === 'Live' && (
-                                    <span className="relative inline-flex items-center justify-center w-4 h-4 shrink-0">
-                                        <span className="absolute inset-0 rounded-full animate-ping opacity-60"
-                                            style={{ background: 'var(--live)' }} />
-                                        <span className="relative block w-3 h-3 rounded-full"
-                                            style={{ background: 'var(--live)' }} />
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                                <span className="font-display font-bold text-base px-2.5 py-1 rounded-full"
-                                    style={{
-                                        background: 'var(--bg-card)',
-                                        border: `2px solid ${marketOddsColor}`,
-                                        color: 'white'
-                                    }}>
-                                    {leg.market} @{leg.odds.toFixed(2)}
-                                </span>
-                                {live && leg.status === 'Live' && (
-                                    <div className="flex flex-col items-center gap-1">
-                                        <span className="font-mono text-lg font-bold px-3 py-2 rounded"
-                                            style={{ background: 'var(--live-bg)', color: 'var(--live)' }}>
-                                            {live.score}
-                                        </span>
-                                        <span className="font-mono text-base font-bold" style={{ color: 'var(--live)' }}>
-                                            {live.minute}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
+                {displayedLegs.map((leg, idx) => (
+                    <BetLegRow
+                        key={idx}
+                        leg={leg}
+                        liveData={liveData}
+                        slipStatus={slip.slip_status}
+                    />
+                ))}
                 {hiddenCount > 0 && onCardClick && (
                     <button
                         className="w-full mt-2 py-2 text-sm font-mono rounded transition-colors"
@@ -431,7 +465,6 @@ interface SlipDetailModalProps {
 export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModalProps) {
     if (!slip) return null;
 
-    // Close on Escape key
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -439,8 +472,6 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
         window.addEventListener('keydown', handleEscape);
         return () => window.removeEventListener('keydown', handleEscape);
     }, [onClose]);
-
-    // No need to pre-calculate; we'll compute in footer
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -517,94 +548,20 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                     </div>
                 </div>
 
-                {/* Legs List */}
+                {/* Legs List - using the exact same BetLegRow component! */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    {slip.legs.map((leg, i) => {
-                        const live = liveData[leg.match_name];
-                        const dt = formatBetDate(leg.datetime, {
-                            includeWeekday: true,
-                            includeYear: false
-                        });
-                        const legStatusColor = getStatusColor(leg.status);
-                        const legStatusIcon = getStatusIcon(leg.status);
-
-                        // For live pending slips, compute potential outcome color for market@odds badge only
-                        let marketOddsColor: string;
-                        if ((slip.slip_status === 'Pending' || slip.slip_status === 'Live') && leg.status === 'Live') {
-                            const potentialColor = getPotentialStatusColor(leg, live?.score);
-                            marketOddsColor = potentialColor || legStatusColor;
-                        } else {
-                            marketOddsColor = legStatusColor;
-                        }
-
-                        return (
-                            <div key={i} className="p-4 rounded-lg flex items-start gap-4"
-                                style={{
-                                    background: 'var(--bg-raised)',
-                                    border: `1px solid ${legStatusColor}`,
-                                    borderLeftWidth: '4px'
-                                }}>
-                                <div className="flex items-center justify-center w-8 h-8 rounded-full shrink-0"
-                                    style={{
-                                        background: legStatusColor + '20',
-                                        color: legStatusColor,
-                                        border: `2px solid ${legStatusColor}`
-                                    }}>
-                                    <span className="text-lg font-bold">{legStatusIcon}</span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex-1 min-w-0">
-                                            {leg.result_url ? (
-                                                <a
-                                                    href={leg.result_url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="font-sans font-bold text-lg leading-tight hover:underline"
-                                                    style={{ color: 'var(--text-bright)' }}
-                                                >
-                                                    {leg.match_name}
-                                                </a>
-                                            ) : (
-                                                <p className="font-sans font-bold text-lg leading-tight" style={{ color: 'var(--text-bright)' }}>
-                                                    {leg.match_name}
-                                                </p>
-                                            )}
-                                            <p className="text-sm font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>{dt}</p>
-                                            {leg.league && (
-                                                <p className="text-[10px] font-mono mt-0.5 opacity-60 uppercase tracking-wider"
-                                                    style={{ color: 'var(--text-secondary)' }}>{leg.league}</p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-3 shrink-0">
-                                            <span className="font-display font-bold text-xl px-4 py-2 rounded-full"
-                                                style={{
-                                                    background: 'var(--bg-card)',
-                                                    border: `2px solid ${marketOddsColor}`,
-                                                    color: 'white'
-                                                }}>
-                                                {leg.market} @{leg.odds.toFixed(2)}
-                                            </span>
-                                            {live && leg.status === 'Live' && (
-                                                <div className="flex flex-col items-center gap-1.5">
-                                                    <span className="font-mono text-xl font-bold px-4 py-2 rounded"
-                                                        style={{ background: 'var(--live-bg)', color: 'var(--live)' }}>
-                                                        {live.score}
-                                                    </span>
-                                                    <span className="font-mono text-lg font-bold" style={{ color: 'var(--live)' }}>
-                                                        {live.minute}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+                    {slip.legs.map((leg, i) => (
+                        <BetLegRow
+                            key={i}
+                            leg={leg}
+                            liveData={liveData}
+                            slipStatus={slip.slip_status}
+                        />
+                    ))}
                 </div>
 
             </div>
         </div>
     );
 }
+

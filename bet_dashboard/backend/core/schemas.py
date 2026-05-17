@@ -131,3 +131,4 @@ class BetSlipOut(BaseModel):
 
 class ServicesSettingsIn(BaseModel):
     generate_hour: int
+    generate_minute: int = 0

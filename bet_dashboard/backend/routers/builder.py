@@ -4,6 +4,7 @@ import math
 
 from core.schemas import BetSlipConfigIn, ExcludeUrlIn
 from fastapi import APIRouter, Request
+from utils.json_utils import sanitize_floats
 
 from bet_framework.core.Slip import BetSlipConfig
 
@@ -49,7 +50,7 @@ def preview(request: Request, body: BetSlipConfigIn):
     total_odds = math.prod(leg.odds for leg in legs) if legs else 1.0
     pending_urls = list(app.logic.get_pending_urls())
 
-    return {
+    response_data = {
         "total_odds": round(total_odds, 4),
         "pending_urls": pending_urls,
         "legs": [
@@ -60,8 +61,8 @@ def preview(request: Request, body: BetSlipConfigIn):
                 else str(leg.datetime)
                 if leg.datetime
                 else None,
-                "market": leg.market.value,
-                "market_type": leg.market_type.value if hasattr(leg.market_type, "value") else str(leg.market_type),
+                "market": leg.market.value if hasattr(leg.market, "value") else str(leg.market),
+                "market_type": leg.market_type.value if hasattr(leg.market_type, "value") else str(leg.market_type) if leg.market_type else None,
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,
@@ -73,6 +74,8 @@ def preview(request: Request, body: BetSlipConfigIn):
             for leg in legs
         ],
     }
+
+    return sanitize_floats(response_data)
 
 
 @router.get("/excluded")

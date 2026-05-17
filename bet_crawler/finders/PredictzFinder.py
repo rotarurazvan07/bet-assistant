@@ -84,39 +84,71 @@ class PredictzFinder(BaseMatchFinder):
                 return
 
             match_datetime = None
-            for entry in soup.find_all(class_="pzcnth"):
-                if entry.find("h2"):
-                    date_str = entry.find("h2").get_text()
-                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
-                    match_datetime = next(
-                        dt
-                        for y in range(datetime.now().year - 1, datetime.now().year + 2)
-                        for dt in [datetime.strptime(f"{clean} {y}", "%A %B %d %Y")]
-                        if dt.strftime("%A") in date_str
-                    ).replace(hour=0, minute=0, second=0, microsecond=0)
-                else:
-                    home_team = entry.find(class_="fixt").get_text().split(" vs ")[0]
-                    away_team = entry.find(class_="fixt").get_text().split(" vs ")[1]
+            for idx, entry in enumerate(soup.find_all(class_="pzcnth"), start=1):
+                try:
+                    h2 = entry.find("h2")
+                    if h2:
+                        date_str = h2.get_text(strip=True)
+                        clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
+                        try:
+                            match_datetime = next(
+                                dt
+                                for y in range(datetime.now().year - 1, datetime.now().year + 2)
+                                for dt in [datetime.strptime(f"{clean} {y}", "%A %B %d %Y")]
+                                if dt.strftime("%A") in date_str
+                            ).replace(hour=0, minute=0, second=0, microsecond=0)
+                        except StopIteration:
+                            logger.error(f"Could not resolve date from string: {date_str}")
+                            match_datetime = None
+                    else:
+                        if not match_datetime:
+                            continue
 
-                    score_text = entry.find("td").get_text()[-3:]
-                    scores = [
-                        Score(
-                            PREDICTZ_NAME,
-                            int(score_text.split("-")[0]),
-                            int(score_text.split("-")[1]),
-                        )
-                    ]
+                        fixt_elem = entry.find(class_="fixt")
+                        if not fixt_elem:
+                            logger.debug(f"Match #{idx}: Skipping - No fixt element found")
+                            continue
 
-                    try:
-                        odds = Odds(
-                            home=entry.find_all(class_="odds")[0].get_text(),
-                            draw=entry.find_all(class_="odds")[1].get_text(),
-                            away=entry.find_all(class_="odds")[2].get_text(),
-                        )
-                    except (AttributeError, IndexError):
+                        fixt_text = fixt_elem.get_text(strip=True)
+                        if " vs " not in fixt_text:
+                            logger.debug(f"Match #{idx}: Skipping - Invalid fixture format '{fixt_text}'")
+                            continue
+
+                        home_team, away_team = fixt_text.split(" vs ", 1)
+
+                        td_elem = entry.find("td")
+                        if not td_elem:
+                            logger.debug(f"SKIPPED [{home_team} vs {away_team}]: No td element found for score")
+                            continue
+
+                        score_text = td_elem.get_text(strip=True)[-3:]
+                        if "-" not in score_text:
+                            logger.debug(f"SKIPPED [{home_team} vs {away_team}]: Invalid score prediction format '{score_text}'")
+                            continue
+
+                        try:
+                            home_pred, away_pred = score_text.split("-", 1)
+                            scores = [Score(PREDICTZ_NAME, int(home_pred.strip()), int(away_pred.strip()))]
+                        except ValueError:
+                            logger.error(f"SKIPPED [{home_team} vs {away_team}]: Score parse error on '{score_text}'")
+                            continue
+
+                        odds_elems = entry.find_all(class_="odds")
                         odds = None
+                        if len(odds_elems) >= 3:
+                            try:
+                                odds = Odds(
+                                    home=odds_elems[0].get_text(strip=True),
+                                    draw=odds_elems[1].get_text(strip=True),
+                                    away=odds_elems[2].get_text(strip=True),
+                                )
+                            except Exception:
+                                pass
 
-                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
+                        self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
+                except Exception as e:
+                    logger.error(f"SKIPPED [{url}] block #{idx}: {e}")
+                    continue
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

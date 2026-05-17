@@ -98,14 +98,31 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
             container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)
-            matches = container.parent.find("tbody").find_all("tr") if container else []
+            
+            matches = []
+            if container and container.parent:
+                tbody = container.parent.find("tbody")
+                if tbody:
+                    matches = tbody.find_all("tr")
 
-            for match_tr in matches:
+            for idx, match_tr in enumerate(matches, start=1):
                 try:
-                    home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                    away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
+                    tds = match_tr.find_all("td")
+                    if len(tds) < 5:
+                        logger.debug(f"Match #{idx}: Skipping - insufficient table cells")
+                        continue
+
+                    home_spans = tds[1].find_all("span")
+                    away_spans = tds[3].find_all("span")
+                    if not home_spans or not away_spans:
+                        logger.debug(f"Match #{idx}: Skipping - missing team names")
+                        continue
+
+                    home_team = home_spans[-1].get_text(strip=True)
+                    away_team = away_spans[0].get_text(strip=True)
+
+                    date_str = tds[0].get_text(strip=True)
                     try:
-                        date_str = match_tr.find_all("td")[0].get_text()
                         match_datetime = min(
                             (
                                 datetime.strptime(f"{date_str} {y}", "%d %b %Y")
@@ -118,17 +135,25 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                             key=lambda d: abs(d - datetime.now()),
                         ).replace(hour=0, minute=0, second=0, microsecond=0)
                     except Exception:
-                        logger.info(f"{home_team} vs {away_team}: Match ongoing")
+                        logger.info(f"{home_team} vs {away_team}: Match date format invalid, marking as ongoing/skipped")
                         continue
 
-                    score_text = match_tr.find_all("td")[-1].get_text()
-                    scores = [
-                        Score(
-                            SOCCERVISTA_NAME,
-                            int(score_text.split(":")[0]),
-                            int(score_text.split(":")[1]),
-                        )
-                    ]
+                    score_text = tds[-1].get_text(strip=True)
+                    if ":" not in score_text:
+                        logger.debug(f"SKIPPED [{home_team} vs {away_team}]: Invalid score prediction format '{score_text}'")
+                        continue
+
+                    try:
+                        home_pred, away_pred = score_text.split(":")
+                        scores = [Score(SOCCERVISTA_NAME, int(home_pred.strip()), int(away_pred.strip()))]
+                    except ValueError:
+                        logger.error(f"SKIPPED [{home_team} vs {away_team}]: Score parse error on '{score_text}'")
+                        continue
+
+                    result_url = None
+                    link_elem = match_tr.find("a")
+                    if link_elem and link_elem.get("href"):
+                        result_url = SOCCERVISTA_URL + link_elem.get("href").replace("/fr/", "/")
 
                     self.add_match(
                         Match(
@@ -137,12 +162,12 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                             datetime=match_datetime,
                             predictions=scores,
                             odds=None,
-                            result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
+                            result_url=result_url,
                         )
                     )
 
                 except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    logger.error(f"SKIPPED [{url}] Match #{idx}: {e}")
                     continue
 
         except Exception as e:

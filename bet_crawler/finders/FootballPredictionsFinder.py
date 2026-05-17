@@ -59,32 +59,59 @@ class FootballPredictionsFinder(BaseMatchFinder):
         all_anchors = soup.select("table.table-tips tbody tr:has(td)")  # tr elements with <td> (data rows)
         logger.info(f"Found {len(all_anchors)} matches to scan")
 
-        for row in all_anchors:
+        for idx, row in enumerate(all_anchors, start=1):
             try:
                 # --- Team names ---
                 team_wrappers = row.find_all("span", class_="table-tips__team-wrapper")
-                home_team = team_wrappers[0].find("span").get_text(strip=True)
-                away_team = team_wrappers[1].find("span").get_text(strip=True)
+                if len(team_wrappers) < 2:
+                    continue
+                    
+                home_span = team_wrappers[0].find("span")
+                away_span = team_wrappers[1].find("span")
+                if not home_span or not away_span:
+                    continue
+                    
+                home_team = home_span.get_text(strip=True)
+                away_team = away_span.get_text(strip=True)
 
                 # --- Date and time ---
                 date_wrapper = row.find("span", class_="table-tips__date-time-wrapper")
-                match_date_str = date_wrapper["data-datetime"]  # e.g. "2026-05-11T20:00:00+01:00"
-                match_date = datetime.fromisoformat(match_date_str).replace(
-                    hour=0, minute=0, second=0, microsecond=0, tzinfo=None
-                )
+                if not date_wrapper or not date_wrapper.get("data-datetime"):
+                    continue
+                    
+                match_date_str = date_wrapper.get("data-datetime")  # e.g. "2026-05-11T20:00:00+01:00"
+                try:
+                    match_date = datetime.fromisoformat(match_date_str).replace(
+                        hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+                    )
+                except ValueError:
+                    continue
 
                 # --- Correct score prediction ---
-                tips_td = row.find_all("td")[1]
+                td_elements = row.find_all("td")
+                if len(td_elements) < 2:
+                    continue
+                    
+                tips_td = td_elements[1]
                 # Find the <li> containing "Correct Score:" text
                 score_item = tips_td.find("li", string=re.compile(r"Correct Score:"))
+                if not score_item:
+                    continue
+                    
                 score_text = score_item.get_text(strip=True)  # "Correct Score: 2-1"
-                home_goals, away_goals = map(int, score_text.split(": ")[1].split("-"))
+                if ": " not in score_text or "-" not in score_text:
+                    continue
+                    
+                try:
+                    home_goals, away_goals = map(int, score_text.split(": ")[1].split("-"))
+                except ValueError:
+                    continue
 
-                # Build prediction object (Score is assumed to be defined elsewhere)
+                # Build prediction object
                 prediction = Score(FOOTBALLPREDICTIONS_NAME, home_goals, away_goals)
 
                 # Add match to the collector
                 self.add_match(Match(home_team, away_team, match_date, [prediction], None))
 
             except Exception as e:
-                logger.error(f"SKIPPED: Parse error - {e}")
+                logger.error(f"SKIPPED Match #{idx}: Parse error - {e}")

@@ -859,6 +859,8 @@ class BetAssistant(BaseStorageManager):
 
             # --- league filter ---
             league = row.get("league", None)
+            if pd.isna(league):
+                league = None
             if cfg.included_leagues and (league is None or league not in cfg.included_leagues):
                 continue
 

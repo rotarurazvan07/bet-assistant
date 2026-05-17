@@ -82,8 +82,12 @@ class ScorePredictorFinder(BaseMatchFinder):
 
             for entry in soup.find(class_="table_dark").find_all("tr")[1:]:
                 try:
+                    tds = entry.find_all("td")
+                    if len(tds) < 5:
+                        continue
+
                     # Parse date
-                    date_str = entry.find_all("td")[0].get_text().strip()
+                    date_str = tds[0].get_text(strip=True)
                     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
                     day, month = map(int, date_str.split("."))
                     candidate = datetime(today.year, month, day).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -93,12 +97,12 @@ class ScorePredictorFinder(BaseMatchFinder):
                         candidate = candidate.replace(year=today.year + 1)
 
                     # Parse team names
-                    home_team = entry.find_all("td")[1].get_text().strip()
-                    away_team = entry.find_all("td")[4].get_text().strip()
+                    home_team = tds[1].get_text(strip=True)
+                    away_team = tds[4].get_text(strip=True)
 
                     # Parse scores with error handling
-                    home_score_text = entry.find_all("td")[2].get_text().strip()
-                    away_score_text = entry.find_all("td")[3].get_text().strip()
+                    home_score_text = tds[2].get_text(strip=True)
+                    away_score_text = tds[3].get_text(strip=True)
 
                     # Check if scores are valid integers
                     if not home_score_text.isdigit() or not away_score_text.isdigit():

@@ -342,10 +342,22 @@ class OddsPortalFinder(BaseMatchFinder):
 
                     soup = BeautifulSoup(session.page.content(), "html.parser")
 
-                    home_team = soup.select_one('[data-testid="game-host"] a').text.strip()
-                    away_team = soup.select_one('[data-testid="game-guest"] a').text.strip()
+                    host_elem = soup.select_one('[data-testid="game-host"] a')
+                    if not host_elem:
+                        raise ValueError("Failed to locate host team element")
+                    home_team = host_elem.text.strip()
+
+                    guest_elem = soup.select_one('[data-testid="game-guest"] a')
+                    if not guest_elem:
+                        raise ValueError("Failed to locate guest team element")
+                    away_team = guest_elem.text.strip()
+
+                    date_elem = soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)')
+                    if not date_elem:
+                        raise ValueError("Failed to locate match date element")
+                    
                     match_date = datetime.strptime(
-                        soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)').text.strip().rstrip(","), "%d %B %Y"
+                        date_elem.text.strip().rstrip(","), "%d %B %Y"
                     ).replace(hour=0, minute=0, second=0)
 
                     odds_1, odds_X, odds_2 = None, None, None

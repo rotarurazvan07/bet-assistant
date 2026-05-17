@@ -9,6 +9,7 @@ from core.analytics_utils import (
     calculate_rolling_edge,
 )
 from fastapi import APIRouter, Request
+from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -284,7 +285,7 @@ def get_analytics(
     # Get slips for daily summary calculation
     daily_summary_slips = logic.get_slips(prof or "all", df_, dt_)
 
-    return {
+    response_data = {
         "history": calculate_daily_summary(daily_summary_slips, prof, df_, dt_),
         "market_accuracy": calculate_market_accuracy(daily_summary_slips),
         "pnl_by_market": _pnl_by_market(slips),
@@ -299,6 +300,7 @@ def get_analytics(
         "league_breakdown": _league_breakdown(slips),
         "correlation_matrix": _correlation_matrix(slips),
     }
+    return sanitize_floats(response_data)
 
 
 def _correlation_matrix(slips) -> dict:
