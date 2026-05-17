@@ -61,16 +61,7 @@ class VitibetFinder(BaseMatchFinder):
             html = fetch(VITIBET_URL, stealthy_headers=True)
             soup = BeautifulSoup(html, "html.parser")
 
-            ul_primarne = soup.find("ul", id="primarne")
-            if not ul_primarne:
-                logger.warning("Could not find ul#primarne on Vitibet homepage.")
-                return []
-
-            kokos_tag = ul_primarne.find("kokos")
-            if not kokos_tag:
-                logger.warning("Could not find <kokos> marker on Vitibet homepage.")
-                return []
-
+            kokos_tag = soup.find("ul", id="primarne").find("kokos")
             league_urls = []
             for sibling in kokos_tag.find_next_siblings():
                 if isinstance(sibling, Tag) and sibling.name == "li":
@@ -95,48 +86,30 @@ class VitibetFinder(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
 
-            for idx, match_link in enumerate(soup.find_all("a", class_="upcoming-match-wrapper"), start=1):
+            for match_link in soup.find_all("a", class_="upcoming-match-wrapper"):
                 try:
                     prev_date_div = match_link.find_previous("div", style=lambda x: x and "background: linear-gradient" in x)
-                    if not prev_date_div:
-                        continue
-
                     date_span = prev_date_div.find("span", string=re.compile(r"\d{2}\.\d{2}\.\d{4}"))
-                    if not date_span:
-                        continue
-
                     date_str = date_span.text.strip()
-                    try:
-                        match_datetime = datetime.strptime(date_str, "%d.%m.%Y").replace(hour=0, minute=0, second=0)
-                    except ValueError:
-                        continue
+                    match_datetime = datetime.strptime(date_str, "%d.%m.%Y").replace(hour=0, minute=0, second=0)
 
                     # Home team
                     home_div = match_link.find("div", class_="mc-team")
-                    if not home_div or not home_div.find("span"):
-                        continue
                     home_team = home_div.find("span").text.strip()
 
                     # Away team
                     away_divs = match_link.find_all("div", class_="mc-team")
-                    if len(away_divs) < 2 or not away_divs[1].find("span"):
-                        continue
                     away_team = away_divs[1].find("span").text.strip()
 
                     # Score prediction
                     score_div = match_link.find("div", class_="mc-score")
-                    if not score_div:
-                        continue
-
-                    score_text = score_div.text.strip()
-                    if " : " not in score_text:
-                        continue
-
-                    try:
-                        home_pred, away_pred = score_text.split(" : ", 1)
-                        predictions = [Score(VITIBET_NAME, float(home_pred.strip()), float(away_pred.strip()))]
-                    except ValueError:
-                        continue
+                    predictions = [
+                        Score(
+                            VITIBET_NAME,
+                            float(score_div.text.strip().split(" : ")[0]),
+                            float(score_div.text.strip().split(" : ")[1]),
+                        )
+                    ]
 
                     self.add_match(
                         Match(
@@ -149,7 +122,7 @@ class VitibetFinder(BaseMatchFinder):
                     )
 
                 except Exception as e:
-                    logger.error(f"SKIPPED [{url}] Match #{idx}: {e}")
+                    logger.error(f"SKIPPED [{url}]: {e}")
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

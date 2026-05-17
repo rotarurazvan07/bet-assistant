@@ -60,60 +60,40 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         try:
             soup = BeautifulSoup(html, "html.parser")
-            tbodys = soup.find_all("tbody")
-            matches_container = []
-
             if self.top_leagues_only:
-                if len(tbodys) > 1:
-                    matches_container = list(takewhile(lambda tr: "Matchday" not in tr.text, tbodys[1].find_all("tr")))
+                matches_container = list(
+                    takewhile(lambda tr: "Matchday" not in tr.text, soup.find_all("tbody")[1].find_all("tr"))
+                )
             else:
-                if len(tbodys) > 2:
-                    matches_container = tbodys[2].find_all("tr")
+                matches_container = soup.find_all("tbody")[2].find_all("tr")
 
-            if not matches_container:
-                logger.warning(f"No match container found in {url}. Table structure may have changed.")
-                return
-
-            for idx, match_tr in enumerate(matches_container, start=1):
+            for match_tr in matches_container:
                 try:
                     cells = match_tr.find_all("td")
-                    if len(cells) < 3:
-                        continue
-
                     dt_tag = cells[0].find(class_="fulldatetime")
-                    if not dt_tag:
-                        continue
-
-                    dt_str = dt_tag.get_text(strip=True)
-                    try:
+                    if dt_tag:
+                        dt_str = dt_tag.get_text(strip=True)
                         dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(hour=0, minute=0, second=0, microsecond=0)
-                    except ValueError:
-                        logger.error(f"Match #{idx}: Date parse error '{dt_str}'")
-                        continue
 
-                    teams = list(cells[1].stripped_strings)
-                    if len(teams) < 2:
-                        continue
+                        teams = list(cells[1].stripped_strings)
+                        home_team = teams[0]
+                        away_team = teams[1]
 
-                    home_team = teams[0]
-                    away_team = teams[1]
+                        score_text = cells[2].get_text(strip=True)
 
-                    score_text = cells[2].get_text(strip=True)
-                    if ":" not in score_text:
-                        logger.debug(f"SKIPPED [{home_team} vs {away_team}]: Invalid score prediction format '{score_text}'")
-                        continue
+                        predictions = [
+                            Score(
+                                ONE_MILLION_PREDICTIONS_NAME,
+                                int(score_text.split(":")[0]),
+                                int(score_text.split(":")[1]),
+                            )
+                        ]
+                        odds = None
 
-                    try:
-                        home_pred, away_pred = score_text.split(":", 1)
-                        predictions = [Score(ONE_MILLION_PREDICTIONS_NAME, int(home_pred.strip()), int(away_pred.strip()))]
-                    except ValueError:
-                        logger.error(f"SKIPPED [{home_team} vs {away_team}]: Score parse error on '{score_text}'")
-                        continue
-
-                    self.add_match(Match(home_team, away_team, dt_obj, predictions, None))
+                        self.add_match(Match(home_team, away_team, dt_obj, predictions, odds))
 
                 except Exception as e:
-                    logger.error(f"SKIPPED [{url}] Match #{idx}: {e}")
+                    logger.error(f"SKIPPED [{url}]: {e}")
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")
