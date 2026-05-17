@@ -1,6 +1,7 @@
 import math
 from typing import Any
 
+
 def sanitize_floats(val: Any) -> Any:
     """
     Recursively clean dictionary/list collections and float values to ensure
@@ -10,7 +11,6 @@ def sanitize_floats(val: Any) -> Any:
         return {k: sanitize_floats(v) for k, v in val.items()}
     elif isinstance(val, list):
         return [sanitize_floats(v) for v in val]
-    elif isinstance(val, float):
-        if math.isnan(val) or math.isinf(val):
-            return None
+    elif isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+        return None
     return val

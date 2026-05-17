@@ -11,6 +11,7 @@ from scrape_kit import ScrapeMode, fetch, scrape
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
+import contextlib
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
@@ -123,7 +124,9 @@ class PredictzFinder(BaseMatchFinder):
 
                         score_text = td_elem.get_text(strip=True)[-3:]
                         if "-" not in score_text:
-                            logger.debug(f"SKIPPED [{home_team} vs {away_team}]: Invalid score prediction format '{score_text}'")
+                            logger.debug(
+                                f"SKIPPED [{home_team} vs {away_team}]: Invalid score prediction format '{score_text}'"
+                            )
                             continue
 
                         try:
@@ -136,14 +139,12 @@ class PredictzFinder(BaseMatchFinder):
                         odds_elems = entry.find_all(class_="odds")
                         odds = None
                         if len(odds_elems) >= 3:
-                            try:
+                            with contextlib.suppress(Exception):
                                 odds = Odds(
                                     home=odds_elems[0].get_text(strip=True),
                                     draw=odds_elems[1].get_text(strip=True),
                                     away=odds_elems[2].get_text(strip=True),
                                 )
-                            except Exception:
-                                pass
 
                         self.add_match(Match(home_team, away_team, match_datetime, scores, odds))
                 except Exception as e:

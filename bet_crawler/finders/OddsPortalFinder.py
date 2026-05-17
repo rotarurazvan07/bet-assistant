@@ -355,10 +355,10 @@ class OddsPortalFinder(BaseMatchFinder):
                     date_elem = soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)')
                     if not date_elem:
                         raise ValueError("Failed to locate match date element")
-                    
-                    match_date = datetime.strptime(
-                        date_elem.text.strip().rstrip(","), "%d %B %Y"
-                    ).replace(hour=0, minute=0, second=0)
+
+                    match_date = datetime.strptime(date_elem.text.strip().rstrip(","), "%d %B %Y").replace(
+                        hour=0, minute=0, second=0
+                    )
 
                     odds_1, odds_X, odds_2 = None, None, None
                     odds_btts_y, odds_btts_n = None, None

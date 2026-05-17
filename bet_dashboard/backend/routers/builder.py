@@ -62,7 +62,11 @@ def preview(request: Request, body: BetSlipConfigIn):
                 if leg.datetime
                 else None,
                 "market": leg.market.value if hasattr(leg.market, "value") else str(leg.market),
-                "market_type": leg.market_type.value if hasattr(leg.market_type, "value") else str(leg.market_type) if leg.market_type else None,
+                "market_type": leg.market_type.value
+                if hasattr(leg.market_type, "value")
+                else str(leg.market_type)
+                if leg.market_type
+                else None,
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,

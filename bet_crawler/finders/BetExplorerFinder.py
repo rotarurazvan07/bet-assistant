@@ -382,12 +382,12 @@ class BetExplorerFinder(BaseMatchFinder):
 
                     html = session.page.content()
                     soup = BeautifulSoup(html, "html.parser")
-                    
+
                     host_elem = soup.select_one(".list-details__item:nth-child(1) .list-details__item__title")
                     if not host_elem:
                         raise ValueError("Failed to locate host team element")
                     home_team = host_elem.text.strip()
-                    
+
                     guest_elem = soup.select_one(".list-details__item:nth-child(3) .list-details__item__title")
                     if not guest_elem:
                         raise ValueError("Failed to locate guest team element")

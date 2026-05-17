@@ -242,17 +242,17 @@ class ForebetFinder(BaseMatchFinder):
     def _parse_page(self, url, html) -> None:
         league = TOP_LEAGUES.get(url)
         soup = BeautifulSoup(html, "html.parser")
-        
+
         # Extract match rows from schema containers to bypass broken/prematurely closed #body-main structures
         all_anchors = []
         for schema in soup.find_all(class_="schema"):
             all_anchors.extend(schema.find_all(class_="rcnt"))
-            
+
         # Safe fallback in case no schema containers are found
         if not all_anchors:
             body_main = soup.find("div", id="body-main")
             all_anchors = (body_main or soup).find_all(class_="rcnt")
-            
+
         logger.info(f"Found {len(all_anchors)} matches to scan")
 
         for idx, anchor in enumerate(all_anchors, start=1):

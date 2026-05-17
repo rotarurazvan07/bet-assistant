@@ -65,12 +65,12 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 team_wrappers = row.find_all("span", class_="table-tips__team-wrapper")
                 if len(team_wrappers) < 2:
                     continue
-                    
+
                 home_span = team_wrappers[0].find("span")
                 away_span = team_wrappers[1].find("span")
                 if not home_span or not away_span:
                     continue
-                    
+
                 home_team = home_span.get_text(strip=True)
                 away_team = away_span.get_text(strip=True)
 
@@ -78,7 +78,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 date_wrapper = row.find("span", class_="table-tips__date-time-wrapper")
                 if not date_wrapper or not date_wrapper.get("data-datetime"):
                     continue
-                    
+
                 match_date_str = date_wrapper.get("data-datetime")  # e.g. "2026-05-11T20:00:00+01:00"
                 try:
                     match_date = datetime.fromisoformat(match_date_str).replace(
@@ -91,17 +91,17 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 td_elements = row.find_all("td")
                 if len(td_elements) < 2:
                     continue
-                    
+
                 tips_td = td_elements[1]
                 # Find the <li> containing "Correct Score:" text
                 score_item = tips_td.find("li", string=re.compile(r"Correct Score:"))
                 if not score_item:
                     continue
-                    
+
                 score_text = score_item.get_text(strip=True)  # "Correct Score: 2-1"
                 if ": " not in score_text or "-" not in score_text:
                     continue
-                    
+
                 try:
                     home_goals, away_goals = map(int, score_text.split(": ")[1].split("-"))
                 except ValueError:

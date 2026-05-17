@@ -65,12 +65,12 @@ class VitibetFinder(BaseMatchFinder):
             if not ul_primarne:
                 logger.warning("Could not find ul#primarne on Vitibet homepage.")
                 return []
-                
+
             kokos_tag = ul_primarne.find("kokos")
             if not kokos_tag:
                 logger.warning("Could not find <kokos> marker on Vitibet homepage.")
                 return []
-                
+
             league_urls = []
             for sibling in kokos_tag.find_next_siblings():
                 if isinstance(sibling, Tag) and sibling.name == "li":
@@ -100,11 +100,11 @@ class VitibetFinder(BaseMatchFinder):
                     prev_date_div = match_link.find_previous("div", style=lambda x: x and "background: linear-gradient" in x)
                     if not prev_date_div:
                         continue
-                        
+
                     date_span = prev_date_div.find("span", string=re.compile(r"\d{2}\.\d{2}\.\d{4}"))
                     if not date_span:
                         continue
-                        
+
                     date_str = date_span.text.strip()
                     try:
                         match_datetime = datetime.strptime(date_str, "%d.%m.%Y").replace(hour=0, minute=0, second=0)
@@ -127,11 +127,11 @@ class VitibetFinder(BaseMatchFinder):
                     score_div = match_link.find("div", class_="mc-score")
                     if not score_div:
                         continue
-                        
+
                     score_text = score_div.text.strip()
                     if " : " not in score_text:
                         continue
-                        
+
                     try:
                         home_pred, away_pred = score_text.split(" : ", 1)
                         predictions = [Score(VITIBET_NAME, float(home_pred.strip()), float(away_pred.strip()))]

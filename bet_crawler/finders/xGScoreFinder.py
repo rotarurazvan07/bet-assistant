@@ -83,7 +83,7 @@ class xGScoreFinder(BaseMatchFinder):
             if len(team_nodes) < 2:
                 logger.warning(f"Could not extract teams on {url}")
                 return
-                
+
             home_team = team_nodes[0].get_text(strip=True)
             away_team = team_nodes[1].get_text(strip=True)
 
@@ -91,7 +91,7 @@ class xGScoreFinder(BaseMatchFinder):
                 date_node = soup.find("div", class_="xgs-game-header_datetime")
                 if not date_node:
                     raise Exception("Missing date node")
-                    
+
                 date_str = date_node.get_text(strip=True)
                 match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
                     hour=0, minute=0
@@ -104,7 +104,7 @@ class xGScoreFinder(BaseMatchFinder):
             if not score_match:
                 logger.warning(f"Could not extract correct score on {url}")
                 return
-                
+
             home_val, away_val = score_match.groups()
             predictions = [Score(XGSCORE_NAME, int(home_val), int(away_val))]
 

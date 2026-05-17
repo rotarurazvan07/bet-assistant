@@ -10,6 +10,7 @@ from scrape_kit import ScrapeMode, scrape
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
+import contextlib
 
 FOOTBALLBETTINGTIPS_URL = "https://www.footballbettingtips.org/"
 FOOTBALLBETTINGTIPS_NAME = "footballbettingtips"
@@ -88,14 +89,12 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                     odds = None
                     desktop_elements = match_html.find_all(class_="desktop")
                     if len(desktop_elements) >= 3:
-                        try:
+                        with contextlib.suppress(Exception):
                             odds = Odds(
                                 home=desktop_elements[0].get_text(strip=True),
                                 draw=desktop_elements[1].get_text(strip=True),
                                 away=desktop_elements[2].get_text(strip=True),
                             )
-                        except Exception:
-                            pass
 
                     self.add_match(
                         Match(

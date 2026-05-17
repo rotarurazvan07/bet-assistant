@@ -67,7 +67,7 @@ class WhoScoredFinder(BaseMatchFinder):
             if not score_container:
                 logger.warning(f"[{url}] WhoScored: Could not find preview-prediction container.")
                 return
-                
+
             score_elems = score_container.find_all("span", class_="predicted-score")
             if len(score_elems) < 2:
                 logger.warning(f"[{url}] WhoScored: Could not find predicted-score spans.")

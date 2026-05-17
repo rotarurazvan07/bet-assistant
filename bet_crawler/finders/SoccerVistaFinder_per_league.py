@@ -98,7 +98,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
             container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)
-            
+
             matches = []
             if container and container.parent:
                 tbody = container.parent.find("tbody")

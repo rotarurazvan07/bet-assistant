@@ -103,25 +103,25 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                     inner = match_div.contents[:-1]
                     if len(inner) < 2:
                         continue
-                        
+
                     home_div = inner[0].find("div")
                     away_div = inner[1].find("div")
                     if not home_div or not away_div:
                         continue
-                        
+
                     home_team = home_div.get_text(strip=True)
                     away_team = away_div.get_text(strip=True)
 
                     score_text = inner[-1].get_text(strip=True)
                     if "-" not in score_text:
                         continue
-                        
+
                     try:
                         home = float(score_text.split("-")[0])
                         away = float(score_text.split("-")[1])
                     except ValueError:
                         continue
-                        
+
                     predictions = [Score(WINDRAWWIN_NAME, home, away)]
 
                     mo_tag = match_div.find("div", class_="wtmo")

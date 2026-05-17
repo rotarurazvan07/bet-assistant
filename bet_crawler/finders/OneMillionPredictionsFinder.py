@@ -65,9 +65,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
 
             if self.top_leagues_only:
                 if len(tbodys) > 1:
-                    matches_container = list(
-                        takewhile(lambda tr: "Matchday" not in tr.text, tbodys[1].find_all("tr"))
-                    )
+                    matches_container = list(takewhile(lambda tr: "Matchday" not in tr.text, tbodys[1].find_all("tr")))
             else:
                 if len(tbodys) > 2:
                     matches_container = tbodys[2].find_all("tr")

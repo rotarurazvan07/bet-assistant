@@ -51,8 +51,13 @@ class CandidateLeg:
 
     def __post_init__(self) -> None:
         import math
+
         # Clean league
-        if self.league is None or (isinstance(self.league, float) and math.isnan(self.league)) or str(self.league).lower() in ("nan", "none", "null"):
+        if (
+            self.league is None
+            or (isinstance(self.league, float) and math.isnan(self.league))
+            or str(self.league).lower() in ("nan", "none", "null")
+        ):
             self.league = None
         else:
             self.league = str(self.league)
@@ -120,8 +125,13 @@ class BetLeg:
 
     def __post_init__(self) -> None:
         import math
+
         # Clean league
-        if self.league is None or (isinstance(self.league, float) and math.isnan(self.league)) or str(self.league).lower() in ("nan", "none", "null"):
+        if (
+            self.league is None
+            or (isinstance(self.league, float) and math.isnan(self.league))
+            or str(self.league).lower() in ("nan", "none", "null")
+        ):
             self.league = None
         else:
             self.league = str(self.league)
@@ -147,6 +157,7 @@ class BetSlip:
 
     def __post_init__(self) -> None:
         import math
+
         if isinstance(self.total_odds, float) and (math.isnan(self.total_odds) or math.isinf(self.total_odds)):
             self.total_odds = 1.00
         if isinstance(self.units, float) and (math.isnan(self.units) or math.isinf(self.units)):
