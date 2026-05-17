@@ -108,13 +108,13 @@ RUNNER_SETS:
     - eaglepredict
     - legitpredict
     - betclan
-    - oddsportal
     - footballpredictions
   local:
     - whoscored
     - footballbettingtips
     - forebet
     - betexplorer
+    - oddsportal
   test:
     - betexplorer
 
