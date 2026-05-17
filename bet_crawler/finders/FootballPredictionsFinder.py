@@ -7,8 +7,8 @@ from datetime import datetime
 
 from bs4 import BeautifulSoup
 
-from bet_framework.core.Match import *
 from bet_framework.core.leagues import *
+from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
 

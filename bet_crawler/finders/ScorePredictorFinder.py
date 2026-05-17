@@ -7,8 +7,8 @@ logger = get_logger(__name__)
 
 from scrape_kit import ScrapeMode, fetch, scrape
 
-from bet_framework.core.Match import *
 from bet_framework.core.leagues import *
+from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -118,7 +118,14 @@ class ScorePredictorFinder(BaseMatchFinder):
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
-                        Match(home_team, away_team, candidate.replace(hour=0, minute=0, second=0, microsecond=0), scores, None, league=league)
+                        Match(
+                            home_team,
+                            away_team,
+                            candidate.replace(hour=0, minute=0, second=0, microsecond=0),
+                            scores,
+                            None,
+                            league=league,
+                        )
                     )
 
                 except ValueError as e:

@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
-from bet_framework.core.Match import *
 from bet_framework.core.leagues import *
+from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
 
