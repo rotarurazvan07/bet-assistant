@@ -136,12 +136,33 @@ class AppLogic:
         target_hour = int(svc_cfg.get("generate_hour", 8))
         target_minute = int(svc_cfg.get("generate_minute", 0))
 
-        # Check if today's scheduled time has arrived and we haven't run today yet
         target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
-        if now >= target_time and self._last_generator_run != today_key:
-            self._last_generator_run = today_key
-            return True
-        return False
+
+        # If the scheduled time hasn't arrived yet, nothing to do
+        if now < target_time:
+            return False
+
+        # Check in-memory guard first (fastest path during normal operation)
+        if self._last_generator_run == today_key:
+            return False
+
+        # On restart, _last_generator_run is None — fall back to persisted timestamp.
+        # If last_time_generated is from today and the scheduled time has already
+        # passed, we treat generation as already done for today.
+        runtime_cfg = self._settings.get("runtime_state") or {}
+        last_generated = runtime_cfg.get("last_time_generated")
+        if last_generated:
+            try:
+                last_dt = datetime.fromisoformat(last_generated)
+                if last_dt.strftime("%Y-%m-%d") == today_key:
+                    # Already ran today — sync in-memory guard and skip
+                    self._last_generator_run = today_key
+                    return False
+            except (ValueError, TypeError):
+                pass
+
+        self._last_generator_run = today_key
+        return True
 
     def _check_for_changes(self) -> bool:
         """HEAD request to check if GitHub release has changed via ETag."""
@@ -214,7 +235,7 @@ class AppLogic:
         """Merge manual exclusions + DB exclusions (pending legs)."""
         return list(self._manual_excluded | set(self.get_excluded_urls()))
 
-    # ── Properties ────────────────────────────────────────────────────────────
+    # ── Properties ─────────────────────────────────────────────────────────[...]
 
     @property
     def match_df(self) -> pd.DataFrame:
@@ -247,7 +268,7 @@ class AppLogic:
     def config_path(self) -> str:
         return self._config_path
 
-    # ── League helpers ────────────────────────────────────────────────────────
+    # ── League helpers ───────────────────────────────────────────────────────··[...]
 
     def get_leagues(self) -> list[str]:
         # 1. Get leagues from the core framework definitions
@@ -266,7 +287,7 @@ class AppLogic:
         # 3. Merge and sort
         return sorted(set(framework_leagues) | set(db_leagues))
 
-    # ── Match data ────────────────────────────────────────────────────────────
+    # ── Match data ─────────────────────────────────────────────────────────[...]
 
     def refresh_data(self) -> pd.DataFrame:
         raw_df = self._matches_manager.fetch_matches()
@@ -299,7 +320,7 @@ class AppLogic:
         self.refresh_data()
         return "Pull successful"
 
-    # ── Slip building ─────────────────────────────────────────────────────────
+    # ── Slip building ────────────────────────────────────────────────────────[...]
 
     def build_slip(
         self,
@@ -358,7 +379,7 @@ class AppLogic:
         slip_id = self._assistant.save_slip(profile, legs, units)
         return slip_id
 
-    # ── Validation ────────────────────────────────────────────────────────────
+    # ── Validation ─────────────────────────────────────────────────────────[...]
 
     def validate_slips(self) -> dict[str, Any]:
         """
@@ -376,7 +397,7 @@ class AppLogic:
         result = self._assistant.validate_slips()
         return result
 
-    # ── Slip retrieval ────────────────────────────────────────────────────────
+    # ── Slip retrieval ───────────────────────────────────────────────────────··[...]
 
     def get_slips(
         self,
@@ -517,7 +538,7 @@ class AppLogic:
             "profit_factor": profit_factor,
         }
 
-    # ── Analytics ─────────────────────────────────────────────────────────────
+    # ── Analytics ─────────────────────────────────────────────────────────·[...]
 
     def daily_summary(
         self,
@@ -553,7 +574,7 @@ class AppLogic:
         settled = [s for s in slips if self._get_status_value(s.slip_status) in ("Won", "Lost")]
         return calculate_correlation_data(settled)
 
-    # ── Builder ───────────────────────────────────────────────────────────────
+    # ── Builder ──────────────────────────────────────────────────────────[...]
 
     # build_preview is already defined above
 
@@ -596,7 +617,7 @@ class AppLogic:
         self._broadcast_matches_updated()
         return msg
 
-    # ── Services ──────────────────────────────────────────────────────────────
+    # ── Services ─────────────────────────────────────────────────────────··[...]
 
     def toggle_service(self, name: str) -> bool:
         svc = self._services.get(name)
@@ -628,7 +649,7 @@ class AppLogic:
         self._settings.write("services", cfg)
         # Generator is already polling its interval; it will pick up the new time from settings via its predicate
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # ── Helpers ──────────────────────────────────────────────────────────[...]
 
     def _get_active_profiles(self) -> dict[str, tuple]:
         """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
