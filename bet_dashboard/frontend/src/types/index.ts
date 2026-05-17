@@ -253,13 +253,18 @@ export interface AnalyticsData {
 export interface ServiceInfo {
     name: string; description: string;
     enabled: boolean; alive: boolean;
-    hour: number | null; interval_seconds: number | null;
+    hour: number | null;
+    minute: number | null;
+    interval_seconds: number | null;
     next_run: string | null;
+    last_time_generated?: string | null;
 }
 
 export interface ServicesData {
     services: Record<string, ServiceInfo>;
-    generate_hour: number; server_time: string;
+    generate_hour: number;
+    generate_minute: number;
+    server_time: string;
 }
 
 // ── WebSocket events ──────────────────────────────────────────────────────────

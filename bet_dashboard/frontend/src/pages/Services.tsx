@@ -4,23 +4,114 @@ import ServiceCard from '../components/ServiceCard';
 import { TooltipIcon } from '../components/ui';
 import type { ServicesData } from '../types';
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { StaticTimePicker } from '@mui/x-date-pickers/StaticTimePicker';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+import dayjs from 'dayjs';
+
+// Custom theme mapping the high-fidelity CSS variable tokens
+const muiDarkTheme = createTheme({
+    palette: {
+        mode: 'dark',
+        background: {
+            default: '#131C2E', // var(--bg-raised)
+            paper: '#18243A',   // var(--bg-card)
+        },
+        primary: {
+            main: '#7C3AED',    // var(--purple)
+        },
+        text: {
+            primary: '#C9D6F0',   // var(--text-primary)
+            secondary: '#b8c1d3', // var(--text-secondary)
+        },
+    },
+    typography: {
+        fontFamily: "'JetBrains Mono', 'Inter', monospace",
+        fontSize: 12,
+    },
+    components: {
+        MuiPickersLayout: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: '#131C2E',
+                    color: '#C9D6F0',
+                    border: '1px solid rgba(255, 255, 255, 0.07)',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+                    overflow: 'hidden',
+                },
+            },
+        },
+        MuiPickersToolbar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: '#18243A',
+                    borderRight: '1px solid rgba(255, 255, 255, 0.07)',
+                    '& .MuiTypography-root': {
+                        fontFamily: "'Outfit', sans-serif",
+                    },
+                },
+            },
+        },
+        MuiClock: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: '#131C2E',
+                },
+            },
+        },
+        MuiClockPointer: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: '#7C3AED',
+                },
+                thumb: {
+                    backgroundColor: '#7C3AED',
+                    borderColor: '#7C3AED',
+                },
+            },
+        },
+        MuiClockNumber: {
+            styleOverrides: {
+                root: {
+                    fontFamily: "'JetBrains Mono', monospace",
+                    color: '#b8c1d3',
+                    '&.Mui-selected': {
+                        color: '#ffffff',
+                    },
+                },
+            },
+        },
+        MuiClockAmPmSelectedCircle: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: '#7C3AED',
+                },
+            },
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+});
 
 export default function Services() {
     const [data, setData] = useState<ServicesData | null>(null);
     const [genHour, setGenHour] = useState(8);
+    const [genMinute, setGenMinute] = useState(0);
     const [status, setStatus] = useState('');
 
     const load = useCallback(async () => {
         const d = await fetchServices();
         setData(d);
         setGenHour(d.generate_hour);
+        setGenMinute(d.generate_minute);
     }, []);
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { load(); }, [load]);
 
     async function handleSave() {
-        await saveServiceSettings(genHour);
+        await saveServiceSettings(genHour, genMinute);
         setStatus('✓ Settings saved — schedules recalculated');
         load();
     }
@@ -72,41 +163,45 @@ export default function Services() {
                 {/* Scheduler settings */}
                 <div className="card p-4 lg:col-span-3">
                     <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
-                        style={{ color: 'var(--text-secondary)' }}>Scheduled Hours</p>
+                        style={{ color: 'var(--text-secondary)' }}>Scheduled Time</p>
 
                     <div className="grid grid-cols-1 gap-6 mb-4">
 
                         {/* Generate Slips hour */}
                         <div>
-                            <div className="flex items-center gap-1.5 mb-3">
+                            <div className="flex items-center gap-1.5 mb-4">
                                 <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
                                     Generate Slips
-                                    <TooltipIcon text="Creates betting slips based on builder configurations and predictions. Runs daily at the scheduled hour." align="right" />
-                                </span>
-                                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded"
-                                    style={{ background: 'var(--purple)', color: '#fff', opacity: .8 }}>
-                                    daily at {String(genHour).padStart(2, '0')}:00
+                                    <TooltipIcon text="Creates betting slips based on builder configurations and predictions. Runs daily at the scheduled time." align="right" />
                                 </span>
                             </div>
-                            <div className="grid grid-cols-6 gap-1 md:grid-cols-12 lg:grid-cols-24">
-                                {HOURS.map(h => (
-                                    <button key={h}
-                                        onClick={() => setGenHour(h)}
-                                        className="h-8 rounded text-[11px] font-mono transition-all duration-100"
-                                        style={{
-                                            background: h === genHour ? 'var(--purple)' : 'var(--bg-raised)',
-                                            border: `1px solid ${h === genHour ? 'var(--purple)' : 'var(--border)'}`,
-                                            color: h === genHour ? '#fff' : 'var(--text-secondary)',
-                                            transform: h === genHour ? 'scale(1.05)' : 'scale(1)',
-                                        }}>
-                                        {String(h).padStart(2, '0')}
-                                    </button>
-                                ))}
+
+                            <div className="flex justify-center lg:justify-start">
+                                <ThemeProvider theme={muiDarkTheme}>
+                                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                                        <StaticTimePicker
+                                            ampm={false}
+                                            orientation="landscape"
+                                            value={dayjs().hour(genHour).minute(genMinute).second(0)}
+                                            onChange={(newValue) => {
+                                                if (newValue) {
+                                                    setGenHour(newValue.hour());
+                                                    setGenMinute(newValue.minute());
+                                                }
+                                            }}
+                                            slotProps={{
+                                                actionBar: {
+                                                    actions: []
+                                                }
+                                            }}
+                                        />
+                                    </LocalizationProvider>
+                                </ThemeProvider>
                             </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+                    <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
                         <button className="btn-primary" onClick={handleSave}>Save Settings</button>
                         {status && (
                             <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{status}</span>

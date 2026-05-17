@@ -8,9 +8,9 @@ from fastapi import APIRouter, Request
 router = APIRouter(prefix="/api/services", tags=["services"])
 
 _DESCRIPTIONS = {
-    "puller": "Downloads the latest matches database from GitHub Releases",
-    "generator": "Runs all active betting profiles and creates new slips",
-    "verifier": "Checks live scores and settles pending legs every 60 s",
+    "puller": "Checks every 5 minutes if a new database exists on GitHub (via ETag) and downloads it when updated.",
+    "generator": "Checks every 5 minutes if the scheduled generation hour has arrived to build today's betting slips.",
+    "verifier": "Polls every 60 seconds to fetch live scores and settle completed matches on pending slips.",
 }
 
 
@@ -18,12 +18,14 @@ def _get(request: Request):
     return request.app.state.app_logic
 
 
-def _next_run_hour(hour: int | None) -> str | None:
-    """Human-readable 'next run' for scheduled (hourly) services."""
+def _next_run_hour(hour: int | None, minute: int | None = 0) -> str | None:
+    """Human-readable 'next run' for scheduled (daily) services."""
     if hour is None:
         return None
+    if minute is None:
+        minute = 0
     now = datetime.now()
-    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+    target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if target <= now:
         target += timedelta(days=1)
     delta = target - now
@@ -45,6 +47,7 @@ def _next_run_interval(interval_seconds: int | None) -> str | None:
 def get_services(request: Request):
     app = _get(request)
     svc_cfg = app.settings.get("services") or {}
+    runtime_cfg = app.settings.get("runtime_state") or {}
     now = datetime.now().isoformat()
 
     services_out = {}
@@ -52,11 +55,13 @@ def get_services(request: Request):
         # Determine next_run based on whether service is hour-based or interval-based
         # We now look at the config for 'hour' metadata as TickerService is pure polling
         hour = None
+        minute = None
         if name == "generator":
             hour = svc_cfg.get("generate_hour")
+            minute = svc_cfg.get("generate_minute", 0)
 
         if hour is not None:
-            next_run = _next_run_hour(hour)
+            next_run = _next_run_hour(hour, minute)
         elif svc.interval is not None:
             next_run = _next_run_interval(svc.interval)
         else:
@@ -68,21 +73,27 @@ def get_services(request: Request):
             "enabled": getattr(svc, "enabled", True),
             "alive": svc.is_alive(),
             "hour": hour,
+            "minute": minute,
             "interval_seconds": svc.interval,
             "next_run": next_run,
+            "last_time_generated": runtime_cfg.get("last_time_generated") if name == "generator" else None,
         }
 
     return {
         "services": services_out,
         "generate_hour": svc_cfg.get("generate_hour", 8),
+        "generate_minute": svc_cfg.get("generate_minute", 0),
         "server_time": now,
     }
 
 
 @router.post("/settings")
 def save_settings(request: Request, body: ServicesSettingsIn):
-    _get(request).save_service_settings(body.generate_hour)
-    return {"generate_hour": body.generate_hour}
+    _get(request).save_service_settings(body.generate_hour, body.generate_minute)
+    return {
+        "generate_hour": body.generate_hour,
+        "generate_minute": body.generate_minute,
+    }
 
 
 @router.post("/{name}/toggle")

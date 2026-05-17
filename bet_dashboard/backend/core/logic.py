@@ -127,16 +127,18 @@ class AppLogic:
     # ── TickerService callbacks ───────────────────────────────────────────────
 
     def _is_generator_hour_met(self) -> bool:
-        """Predicate to check if it's time to run the generator (once per hour window)."""
+        """Predicate to check if it's time to run the generator (once per daily window)."""
         now = datetime.now()
-        current_hour = now.hour
-        today_key = now.strftime("%Y-%m-%d-%H")
+        today_key = now.strftime("%Y-%m-%d")
 
-        # Get target hour from current settings
+        # Get target hour and minute from current settings
         svc_cfg = self._settings.get("services") or {}
         target_hour = int(svc_cfg.get("generate_hour", 8))
+        target_minute = int(svc_cfg.get("generate_minute", 0))
 
-        if current_hour == target_hour and self._last_generator_run != today_key:
+        # Check if today's scheduled time has arrived and we haven't run today yet
+        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+        if now >= target_time and self._last_generator_run != today_key:
             self._last_generator_run = today_key
             return True
         return False
@@ -173,6 +175,9 @@ class AppLogic:
             profiles = self._get_active_profiles()
             if profiles:
                 self.generate_slips(profiles)
+                runtime = self._settings.get("runtime_state") or {}
+                runtime["last_time_generated"] = datetime.now().isoformat()
+                self._settings.write("runtime_state", runtime)
             self._broadcast_slips_updated()
         except Exception as exc:
             print(f"[Generator] ERROR: {exc}")
@@ -571,6 +576,9 @@ class AppLogic:
         result: dict = {}
         if profiles:
             result = self.generate_slips(profiles)
+            runtime = self._settings.get("runtime_state") or {}
+            runtime["last_time_generated"] = datetime.now().isoformat()
+            self._settings.write("runtime_state", runtime)
         self._broadcast_slips_updated()
         return result
 
@@ -613,11 +621,12 @@ class AppLogic:
         )
         return new_state
 
-    def save_service_settings(self, generate_hour: int) -> None:
+    def save_service_settings(self, generate_hour: int, generate_minute: int = 0) -> None:
         cfg = self._settings.get("services") or {}
         cfg["generate_hour"] = generate_hour
+        cfg["generate_minute"] = generate_minute
         self._settings.write("services", cfg)
-        # Generator is already polling its interval; it will pick up the new hour from settings via its predicate
+        # Generator is already polling its interval; it will pick up the new time from settings via its predicate
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
