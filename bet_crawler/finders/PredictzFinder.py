@@ -2,6 +2,7 @@ from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
+import contextlib
 import re
 from datetime import datetime
 
@@ -11,7 +12,6 @@ from scrape_kit import ScrapeMode, fetch, scrape
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
-import contextlib
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"

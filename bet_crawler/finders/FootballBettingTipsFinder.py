@@ -1,6 +1,7 @@
 from scrape_kit import get_logger
 
 logger = get_logger(__name__)
+import contextlib
 import re
 from datetime import datetime, timedelta
 
@@ -10,7 +11,6 @@ from scrape_kit import ScrapeMode, scrape
 from bet_framework.core.Match import *
 
 from .BaseMatchFinder import BaseMatchFinder
-import contextlib
 
 FOOTBALLBETTINGTIPS_URL = "https://www.footballbettingtips.org/"
 FOOTBALLBETTINGTIPS_NAME = "footballbettingtips"
