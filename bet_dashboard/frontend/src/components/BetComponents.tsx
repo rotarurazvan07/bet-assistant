@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { BaseBadge } from './ui/BaseBadge';
 import { formatBetDate } from '../utils/betUtils';
 import { parseTeamNames } from '../utils/teamUtils';
-import { getStatusColor, getStatusIcon, getStatusBadge } from '../utils/colorUtils';
+import { getStatusColor, getStatusBadge } from '../utils/colorUtils';
 import { calculateNetProfit } from '../utils/calculationUtils';
 import { getPotentialStatusColor } from '../utils/colorUtils';
 
@@ -206,7 +206,6 @@ export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
         includeYear: false
     });
     const legStatusColor = getStatusColor(leg.status);
-    const legStatusIcon = getStatusIcon(leg.status);
     const live = liveData[leg.match_name];
 
     // For live pending slips, compute potential outcome color for market@odds badge only
