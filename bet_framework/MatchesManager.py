@@ -11,6 +11,8 @@ from scrape_kit import (
     time_profiler,
 )
 
+from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
+
 from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
@@ -81,7 +83,7 @@ class MatchesManager(BufferedStorageManager):
 
     def _find(self, home: str, away: str, dt: datetime) -> tuple[dict | None, int | None]:
         buf = self.ensure_buffer()
-        if self.similarity_engine is None or buf.empty:
+        if buf.empty:
             return None, None
 
         target = pd.Timestamp(dt.date().isoformat())
@@ -91,17 +93,21 @@ class MatchesManager(BufferedStorageManager):
         best, best_idx, max_score = None, None, -1.0
         for idx, row in buf[mask].iterrows():
             rh, ra = row["home_team_name"], row["away_team_name"]
+            # Exact match always wins
             if rh.lower() == home.lower() and ra.lower() == away.lower():
                 return row.to_dict(), idx
-            ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
-            if not ok_h:
-                continue
-            ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
-            if not ok_a:
-                continue
-            avg = (sc_h + sc_a) / 2
-            if avg > max_score:
-                max_score, best, best_idx = avg, row.to_dict(), idx
+
+            # Fuzzy matching only if similarity_engine is available
+            if self.similarity_engine is not None:
+                ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
+                if not ok_h:
+                    continue
+                ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
+                if not ok_a:
+                    continue
+                avg = (sc_h + sc_a) / 2
+                if avg > max_score:
+                    max_score, best, best_idx = avg, row.to_dict(), idx
 
         return best, best_idx
 
@@ -307,3 +313,210 @@ class MatchesManager(BufferedStorageManager):
         )
         self.flush()
         logger.info(f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing).")
+
+    # ── Embedded Odds History ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_history_from_odds(odds_dict: dict | None) -> list[dict]:
+        """Extract the history array from an odds dict, or return empty list."""
+        if not odds_dict:
+            return []
+        return odds_dict.get("history", [])
+
+    @staticmethod
+    def _get_current_odds_snapshot(odds_dict: dict | None) -> dict:
+        """Extract current odds values (excluding history) for snapshot storage."""
+        if not odds_dict:
+            return {}
+        return {k: v for k, v in odds_dict.items() if k != "history" and v is not None}
+
+    @staticmethod
+    def _append_to_history(current_odds: dict, new_snapshot: dict, max_entries: int) -> dict:
+        """Append a snapshot to history array, trim to max_entries, return updated odds dict.
+
+        Args:
+            current_odds: The current odds dict (may contain history)
+            new_snapshot: Dict with timestamp 'ts' and market values
+            max_entries: Maximum number of history entries to keep
+        """
+        if not new_snapshot or not any(v for k, v in new_snapshot.items() if k != "ts"):
+            return current_odds
+
+        history = list(current_odds.get("history", []))
+        history.append(new_snapshot)
+
+        # Trim to max_entries (keep most recent)
+        if len(history) > max_entries:
+            history = history[-max_entries:]
+
+        result = {k: v for k, v in current_odds.items() if k != "history"}
+        result["history"] = history
+        return result
+
+    def get_odds_history_from_row(self, row_idx: int) -> list[dict]:
+        """Get odds history from a match row's embedded odds JSON."""
+        buf = self.ensure_buffer()
+        if buf.empty or row_idx < 0 or row_idx >= len(buf):
+            return []
+
+        odds_json = buf.iloc[row_idx].get("odds")
+        odds_dict = self.deserialize_json(odds_json) if odds_json else {}
+        history = self._extract_history_from_odds(odds_dict)
+
+        # Convert embedded format to API format
+        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
+
+    def calculate_movement_from_odds(self, odds_dict: dict | None) -> dict:
+        """Calculate movement from embedded history in odds dict.
+
+        Returns dict with keys like 'home', 'draw', 'away', etc.
+        Values are 'up', 'down', 'stable', or None if no data.
+        """
+        if not odds_dict:
+            return {}
+
+        history = self._extract_history_from_odds(odds_dict)
+        current = self._get_current_odds_snapshot(odds_dict)
+
+        if not history or not current:
+            return {}
+
+        # Compare first historical snapshot to current values
+        first_odds = history[0]
+        # Derive simplified market keys from central configuration (strip 'odds_' prefix)
+        markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
+        movement = {}
+
+        for market in markets:
+            first_val = first_odds.get(market)
+            current_val = current.get(market)
+
+            if first_val is None or current_val is None:
+                movement[market] = None
+            elif current_val > first_val:
+                movement[market] = "up"
+            elif current_val < first_val:
+                movement[market] = "down"
+            else:
+                movement[market] = "stable"
+
+        return movement
+
+    def get_movement_for_row(self, row_idx: int) -> dict:
+        """Get odds movement for a specific row index."""
+        buf = self.ensure_buffer()
+        if buf.empty or row_idx < 0 or row_idx >= len(buf):
+            return {}
+
+        odds_json = buf.iloc[row_idx].get("odds")
+        odds_dict = self.deserialize_json(odds_json) if odds_json else {}
+        return self.calculate_movement_from_odds(odds_dict)
+
+    def merge_with_history_preservation(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
+        """Merge fresh database while preserving odds history from current data.
+
+        Flow:
+        1. Load current matches and prune those with datetime < today (local_tz)
+        2. Load fresh database
+        3. For each remaining current match, fuzzy-match to fresh DB
+        4. On match: append current odds as history entry to fresh row
+        5. Replace current buffer with merged fresh data
+        """
+        from zoneinfo import ZoneInfo
+
+        try:
+            tz = ZoneInfo(local_tz)
+        except Exception:
+            tz = ZoneInfo("UTC")
+
+        now_local = datetime.now(tz)
+        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        timestamp = now_local.isoformat()
+
+        # Get current matches that are still future (not past)
+        current_buf = self.ensure_buffer()
+        future_matches = []
+
+        if not current_buf.empty:
+            for _idx, row in current_buf.iterrows():
+                try:
+                    match_dt_str = row.get("datetime", "")
+                    match_dt = datetime.fromisoformat(match_dt_str)
+                    # Make timezone-aware for comparison
+                    if match_dt.tzinfo is None:
+                        match_dt = match_dt.replace(tzinfo=tz)
+                    if match_dt >= today_start:
+                        odds_dict = self.deserialize_json(row.get("odds")) if row.get("odds") else {}
+                        future_matches.append(
+                            {
+                                "home": row["home_team_name"],
+                                "away": row["away_team_name"],
+                                "datetime": match_dt,
+                                "odds": odds_dict,
+                            }
+                        )
+                except Exception as exc:
+                    logger.debug(f"Skipping row during history preservation: {exc}")
+
+        logger.info(f"Found {len(future_matches)} future matches with potential history to preserve")
+
+        # Load fresh database into a temporary manager
+        fresh_manager = MatchesManager(fresh_db_path, self.similarity_engine._config if self.similarity_engine else None)
+        fresh_buf = fresh_manager.ensure_buffer()
+
+        if fresh_buf.empty:
+            logger.warning("Fresh database is empty, nothing to merge")
+            return
+
+        # For each future match from current DB, try to find it in fresh DB and transfer history
+        transferred = 0
+        for match_data in future_matches:
+            if not match_data["odds"]:
+                continue
+
+            # Use fuzzy matching to find corresponding row in fresh DB
+            found, fresh_idx = fresh_manager._find(match_data["home"], match_data["away"], match_data["datetime"])
+
+            if found is not None and fresh_idx is not None:
+                # Create snapshot from current odds
+                snapshot = {"ts": timestamp}
+                current_odds = self._get_current_odds_snapshot(match_data["odds"])
+                snapshot.update(current_odds)
+
+                # Get fresh row's odds and append history
+                fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
+                fresh_odds = fresh_manager.deserialize_json(fresh_odds_json) if fresh_odds_json else {}
+
+                # Preserve existing history from current match
+                existing_history = self._extract_history_from_odds(match_data["odds"])
+
+                # Merge histories: existing + new snapshot
+                combined_odds = dict(fresh_odds)
+                combined_odds["history"] = existing_history
+
+                # Append current snapshot
+                combined_odds = self._append_to_history(combined_odds, snapshot, max_history)
+
+                # Update fresh buffer
+                fresh_buf.at[fresh_idx, "odds"] = fresh_manager.serialize_json(combined_odds)
+                fresh_manager._dirty = True
+                transferred += 1
+
+        logger.info(f"Transferred odds history to {transferred} matches in fresh database")
+
+        # Transfer data via buffer to avoid file locking issues (WinError 32)
+        # Capture the merged fresh buffer before closing anything
+        merged_buffer = fresh_buf.copy()
+        logger.info(f"Captured {len(merged_buffer)} rows from fresh database into memory")
+
+        # Close fresh manager to release file lock
+        fresh_manager.close()
+        del fresh_manager
+
+        # Clear our database and replace with merged data
+        self.reset_matches_db()
+        self._buffer = merged_buffer.reset_index(drop=True)
+        self._dirty = True
+        self.flush()
+
+        logger.info(f"Database merge complete: {len(self._buffer)} rows written to {self.db_path}")

@@ -1,6 +1,21 @@
-import type { Match, CandidateLeg } from '../types';
+import type { Match, CandidateLeg, OddsMovementSummary, OddsMovementDirection } from '../types';
 import { BaseDataRow } from './ui/BaseDataRow';
 import { MARKET_COLUMNS } from '../config/marketConfig';
+import { OddsMovementIndicator } from './OddsMovementIndicator';
+
+/**
+ * MarketRow Component
+ *
+ * Renders a table row for a match with market cells showing consensus percentages,
+ * odds, and optional odds movement indicators.
+ *
+ * The odds movement indicator is displayed when there is significant odds movement
+ * (up or down) for a particular market. The mapping between market display names
+ * and the movement keys in OddsMovementSummary is generated dynamically from
+ * MARKET_COLUMNS configuration to ensure consistency and avoid hardcoding.
+ *
+ * Movement key generation: oddsKey (e.g., 'odds_over_25') -> remove 'odds_' prefix -> 'over_25'
+ */
 
 // Consensus cell coloring
 function consCell(pct: number, odds: number | null | undefined) {
@@ -20,9 +35,10 @@ interface CellProps {
     onClick?: () => void;
     isActive?: boolean;
     isInSlip?: boolean;
+    movement?: OddsMovementDirection;
 }
 
-function Cell({ pct, odds, onClick, isActive = false, isInSlip = false }: CellProps) {
+function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement }: CellProps) {
     const c = consCell(pct, odds);
     if (!c) return <td className="px-3 py-3 text-center">
         <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>
@@ -49,8 +65,9 @@ function Cell({ pct, odds, onClick, isActive = false, isInSlip = false }: CellPr
                     {c.pct ? c.pct.toFixed(0) : '0'}%
                 </span>
                 {c.odds != null && c.odds > 1 && (
-                    <span className="font-mono text-sm" style={{ color: textColor, opacity: isInSlip || isActive ? 1 : 0.8 }}>
+                    <span className="font-mono text-sm inline-flex items-center gap-0.5" style={{ color: textColor, opacity: isInSlip || isActive ? 1 : 0.8 }}>
                         @{oddsDisplay}
+                        <OddsMovementIndicator direction={movement} size="sm" />
                     </span>
                 )}
             </div>
@@ -64,9 +81,10 @@ interface Props {
     onCellClick?: (leg: CandidateLeg) => void;
     activeMarkets?: Set<string>;
     inSlipMarkets?: Set<string>;
+    movement?: OddsMovementSummary;
 }
 
-export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set() }: Props) {
+export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement }: Props) {
     const dt = match.datetime
         ? new Date(match.datetime).toLocaleString('en-GB', {
             day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -130,10 +148,29 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         </td>,
     ];
 
+    /**
+     * Dynamically generate market-to-movement-key mapping from MARKET_COLUMNS.
+     *
+     * This ensures:
+     * 1. All configured markets have corresponding movement keys
+     * 2. No hardcoded mappings that can become stale
+     * 3. Automatic inclusion of new markets when MARKET_COLUMNS is updated
+     *
+     * Transformation: oddsKey (e.g., 'odds_over_25') -> strip 'odds_' -> 'over_25'
+     * This matches the key names in OddsMovementSummary interface.
+     */
+    const marketToMovementKey: Record<string, keyof OddsMovementSummary> = {};
+    MARKET_COLUMNS.forEach(col => {
+      const movementKey = col.oddsKey.replace('odds_', '') as keyof OddsMovementSummary;
+      marketToMovementKey[col.market] = movementKey;
+    });
+
     // Create market cells dynamically from config
     const marketCells = MARKET_COLUMNS.map(col => {
         const consensus = matchData[col.consKey] as number;
         const odds = matchData[col.oddsKey] as number | null | undefined;
+        const movementKey = marketToMovementKey[col.market];
+        const cellMovement = movement && movementKey ? movement[movementKey] : undefined;
 
         return (
             <Cell
@@ -142,6 +179,7 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
                 odds={odds}
                 isActive={activeMarkets.has(col.market)}
                 isInSlip={inSlipMarkets.has(col.market)}
+                movement={cellMovement}
                 onClick={onCellClick ? () => {
                     const leg = buildLeg(col.market, col.marketType, consensus, odds);
                     if (leg) onCellClick(leg);

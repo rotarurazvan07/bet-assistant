@@ -191,6 +191,27 @@ class AppLogic:
         except Exception as exc:
             print(f"[Puller] ERROR: {exc}")
 
+    def get_odds_movement(self, match_id: int) -> dict:
+        """Get odds movement direction for a match (from embedded history)."""
+        df = self.match_df
+        if df.empty or match_id < 0 or match_id >= len(df):
+            return {}
+        odds_dict = df.iloc[match_id].get("odds")
+        if not odds_dict or not isinstance(odds_dict, dict):
+            return {}
+        return self._matches_manager.calculate_movement_from_odds(odds_dict)
+
+    def get_odds_history(self, match_id: int) -> list[dict]:
+        """Get all odds snapshots for a match (from embedded history)."""
+        df = self.match_df
+        if df.empty or match_id < 0 or match_id >= len(df):
+            return []
+        odds_dict = df.iloc[match_id].get("odds")
+        if not odds_dict or not isinstance(odds_dict, dict):
+            return []
+        history = MatchesManager._extract_history_from_odds(odds_dict)
+        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
+
     def _do_generate(self) -> None:
         try:
             profiles = self._get_active_profiles()
@@ -304,6 +325,9 @@ class AppLogic:
         return self._assistant.filter_matches(search_text=search_text, date_from=date_from, date_to=date_to)
 
     def pull_matches_db(self, matches_db_path: str) -> str:
+        """Download fresh database and merge with history preservation."""
+        import tempfile
+
         repo = os.environ.get("REPO", "rotarurazvan07/bet-assistant")
         url = f"https://github.com/{repo}/releases/download/latest-db/final_matches.db"
 
@@ -312,10 +336,35 @@ class AppLogic:
         if parsed.scheme not in ("https", "http"):
             raise ValueError(f"Only HTTPS/HTTP URLs are allowed, got: {parsed.scheme}")
 
+        # Download to temp file first
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+            temp_path = tmp.name
+
         try:
-            urllib.request.urlretrieve(url, matches_db_path)
+            urllib.request.urlretrieve(url, temp_path)
         except urllib.error.URLError as e:
+            os.unlink(temp_path)
             raise RuntimeError(f"Failed to download DB from Release: {e}")
+
+        # Get config values for history preservation
+        scraper_cfg = self._settings.get("scraper_config") or {}
+        max_history = int(scraper_cfg.get("num_days_ahead", 3))
+        local_tz = scraper_cfg.get("local_timezone", "Europe/Bucharest")
+
+        # Merge with history preservation
+        try:
+            self._matches_manager.merge_with_history_preservation(
+                fresh_db_path=temp_path,
+                max_history=max_history,
+                local_tz=local_tz,
+            )
+        finally:
+            # Clean up temp file (best-effort, Windows may still lock it)
+            try:
+                if os.path.exists(temp_path):
+                    os.unlink(temp_path)
+            except OSError:
+                pass  # Windows file locking; OS temp cleanup will handle it
 
         self.refresh_data()
         return "Pull successful"

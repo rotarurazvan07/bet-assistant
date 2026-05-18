@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
+import { getAllMovements } from '../api/oddsHistory';
 import { addSlip, fetchSlips } from '../api/data';
-import type { CandidateLeg, ManualLegIn, BetLeg } from '../types';
+import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary } from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import SlipBuilderPanel from '../components/SlipBuilderPanel';
@@ -35,6 +36,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
 
     // Fetch slips from backend to highlight cells already in slips
     const [slipSelections, setSlipSelections] = useState<Set<string>>(new Set());
+    const [movements, setMovements] = useState<Record<string, OddsMovementSummary>>({});
 
     useEffect(() => {
         let cancelled = false;
@@ -99,6 +101,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
 
     // Reset to page 1 on global filter or external refresh change
     useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey]);
+
+    // Fetch odds movements
+    useEffect(() => {
+        let cancelled = false;
+        getAllMovements()
+            .then(d => { if (!cancelled) setMovements(d); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [refreshKey]);
 
     useEffect(() => {
         let cancelled = false;
@@ -349,7 +360,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                         </thead>
                                         <tbody>
                                             {data.matches.map((m, i) => {
-                                                const activeMarkets = new Set(
+                                                const activeMarkets = new Set<string>(
                                                     pendingLegs
                                                         .filter(leg => leg.result_url === m.result_url)
                                                         .map(leg => leg.market)
@@ -371,6 +382,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                                         onCellClick={handleCellClick}
                                                         activeMarkets={activeMarkets}
                                                         inSlipMarkets={inSlipMarkets}
+                                                        movement={m.match_id != null ? movements[m.match_id] : undefined}
                                                     />
                                                 );
                                             })}

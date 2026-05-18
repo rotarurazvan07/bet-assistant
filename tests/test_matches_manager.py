@@ -62,7 +62,8 @@ def make_chunk_db(path, matches):
             datetime           TEXT NOT NULL,
             predictions_scores TEXT,
             odds               TEXT,
-            result_url         TEXT
+            result_url         TEXT,
+            league             TEXT
         )
     """)
     for m in matches:
@@ -73,7 +74,7 @@ def make_chunk_db(path, matches):
 
             odds_json = json.dumps(asdict(m.odds))
         conn.execute(
-            "INSERT INTO matches (home_team_name, away_team_name, datetime, predictions_scores, odds, result_url) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO matches (home_team_name, away_team_name, datetime, predictions_scores, odds, result_url, league) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
                 m.home_team,
                 m.away_team,
@@ -81,6 +82,7 @@ def make_chunk_db(path, matches):
                 preds_json,
                 odds_json,
                 m.result_url,
+                getattr(m, "league", None),
             ),
         )
     conn.commit()
@@ -410,10 +412,18 @@ class TestFind:
         found, idx = mm._find("Any", "Team", DT_BASE)
         assert found is None
 
-    def test_edge_no_similarity_engine_returns_none(self, mm_no_sim):
+    def test_edge_no_similarity_engine_exact_match_works(self, mm_no_sim):
+        """Without similarity engine, exact matches still work (case-insensitive)."""
         mm_no_sim.add_match(make_match("Arsenal", "Chelsea"))
-        found, _ = mm_no_sim._find("Arsenal", "Chelsea", DT_BASE)
-        assert found is None  # no engine → cannot find
+        found, idx = mm_no_sim._find("Arsenal", "Chelsea", DT_BASE)
+        assert found is not None  # exact match works without engine
+        assert found["home_team_name"] == "Arsenal"
+
+    def test_edge_no_similarity_engine_fuzzy_fails(self, mm_no_sim):
+        """Without similarity engine, fuzzy matching doesn't work."""
+        mm_no_sim.add_match(make_match("Arsenal", "Chelsea"))
+        found, _ = mm_no_sim._find("Arsenaal", "Chelseea", DT_BASE)  # typos
+        assert found is None  # no engine → fuzzy cannot find
 
 
 # ── merge_databases ───────────────────────────────────────────────────────────
@@ -434,13 +444,15 @@ class TestMergeDatabases:
     def test_normal_merges_multiple_chunks(self, mm, tmp_path):
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
-        for i in range(3):
+        # Use distinct team names that won't fuzzy-match each other
+        teams = [("Arsenal", "Chelsea"), ("Barcelona", "Real Madrid"), ("Bayern Munich", "Dortmund")]
+        for i, (home, away) in enumerate(teams):
             make_chunk_db(
                 chunk_dir / f"chunk{i}.db",
                 [
                     make_match(
-                        f"Team{i}A",
-                        f"Team{i}B",
+                        home,
+                        away,
                         dt=DT_BASE + timedelta(days=i),
                         preds=[Score(f"src{i}", i, i + 1)],
                     )

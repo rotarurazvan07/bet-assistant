@@ -4,7 +4,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # 1. Copy local package files (from the same directory as Dockerfile)
-COPY package*.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 # 2. Copy everything else in the current directory

@@ -333,6 +333,7 @@ class BetAssistant(BaseStorageManager):
                         "home": row["home_name"],
                         "away": row["away_name"],
                         "sources": n_sources,
+                        "odds": row.get("odds"),
                         "result_url": row.get("result_url"),
                         "league": row.get("league"),
                         # Consensus

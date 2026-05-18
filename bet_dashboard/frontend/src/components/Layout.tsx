@@ -8,6 +8,7 @@ const LINKS = [
     { to: '/slips', label: 'Slips' },
     { to: '/analytics', label: 'Analytics' },
     { to: '/services', label: 'Services' },
+    { to: '/odds-alert', label: 'Odds Alert' },
 ];
 
 export interface GlobalFilters {

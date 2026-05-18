@@ -9,6 +9,7 @@ import SmartBuilder from './pages/SmartBuilder';
 import Slips from './pages/Slips';
 import Analytics from './pages/Analytics';
 import Services from './pages/Services';
+import OddsAlert from './pages/OddsAlert';
 
 export default function App() {
     const [lastPull, setLastPull] = useState('');
@@ -72,6 +73,8 @@ export default function App() {
                                 element={<Analytics filters={filters} refreshKey={slipsRefresh} />} />
                             <Route path="/services"
                                 element={<Services />} />
+                            <Route path="/odds-alert"
+                                element={<OddsAlert />} />
                         </Routes>
                     </ErrorBoundary>
                 )}
