@@ -2,7 +2,7 @@ from scrape_kit import ScrapeMode, get_logger, scrape
 
 logger = get_logger(__name__)
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from bs4 import BeautifulSoup
 
