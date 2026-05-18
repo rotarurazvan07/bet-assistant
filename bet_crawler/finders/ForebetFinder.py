@@ -255,7 +255,7 @@ class ForebetFinder(BaseMatchFinder):
                     continue
 
                 match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
-                match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M") + timedelta(hours=1)
+                match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M")
 
                 home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
                 away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
