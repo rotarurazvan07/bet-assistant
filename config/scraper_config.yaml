@@ -33,55 +33,55 @@ SKIP_PATTERNS:
 CRAWLER_KEYS:
   scorepredictor:
     class: "ScorePredictorFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   soccervista:
     class: "SoccerVistaFinder_per_league"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   whoscored:
     class: "WhoScoredFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   windrawwin:
     class: "WinDrawWinFinder_per_league"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   forebet:
     class: "ForebetFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   vitibet:
     class: "VitibetFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   predictz:
     class: "PredictzFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   onemillionpredictions:
     class: "OneMillionPredictionsFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   footballbettingtips:
     class: "FootballBettingTipsFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   xgscore:
     class: "xGScoreFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   eaglepredict:
     class: "EaglePredictFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   legitpredict:
     class: "LegitPredictFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   betclan:
     class: "BetClanFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
   oddsportal:
     class: "OddsPortalFinder"
@@ -93,7 +93,7 @@ CRAWLER_KEYS:
     top_leagues_only: true
   footballpredictions:
     class: "FootballPredictionsFinder"
-    contributes_odds: true
+    contributes_odds: false
     top_leagues_only: true
 
 RUNNER_SETS:

@@ -69,6 +69,19 @@ class MatchesManager(BufferedStorageManager):
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)")
             self.conn.execute("CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)")
 
+            # Odds history table for tracking odds movement
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS odds_history (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    match_id   INTEGER NOT NULL,
+                    timestamp  TEXT NOT NULL,
+                    odds       TEXT NOT NULL,
+                    FOREIGN KEY (match_id) REFERENCES matches(id)
+                )
+            """)
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_odds_history_match ON odds_history(match_id)")
+            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_odds_history_ts ON odds_history(timestamp)")
+
             # Schema Migration: Add league column to matches if it doesn't exist
             cursor = self.conn.execute("PRAGMA table_info(matches)")
             columns = [row[1] for row in cursor.fetchall()]
@@ -307,3 +320,103 @@ class MatchesManager(BufferedStorageManager):
         )
         self.flush()
         logger.info(f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing).")
+
+    # ── Odds History ───────────────────────────────────────────────────────────
+
+    def capture_odds_snapshot(self, match_id: int, odds: dict) -> None:
+        """Insert a timestamped odds snapshot for a match."""
+        if not odds:
+            return
+        timestamp = datetime.utcnow().isoformat()
+        odds_json = self.serialize_json(odds)
+        with self.db_lock:
+            self.conn.execute(
+                "INSERT INTO odds_history (match_id, timestamp, odds) VALUES (?, ?, ?)",
+                (match_id, timestamp, odds_json),
+            )
+            self.conn.commit()
+
+    def get_odds_history(self, match_id: int) -> list[dict]:
+        """Retrieve all odds snapshots for a match in chronological order."""
+        with self.db_lock:
+            cursor = self.conn.execute(
+                "SELECT timestamp, odds FROM odds_history WHERE match_id = ? ORDER BY timestamp ASC",
+                (match_id,),
+            )
+            rows = cursor.fetchall()
+        return [
+            {"timestamp": row[0], "odds": self.deserialize_json(row[1])}
+            for row in rows
+        ]
+
+    def prune_old_history(self) -> int:
+        """Delete odds history for matches with datetime < now. Returns count deleted."""
+        now_iso = datetime.utcnow().isoformat()
+        with self.db_lock:
+            cursor = self.conn.execute(
+                """
+                DELETE FROM odds_history
+                WHERE match_id IN (
+                    SELECT id FROM matches WHERE datetime < ?
+                )
+                """,
+                (now_iso,),
+            )
+            deleted = cursor.rowcount
+            self.conn.commit()
+        if deleted > 0:
+            logger.info(f"Pruned {deleted} old odds history records")
+        return deleted
+
+    def calculate_movement(self, match_id: int) -> dict:
+        """Compare first vs latest snapshot, return direction per market.
+        
+        Returns dict with keys like 'home', 'draw', 'away', etc.
+        Values are 'up', 'down', 'stable', or None if no data.
+        """
+        history = self.get_odds_history(match_id)
+        if len(history) < 2:
+            return {}
+
+        first_odds = history[0]["odds"] or {}
+        latest_odds = history[-1]["odds"] or {}
+
+        markets = ["home", "draw", "away", "over_25", "under_25", "btts_y", "btts_n"]
+        movement = {}
+
+        for market in markets:
+            first_val = first_odds.get(market)
+            latest_val = latest_odds.get(market)
+
+            if first_val is None or latest_val is None:
+                movement[market] = None
+            elif latest_val > first_val:
+                movement[market] = "up"
+            elif latest_val < first_val:
+                movement[market] = "down"
+            else:
+                movement[market] = "stable"
+
+        return movement
+
+    def capture_all_future_odds(self) -> int:
+        """Capture odds snapshots for all future matches. Returns count captured."""
+        now_iso = datetime.utcnow().isoformat()
+        captured = 0
+        with self.db_lock:
+            cursor = self.conn.execute(
+                "SELECT id, odds FROM matches WHERE datetime >= ? AND odds IS NOT NULL",
+                (now_iso,),
+            )
+            rows = cursor.fetchall()
+
+        for row in rows:
+            match_id, odds_json = row
+            odds = self.deserialize_json(odds_json)
+            if odds:
+                self.capture_odds_snapshot(match_id, odds)
+                captured += 1
+
+        if captured > 0:
+            logger.info(f"Captured odds snapshots for {captured} future matches")
+        return captured

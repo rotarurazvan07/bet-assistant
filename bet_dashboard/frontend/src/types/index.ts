@@ -282,3 +282,30 @@ export interface WsEvent {
     enabled?: boolean;
     live_data?: Record<string, { score: string; minute: string }>;
 }
+
+// ── Odds History ──────────────────────────────────────────────────────────────
+
+export type OddsMovementDirection = 'up' | 'down' | 'stable' | null;
+
+export interface OddsSnapshot {
+    timestamp: string;
+    odds: Record<string, number | null>;
+}
+
+export interface OddsHistory {
+    match_id: number;
+    match_name: string;
+    datetime: string;
+    snapshots: OddsSnapshot[];
+    movement: Record<string, OddsMovementDirection>;
+}
+
+export interface OddsMovementSummary {
+    home?: OddsMovementDirection;
+    draw?: OddsMovementDirection;
+    away?: OddsMovementDirection;
+    over_25?: OddsMovementDirection;
+    under_25?: OddsMovementDirection;
+    btts_y?: OddsMovementDirection;
+    btts_n?: OddsMovementDirection;
+}

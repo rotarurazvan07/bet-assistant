@@ -132,3 +132,29 @@ class BetSlipOut(BaseModel):
 class ServicesSettingsIn(BaseModel):
     generate_hour: int
     generate_minute: int = 0
+
+
+# ── Odds History ──────────────────────────────────────────────────────────────
+
+
+class OddsSnapshotOut(BaseModel):
+    timestamp: str  # ISO datetime when snapshot was captured
+    odds: dict  # Full odds object {home, draw, away, over_25, under_25, ...}
+
+
+class OddsHistoryOut(BaseModel):
+    match_id: int
+    match_name: str
+    datetime: str
+    snapshots: list[OddsSnapshotOut]
+    movement: dict  # {market: "up"|"down"|"stable"} for each odds field
+
+
+class OddsMovementSummary(BaseModel):
+    home: str | None = None  # "up", "down", "stable", or None
+    draw: str | None = None
+    away: str | None = None
+    over_25: str | None = None
+    under_25: str | None = None
+    btts_y: str | None = None
+    btts_n: str | None = None

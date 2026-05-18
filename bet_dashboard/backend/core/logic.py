@@ -186,10 +186,40 @@ class AppLogic:
     def _do_pull(self) -> None:
         try:
             print("[Puller] Change detected, downloading...")
+            # Capture current odds before overwriting the database
+            self._capture_current_odds()
             self.pull_matches_db(self._matches_db_path)
+            # Prune history for past matches after refresh
+            self._prune_odds_history()
             self._broadcast_matches_updated()
         except Exception as exc:
             print(f"[Puller] ERROR: {exc}")
+
+    def _capture_current_odds(self) -> None:
+        """Capture odds snapshots for all future matches before DB overwrite."""
+        try:
+            captured = self._matches_manager.capture_all_future_odds()
+            if captured > 0:
+                print(f"[Puller] Captured odds snapshots for {captured} matches")
+        except Exception as exc:
+            print(f"[Puller] Failed to capture odds: {exc}")
+
+    def _prune_odds_history(self) -> None:
+        """Remove odds history for matches that have already occurred."""
+        try:
+            pruned = self._matches_manager.prune_old_history()
+            if pruned > 0:
+                print(f"[Puller] Pruned {pruned} old odds history records")
+        except Exception as exc:
+            print(f"[Puller] Failed to prune odds history: {exc}")
+
+    def get_odds_movement(self, match_id: int) -> dict:
+        """Get odds movement direction for a match."""
+        return self._matches_manager.calculate_movement(match_id)
+
+    def get_odds_history(self, match_id: int) -> list[dict]:
+        """Get all odds snapshots for a match."""
+        return self._matches_manager.get_odds_history(match_id)
 
     def _do_generate(self) -> None:
         try:

@@ -31,7 +31,7 @@ from core.logic import AppLogic  # noqa: E402
 from core.ws import ws_manager  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from routers import analytics, builder, matches, profiles, services, slips, system  # noqa: E402
+from routers import analytics, builder, matches, odds_history, profiles, services, slips, system  # noqa: E402
 
 
 @asynccontextmanager
@@ -76,6 +76,7 @@ def create_app() -> FastAPI:
         analytics.router,
         services.router,
         system.router,
+        odds_history.router,
     ]:
         app.include_router(router)
 
