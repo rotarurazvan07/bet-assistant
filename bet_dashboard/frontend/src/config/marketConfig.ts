@@ -53,6 +53,7 @@ export const FIXED_COLUMNS: TableColumn[] = [
     { key: 'home', label: 'Home', wide: true },
     { key: 'away', label: 'Away', wide: true },
     { key: 'sources', label: 'Sources' },
+    { key: 'league', label: 'League', wide: true },
 ];
 
 /**

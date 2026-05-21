@@ -109,6 +109,7 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
             odds,
             result_url: match.result_url,
             sources: match.sources,
+            league: match.league,
             tier: 0,
             score: 0,
         };
@@ -144,6 +145,11 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         <td key="sources" className="px-4 py-3 text-center">
             <span className="font-mono text-base" style={{ color: 'var(--text-secondary)' }}>
                 {match.sources}
+            </span>
+        </td>,
+        <td key="league" className="px-4 py-3">
+            <span className="font-sans text-sm" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                {match.league ?? '—'}
             </span>
         </td>,
     ];

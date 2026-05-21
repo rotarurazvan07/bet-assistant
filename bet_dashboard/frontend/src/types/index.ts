@@ -23,6 +23,7 @@ export interface Match {
     odds_over_45: number; odds_under_45: number;
     odds_dc_1x: number; odds_dc_12: number; odds_dc_x2: number;
     result_url: string | null;
+    league: string | null;
 }
 
 export interface MatchesPage {
@@ -130,6 +131,7 @@ export interface ManualLegIn {
     datetime: string;  // ISO format datetime, required
     consensus: number;  // 0-100 percentage
     sources: number;  // number of sources
+    league?: string | null;
 }
 
 export interface BetLeg {
