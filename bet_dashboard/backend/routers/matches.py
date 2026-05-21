@@ -62,6 +62,7 @@ def get_matches(
     has_odds = min_odds is not None and min_odds > 1.0
     if has_cons or has_odds:
         import pandas as pd
+
         mask = pd.Series(False, index=df.index)
         for md in MARKET_DEFINITIONS:
             if md.cons_key not in df.columns:

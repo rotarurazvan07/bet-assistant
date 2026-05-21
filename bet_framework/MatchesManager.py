@@ -60,9 +60,7 @@ for _gl, _gf in ODDS_MARKET_GROUPS:
         _FIELD_TO_GROUP[_fn] = (_gl, _gf)
 
 
-def _check_market_group(
-    odds_dict: dict, fields: list[tuple[str, str]]
-) -> tuple[bool, float]:
+def _check_market_group(odds_dict: dict, fields: list[tuple[str, str]]) -> tuple[bool, float]:
     """Check if a complete market group passes implied-probability sanity.
 
     Returns (is_valid, implied_prob_pct).
@@ -344,7 +342,10 @@ class MatchesManager(BufferedStorageManager):
                 rejected_fields |= bad_keys & raw_patch.keys()
                 logger.warning(
                     "Rejecting %s odds for %s vs %s (implied=%.1f%%)",
-                    group_label, match.home_team, match.away_team, implied,
+                    group_label,
+                    match.home_team,
+                    match.away_team,
+                    implied,
                 )
         patch = {k: v for k, v in raw_patch.items() if k not in rejected_fields}
         if not patch:
@@ -467,7 +468,11 @@ class MatchesManager(BufferedStorageManager):
             odds_str = "  ".join(f"{k}={v:.2f}" for k, v in iss.odds_values.items())
             logger.warning(
                 "  %s vs %s | %s | implied=%.1f%% | %s",
-                iss.home, iss.away, iss.market, iss.implied_prob_pct, odds_str,
+                iss.home,
+                iss.away,
+                iss.market,
+                iss.implied_prob_pct,
+                odds_str,
             )
         logger.warning("=== END ODDS VALIDATION REPORT ===")
 
