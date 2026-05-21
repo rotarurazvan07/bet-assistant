@@ -29,6 +29,55 @@ class NearMiss(NamedTuple):
     source_b: str
 
 
+class OddsValidationIssue(NamedTuple):
+    home: str
+    away: str
+    market: str
+    implied_prob_pct: float
+    odds_values: dict[str, float]
+
+
+# Market groups: each is (group_label, [(field_name, display_label), ...])
+# Sum of 1/odds for each group should be ~100-115% (bookmaker margin)
+# Implied-probability thresholds (percent).  A healthy book sums to ~102-112%.
+ODDS_VALID_LOW = 95.0
+ODDS_VALID_HIGH = 120.0
+ODDS_MARKET_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
+    ("1X2", [("home", "1"), ("draw", "X"), ("away", "2")]),
+    ("Double Chance", [("double_chance_1x", "1X"), ("double_chance_x2", "X2"), ("double_chance_12", "12")]),
+    ("O/U 0.5", [("over_0_5", "O0.5"), ("under_0_5", "U0.5")]),
+    ("O/U 1.5", [("over_1_5", "O1.5"), ("under_1_5", "U1.5")]),
+    ("O/U 2.5", [("over_2_5", "O2.5"), ("under_2_5", "U2.5")]),
+    ("O/U 3.5", [("over_3_5", "O3.5"), ("under_3_5", "U3.5")]),
+    ("O/U 4.5", [("over_4_5", "O4.5"), ("under_4_5", "U4.5")]),
+    ("O/U 5.5", [("over_5_5", "O5.5"), ("under_5_5", "U5.5")]),
+    ("BTTS", [("btts_yes", "Yes"), ("btts_no", "No")]),
+]
+# Reverse lookup: field_name -> (group_label, group_fields)
+_FIELD_TO_GROUP: dict[str, tuple[str, list[tuple[str, str]]]] = {}
+for _gl, _gf in ODDS_MARKET_GROUPS:
+    for _fn, _ in _gf:
+        _FIELD_TO_GROUP[_fn] = (_gl, _gf)
+
+
+def _check_market_group(
+    odds_dict: dict, fields: list[tuple[str, str]]
+) -> tuple[bool, float]:
+    """Check if a complete market group passes implied-probability sanity.
+
+    Returns (is_valid, implied_prob_pct).
+    If any selection is missing, returns (True, 0.0) — incomplete groups are allowed.
+    """
+    values: list[float] = []
+    for field, _ in fields:
+        v = odds_dict.get(field)
+        if v is None or not isinstance(v, (int, float)) or v <= 0:
+            return True, 0.0  # incomplete group — can't validate
+        values.append(float(v))
+    implied = sum(1.0 / v for v in values) * 100.0
+    return ODDS_VALID_LOW <= implied <= ODDS_VALID_HIGH, implied
+
+
 def _is_empty(value) -> bool:
     """Return True for None, any NaN/NA/NaT variant, or empty/whitespace string."""
     if value is None:
@@ -276,11 +325,32 @@ class MatchesManager(BufferedStorageManager):
 
     def _update_odds(self, match: Match, found: dict, idx: int) -> bool:
         cur = self.deserialize_json(found.get("odds")) or {}
-        patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
-        if patch:
-            self._buffer.at[idx, "odds"] = self.serialize_json({**cur, **patch})
-            return True
-        return False
+        raw_patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
+        if not raw_patch:
+            return False
+        # Validate each market group that would become complete after patching
+        merged = {**cur, **raw_patch}
+        rejected_fields: set[str] = set()
+        checked_groups: set[str] = set()
+        for field in raw_patch:
+            grp = _FIELD_TO_GROUP.get(field)
+            if grp is None or grp[0] in checked_groups:
+                continue
+            group_label, group_fields = grp
+            checked_groups.add(group_label)
+            valid, implied = _check_market_group(merged, group_fields)
+            if not valid:
+                bad_keys = {f for f, _ in group_fields}
+                rejected_fields |= bad_keys & raw_patch.keys()
+                logger.warning(
+                    "Rejecting %s odds for %s vs %s (implied=%.1f%%)",
+                    group_label, match.home_team, match.away_team, implied,
+                )
+        patch = {k: v for k, v in raw_patch.items() if k not in rejected_fields}
+        if not patch:
+            return False
+        self._buffer.at[idx, "odds"] = self.serialize_json({**cur, **patch})
+        return True
 
     def reset_matches_db(self) -> None:
         self.clear_database("matches")  # clears buffer + dirty flag (inherited)
@@ -335,6 +405,7 @@ class MatchesManager(BufferedStorageManager):
         self.flush()
         self._log_near_misses()
         self._clear_near_misses()
+        self._log_odds_validation_report()
         logger.info(f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing).")
 
     # ── Near-miss logging ──────────────────────────────────────────────────────
@@ -358,6 +429,47 @@ class MatchesManager(BufferedStorageManager):
     def _clear_near_misses(self) -> None:
         """Clear tracked near-misses."""
         self._near_misses.clear()
+
+    # ── Odds mathematical validation ──────────────────────────────────────────
+
+    def _validate_all_odds(self) -> list[OddsValidationIssue]:
+        """Scan buffer for odds that don't add up mathematically."""
+        buf = self.ensure_buffer()
+        if buf.empty:
+            return []
+        issues: list[OddsValidationIssue] = []
+        for _, row in buf.iterrows():
+            odds_json = row.get("odds")
+            if not odds_json or (isinstance(odds_json, float) and pd.isna(odds_json)):
+                continue
+            odds_dict = self.deserialize_json(odds_json)
+            if not odds_dict:
+                continue
+            home = row.get("home_team_name", "?")
+            away = row.get("away_team_name", "?")
+            for group_label, fields in ODDS_MARKET_GROUPS:
+                valid, implied = _check_market_group(odds_dict, fields)
+                if implied == 0.0:
+                    continue  # incomplete group
+                if not valid:
+                    vals = {lbl: float(odds_dict[fld]) for fld, lbl in fields}
+                    issues.append(OddsValidationIssue(home, away, group_label, round(implied, 2), vals))
+        return issues
+
+    def _log_odds_validation_report(self) -> None:
+        """Log matches whose odds fail the implied-probability sanity check."""
+        issues = self._validate_all_odds()
+        if not issues:
+            logger.info("=== ODDS VALIDATION: all markets passed (%.0f-%.0f%% range) ===", ODDS_VALID_LOW, ODDS_VALID_HIGH)
+            return
+        logger.warning("=== ODDS VALIDATION REPORT: %d problematic markets ===", len(issues))
+        for iss in sorted(issues, key=lambda x: abs(x.implied_prob_pct - 107.5), reverse=True):
+            odds_str = "  ".join(f"{k}={v:.2f}" for k, v in iss.odds_values.items())
+            logger.warning(
+                "  %s vs %s | %s | implied=%.1f%% | %s",
+                iss.home, iss.away, iss.market, iss.implied_prob_pct, odds_str,
+            )
+        logger.warning("=== END ODDS VALIDATION REPORT ===")
 
     # ── Embedded Odds History ──────────────────────────────────────────────────
 

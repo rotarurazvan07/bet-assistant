@@ -113,7 +113,7 @@ RUNNER_SETS:
     - whoscored
     - footballbettingtips
     - forebet
-    # - betexplorer
+    - betexplorer
     - oddsportal
   test:
     - betexplorer

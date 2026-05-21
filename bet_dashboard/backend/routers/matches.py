@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from core.market_config import CONSENSUS_COLUMNS
+from core.market_config import CONSENSUS_COLUMNS, MARKET_DEFINITIONS
 from fastapi import APIRouter, Query, Request
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
@@ -39,6 +39,7 @@ def get_matches(
     sort_by: str = Query("datetime"),
     sort_dir: str = Query("asc"),
     min_consensus: int | None = Query(None, ge=0, le=100),
+    min_odds: float | None = Query(None, ge=1.0, le=50.0),
 ):
     logic = _get(request).logic
     df = logic.filter_matches(
@@ -56,13 +57,24 @@ def get_matches(
             "matches": [],
         }
 
-    # Apply min_consensus filter if provided
-    if min_consensus is not None and min_consensus > 0:
-        available_cols = [c for c in CONSENSUS_COLUMNS if c in df.columns]
-        if available_cols:
-            # Keep rows where at least one consensus column meets the threshold
-            mask = df[available_cols].ge(min_consensus).any(axis=1)
-            df = df[mask]
+    # Apply combined min_consensus + min_odds filter
+    has_cons = min_consensus is not None and min_consensus > 0
+    has_odds = min_odds is not None and min_odds > 1.0
+    if has_cons or has_odds:
+        import pandas as pd
+        mask = pd.Series(False, index=df.index)
+        for md in MARKET_DEFINITIONS:
+            if md.cons_key not in df.columns:
+                continue
+            cell_ok = pd.Series(True, index=df.index)
+            if has_cons:
+                cell_ok &= df[md.cons_key].ge(min_consensus)
+            if has_odds and md.odds_key in df.columns:
+                cell_ok &= df[md.odds_key].ge(min_odds)
+            elif has_odds:
+                cell_ok = pd.Series(False, index=df.index)
+            mask |= cell_ok
+        df = df[mask]
 
     if df.empty:
         return {

@@ -74,6 +74,10 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).minConsensus : null;
     });
+    const [minOdds, setMinOdds] = useState<number | null>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).minOdds ?? null : null;
+    });
     const [page, setPage] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).page : 1;
@@ -92,12 +96,13 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
             search,
             minConsensus,
+            minOdds,
             page,
             sortBy,
             sortDir,
             pendingLegs
         }));
-    }, [search, minConsensus, page, sortBy, sortDir, pendingLegs]);
+    }, [search, minConsensus, minOdds, page, sortBy, sortDir, pendingLegs]);
 
     // Reset to page 1 on global filter or external refresh change
     useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey]);
@@ -122,6 +127,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             sort_by: sortBy,
             sort_dir: sortDir,
             min_consensus: minConsensus,
+            min_odds: minOdds,
         })
             .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
             .catch(() => {
@@ -131,7 +137,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 }
             });
         return () => { cancelled = true; };
-    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, sortBy, sortDir, refreshKey]);
+    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, sortBy, sortDir, refreshKey]);
 
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -309,6 +315,27 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                     />
                                     <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
                                         {minConsensus !== null ? `${minConsensus}%` : 'Any'}
+                                    </span>
+                                </div>
+                            </div>
+                            {/* Min Odds */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                    Min Odds
+                                    <TooltipIcon text="Minimum odds required. A market cell must have both the min consensus AND min odds to count. If any cell passes both filters, the row is shown." align="right" />
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="range"
+                                        min={1.0}
+                                        max={5.0}
+                                        step={0.1}
+                                        value={minOdds ?? 1.0}
+                                        onChange={e => setMinOdds(Number(e.target.value) <= 1.0 ? null : Number(e.target.value))}
+                                        className="w-32"
+                                    />
+                                    <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                        {minOdds !== null ? minOdds.toFixed(1) : 'Any'}
                                     </span>
                                 </div>
                             </div>
