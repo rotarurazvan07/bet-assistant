@@ -201,6 +201,16 @@ class AppLogic:
             return {}
         return self._matches_manager.calculate_movement_from_odds(odds_dict)
 
+    def get_odds_movement_with_strength(self, match_id: int) -> dict:
+        """Get odds movement with strength metrics for a match."""
+        df = self.match_df
+        if df.empty or match_id < 0 or match_id >= len(df):
+            return {}
+        odds_dict = df.iloc[match_id].get("odds")
+        if not odds_dict or not isinstance(odds_dict, dict):
+            return {}
+        return self._matches_manager.calculate_movement_with_strength(odds_dict)
+
     def get_odds_history(self, match_id: int) -> list[dict]:
         """Get all odds snapshots for a match (from embedded history)."""
         df = self.match_df

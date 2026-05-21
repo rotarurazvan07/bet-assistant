@@ -402,6 +402,50 @@ class MatchesManager(BufferedStorageManager):
 
         return movement
 
+    def calculate_movement_with_strength(self, odds_dict: dict | None) -> dict:
+        """Calculate movement with strength metrics for significance filtering.
+
+        Returns dict mapping market -> {direction, change_pct, significant}.
+        A movement is significant if |change_pct| >= 5% relative change
+        OR |absolute_change| >= 0.10 for low odds (< 2.0).
+        Requires at least 2 history snapshots to be considered significant.
+        """
+        if not odds_dict:
+            return {}
+        history = self._extract_history_from_odds(odds_dict)
+        current = self._get_current_odds_snapshot(odds_dict)
+        if not history or not current:
+            return {}
+        first_odds = history[0]
+        markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
+        has_enough_history = len(history) >= 2
+        result: dict = {}
+        for market in markets:
+            first_val = first_odds.get(market)
+            current_val = current.get(market)
+            if first_val is None or current_val is None:
+                result[market] = {"direction": None, "change_pct": 0.0, "significant": False}
+                continue
+            if first_val == 0:
+                change_pct = 0.0
+            else:
+                change_pct = round(((current_val - first_val) / abs(first_val)) * 100, 2)
+            abs_change = abs(current_val - first_val)
+            if current_val > first_val:
+                direction = "up"
+            elif current_val < first_val:
+                direction = "down"
+            else:
+                direction = "stable"
+            significant = False
+            if has_enough_history and direction != "stable":
+                if abs(change_pct) >= 5.0:
+                    significant = True
+                elif first_val < 2.0 and abs_change >= 0.10:
+                    significant = True
+            result[market] = {"direction": direction, "change_pct": change_pct, "significant": significant}
+        return result
+
     def get_movement_for_row(self, row_idx: int) -> dict:
         """Get odds movement for a specific row index."""
         buf = self.ensure_buffer()
@@ -461,8 +505,12 @@ class MatchesManager(BufferedStorageManager):
         logger.info(f"Found {len(future_matches)} future matches with potential history to preserve")
 
         # Load fresh database into a temporary manager
+        import os
+        fresh_file_size = os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
+        logger.info(f"Loading fresh DB from {fresh_db_path} (size: {fresh_file_size} bytes)")
         fresh_manager = MatchesManager(fresh_db_path, self.similarity_engine._config if self.similarity_engine else None)
         fresh_buf = fresh_manager.ensure_buffer()
+        logger.info(f"Fresh buffer: {len(fresh_buf)} rows, columns: {list(fresh_buf.columns) if not fresh_buf.empty else 'N/A'}")
 
         if fresh_buf.empty:
             logger.warning("Fresh database is empty, nothing to merge")
@@ -471,36 +519,40 @@ class MatchesManager(BufferedStorageManager):
         # For each future match from current DB, try to find it in fresh DB and transfer history
         transferred = 0
         for match_data in future_matches:
-            if not match_data["odds"]:
-                continue
+            try:
+                if not match_data["odds"]:
+                    continue
 
-            # Use fuzzy matching to find corresponding row in fresh DB
-            found, fresh_idx = fresh_manager._find(match_data["home"], match_data["away"], match_data["datetime"])
+                # Use fuzzy matching to find corresponding row in fresh DB
+                found, fresh_idx = fresh_manager._find(match_data["home"], match_data["away"], match_data["datetime"])
 
-            if found is not None and fresh_idx is not None:
-                # Create snapshot from current odds
-                snapshot = {"ts": timestamp}
-                current_odds = self._get_current_odds_snapshot(match_data["odds"])
-                snapshot.update(current_odds)
+                if found is not None and fresh_idx is not None:
+                    # Create snapshot from current odds
+                    snapshot = {"ts": timestamp}
+                    current_odds = self._get_current_odds_snapshot(match_data["odds"])
+                    snapshot.update(current_odds)
 
-                # Get fresh row's odds and append history
-                fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
-                fresh_odds = fresh_manager.deserialize_json(fresh_odds_json) if fresh_odds_json else {}
+                    # Get fresh row's odds and append history
+                    fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
+                    fresh_odds = fresh_manager.deserialize_json(fresh_odds_json) if (fresh_odds_json and not pd.isna(fresh_odds_json)) else {}
+                    fresh_odds = fresh_odds or {}
 
-                # Preserve existing history from current match
-                existing_history = self._extract_history_from_odds(match_data["odds"])
+                    # Preserve existing history from current match
+                    existing_history = self._extract_history_from_odds(match_data["odds"])
 
-                # Merge histories: existing + new snapshot
-                combined_odds = dict(fresh_odds)
-                combined_odds["history"] = existing_history
+                    # Merge histories: existing + new snapshot
+                    combined_odds = dict(fresh_odds)
+                    combined_odds["history"] = existing_history
 
-                # Append current snapshot
-                combined_odds = self._append_to_history(combined_odds, snapshot, max_history)
+                    # Append current snapshot
+                    combined_odds = self._append_to_history(combined_odds, snapshot, max_history)
 
-                # Update fresh buffer
-                fresh_buf.at[fresh_idx, "odds"] = fresh_manager.serialize_json(combined_odds)
-                fresh_manager._dirty = True
-                transferred += 1
+                    # Update fresh buffer
+                    fresh_buf.at[fresh_idx, "odds"] = fresh_manager.serialize_json(combined_odds)
+                    fresh_manager._dirty = True
+                    transferred += 1
+            except Exception as exc:
+                logger.error(f"History transfer error for {match_data.get('home')} vs {match_data.get('away')}: {exc}")
 
         logger.info(f"Transferred odds history to {transferred} matches in fresh database")
 
