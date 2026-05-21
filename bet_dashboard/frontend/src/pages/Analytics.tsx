@@ -22,6 +22,20 @@ const TT: React.CSSProperties = {
     padding: '10px 14px',
 };
 
+const MIN_SAMPLE_SIZE = 10;
+
+function sortWithLowSampleLast<T extends { legs: number }>(
+    data: T[], sortKey: keyof T, sortDir: 'asc' | 'desc'
+): T[] {
+    const sufficient = data.filter(d => d.legs >= MIN_SAMPLE_SIZE);
+    const insufficient = data.filter(d => d.legs < MIN_SAMPLE_SIZE);
+    const sorter = (a: T, b: T) => {
+        const va = a[sortKey] as number, vb = b[sortKey] as number;
+        return sortDir === 'desc' ? vb - va : va - vb;
+    };
+    return [...sufficient.sort(sorter), ...insufficient.sort(sorter)];
+}
+
 // ── Chart wrapper ──────────────────────────────────────────────────────────────
 
 function ChartCard({ title, tip, children, className = '', style }: {
@@ -494,13 +508,9 @@ function MarketTable({ data }: { data: MarketBreakdown[] }) {
     const [sortKey, setSortKey] = useState<keyof MarketBreakdown>('edge');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-    const sorted = useMemo(() => {
-        return [...data].sort((a, b) => {
-            const va = a[sortKey] as number;
-            const vb = b[sortKey] as number;
-            return sortDir === 'desc' ? vb - va : va - vb;
-        });
-    }, [data, sortKey, sortDir]);
+    const sorted = useMemo(() =>
+        sortWithLowSampleLast(data, sortKey, sortDir),
+    [data, sortKey, sortDir]);
 
     const handleSort = (k: keyof MarketBreakdown) => {
         if (k === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
@@ -544,13 +554,17 @@ function MarketTable({ data }: { data: MarketBreakdown[] }) {
                 </thead>
                 <tbody>
                     {sorted.map((row, i) => {
+                        const lowSample = row.legs < MIN_SAMPLE_SIZE;
                         const edgeColor = row.edge > 2 ? 'var(--win)' : row.edge > 0 ? 'var(--pending)' : 'var(--loss)';
                         const edgeBg = row.edge > 2 ? 'var(--win-bg)' : row.edge > 0 ? 'var(--pending-bg)' : 'var(--loss-bg)';
                         return (
                             <tr key={i} style={{
                                 borderBottom: '1px solid var(--border)',
                                 background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                            }}>
+                                opacity: lowSample ? 0.4 : 1,
+                                filter: lowSample ? 'grayscale(80%)' : 'none',
+                                fontStyle: lowSample ? 'italic' : 'normal',
+                            }} title={lowSample ? `Low sample size (n=${row.legs})` : undefined}>
                                 <td className="px-4 py-3">
                                     <span className="font-mono font-bold text-sm"
                                         style={{ color: 'var(--text-bright)' }}>{row.market}</span>
@@ -602,13 +616,9 @@ function MarketTable({ data }: { data: MarketBreakdown[] }) {
 function LeagueTable({ data }: { data: LeagueBreakdown[] }) {
     const [sortKey, setSortKey] = useState<keyof LeagueBreakdown>('edge');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-    const sorted = useMemo(() => {
-        return [...data].sort((a, b) => {
-            const va = a[sortKey] as number;
-            const vb = b[sortKey] as number;
-            return sortDir === 'desc' ? vb - va : va - vb;
-        });
-    }, [data, sortKey, sortDir]);
+    const sorted = useMemo(() =>
+        sortWithLowSampleLast(data, sortKey, sortDir),
+    [data, sortKey, sortDir]);
     const handleSort = (k: keyof LeagueBreakdown) => {
         if (k === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
         else { setSortKey(k); setSortDir('desc'); }
@@ -643,10 +653,13 @@ function LeagueTable({ data }: { data: LeagueBreakdown[] }) {
                 </thead>
                 <tbody>
                     {sorted.map((row, i) => {
+                        const lowSample = row.legs < MIN_SAMPLE_SIZE;
                         const edgeColor = row.edge > 2 ? 'var(--win)' : row.edge > 0 ? 'var(--pending)' : 'var(--loss)';
                         const edgeBg = row.edge > 2 ? 'var(--win-bg)' : row.edge > 0 ? 'var(--pending-bg)' : 'var(--loss-bg)';
                         return (
-                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                                opacity: lowSample ? 0.4 : 1, filter: lowSample ? 'grayscale(80%)' : 'none', fontStyle: lowSample ? 'italic' : 'normal',
+                            }} title={lowSample ? `Low sample size (n=${row.legs})` : undefined}>
                                 <td className="px-4 py-3"><span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>{row.league}</span></td>
                                 <td className="px-4 py-3"><span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>{row.legs}</span></td>
                                 <td className="px-4 py-3"><span className="font-mono text-sm" style={{ color: row.win_rate >= 50 ? 'var(--win)' : 'var(--loss)' }}>{row.win_rate}%</span></td>
@@ -667,7 +680,7 @@ function LeagueTable({ data }: { data: LeagueBreakdown[] }) {
 
 function CorrelationMatrix({ data }: { data: NonNullable<AnalyticsData['correlation_matrix']> }) {
     const [view, setView] = useState<'win_rate' | 'edge'>('edge');
-    
+
     if (!data.leagues.length || !data.markets.length) return null;
 
     return (
@@ -678,12 +691,12 @@ function CorrelationMatrix({ data }: { data: NonNullable<AnalyticsData['correlat
                         style={{ color: 'var(--text-secondary)' }}>League x Market Correlation</p>
                     <TooltipIcon text="Cross-tabulation of performance across league and market intersections. Heatmap colors: Green = High, Red = Low." align="right" />
                 </div>
-                
+
                 <div className="flex bg-black/20 p-1 rounded-lg border border-white/5">
-                    <button 
+                    <button
                         className={`px-3 py-1 rounded-md text-[10px] font-mono uppercase transition-all ${view === 'edge' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
                         onClick={() => setView('edge')}>Edge</button>
-                    <button 
+                    <button
                         className={`px-3 py-1 rounded-md text-[10px] font-mono uppercase transition-all ${view === 'win_rate' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
                         onClick={() => setView('win_rate')}>Win Rate</button>
                 </div>
@@ -712,14 +725,14 @@ function CorrelationMatrix({ data }: { data: NonNullable<AnalyticsData['correlat
                                 {data.markets.map(m => {
                                     const cell = data.matrix[lg]?.[m];
                                     if (!cell) return <td key={m} className="p-3 text-center text-gray-700 text-[10px]">—</td>;
-                                    
+
                                     const val = view === 'edge' ? cell.edge : cell.win_rate;
                                     const label = view === 'edge' ? `${val > 0 ? '+' : ''}${val.toFixed(1)}%` : `${val.toFixed(0)}%`;
-                                    
+
                                     // Heatmap colors
                                     let color = 'var(--text-secondary)';
                                     let bg = 'transparent';
-                                    
+
                                     if (view === 'edge') {
                                         if (val > 5) { color = 'var(--win)'; bg = 'rgba(0, 200, 100, 0.15)'; }
                                         else if (val > 0) { color = 'var(--win)'; bg = 'rgba(0, 200, 100, 0.05)'; }
@@ -731,8 +744,13 @@ function CorrelationMatrix({ data }: { data: NonNullable<AnalyticsData['correlat
                                         else if (val < 40) { color = 'var(--loss)'; bg = 'rgba(255, 80, 80, 0.15)'; }
                                     }
 
+                                    const cellLowSample = cell.total < MIN_SAMPLE_SIZE / 2;
                                     return (
-                                        <td key={m} className="p-2 text-center" style={{ backgroundColor: bg }}>
+                                        <td key={m} className="p-2 text-center" style={{
+                                            backgroundColor: bg,
+                                            opacity: cellLowSample ? 0.35 : 1,
+                                            filter: cellLowSample ? 'grayscale(80%)' : 'none',
+                                        }} title={cellLowSample ? `Low sample (n=${cell.total})` : undefined}>
                                             <div className="flex flex-col items-center">
                                                 <span className="text-[11px] font-mono font-bold" style={{ color }}>{label}</span>
                                                 <span className="text-[8px] font-mono text-gray-500 mt-0.5">n={cell.total}</span>
@@ -846,6 +864,43 @@ export default function Analytics({ filters, refreshKey }: Props) {
         })),
     [data?.rolling_edge]);
 
+    // Dual-axis 0-aligned domains for Cumulative P&L chart
+    const { cumulativeDomain, dailyDomain } = useMemo(() => {
+        const h = data?.history ?? [];
+        if (!h.length) return { cumulativeDomain: [-1, 1] as [number, number], dailyDomain: [-1, 1] as [number, number] };
+        const cVals = h.map(d => d.cumulative_profit);
+        const dVals = h.map(d => d.net_profit);
+        // Natural bounds with 0 always included
+        let cMin = Math.min(...cVals, 0), cMax = Math.max(...cVals, 0);
+        let dMin = Math.min(...dVals, 0), dMax = Math.max(...dVals, 0);
+        // Prevent zero-range
+        if (cMax - cMin < 0.1) { cMin = -0.1; cMax = 0.1; }
+        if (dMax - dMin < 0.1) { dMin = -0.1; dMax = 0.1; }
+        // Zero-position ratio (fraction of range below 0)
+        const cRatio = Math.abs(cMin) / (Math.abs(cMin) + cMax);
+        const dRatio = Math.abs(dMin) / (Math.abs(dMin) + dMax);
+        const targetRatio = Math.max(cRatio, dRatio);
+        // Expand each axis so 0 sits at the same vertical fraction
+        if (cRatio < targetRatio) cMin = -(cMax * targetRatio / (1 - targetRatio));
+        else cMax = Math.abs(cMin) * (1 - targetRatio) / targetRatio;
+        if (dRatio < targetRatio) dMin = -(dMax * targetRatio / (1 - targetRatio));
+        else dMax = Math.abs(dMin) * (1 - targetRatio) / targetRatio;
+        return { cumulativeDomain: [cMin, cMax] as [number, number], dailyDomain: [dMin, dMax] as [number, number] };
+    }, [data?.history]);
+
+    const drawdownDomain = useMemo((): [number, number] => {
+        const dd = data?.drawdown ?? [];
+        if (!dd.length) return [-1, 0];
+        const minDD = Math.min(...dd.map(d => d.drawdown));
+        return [minDD, 0];
+    }, [data?.drawdown]);
+
+    const rollingEdgeDomain = useMemo((): [number, number] => {
+        if (!rollingEdgeData.length) return [-1, 1];
+        const vals = rollingEdgeData.map(d => d.rolling_edge);
+        return [Math.min(...vals, 0), Math.max(...vals, 0)];
+    }, [rollingEdgeData]);
+
     if (!data?.stats) return (
         <div>
             <h1 className="font-display font-bold text-xl mb-5"
@@ -952,22 +1007,35 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 <ChartCard title="Cumulative Net Profit"
                     tip="Cumulative line shows total profit over time. Daily bars show individual day P&L. Green bars = winning day, red bars = losing day.">
                     <ResponsiveContainer width="100%" height={220}>
-                        <ComposedChart data={data.history ?? []} margin={{ left: 0, right: 10, top: 5, bottom: 0 }}>
+                        <ComposedChart data={(() => {
+                            const h = data.history ?? [];
+                            return h.map(d => ({
+                                ...d,
+                                profitPos: Math.max(0, d.cumulative_profit),
+                                profitNeg: Math.min(0, d.cumulative_profit),
+                            }));
+                        })()} margin={{ left: 0, right: 10, top: 5, bottom: 0 }}>
                             <defs>
-                                <linearGradient id="pnlGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--win)" stopOpacity={0.25} />
-                                    <stop offset="95%" stopColor="var(--win)" stopOpacity={0} />
+                                <linearGradient id="pnlPosGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--win)" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="var(--win)" stopOpacity={0.02} />
+                                </linearGradient>
+                                <linearGradient id="pnlNegGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="var(--loss)" stopOpacity={0.02} />
+                                    <stop offset="95%" stopColor="var(--loss)" stopOpacity={0.3} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} strokeOpacity={0.4} />
                             <XAxis dataKey="date" tick={<WeekendTick fontSize={10} />}
                                 tickLine={false} axisLine={{ stroke: 'var(--border)' }} />
-                            {/* Primary Y-axis for cumulative profit */}
+                            {/* Primary Y-axis for cumulative profit — auto range from data */}
                             <YAxis yAxisId="cumulative" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} tickLine={false}
-                                axisLine={false} tickFormatter={v => `${v}U`} width={48} orientation="left" />
-                            {/* Secondary Y-axis for daily net profit */}
+                                axisLine={false} tickFormatter={v => `${Number(v).toFixed(1)}U`} width={48} orientation="left"
+                                domain={cumulativeDomain} />
+                            {/* Secondary Y-axis for daily net profit — auto range from data */}
                             <YAxis yAxisId="daily" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} tickLine={false}
-                                axisLine={false} tickFormatter={v => `${v}U`} width={48} orientation="right" />
+                                axisLine={false} tickFormatter={v => `${Number(v).toFixed(1)}U`} width={48} orientation="right"
+                                domain={dailyDomain} />
                             <Tooltip contentStyle={TT} content={({ active, payload, label }) => {
                                 if (!active || !payload?.length) return null;
                                 const daily = payload.find(p => p.dataKey === 'net_profit');
@@ -1002,9 +1070,11 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                     />
                                 ))}
                             </Bar>
-                            {/* Cumulative line - use primary Y-axis */}
-                            <Area yAxisId="cumulative" dataKey="cumulative_profit" stroke="var(--win)" strokeWidth={2}
-                                fill="url(#pnlGrad)" dot={false} type="monotone" />
+                            {/* Cumulative dual-area fills */}
+                            <Area yAxisId="cumulative" dataKey="profitPos" fill="url(#pnlPosGrad)" stroke="none" type="monotone" />
+                            <Area yAxisId="cumulative" dataKey="profitNeg" fill="url(#pnlNegGrad)" stroke="none" type="monotone" />
+                            <Line yAxisId="cumulative" dataKey="cumulative_profit" stroke="var(--chart-1)" strokeWidth={2.5}
+                                dot={false} type="monotone" />
                         </ComposedChart>
                     </ResponsiveContainer>
                     {/* Inline summary */}
@@ -1045,7 +1115,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                     <XAxis dataKey="date" tick={<WeekendTick fontSize={10} />}
                                         tickLine={false} axisLine={{ stroke: 'var(--border)' }} />
                                     <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} tickLine={false}
-                                        axisLine={false} tickFormatter={v => `${v}U`} width={48} />
+                                        axisLine={false} tickFormatter={v => `${v}U`} width={48}
+                                        domain={drawdownDomain} />
                                     <Tooltip contentStyle={TT} content={({ active, payload, label }) => {
                                         if (!active || !payload?.length) return null;
                                         const d = payload[0]?.payload;
@@ -1112,7 +1183,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
                             <XAxis dataKey="date" tick={<WeekendTick fontSize={10} />}
                                 tickLine={false} axisLine={{ stroke: 'var(--border)' }} />
                             <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} tickLine={false}
-                                axisLine={false} tickFormatter={v => `${v}%`} width={48} />
+                                axisLine={false} tickFormatter={v => `${v}%`} width={48}
+                                domain={rollingEdgeDomain} />
                             <Tooltip contentStyle={TT} content={({ active, payload, label }) => {
                                 if (!active || !payload?.length) return null;
                                 const d = payload[0]?.payload;
@@ -1197,7 +1269,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
                                 <Bar dataKey="edge" radius={[0, 3, 3, 0]}>
                                     {[...(data.market_breakdown ?? [])].sort((a, b) => b.edge - a.edge).map((entry, i) => (
-                                        <Cell key={i} fill={entry.edge >= 0 ? 'var(--win)' : 'var(--loss)'} fillOpacity={0.8} />
+                                        <Cell key={i} fill={entry.edge >= 0 ? 'var(--win)' : 'var(--loss)'}
+                                            fillOpacity={entry.legs < MIN_SAMPLE_SIZE ? 0.25 : 0.8} />
                                     ))}
                                 </Bar>
                             </BarChart>
@@ -1255,9 +1328,10 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                     }} />
                                     <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
                                     <Bar dataKey="edge" radius={[0, 3, 3, 0]}>
-                                        {[...(data.league_breakdown ?? [])].sort((a, b) => b.edge - a.edge).map((entry, i) => (
-                                            <Cell key={i} fill={entry.edge >= 0 ? 'var(--win)' : 'var(--loss)'} fillOpacity={0.8} />
-                                        ))}
+                                         {[...(data.league_breakdown ?? [])].sort((a, b) => b.edge - a.edge).map((entry, i) => (
+                                             <Cell key={i} fill={entry.edge >= 0 ? 'var(--win)' : 'var(--loss)'}
+                                                 fillOpacity={entry.legs < MIN_SAMPLE_SIZE ? 0.25 : 0.8} />
+                                         ))}
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
