@@ -36,7 +36,10 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
             match_id = row.get("match_id", str(idx))
             if movement:
                 # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
-                summary_kwargs = {md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", "")) for md in MARKET_DEFINITIONS}
+                summary_kwargs = {
+                    md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", ""))
+                    for md in MARKET_DEFINITIONS
+                }
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
 
     return result
@@ -50,6 +53,7 @@ def get_significant_movements(request: Request) -> dict:
     if df.empty:
         return {}
     from datetime import datetime
+
     now = datetime.utcnow()
     result = {}
     for idx, row in df.iterrows():
@@ -112,5 +116,7 @@ def get_match_movement(request: Request, match_id: int):
     movement = logic.get_odds_movement(match_id)
 
     # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
-    summary_kwargs = {md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", "")) for md in MARKET_DEFINITIONS}
+    summary_kwargs = {
+        md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", "")) for md in MARKET_DEFINITIONS
+    }
     return OddsMovementSummary(**summary_kwargs)

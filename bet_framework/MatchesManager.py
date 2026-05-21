@@ -352,10 +352,7 @@ class MatchesManager(BufferedStorageManager):
                 unique.append(nm)
         logger.warning(f"=== NEAR-MISS REPORT: {len(unique)} pairs (score 40-65) ===")
         for nm in unique:
-            logger.warning(
-                f"  [{nm.score:.0f}] {nm.home_a} vs {nm.away_a} "
-                f"<-> {nm.home_b} vs {nm.away_b}"
-            )
+            logger.warning(f"  [{nm.score:.0f}] {nm.home_a} vs {nm.away_a} <-> {nm.home_b} vs {nm.away_b}")
         logger.warning("=== END NEAR-MISS REPORT ===")
 
     def _clear_near_misses(self) -> None:
@@ -487,9 +484,7 @@ class MatchesManager(BufferedStorageManager):
                 direction = "stable"
             significant = False
             if has_enough_history and direction != "stable":
-                if abs(change_pct) >= 5.0:
-                    significant = True
-                elif first_val < 2.0 and abs_change >= 0.10:
+                if abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10:
                     significant = True
             result[market] = {"direction": direction, "change_pct": change_pct, "significant": significant}
         return result
@@ -554,11 +549,14 @@ class MatchesManager(BufferedStorageManager):
 
         # Load fresh database into a temporary manager
         import os
+
         fresh_file_size = os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
         logger.info(f"Loading fresh DB from {fresh_db_path} (size: {fresh_file_size} bytes)")
         fresh_manager = MatchesManager(fresh_db_path, self.similarity_engine._config if self.similarity_engine else None)
         fresh_buf = fresh_manager.ensure_buffer()
-        logger.info(f"Fresh buffer: {len(fresh_buf)} rows, columns: {list(fresh_buf.columns) if not fresh_buf.empty else 'N/A'}")
+        logger.info(
+            f"Fresh buffer: {len(fresh_buf)} rows, columns: {list(fresh_buf.columns) if not fresh_buf.empty else 'N/A'}"
+        )
 
         if fresh_buf.empty:
             logger.warning("Fresh database is empty, nothing to merge")
@@ -582,7 +580,11 @@ class MatchesManager(BufferedStorageManager):
 
                     # Get fresh row's odds and append history
                     fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
-                    fresh_odds = fresh_manager.deserialize_json(fresh_odds_json) if (fresh_odds_json and not pd.isna(fresh_odds_json)) else {}
+                    fresh_odds = (
+                        fresh_manager.deserialize_json(fresh_odds_json)
+                        if (fresh_odds_json and not pd.isna(fresh_odds_json))
+                        else {}
+                    )
                     fresh_odds = fresh_odds or {}
 
                     # Preserve existing history from current match
