@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import NamedTuple
 
 import pandas as pd
 from scrape_kit import (
@@ -16,6 +17,16 @@ from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
 from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
+
+
+class NearMiss(NamedTuple):
+    home_a: str
+    away_a: str
+    home_b: str
+    away_b: str
+    score: float
+    source_a: str
+    source_b: str
 
 
 def _is_empty(value) -> bool:
@@ -49,6 +60,7 @@ class MatchesManager(BufferedStorageManager):
             self.similarity_engine: SimilarityEngine | None = SimilarityEngine(similarity_config)
         else:
             self.similarity_engine = None
+        self._near_misses: list[NearMiss] = []
         super().__init__(db_path, "matches")
 
     # ── Schema ────────────────────────────────────────────────────────────────
@@ -101,9 +113,18 @@ class MatchesManager(BufferedStorageManager):
             if self.similarity_engine is not None:
                 ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
                 if not ok_h:
+                    # Near-miss: check away too for score tracking
+                    if sc_h >= 30:
+                        _, sc_a = self.similarity_engine.is_similar(ra, away)
+                        combined = (sc_h + sc_a) / 2
+                        if 40 <= combined < 65:
+                            self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
                     continue
                 ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
                 if not ok_a:
+                    combined = (sc_h + sc_a) / 2
+                    if 40 <= combined < 65:
+                        self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
                     continue
                 avg = (sc_h + sc_a) / 2
                 if avg > max_score:
@@ -312,7 +333,34 @@ class MatchesManager(BufferedStorageManager):
             flush_every_rows=5000,
         )
         self.flush()
+        self._log_near_misses()
+        self._clear_near_misses()
         logger.info(f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing).")
+
+    # ── Near-miss logging ──────────────────────────────────────────────────────
+
+    def _log_near_misses(self) -> None:
+        """Log near-miss pairs for synonym discovery."""
+        if not self._near_misses:
+            return
+        seen: set[tuple[str, str, str, str]] = set()
+        unique: list[NearMiss] = []
+        for nm in sorted(self._near_misses, key=lambda x: x.score, reverse=True):
+            key = (nm.home_a, nm.away_a, nm.home_b, nm.away_b)
+            if key not in seen:
+                seen.add(key)
+                unique.append(nm)
+        logger.warning(f"=== NEAR-MISS REPORT: {len(unique)} pairs (score 40-65) ===")
+        for nm in unique:
+            logger.warning(
+                f"  [{nm.score:.0f}] {nm.home_a} vs {nm.away_a} "
+                f"<-> {nm.home_b} vs {nm.away_b}"
+            )
+        logger.warning("=== END NEAR-MISS REPORT ===")
+
+    def _clear_near_misses(self) -> None:
+        """Clear tracked near-misses."""
+        self._near_misses.clear()
 
     # ── Embedded Odds History ──────────────────────────────────────────────────
 

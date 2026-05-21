@@ -111,14 +111,22 @@ synonyms:
   "tottenham": "tottenham hotspur"
   "qpr": "queens park rangers"
   "wolves": "wolverhampton wanderers"
+  "manchester utd": "manchester united"
+  "newcastle utd": "newcastle united"
+  "leeds utd": "leeds united"
+  "west ham utd": "west ham united"
   "sheff utd": "sheffield united"
+  "sheffield utd": "sheffield united"
   "sheff wed": "sheffield wednesday"
   "nott forest": "nottingham forest"
   "notts forest": "nottingham forest"
+  "nottm forest": "nottingham forest"
   "newcastle": "newcastle united"
   "west brom": "west bromwich albion"
   "brighton": "brighton hove albion"
   "leicester": "leicester city"
+  "bournemouth": "afc bournemouth"
+  "wolverhampton": "wolverhampton wanderers"
 
   # ── Spanish clubs ──────────────────────────────────────────────────────────
   "barca": "barcelona"
@@ -179,14 +187,67 @@ synonyms:
   "feyenoord": "feyenoord rotterdam"
   "utrecht": "fc utrecht"
 
-  # ── Other European ─────────────────────────────────────────────────────────
-  "celtic": "celtic glasgow"
-  "rangers": "rangers glasgow"
+  # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
   "bruges": "club brugge"
+  "club bruges": "club brugge"
+  "fc bruges": "club brugge"
+  "cercle bruges": "cercle brugge"
+  "union sg": "union saint gilloise"
+  "royale union": "union saint gilloise"
+  "union st gilloise": "union saint gilloise"
+  "aa gent": "kaa gent"
+  "gent": "kaa gent"
+  "standard liege": "standard liege"
+  "standard": "standard liege"
+  "stvv": "sint truiden"
+  "st. truiden": "sint truiden"
+  "st truiden": "sint truiden"
+  "antwerp fc": "royal antwerp"
+  "antwerp": "royal antwerp"
+  "kv mechelen": "mechelen"
+
+  # ── Scottish clubs ────────────────────────────────────────────────────────
+  "celtic": "celtic glasgow"
+  "rangers": "rangers glasgow"
+  "hearts": "heart of midlothian"
+  "hibs": "hibernian"
+  "aberdeen fc": "aberdeen"
+
+  # ── Turkish clubs ─────────────────────────────────────────────────────────
   "galatasaray": "galatasaray sk"
   "fenerbahce": "fenerbahce sk"
   "besiktas": "besiktas jk"
+  "trabzonspor": "trabzonspor sk"
+  "basaksehir": "istanbul basaksehir"
+
+  # ── Austrian clubs ────────────────────────────────────────────────────────
+  "rb salzburg": "red bull salzburg"
+  "fc salzburg": "red bull salzburg"
+  "salzburg": "red bull salzburg"
+  "rapid vienna": "rapid wien"
+
+  # ── Swiss clubs ───────────────────────────────────────────────────────────
+  "young boys": "bsc young boys"
+  "basel": "fc basel"
+  "zurich": "fc zurich"
+
+  # ── Danish clubs ──────────────────────────────────────────────────────────
+  "copenhagen": "fc copenhagen"
+  "kobenhavn": "fc copenhagen"
+  "fc kobenhavn": "fc copenhagen"
+  "midtjylland": "fc midtjylland"
+
+  # ── Croatian clubs ────────────────────────────────────────────────────────
+  "dinamo zagreb": "gnk dinamo zagreb"
+  "hajduk": "hajduk split"
+
+  # ── Greek clubs ───────────────────────────────────────────────────────────
+  "olympiakos": "olympiacos"
+  "olympiacos fc": "olympiacos"
+  "panathinaikos fc": "panathinaikos"
+  "paok fc": "paok thessaloniki"
+  "paok": "paok thessaloniki"
 
   # ── American clubs ─────────────────────────────────────────────────────────
   "nycfc": "new york city"
