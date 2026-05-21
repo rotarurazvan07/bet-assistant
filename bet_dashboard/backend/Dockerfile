@@ -16,9 +16,14 @@ RUN scrapling install
 # 2. Copy the shared framework (Keep it in /app/bet_framework)
 COPY bet_framework/ ./bet_framework/
 
-# 3. Copy the actual backend source
+# 3. Copy the actual backend source (flat for uvicorn main:app)
 COPY bet_dashboard/backend/ .
 COPY config/ config/
+
+# 4. Copy full bet_dashboard package tree so "from bet_dashboard.backend.core..." resolves
+COPY bet_dashboard/__init__.py ./bet_dashboard/__init__.py
+COPY bet_dashboard/backend/__init__.py ./bet_dashboard/backend/__init__.py
+COPY bet_dashboard/backend/core/ ./bet_dashboard/backend/core/
 
 # Ensure the app can see both folders
 ENV PYTHONPATH=/app
