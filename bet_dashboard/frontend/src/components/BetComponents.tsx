@@ -31,7 +31,8 @@ function TierBadge({ tier }: { tier: number; }) {
 
 function OddsMovementBadge({ direction, strength, minStrength }: { direction?: string | null; strength?: number; minStrength?: number }) {
     if (!direction || direction === 'stable') return null;
-    if (minStrength != null && minStrength > 0 && (strength == null || strength < minStrength)) return null;
+    const effectiveMinStrength = minStrength ?? 0.05;
+    if (effectiveMinStrength > 0 && (strength == null || strength < effectiveMinStrength)) return null;
     const isConfirm = direction === 'down';
     const pct = strength != null ? (strength * 100).toFixed(1) : null;
     const label = isConfirm ? '↓' : '↑';
