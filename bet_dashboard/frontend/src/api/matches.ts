@@ -7,6 +7,7 @@ export async function fetchMatches(params: {
     sort_by?: string; sort_dir?: string; min_sources?: number;
     min_consensus?: number | null;
     min_odds?: number | null;
+    only_significant_movement?: boolean;
 }): Promise<MatchesPage> {
     const res = await client.get<MatchesPage>('/matches', { params });
     return res.data;

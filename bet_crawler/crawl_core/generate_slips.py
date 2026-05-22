@@ -40,6 +40,8 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, 
         date_from=profile_data.get("date_from"),
         date_to=profile_data.get("date_to"),
         excluded_urls=profile_data.get("excluded_urls"),
+        odds_movement_weight=profile_data.get("odds_movement_weight"),
+        odds_movement_strength_min=profile_data.get("odds_movement_strength_min"),
     )
 
     logger.info(f"\n▶ Profile: {profile_name.upper()}")

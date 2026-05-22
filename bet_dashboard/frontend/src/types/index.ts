@@ -72,6 +72,8 @@ export interface BuilderConfig {
     tol_upper: number | null;
     balance_decay: 'linear' | 'gaussian';
     min_pick_quality: number | null;
+    odds_movement_weight: number | null;
+    odds_movement_strength_min: number | null;
 }
 
 export interface CandidateLeg {
@@ -86,6 +88,9 @@ export interface CandidateLeg {
     sources: number;
     tier: number;
     score: number;
+    quality?: number;
+    odds_movement_direction?: OddsMovementDirection;
+    odds_movement_strength?: number;
 }
 
 export interface PreviewResult {
@@ -116,6 +121,8 @@ export interface Profile {
     tol_upper: number | null;
     balance_decay: 'linear' | 'gaussian';
     min_pick_quality: number | null;
+    odds_movement_weight: number | null;
+    odds_movement_strength_min: number | null;
 }
 
 export type ProfilesMap = Record<string, Profile>;
@@ -132,6 +139,8 @@ export interface ManualLegIn {
     consensus: number;  // 0-100 percentage
     sources: number;  // number of sources
     league?: string | null;
+    odds_movement_direction?: OddsMovementDirection;
+    odds_movement_strength?: number;
 }
 
 export interface BetLeg {

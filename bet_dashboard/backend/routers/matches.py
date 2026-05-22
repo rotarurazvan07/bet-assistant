@@ -40,6 +40,7 @@ def get_matches(
     sort_dir: str = Query("asc"),
     min_consensus: int | None = Query(None, ge=0, le=100),
     min_odds: float | None = Query(None, ge=1.0, le=50.0),
+    only_significant_movement: bool = Query(False),
 ):
     logic = _get(request).logic
     df = logic.filter_matches(
@@ -57,11 +58,22 @@ def get_matches(
             "matches": [],
         }
 
-    # Apply combined min_consensus + min_odds filter
+    # Apply combined per-cell filter: each market cell must pass ALL active checks.
+    # A row is kept if at least one cell passes every active filter.
     has_cons = min_consensus is not None and min_consensus > 0
     has_odds = min_odds is not None and min_odds > 1.0
-    if has_cons or has_odds:
+    has_sig = only_significant_movement
+
+    if has_cons or has_odds or has_sig:
         import pandas as pd
+
+        # Pre-compute significant movement data per row if needed
+        sig_data: dict = {}
+        if has_sig:
+            for idx in df.index:
+                strength = logic.get_odds_movement_with_strength(idx)
+                if strength:
+                    sig_data[idx] = strength
 
         mask = pd.Series(False, index=df.index)
         for md in MARKET_DEFINITIONS:
@@ -74,6 +86,14 @@ def get_matches(
                 cell_ok &= df[md.odds_key].ge(min_odds)
             elif has_odds:
                 cell_ok = pd.Series(False, index=df.index)
+            if has_sig:
+                market_key = md.odds_key.replace("odds_", "")
+                sig_mask = pd.Series(False, index=df.index)
+                for idx in df.index:
+                    s = sig_data.get(idx)
+                    if s and isinstance(s.get(market_key), dict) and s[market_key].get("significant"):
+                        sig_mask.at[idx] = True
+                cell_ok &= sig_mask
             mask |= cell_ok
         df = df[mask]
 

@@ -45,6 +45,8 @@ class CandidateLeg:
     sources: int  # Must be provided, no default
     league: str | None = None
     _adjusted_consensus: float = 0.0  # Internal: pre-computed shrunk consensus
+    odds_movement_direction: str | None = None  # "up"/"down"/"stable"/None
+    odds_movement_strength: float = 0.0  # |change_pct| as fraction (0.08 = 8%)
     tier: int = 1  # UI only: 1=balanced, 2=drift
     score: float = 0.0  # UI only: quality score
     quality: float = 0.0  # UI only: quality component
@@ -244,6 +246,10 @@ class BetSlipConfig:
     balance_decay: str = "gaussian"
     min_pick_quality: float | None = None
 
+    # Odds movement scoring
+    odds_movement_weight: float | None = None  # 0.0–0.30, None = auto (0.05)
+    odds_movement_strength_min: float | None = None  # 0.05–0.20, None = auto (0.05)
+
     def __post_init__(self) -> None:
         self.target_odds = max(1.10, min(1000.0, self.target_odds))
         self.target_legs = max(1, min(100, self.target_legs))
@@ -275,6 +281,10 @@ class BetSlipConfig:
             self.balance_decay = "gaussian"
         if self.min_pick_quality is not None:
             self.min_pick_quality = max(0.0, min(1.00, self.min_pick_quality))
+        if self.odds_movement_weight is not None:
+            self.odds_movement_weight = max(0.0, min(0.30, self.odds_movement_weight))
+        if self.odds_movement_strength_min is not None:
+            self.odds_movement_strength_min = max(0.05, min(0.20, self.odds_movement_strength_min))
 
 
 # ── Built-in risk profiles ────────────────────────────────────────────────────

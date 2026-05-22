@@ -39,6 +39,8 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
         tol_upper=body.tol_upper,
         balance_decay=body.balance_decay,
         min_pick_quality=body.min_pick_quality,
+        odds_movement_weight=body.odds_movement_weight,
+        odds_movement_strength_min=body.odds_movement_strength_min,
     )
 
 
@@ -74,6 +76,8 @@ def preview(request: Request, body: BetSlipConfigIn):
                 "sources": leg.sources,
                 "tier": leg.tier,
                 "score": round(leg.score, 4),
+                "odds_movement_direction": leg.odds_movement_direction,
+                "odds_movement_strength": round(leg.odds_movement_strength, 6) if leg.odds_movement_strength else 0.0,
             }
             for leg in legs
         ],

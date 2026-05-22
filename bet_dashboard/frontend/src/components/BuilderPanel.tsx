@@ -443,6 +443,35 @@ export default function BuilderPanel({ cfg, availableLeagues, onChange }: Props)
                     onChange={v => up('consensus_vs_sources', v)} />
             </AccordionSection>
 
+            {/* ── Odds Movement ──────────────────────────────────────── */}
+            <AccordionSection
+                title="Odds Movement"
+                icon="📊"
+                tip="Use bookmaker odds movement to confirm or penalise picks. Dropping odds = confirmation, rising odds = doubt."
+                defaultOpen={false}
+            >
+                <NullableRow label="Movement Weight"
+                    tip="How much odds movement influences the final score. Confirms (odds dropping) boost, infirms (odds rising) penalise. Auto = 5%."
+                    enabled={cfg.odds_movement_weight !== null}
+                    onToggle={v => up('odds_movement_weight', v ? 0.05 : null)}>
+                    <InlineSlider
+                        value={Math.round((cfg.odds_movement_weight ?? 0.05) * 100)}
+                        min={0} max={30} step={1}
+                        format={v => `${v}%`}
+                        onChange={v => up('odds_movement_weight', v / 100)} />
+                </NullableRow>
+                <NullableRow label="Min Strength"
+                    tip="Minimum odds change % required before movement scoring kicks in. Auto = 5%."
+                    enabled={cfg.odds_movement_strength_min !== null}
+                    onToggle={v => up('odds_movement_strength_min', v ? 0.05 : null)}>
+                    <InlineSlider
+                        value={Math.round((cfg.odds_movement_strength_min ?? 0.05) * 100)}
+                        min={5} max={20} step={1}
+                        format={v => `${v}%`}
+                        onChange={v => up('odds_movement_strength_min', v / 100)} />
+                </NullableRow>
+            </AccordionSection>
+
             {/* ── Advanced ──────────────────────────────────────────── */}
             <AccordionSection title="Advanced" icon="⚙️" defaultOpen={false}>
                 <NullableRow label="Shrinkage k"

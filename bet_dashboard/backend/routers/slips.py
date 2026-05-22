@@ -184,6 +184,8 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         league=d.get("league"),
         tier=d.get("tier", 1),
         score=d.get("score", 0.0),
+        odds_movement_direction=d.get("odds_movement_direction"),
+        odds_movement_strength=d.get("odds_movement_strength", 0.0),
     )
 
 

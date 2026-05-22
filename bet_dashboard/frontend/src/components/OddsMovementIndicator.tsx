@@ -1,5 +1,7 @@
+import type { OddsMovementDirection } from '../types';
+
 interface OddsMovementIndicatorProps {
-    direction: 'up' | 'down' | 'stable' | null | undefined;
+    direction: OddsMovementDirection | undefined;
     size?: 'sm' | 'md';
 }
 
@@ -13,10 +15,10 @@ export function OddsMovementIndicator({ direction, size = 'sm' }: OddsMovementIn
         <span
             className={`inline-flex items-center justify-center ml-1 rounded-full font-bold ${
                 isUp
-                    ? 'text-emerald-400 bg-emerald-400/15'
-                    : 'text-red-400 bg-red-400/15'
+                    ? 'text-red-400 bg-red-400/15'
+                    : 'text-emerald-400 bg-emerald-400/15'
             } ${size === 'sm' ? 'p-0.5' : 'p-1'}`}
-            title={isUp ? 'Odds rising (drifting)' : 'Odds dropping (shortening)'}
+            title={isUp ? 'Odds rising (market disagrees)' : 'Odds falling (market agrees)'}
         >
             <svg className={sz} viewBox="0 0 20 20" fill="currentColor">
                 {isUp ? (

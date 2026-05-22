@@ -888,6 +888,10 @@ class BetAssistant(BaseStorageManager):
                         source_edge = (adj_cons / 100.0) - implied_prob
                         if source_edge < min_edge:
                             continue
+                        # Odds movement per market
+                        mov_dir, mov_str = self._get_market_movement(
+                            row.get("odds"), odds_col.replace("odds_", "")
+                        )
                         candidates.append(
                             CandidateLeg(
                                 match_name=match_name,
@@ -900,10 +904,34 @@ class BetAssistant(BaseStorageManager):
                                 sources=sources,
                                 league=league,
                                 _adjusted_consensus=adj_cons,
+                                odds_movement_direction=mov_dir,
+                                odds_movement_strength=mov_str,
                             )
                         )
 
         return candidates
+
+    @staticmethod
+    def _get_market_movement(odds_dict: dict | None, market_key: str) -> tuple[str | None, float]:
+        """Extract movement direction and strength for a specific market from odds history."""
+        if not odds_dict or not isinstance(odds_dict, dict):
+            return None, 0.0
+        history = odds_dict.get("history", [])
+        if not history or len(history) < 2:
+            return None, 0.0
+        first = history[0]
+        cur_val = odds_dict.get(market_key)
+        first_val = first.get(market_key)
+        if cur_val is None or first_val is None or first_val == 0:
+            return None, 0.0
+        if not isinstance(cur_val, (int, float)) or not isinstance(first_val, (int, float)):
+            return None, 0.0
+        change_pct = abs(cur_val - first_val) / first_val
+        if cur_val > first_val:
+            return "up", round(change_pct, 4)
+        elif cur_val < first_val:
+            return "down", round(change_pct, 4)
+        return "stable", 0.0
 
     # ── Leg selection loop ────────────────────────────────────────────────────
 

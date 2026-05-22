@@ -78,6 +78,10 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).minOdds ?? null : null;
     });
+    const [onlySignificantMovement, setOnlySignificantMovement] = useState<boolean>(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved).onlySignificantMovement ?? false : false;
+    });
     const [page, setPage] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).page : 1;
@@ -97,15 +101,16 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             search,
             minConsensus,
             minOdds,
+            onlySignificantMovement,
             page,
             sortBy,
             sortDir,
             pendingLegs
         }));
-    }, [search, minConsensus, minOdds, page, sortBy, sortDir, pendingLegs]);
+    }, [search, minConsensus, minOdds, onlySignificantMovement, page, sortBy, sortDir, pendingLegs]);
 
-    // Reset to page 1 on global filter or external refresh change
-    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey]);
+    // Reset to page 1 when any filter changes
+    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey, search, minConsensus, minOdds, onlySignificantMovement]);
 
     // Fetch odds movements
     useEffect(() => {
@@ -128,6 +133,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             sort_dir: sortDir,
             min_consensus: minConsensus,
             min_odds: minOdds,
+            only_significant_movement: onlySignificantMovement || undefined,
         })
             .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
             .catch(() => {
@@ -137,7 +143,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 }
             });
         return () => { cancelled = true; };
-    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, sortBy, sortDir, refreshKey]);
+    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey]);
 
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -340,6 +346,29 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                     </span>
                                 </div>
                             </div>
+                            {/* Significant Movement Toggle */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                    Sig. Movement
+                                    <TooltipIcon text="Show only matches with significant odds movement (≥5% change). Chained with min consensus and min odds filters." align="right" />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setOnlySignificantMovement(v => !v)}
+                                    className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
+                                    style={{
+                                        background: onlySignificantMovement
+                                            ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%)'
+                                            : 'var(--bg-raised)',
+                                        border: `1px solid ${onlySignificantMovement ? 'var(--accent)' : 'var(--border)'}`,
+                                    }}
+                                >
+                                    <span
+                                        className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
+                                        style={{ left: onlySignificantMovement ? 'calc(100% - 18px)' : '2px' }}
+                                    />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -387,7 +416,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {data.matches.map((m, i) => {
+                                        {data.matches.map((m, i) => {
                                                 const activeMarkets = new Set<string>(
                                                     pendingLegs
                                                         .filter(leg => leg.result_url === m.result_url)

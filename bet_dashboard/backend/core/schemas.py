@@ -28,6 +28,8 @@ class BetSlipConfigIn(BaseModel):
     tol_upper: float | None = None
     balance_decay: str = "linear"
     min_pick_quality: float | None = None
+    odds_movement_weight: float | None = None
+    odds_movement_strength_min: float | None = None
 
 
 class ExcludeUrlIn(BaseModel):
@@ -46,6 +48,8 @@ class CandidateLegOut(BaseModel):
     sources: int
     tier: int = 1
     score: float = 0.0
+    odds_movement_direction: str | None = None
+    odds_movement_strength: float = 0.0
 
 
 class PreviewOut(BaseModel):
@@ -82,6 +86,8 @@ class ProfileIn(BaseModel):
     tol_upper: float | None = None
     balance_decay: str = "linear"
     min_pick_quality: float | None = None
+    odds_movement_weight: float | None = None
+    odds_movement_strength_min: float | None = None
 
 
 # ── Slips ─────────────────────────────────────────────────────────────────────

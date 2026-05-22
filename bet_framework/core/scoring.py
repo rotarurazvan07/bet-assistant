@@ -87,6 +87,72 @@ def resolve_min_source_edge(cfg: BetSlipConfig) -> float:
     return cfg.min_source_edge if cfg.min_source_edge is not None else 0.0
 
 
+def resolve_odds_movement_weight(cfg: BetSlipConfig) -> float:
+    """Return odds movement weight. Auto = 0.05 (5%), capped at 0.30."""
+    v = cfg.odds_movement_weight
+    if v is None:
+        return 0.05
+    return min(v, 0.30)
+
+
+def resolve_odds_movement_strength_min(cfg: BetSlipConfig) -> float:
+    """Return minimum movement strength threshold. Auto = 0.05 (5%)."""
+    return cfg.odds_movement_strength_min if cfg.odds_movement_strength_min is not None else 0.05
+
+
+def classify_odds_movement(direction: str | None) -> str:
+    """Classify movement direction into confirm/stable/infirm.
+
+    For the *picked* market:
+      - odds dropping ('down') → bookmaker confidence → 'confirm'
+      - odds rising  ('up')   → bookmaker doubt     → 'infirm'
+      - stable / missing      → neutral             → 'stable'
+    """
+    if direction is None:
+        return "stable"
+    d = direction.lower().strip()
+    if d == "down":
+        return "confirm"
+    if d == "up":
+        return "infirm"
+    return "stable"
+
+
+def odds_movement_factor(classification: str) -> float:
+    """Return the blending factor: confirm=1.0, stable=0.5, infirm=0.0."""
+    if classification == "confirm":
+        return 1.0
+    if classification == "infirm":
+        return 0.0
+    return 0.5
+
+
+def apply_odds_movement_adjustment(
+    base_score: float,
+    direction: str | None,
+    strength: float,
+    cfg: BetSlipConfig,
+) -> float:
+    """Apply odds-movement post-adjustment to *base_score*.
+
+    Formula:
+        final = base_score × (1 − w) + w × factor
+
+    Guard: if strength < odds_movement_strength_min → w forced to 0.
+    """
+    w = resolve_odds_movement_weight(cfg)
+    if w <= 0.0:
+        return base_score
+    min_str = resolve_odds_movement_strength_min(cfg)
+    if strength < min_str:
+        return base_score
+    cls = classify_odds_movement(direction)
+    if cls == "stable":
+        return base_score
+    factor = odds_movement_factor(cls)
+    return base_score * (1.0 - w) + w * factor
+
+
 # ── Individual scoring axes ───────────────────────────────────────────────────
 
 
@@ -169,4 +235,11 @@ def score_pick(
         final_score = base_score * penalty
     else:
         final_score = base_score
+    # Post-base odds movement adjustment
+    final_score = apply_odds_movement_adjustment(
+        final_score,
+        opt.odds_movement_direction,
+        opt.odds_movement_strength,
+        cfg,
+    )
     return tier, round(final_score, 6), round(quality, 6)

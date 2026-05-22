@@ -25,6 +25,8 @@ const DEFAULT_CFG: BuilderConfig = {
     tol_upper: null,
     balance_decay: 'gaussian',
     min_pick_quality: null,
+    odds_movement_weight: null,
+    odds_movement_strength_min: null,
 };
 
 interface Props { filters: GlobalFilters; refreshKey: number }
@@ -168,6 +170,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             tol_upper: data.tol_upper ?? null,
             balance_decay: data.balance_decay ?? 'gaussian',
             min_pick_quality: data.min_pick_quality ?? null,
+            odds_movement_weight: data.odds_movement_weight ?? null,
+            odds_movement_strength_min: data.odds_movement_strength_min ?? null,
         };
         setCfg(next);
         setActiveName(name);
@@ -381,6 +385,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             totalOdds={preview?.total_odds ?? 1}
                             pendingUrls={preview?.pending_urls ?? []}
                             onExclude={handleExclude}
+                            minStrength={cfg.odds_movement_strength_min ?? undefined}
                         />
                     </div>
                 </div>

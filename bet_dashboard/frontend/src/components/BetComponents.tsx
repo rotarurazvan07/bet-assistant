@@ -14,6 +14,7 @@ interface PreviewProps {
     totalOdds: number;
     pendingUrls: string[];
     onExclude: (url: string) => void;
+    minStrength?: number;
 }
 
 function TierBadge({ tier }: { tier: number; }) {
@@ -25,6 +26,30 @@ function TierBadge({ tier }: { tier: number; }) {
                 {tier === 1 ? '✓ Balanced' : '⚠ Drift'}
             </BaseBadge>
         </div>
+    );
+}
+
+function OddsMovementBadge({ direction, strength, minStrength }: { direction?: string | null; strength?: number; minStrength?: number }) {
+    if (!direction || direction === 'stable') return null;
+    if (minStrength != null && minStrength > 0 && (strength == null || strength < minStrength)) return null;
+    const isConfirm = direction === 'down';
+    const pct = strength != null ? (strength * 100).toFixed(1) : null;
+    const label = isConfirm ? '↓' : '↑';
+    const title = isConfirm
+        ? `Odds dropped${pct ? ` ${pct}%` : ''} — bookmaker confirms`
+        : `Odds rose${pct ? ` ${pct}%` : ''} — bookmaker doubts`;
+    return (
+        <span
+            title={title}
+            className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[11px] font-bold shrink-0"
+            style={{
+                background: isConfirm ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
+                color: isConfirm ? 'rgb(16,185,129)' : 'rgb(239,68,68)',
+                border: `1px solid ${isConfirm ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            }}
+        >
+            {label}
+        </span>
     );
 }
 
@@ -61,7 +86,7 @@ function QualityIndicator({ score }: { score: number }) {
     );
 }
 
-export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
+export function BetPreview({ legs, pendingUrls, onExclude, minStrength }: PreviewProps) {
     if (!legs.length) {
         return (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
@@ -181,7 +206,10 @@ export function BetPreview({ legs, pendingUrls, onExclude }: PreviewProps) {
                                 {/* Bottom: Quality Indicator + Tier */}
                                 <div className="flex items-center justify-between">
                                     <QualityIndicator score={leg.score} />
+                                <div className="flex items-center gap-1.5">
+                                    <OddsMovementBadge direction={leg.odds_movement_direction} strength={leg.odds_movement_strength} minStrength={minStrength} />
                                     <TierBadge tier={leg.tier} />
+                                </div>
                                 </div>
                             </div>
                         </div>
