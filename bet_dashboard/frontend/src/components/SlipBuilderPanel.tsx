@@ -7,9 +7,10 @@ interface Props {
     legs: CandidateLeg[];
     onRemoveLeg: (index: number) => void;
     onSubmit: (units: number) => void;
+    onToggleMinimize?: () => void;
 }
 
-export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props) {
+export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggleMinimize }: Props) {
     const [units, setUnits] = useState(1);
 
     // Calculate total odds (multiply all valid odds)
@@ -33,13 +34,18 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
             className="h-full flex flex-col"
             contentClassName="flex-1 flex flex-col min-h-0"
             header={
-                <div>
-                    <h2 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
-                        Slip Builder
-                    </h2>
-                    <p className="text-sm font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                        {legs.length} leg{legs.length !== 1 ? 's' : ''} selected
-                    </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h2 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
+                            Slip Builder
+                        </h2>
+                        <p className="text-sm font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                            {legs.length} leg{legs.length !== 1 ? 's' : ''} selected
+                        </p>
+                    </div>
+                    {onToggleMinimize && (
+                        <button onClick={onToggleMinimize} className="btn-icon" title="Minimize" style={{ fontSize: 14 }}>▼</button>
+                    )}
                 </div>
             }
             footer={legs.length > 0 ? (
@@ -90,7 +96,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit }: Props)
             ) : null}
         >
             {/* Selections - scrollable */}
-            <div className="flex-1 overflow-y-auto px-1 -mx-1 space-y-2 min-h-0">
+            <div className="flex-1 overflow-y-auto px-1 -mx-1 space-y-2 min-h-0" style={{ maxHeight: 'calc(100vh - 380px)' }}>
                 {legs.length === 0 ? (
                     <div className="h-full flex items-center justify-center p-8">
                         <div className="text-center">

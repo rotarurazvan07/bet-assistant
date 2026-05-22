@@ -307,3 +307,60 @@
 .fade-in3 {
   animation: fadeSlide .25s ease .10s both;
 }
+
+/* Floating Slip Builder */
+.floating-slip-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 24px;
+  z-index: 50;
+  width: 360px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.4));
+}
+.floating-slip-minimized {
+  position: fixed;
+  bottom: 16px;
+  right: 24px;
+  z-index: 50;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.4));
+  transition: opacity .15s;
+}
+.floating-slip-minimized:hover { opacity: .9; }
+
+/* Sticky columns for horizontal scroll */
+.sticky-col {
+  position: sticky;
+  z-index: 1;
+  background: var(--bg-raised);
+  box-shadow: 2px 0 4px rgba(0,0,0,0.15);
+}
+.sticky-col:last-of-type {
+  box-shadow: none;
+}
+thead .sticky-col {
+  background: var(--bg-raised);
+  z-index: 11;
+}
+
+/* Column visibility popover */
+.col-visibility-popover {
+  position: fixed;
+  z-index: 60;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.4));
+  padding: 12px;
+  min-width: 200px;
+  max-height: 400px;
+  overflow-y: auto;
+}

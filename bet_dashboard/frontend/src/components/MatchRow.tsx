@@ -82,9 +82,10 @@ interface Props {
     activeMarkets?: Set<string>;
     inSlipMarkets?: Set<string>;
     movement?: OddsMovementSummary;
+    visibleColumns?: Set<string>;
 }
 
-export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement }: Props) {
+export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement, visibleColumns }: Props) {
     const dt = match.datetime
         ? new Date(match.datetime).toLocaleString('en-GB', {
             day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -132,12 +133,12 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         <td key="datetime" className="px-4 py-3 font-mono text-base" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
             {dt}
         </td>,
-        <td key="home" className="px-4 py-3">
+            <td key="home" className="px-4 py-3 sticky-col" style={{ left: 0, minWidth: 140, maxWidth: 180 }}>
             <span className="font-sans text-base" style={{ color: 'var(--text-primary)' }}>
                 {match.home}
             </span>
         </td>,
-        <td key="away" className="px-4 py-3">
+            <td key="away" className="px-4 py-3 sticky-col" style={{ left: 140, minWidth: 140, maxWidth: 180 }}>
             <span className="font-sans text-base" style={{ color: 'var(--text-primary)' }}>
                 {match.away}
             </span>
@@ -171,8 +172,8 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
       marketToMovementKey[col.market] = movementKey;
     });
 
-    // Create market cells dynamically from config
-    const marketCells = MARKET_COLUMNS.map(col => {
+    // Create market cells dynamically from config (filtered by visibility)
+    const marketCells = MARKET_COLUMNS.filter(col => !visibleColumns || visibleColumns.has(col.market)).map(col => {
         const consensus = matchData[col.consKey] as number;
         const odds = matchData[col.oddsKey] as number | null | undefined;
         const movementKey = marketToMovementKey[col.market];

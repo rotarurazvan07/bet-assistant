@@ -5,14 +5,15 @@ import { addSlip, fetchSlips } from '../api/data';
 import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary } from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
-import SlipBuilderPanel from '../components/SlipBuilderPanel';
+import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
+import ColumnVisibilityPopover from '../components/ColumnVisibilityPopover';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
-import { getTableColumns } from '../config/marketConfig';
+import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS } from '../config/marketConfig';
 
-// Derive columns from centralized config
-const COLS = getTableColumns();
+// Derive columns from centralized config (fixed columns only - market columns filtered dynamically)
+const ALL_COLS = getTableColumns();
 
 const PAGE_SIZE = 40;
 const STORAGE_KEY = 'betting_tips_state';
@@ -94,6 +95,33 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).sortDir : 'asc';
     });
+
+    // Column visibility state (persisted)
+    const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+        try {
+            const raw = localStorage.getItem('col-visibility');
+            return raw ? new Set(JSON.parse(raw)) : new Set(ALL_MARKETS);
+        } catch { return new Set(ALL_MARKETS); }
+    });
+    useEffect(() => {
+        localStorage.setItem('col-visibility', JSON.stringify([...visibleColumns]));
+    }, [visibleColumns]);
+    const toggleColumn = (key: string) => {
+        setVisibleColumns(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            return next;
+        });
+    };
+
+    // Slip minimized state (persisted)
+    const [isSlipMinimized, setIsSlipMinimized] = useState<boolean>(() => {
+        try { return localStorage.getItem('slip-minimized') === 'true'; }
+        catch { return false; }
+    });
+    useEffect(() => {
+        localStorage.setItem('slip-minimized', String(isSlipMinimized));
+    }, [isSlipMinimized]);
 
     // Persist state to localStorage
     useEffect(() => {
@@ -247,24 +275,14 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     }
 
     return (
+        <>
         <div ref={topRef} style={{
-            height: 'calc(100vh - 120px)',
+            height: 'calc(100vh - 178px)',
             boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
         }}>
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: '3fr 1fr',
-                gap: '24px',
-                height: '100%',
-                alignItems: 'stretch'
-            }}>
-                {/* Left column - Main content */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    overflow: 'hidden'
-                }}>
                     {/* Header with filters */}
                     <div style={{
                         display: 'flex',
@@ -282,15 +300,17 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                 fontSize: '1.75rem',
                                 fontWeight: 'bold'
                             }}>Betting Tips</h2>
-                            {data && data.total != null && (
-                                <span style={{
-                                    fontSize: '14px',
-                                    color: 'var(--text-secondary)',
-                                    marginTop: '4px'
-                                }}>
-                                    {data.total.toLocaleString()} matches · page {page} of {data.total_pages}
-                                </span>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                                {data && data.total != null && (
+                                    <span style={{
+                                        fontSize: '14px',
+                                        color: 'var(--text-secondary)',
+                                    }}>
+                                        {data.total.toLocaleString()} matches · page {page} of {data.total_pages}
+                                    </span>
+                                )}
+                                <ColumnVisibilityPopover columns={MARKET_COLUMNS} visibleKeys={visibleColumns} onToggle={toggleColumn} />
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -398,21 +418,34 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                 <th className="px-4 py-3 text-left font-mono text-xs tracking-widest uppercase w-8 sticky top-0 z-10"
                                                     style={{ color: 'var(--text-secondary)', background: 'var(--bg-raised)' }}>#</th>
-                                                {COLS.map(col => (
-                                                    <th key={col.key}
-                                                        className="px-4 py-3 font-mono text-xs tracking-widest uppercase cursor-pointer select-none sticky top-0 z-10"
-                                                        style={{
-                                                            color: sortBy === col.key ? 'var(--accent)' : 'var(--text-secondary)',
-                                                            background: 'var(--bg-raised)',
-                                                            textAlign: col.wide ? 'left' : 'center'
-                                                        }}
-                                                        onClick={() => handleSort(col.key)}>
-                                                        {col.label}
-                                                        {sortBy === col.key && (
-                                                            <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                                                        )}
-                                                    </th>
-                                                ))}
+                                                {ALL_COLS
+                                                    .filter(col => {
+                                                        // Fixed columns always visible; market columns filtered by visibility
+                                                        const mc = MARKET_COLUMNS.find(m => m.consKey === col.key);
+                                                        return !mc || visibleColumns.has(mc.market);
+                                                    })
+                                                    .map(col => {
+                                                        const isHome = col.key === 'home';
+                                                        const isAway = col.key === 'away';
+                                                        const stickyClass = (isHome || isAway) ? ' sticky-col' : '';
+                                                        const stickyStyle = isHome ? { left: 0, minWidth: 140, maxWidth: 180 } : isAway ? { left: 140, minWidth: 140, maxWidth: 180 } : {};
+                                                        return (
+                                                            <th key={col.key}
+                                                                className={`px-4 py-3 font-mono text-xs tracking-widest uppercase cursor-pointer select-none sticky top-0 z-10${stickyClass}`}
+                                                                style={{
+                                                                    color: sortBy === col.key ? 'var(--accent)' : 'var(--text-secondary)',
+                                                                    background: 'var(--bg-raised)',
+                                                                    textAlign: col.wide ? 'left' : 'center',
+                                                                    ...stickyStyle,
+                                                                }}
+                                                                onClick={() => handleSort(col.key)}>
+                                                                {col.label}
+                                                                {sortBy === col.key && (
+                                                                    <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                                                                )}
+                                                            </th>
+                                                        );
+                                                    })}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -440,6 +473,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                                         activeMarkets={activeMarkets}
                                                         inSlipMarkets={inSlipMarkets}
                                                         movement={m.match_id != null ? movements[m.match_id] : undefined}
+                                                        visibleColumns={visibleColumns}
                                                     />
                                                 );
                                             })}
@@ -456,22 +490,17 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                             <Pagination page={page} totalPages={data.total_pages} onPageChange={handlePageChange} />
                         </div>
                     )}
-                </div>
 
-                {/* Right column - Slip Builder */}
-                <div style={{
-                    height: '100%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: 0
-                }}>
-                    <SlipBuilderPanel
-                        legs={pendingLegs}
-                        onRemoveLeg={handleRemoveLeg}
-                        onSubmit={handleAddSlip}
-                    />
-                </div>
-            </div>
-        </div >
+        </div>
+
+        {/* Floating Slip Builder - outside overflow container so fixed positioning works */}
+        <FloatingSlipBuilder
+                legs={pendingLegs}
+                onRemoveLeg={handleRemoveLeg}
+                onSubmit={handleAddSlip}
+                isMinimized={isSlipMinimized}
+                onToggleMinimize={() => setIsSlipMinimized(v => !v)}
+            />
+        </>
     );
 }
