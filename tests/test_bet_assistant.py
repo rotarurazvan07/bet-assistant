@@ -303,60 +303,88 @@ class TestOddsMovementScoring:
     # resolve_odds_movement_weight
     def test_resolve_weight_none_returns_default(self):
         assert resolve_odds_movement_weight(BetSlipConfig()) == 0.05
+
     def test_resolve_weight_explicit(self):
         assert resolve_odds_movement_weight(BetSlipConfig(odds_movement_weight=0.10)) == 0.10
+
     def test_resolve_weight_capped(self):
         assert resolve_odds_movement_weight(BetSlipConfig(odds_movement_weight=0.50)) == 0.30
+
     # resolve_odds_movement_strength_min
     def test_resolve_strength_min_none(self):
         assert resolve_odds_movement_strength_min(BetSlipConfig()) == 0.05
+
     def test_resolve_strength_min_explicit(self):
         assert resolve_odds_movement_strength_min(BetSlipConfig(odds_movement_strength_min=0.10)) == 0.10
+
     # classify_odds_movement
     def test_classify_down_confirm(self):
         assert classify_odds_movement("down") == "confirm"
+
     def test_classify_up_infirm(self):
         assert classify_odds_movement("up") == "infirm"
+
     def test_classify_stable(self):
         assert classify_odds_movement("stable") == "stable"
+
     def test_classify_none(self):
         assert classify_odds_movement(None) == "stable"
+
     # odds_movement_factor
     def test_factor_confirm(self):
         assert odds_movement_factor("confirm") == 1.0
+
     def test_factor_infirm(self):
         assert odds_movement_factor("infirm") == 0.0
+
     def test_factor_stable(self):
         assert odds_movement_factor("stable") == 0.5
+
     # apply_odds_movement_adjustment
     def test_confirm_boosts(self):
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.05)
         assert apply_odds_movement_adjustment(0.80, "down", 0.10, cfg) > 0.80
+
     def test_infirm_penalizes(self):
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.05)
         assert apply_odds_movement_adjustment(0.80, "up", 0.10, cfg) < 0.80
+
     def test_below_threshold_skips(self):
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.10)
         assert apply_odds_movement_adjustment(0.80, "down", 0.05, cfg) == 0.80
+
     def test_zero_weight_no_change(self):
         cfg = BetSlipConfig(odds_movement_weight=0.0, odds_movement_strength_min=0.05)
         assert apply_odds_movement_adjustment(0.80, "down", 0.10, cfg) == 0.80
+
     # Integration: score_pick with movement
     def test_score_pick_with_movement(self):
         opt = CandidateLeg(
-            match_name="A vs B", datetime="2025-01-01",
-            market=MarketLabel.HOME, market_type=MarketType.RESULT,
-            consensus=70.0, odds=1.50, result_url="http://x.com", sources=3,
-            odds_movement_direction="down", odds_movement_strength=0.10,
+            match_name="A vs B",
+            datetime="2025-01-01",
+            market=MarketLabel.HOME,
+            market_type=MarketType.RESULT,
+            consensus=70.0,
+            odds=1.50,
+            result_url="http://x.com",
+            sources=3,
+            odds_movement_direction="down",
+            odds_movement_strength=0.10,
         )
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.05)
         tier, score, quality = score_pick(opt, 1.50, 10, cfg)
         assert 0.0 <= score <= 1.0
+
     def test_score_pick_without_movement_defaults(self):
         opt = CandidateLeg(
-            match_name="A vs B", datetime="2025-01-01",
-            market=MarketLabel.HOME, market_type=MarketType.RESULT,
-            consensus=70.0, odds=1.50, result_url="http://x.com", sources=3,
+            match_name="A vs B",
+            datetime="2025-01-01",
+            market=MarketLabel.HOME,
+            market_type=MarketType.RESULT,
+            consensus=70.0,
+            odds=1.50,
+            result_url="http://x.com",
+            sources=3,
         )
         cfg = BetSlipConfig()
         tier, score, quality = score_pick(opt, 1.50, 10, cfg)

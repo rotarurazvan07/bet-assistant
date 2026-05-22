@@ -889,9 +889,7 @@ class BetAssistant(BaseStorageManager):
                         if source_edge < min_edge:
                             continue
                         # Odds movement per market
-                        mov_dir, mov_str = self._get_market_movement(
-                            row.get("odds"), odds_col.replace("odds_", "")
-                        )
+                        mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
                         candidates.append(
                             CandidateLeg(
                                 match_name=match_name,
