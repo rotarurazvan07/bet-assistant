@@ -54,7 +54,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
             max_concurrency=MAX_CONCURRENCY,
         )
 
-    def _parse_page(self, _, html) -> None:
+    def _parse_page(self, url, html) -> None:
         soup = BeautifulSoup(html, "html.parser")
         # Select all rows in the table body that contain match data (skip header)
         all_anchors = soup.select("table.table-tips tbody tr:has(td)")  # tr elements with <td> (data rows)

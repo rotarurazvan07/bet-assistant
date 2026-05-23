@@ -1017,12 +1017,12 @@ export default function Analytics({ filters, refreshKey }: Props) {
                         })()} margin={{ left: 0, right: 10, top: 5, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="pnlPosGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--win)" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="var(--win)" stopOpacity={0.02} />
+                                    <stop offset="0%" stopColor="var(--win)" stopOpacity={0.25} />
+                                    <stop offset="100%" stopColor="var(--win)" stopOpacity={0.0} />
                                 </linearGradient>
                                 <linearGradient id="pnlNegGrad" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="var(--loss)" stopOpacity={0.02} />
-                                    <stop offset="95%" stopColor="var(--loss)" stopOpacity={0.3} />
+                                    <stop offset="0%" stopColor="var(--loss)" stopOpacity={0.0} />
+                                    <stop offset="100%" stopColor="var(--loss)" stopOpacity={0.25} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} strokeOpacity={0.4} />
@@ -1071,8 +1071,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                 ))}
                             </Bar>
                             {/* Cumulative dual-area fills */}
-                            <Area yAxisId="cumulative" dataKey="profitPos" fill="url(#pnlPosGrad)" stroke="none" type="monotone" />
-                            <Area yAxisId="cumulative" dataKey="profitNeg" fill="url(#pnlNegGrad)" stroke="none" type="monotone" />
+                            <Area yAxisId="cumulative" dataKey="profitPos" fill="url(#pnlPosGrad)" stroke="none" type="monotone" baseValue={0} />
+                            <Area yAxisId="cumulative" dataKey="profitNeg" fill="url(#pnlNegGrad)" stroke="none" type="monotone" baseValue={0} />
                             <Line yAxisId="cumulative" dataKey="cumulative_profit" stroke="var(--chart-1)" strokeWidth={2.5}
                                 dot={false} type="monotone" />
                         </ComposedChart>
