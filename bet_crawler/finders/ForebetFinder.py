@@ -223,7 +223,7 @@ ALL_LINKS = [
 
 
 class ForebetFinder(BaseMatchFinder):
-    # TIMEZONE = BaseMatchFinder._detect_local_timezone()
+    TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)

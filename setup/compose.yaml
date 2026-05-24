@@ -1,10 +1,22 @@
 name: bet-assistant-dashboard
 
+# ── Extension Templates ──────────────────────────────────────────────────────
+x-runner-base: &runner-base
+  image: ghcr.io/rotarurazvan07/bet-assistant-runner:latest
+  restart: unless-stopped
+  environment:
+    GITHUB_OWNER: "${GITHUB_OWNER}"
+    GITHUB_REPO: "${GITHUB_REPO}"
+    ACCESS_TOKEN: "${ACCESS_TOKEN}"
+    RUNNER_NAME_PREFIX: "bet-runner"
+    LABELS: "${RUNNER_LABELS:-self-hosted,linux,bet-runner}"
+  labels:
+    - "com.centurylinklabs.watchtower.enable=true"
+    - "com.centurylinklabs.watchtower.scope=bet-stack"
+
+# ── Services Matrix ─────────────────────────────────────────────────────────
 services:
   backend:
-    build:
-      context: .
-      dockerfile: bet_dashboard/backend/Dockerfile
     image: ghcr.io/rotarurazvan07/bet-assistant-backend:latest
     container_name: bet-backend
     restart: unless-stopped
@@ -13,15 +25,16 @@ services:
       - SLIPS_DB_PATH=/app/workspace/data/slips.db
       - CONFIG_PATH=/app/workspace/config
       - PYTHONPATH=/app
-    command:
-      sh -c "mkdir -p /app/workspace/config && mkdir -p /app/workspace/data &&
+      - TZ=Europe/Bucharest
+    command: >
+      sh -c "mkdir -p /app/workspace/config &&
+             mkdir -p /app/workspace/data &&
              cp -r /app/config/. /app/workspace/config/ &&
              uvicorn main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./workspace:/app/workspace
-      - /etc/localtime:/etc/localtime:ro
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
@@ -33,17 +46,15 @@ services:
       start_period: 10s
 
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
     image: ghcr.io/rotarurazvan07/bet-assistant-frontend:latest
     container_name: bet-frontend
     restart: unless-stopped
     ports:
       - "3002:80"
+    environment:
+      - TZ=Europe/Bucharest
     volumes:
       - ./workspace:/app/workspace
-      - /etc/localtime:/etc/localtime:ro
     depends_on:
       backend:
         condition: service_healthy
@@ -51,6 +62,13 @@ services:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
 
+  # ── GITHUB ACTIONS SELF-HOSTED RUNNERS ────────────────────────────────────
+  runner:
+    <<: *runner-base
+    deploy:
+      replicas: 1
+
+  # ── AUTOMATED INFRASTRUCTURE DEPLOYER ─────────────────────────────────────
   bet-updater:
     image: containrrr/watchtower:1.7.1
     container_name: bet-updater
@@ -58,5 +76,5 @@ services:
     environment:
       - DOCKER_API_VERSION=1.44
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - //var/run/docker.sock:/var/run/docker.sock
     command: --interval 300 --cleanup --scope bet-stack --label-enable
