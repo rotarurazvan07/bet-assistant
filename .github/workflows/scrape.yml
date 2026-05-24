@@ -70,22 +70,19 @@ jobs:
       - name: Check for Scrape-Kit Updates
         id: check-git
         run: |
-          # 1. Fetch the latest commit hash from the remote repository metadata instantly
           REMOTE_SHA=$(git ls-remote https://github.com/rotarurazvan07/scrape-kit.git refs/heads/main | awk '{print $1}')
           echo "Remote SHA: $REMOTE_SHA"
 
-          # 2. Check what version is currently available locally in site-packages
           LOCAL_SHA=$(python3 -c "
-            try:
-                import pkg_resources
-                dist = pkg_resources.get_distribution('scrape-kit')
-                print(dist.version)
-            except Exception:
-                print('')
-            " 2>/dev/null || true)
-                    echo "Local Version/SHA: $LOCAL_SHA"
+          try:
+              import pkg_resources
+              dist = pkg_resources.get_distribution('scrape-kit')
+              print(dist.version)
+          except Exception:
+              print('')
+          " 2>/dev/null || true)
+          echo "Local Version/SHA: $LOCAL_SHA"
 
-          # Force an update if hashes don't match, or if it isn't installed yet
           if [ -z "$LOCAL_SHA" ] || [[ "$LOCAL_SHA" != *"$REMOTE_SHA"* ]]; then
             echo "needs_update=true" >> $GITHUB_OUTPUT
             echo "🔄 Remote changed or package missing. Update triggered."
@@ -94,7 +91,7 @@ jobs:
             echo "✅ Up to date with remote main branch. Skipping install."
           fi
 
-      - name: Refresh scrape-kit via Pip
+      - name: Refresh scrape-kit via Pip (Once for the entire container)
         if: steps.check-git.outputs.needs_update == 'true'
         run: |
           python3 -m pip install --user --upgrade pip setuptools wheel 2>&1 | tee -a job_log.txt
@@ -198,30 +195,6 @@ jobs:
         run: |
           echo "=== Job: scrape-local started at $(date) ===" > job_log.txt
 
-      - name: Check for Scrape-Kit Updates
-        id: check-git
-        run: |
-          REMOTE_SHA=$(git ls-remote https://github.com/rotarurazvan07/scrape-kit.git refs/heads/main | awk '{print $1}')
-          LOCAL_SHA=$(python3 -c "
-            try:
-                import pkg_resources
-                dist = pkg_resources.get_distribution('scrape-kit')
-                print(dist.version)
-            except Exception:
-                print('')
-            " 2>/dev/null || true)
-          if [ -z "$LOCAL_SHA" ] || [[ "$LOCAL_SHA" != *"$REMOTE_SHA"* ]]; then
-            echo "needs_update=true" >> $GITHUB_OUTPUT
-          else
-            echo "needs_update=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Refresh scrape-kit via Pip
-        if: steps.check-git.outputs.needs_update == 'true'
-        run: |
-          python3 -m pip install --user --upgrade pip setuptools wheel 2>&1 | tee -a job_log.txt
-          python3 -m pip install --user --upgrade --force-reinstall \
-            "git+https://github.com/rotarurazvan07/scrape-kit.git@main#egg=scrape-kit" 2>&1 | tee -a job_log.txt
 
       - name: Download URL files
         uses: actions/download-artifact@v4
@@ -274,12 +247,16 @@ jobs:
           path: .
 
       - name: Install dependencies
-        run: pip install --no-cache-dir -r setup/requirements-scrape.txt 2>&1 | tee -a job_log.txt
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --no-cache-dir -r setup/requirements-scrape.txt 2>&1 | tee -a job_log.txt
+          scrapling install 2>&1 | tee -a job_log.txt
 
       - name: Merge Databases
         run: |
           set -o pipefail
-          python3 -m bet_crawler.crawl \
+          ./venv/bin/python -m bet_crawler.crawl \
             --mode merge \
             --chunks_dir "." \
             --matches_db_path "final_matches.db" \
@@ -342,10 +319,10 @@ jobs:
           echo "" >> unified_log.txt
           find all_logs -type f | sort | while read log_file; do
             echo "=== LOG FILE: $(basename "$log_file") ===" >> unified_log.txt
-            cat "$log_file"                                   >> unified_log.txt
-            echo ""                                           >> unified_log.txt
-            echo "=== END OF FILE ==="                         >> unified_log.txt
-            echo ""                                           >> unified_log.txt
+            cat "$log_file"                                    >> unified_log.txt
+            echo ""                                            >> unified_log.txt
+            echo "=== END OF FILE ==="                        >> unified_log.txt
+            echo ""                                            >> unified_log.txt
           done
 
       - name: Upload unified log

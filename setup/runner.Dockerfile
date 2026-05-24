@@ -16,7 +16,7 @@ RUN useradd -m -s /bin/bash runner \
     && echo 'runner ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 # ── 3. GITHUB RUNNER CORE ENGINE ────────────────────────────────────────────
-ARG RUNNER_VERSION=2.321.0
+ARG RUNNER_VERSION=2.334.0
 RUN curl -fsSL -o /tmp/runner.tar.gz \
         "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
     && tar -xzf /tmp/runner.tar.gz -C /home/runner \
