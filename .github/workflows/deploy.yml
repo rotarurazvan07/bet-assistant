@@ -52,3 +52,15 @@ jobs:
           provenance: false
           cache-from: type=gha,scope=frontend
           cache-to:   type=gha,mode=max,scope=frontend
+
+      - name: Build and push — runner
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: setup/runner.Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/bet-assistant-runner:latest
+          provenance: false
+          cache-from: type=gha,scope=runner
+          cache-to:   type=gha,mode=max,scope=runner
