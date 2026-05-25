@@ -56,6 +56,10 @@ acronyms:
   " zska": ""
   "fcsb ": ""
   " fcsb": ""
+  "din. ": "dinamo "
+  " din.": " dinamo"
+  "lok. ": "lokomotiva "
+  " lok.": " lokomotiva"
 
   # ── Germanic / Nordic ──────────────────────────────────────────────────────
   "borussia ": ""
@@ -237,6 +241,12 @@ synonyms:
   "fc kobenhavn": "fc copenhagen"
   "midtjylland": "fc midtjylland"
 
+  # ── Norwegian clubs ───────────────────────────────────────────────────────
+  "ham-kam": "hamkam"
+
+  # ── Danish / Nordic misc ──────────────────────────────────────────────────
+  "aab": "aalborg"
+
   # ── Croatian clubs ────────────────────────────────────────────────────────
   "dinamo zagreb": "gnk dinamo zagreb"
   "hajduk": "hajduk split"
@@ -252,6 +262,12 @@ synonyms:
   "nycfc": "new york city"
   "lafc": "los angeles"
   "la galaxy": "los angeles galaxy"
+  "dynamo h.": "houston dynamo"
+  "sj earthquakes": "san jose earthquakes"
+  "revolution": "new england revolution"
+
+  # ── South American clubs ───────────────────────────────────────────────────
+  "o'higgins": "ohiggins"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
@@ -280,8 +296,11 @@ weak_tokens:
   - manchester
   - inter
   - dynamo
+  - dinamo
   - real
   - racing
+  - rapid
+  - hapoel
   # "sporting" is stripped by the acronym rule above, so listing it here is
   # redundant but harmless as a safety net for sources that skip the prefix.
   - sporting
