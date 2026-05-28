@@ -1,0 +1,14 @@
+.git
+.github
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/node_modules
+**/dist
+venv
+*.db
+*.sqlite
+*.sqlite3
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

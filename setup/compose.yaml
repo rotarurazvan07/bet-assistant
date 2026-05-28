@@ -16,9 +16,9 @@ x-runner-base: &runner-base
 
 # ── Services Matrix ─────────────────────────────────────────────────────────
 services:
-  backend:
-    image: ghcr.io/rotarurazvan07/bet-assistant-backend:latest
-    container_name: bet-backend
+  bet-assistant:
+    image: ghcr.io/rotarurazvan07/bet-assistant:latest
+    container_name: bet-assistant
     restart: unless-stopped
     environment:
       - MATCHES_DB_PATH=/app/workspace/data/matches.db
@@ -26,41 +26,19 @@ services:
       - CONFIG_PATH=/app/workspace/config
       - PYTHONPATH=/app
       - TZ=Europe/Bucharest
-    command: >
-      sh -c "mkdir -p /app/workspace/config &&
-             mkdir -p /app/workspace/data &&
-             cp -r /app/config/. /app/workspace/config/ &&
-             uvicorn main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./workspace:/app/workspace
     ports:
-      - "8000:8000"
+      - "3002:80"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
       - "com.centurylinklabs.watchtower.scope=bet-stack"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost/api/status')"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
-
-  frontend:
-    image: ghcr.io/rotarurazvan07/bet-assistant-frontend:latest
-    container_name: bet-frontend
-    restart: unless-stopped
-    ports:
-      - "3002:80"
-    environment:
-      - TZ=Europe/Bucharest
-    volumes:
-      - ./workspace:/app/workspace
-    depends_on:
-      backend:
-        condition: service_healthy
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.scope=bet-stack"
 
   # ── GITHUB ACTIONS SELF-HOSTED RUNNERS ────────────────────────────────────
   runner:
