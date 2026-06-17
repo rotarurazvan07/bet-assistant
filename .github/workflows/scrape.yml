@@ -97,6 +97,8 @@ jobs:
           python3 -m pip install --user --upgrade pip setuptools wheel 2>&1 | tee -a job_log.txt
           python3 -m pip install --user --upgrade --force-reinstall \
             "git+https://github.com/rotarurazvan07/scrape-kit.git@main#egg=scrape-kit" 2>&1 | tee -a job_log.txt
+          scrapling install 2>&1 | tee -a job_log.txt
+          python3 -m patchright install-deps chromium 2>&1 | tee -a job_log.txt
 
       - name: Generate Matrix
         id: set-matrix
