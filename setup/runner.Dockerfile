@@ -44,10 +44,34 @@ if [ -z "$REG_TOKEN" ] || [ "$REG_TOKEN" = "null" ]; then
     exit 1
 fi
 
-# Remove stale config from a previous container run
+# ── Kill any ghost runners with the same name prefix via API ─────────────────
+echo "==> Checking for ghost runners matching '${RUNNER_NAME_PREFIX:-bet-runner}'..."
+REMOVE_TOKEN=$(curl -sX POST \
+    -H "Authorization: token ${ACCESS_TOKEN}" \
+    -H "Accept: application/vnd.github.v3+json" \
+    "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/remove-token" \
+    | jq -r '.token')
+
+RUNNERS=$(curl -s \
+    -H "Authorization: token ${ACCESS_TOKEN}" \
+    -H "Accept: application/vnd.github.v3+json" \
+    "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners?per_page=100")
+
+echo "$RUNNERS" | jq -r \
+    --arg prefix "${RUNNER_NAME_PREFIX:-bet-runner}" \
+    '.runners[] | select(.name | startswith($prefix)) | .id' \
+| while read -r RUNNER_ID; do
+    echo "==> Deleting ghost runner ID ${RUNNER_ID}..."
+    curl -sX DELETE \
+        -H "Authorization: token ${ACCESS_TOKEN}" \
+        -H "Accept: application/vnd.github.v3+json" \
+        "https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runners/${RUNNER_ID}"
+done
+
+# ── Remove stale local config ─────────────────────────────────────────────────
 if [ -f ".runner" ]; then
-    echo "==> Removing stale runner config..."
-    ./config.sh remove --unattended --token "${REG_TOKEN}" 2>/dev/null \
+    echo "==> Removing stale local runner config..."
+    ./config.sh remove --unattended --token "${REMOVE_TOKEN}" 2>/dev/null \
         || rm -f .runner .credentials .credentials_rsaparams
 fi
 
