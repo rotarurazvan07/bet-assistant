@@ -30,7 +30,6 @@ COPY <<'EOF' /entrypoint.sh
 #!/bin/bash
 set -euo pipefail
 
-# Dynamic runner name generation
 RUNNER_NAME="${RUNNER_NAME_PREFIX:-bet-runner}-$(cat /proc/sys/kernel/random/uuid | tr -d '-' | cut -c1-8)"
 
 echo "==> Fetching registration token for ${GITHUB_OWNER}/${GITHUB_REPO}..."
@@ -43,6 +42,13 @@ REG_TOKEN=$(curl -sX POST \
 if [ -z "$REG_TOKEN" ] || [ "$REG_TOKEN" = "null" ]; then
     echo "ERROR: Failed to get registration token."
     exit 1
+fi
+
+# Remove stale config from a previous container run
+if [ -f ".runner" ]; then
+    echo "==> Removing stale runner config..."
+    ./config.sh remove --unattended --token "${REG_TOKEN}" 2>/dev/null \
+        || rm -f .runner .credentials .credentials_rsaparams
 fi
 
 echo "==> Registering runner as '${RUNNER_NAME}'..."
