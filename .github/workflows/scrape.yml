@@ -67,32 +67,7 @@ jobs:
         run: |
           echo "=== Job: prepare-local started at $(date) ===" > job_log.txt
 
-      - name: Check for Scrape-Kit Updates
-        id: check-git
-        run: |
-          REMOTE_SHA=$(git ls-remote https://github.com/rotarurazvan07/scrape-kit.git refs/heads/main | awk '{print $1}')
-          echo "Remote SHA: $REMOTE_SHA"
-
-          LOCAL_SHA=$(python3 -c "
-          try:
-              import pkg_resources
-              dist = pkg_resources.get_distribution('scrape-kit')
-              print(dist.version)
-          except Exception:
-              print('')
-          " 2>/dev/null || true)
-          echo "Local Version/SHA: $LOCAL_SHA"
-
-          if [ -z "$LOCAL_SHA" ] || [[ "$LOCAL_SHA" != *"$REMOTE_SHA"* ]]; then
-            echo "needs_update=true" >> $GITHUB_OUTPUT
-            echo "🔄 Remote changed or package missing. Update triggered."
-          else
-            echo "needs_update=false" >> $GITHUB_OUTPUT
-            echo "✅ Up to date with remote main branch. Skipping install."
-          fi
-
-      - name: Refresh scrape-kit via Pip (Once for the entire container)
-        if: steps.check-git.outputs.needs_update == 'true'
+      - name: Update runtimes
         run: |
           python3 -m pip install --user --upgrade pip setuptools wheel 2>&1 | tee -a job_log.txt
           python3 -m pip install --user --upgrade --force-reinstall \
