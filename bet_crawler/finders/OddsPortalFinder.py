@@ -344,17 +344,11 @@ class OddsPortalFinder(BaseMatchFinder):
 
                     home_team = soup.select_one('[data-testid="game-host"] a').text.strip()
                     away_team = soup.select_one('[data-testid="game-guest"] a').text.strip()
-                    date_text = (
-                        soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)')
-                        .text.strip()
-                        .rstrip(",")
-                    )
-                    
+                    date_text = soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)').text.strip().rstrip(",")
+
                     for fmt in ("%d %b %Y", "%d %B %Y"):
                         try:
-                            match_date = datetime.strptime(date_text, fmt).replace(
-                                hour=0, minute=0, second=0
-                            )
+                            match_date = datetime.strptime(date_text, fmt).replace(hour=0, minute=0, second=0)
                             break
                         except ValueError:
                             pass
