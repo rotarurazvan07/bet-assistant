@@ -132,6 +132,7 @@ jobs:
           source venv/bin/activate
           pip install --no-cache-dir -r setup/requirements-scrape.txt 2>&1 | tee -a job_log.txt
           scrapling install 2>&1 | tee -a job_log.txt
+          python3 -m patchright install --with-deps chromium 2>&1 | tee -a job_log.txt
 
       - name: Download URL files
         uses: actions/download-artifact@v4
@@ -210,7 +211,7 @@ jobs:
           path: job_log.txt
           retention-days: 7
 
-  # ── 5. MERGE ───────────────────────────────────────────────────────────────
+  # ── 5. MERGE ────────────────────────────────────────────────────────────
   merge:
     needs: [scrape-local, scrape-actions]
     runs-on: ubuntu-22.04
@@ -260,7 +261,7 @@ jobs:
           path: job_log.txt
           retention-days: 7
 
-  # ── 6. RELEASE ─────────────────────────────────────────────────────────────
+  # ── 6. RELEASE ──────────────────────────────────────────────────────────
   upload-release:
     needs: merge
     runs-on: ubuntu-22.04
@@ -283,7 +284,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ── 7. UNIFY LOGS ──────────────────────────────────────────────────────────
+  # ── 7. UNIFY LOGS ────────────────────────────────────────────────────────
   unify-logs:
     needs: [prepare-actions, scrape-actions, prepare-local, scrape-local, merge]
     runs-on: ubuntu-22.04
@@ -314,7 +315,7 @@ jobs:
           path: unified_log.txt
           retention-days: 30
 
-  # ── 8. CLEANUP ─────────────────────────────────────────────────────────────
+  # ── 8. CLEANUP ──────────────────────────────────────────────────────────
   cleanup-artifacts:
     needs: [unify-logs]
     runs-on: ubuntu-22.04
