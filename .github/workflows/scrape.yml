@@ -70,16 +70,18 @@ jobs:
       - name: Update runtimes
         run: |
           set -o pipefail
-
-          echo "==> Wiping cached browsers/site-packages for a clean run..." | tee -a job_log.txt
           rm -rf "$HOME/.cache/ms-playwright"
           python3 -m pip uninstall -y scrape-kit scrapling playwright patchright 2>&1 | tee -a job_log.txt || true
-          python3 -m pip install --user --upgrade pip setuptools wheel 2>&1 | tee -a job_log.txt
-          python3 -m pip install --user --upgrade --force-reinstall \
+          python3 -m pip install --user --upgrade --no-cache-dir --force-reinstall \
             "git+https://github.com/rotarurazvan07/scrape-kit.git@main#egg=scrape-kit" 2>&1 | tee -a job_log.txt
           scrapling install --force 2>&1 | tee -a job_log.txt
           python3 -m patchright install --with-deps chromium 2>&1 | tee -a job_log.txt
 
+          # Purge caches this run just created
+          python3 -m pip cache purge 2>&1 | tee -a job_log.txt || true
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+    
       - name: Generate Matrix
         id: set-matrix
         env:
