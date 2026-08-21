@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM python:3.14-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -6,9 +6,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl git jq sudo ca-certificates \
-        python3.10 python3-pip \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 \
-    && update-alternatives --install /usr/bin/python  python   /usr/bin/python3.10 1 \
     && rm -rf /var/lib/apt/lists/*
 
 # ── 2. RUNNER USER CONFIGURATION ────────────────────────────────────────────
