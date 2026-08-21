@@ -111,6 +111,16 @@ RUN pip3 install --no-cache-dir --user --upgrade pip setuptools wheel
 COPY --chown=runner:runner setup/requirements-scrape.txt /tmp/requirements-scrape.txt
 RUN pip3 install --no-cache-dir --user -r /tmp/requirements-scrape.txt
 
+# Install scrapling runtime components and browser dependencies at image build time
+# scrapling install will configure local browser runtimes; patchright will fetch chromium.
+RUN scrapling install --force || true
+RUN python3 -m patchright install --with-deps chromium || true
+
+# Purge pip cache and clean apt lists to reduce image size
+RUN python3 -m pip cache purge || true
+RUN sudo apt-get clean || true
+RUN sudo rm -rf /var/lib/apt/lists/* || true
+
 # Install browsers natively
 RUN scrapling install
 

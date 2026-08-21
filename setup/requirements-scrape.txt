@@ -1,4 +1,4 @@
-beautifulsoup4
-pandas
-tzlocal
-git+https://github.com/rotarurazvan07/scrape-kit.git
+beautifulsoup4==4.15.0
+pandas==3.0.5
+tzlocal==5.4.4
+git+https://github.com/rotarurazvan07/scrape-kit.git@e3093570ab0e9162e4590159d55cd2b998f4dc59
