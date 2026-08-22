@@ -267,9 +267,6 @@ python -m bet_crawler.crawl --mode <mode> [options]
 | `merge` | Combine chunk DBs into final database |
 | `generate-slips` | Build slips using a profile YAML |
 | `validate-slips` | Scrape results and settle pending legs |
-| `prepare-odds-scrape` | Generate odds mapping for parallel workers |
-| `odds-scrape` | Scrape odds for worker using mapping |
-| `merge-odds` | Merge worker odds DBs into final odds DB |
 
 ### Example: Full Pipeline
 

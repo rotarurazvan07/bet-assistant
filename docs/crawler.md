@@ -43,10 +43,7 @@ graph TD
         SC[scrape
         Parallel chunks]
         MR[merge
-        Fuzzy dedup]
-        ODDS[odds-scrape
-        Optional enrichment]
-    end
+        Fuzzy dedup]    end
 
     subgraph "Storage"
         MDB[(matches.db
@@ -75,10 +72,7 @@ graph TD
     FP --> PS
     
     PS --> SC
-    SC --> MR
-    MR --> MDB
-    MDB --> ODDS
-    ODDS --> MDB
+    SC --> MR    MR --> MDB
     
     MDB --> BA[Backend API]
     SDB --> BA
@@ -89,7 +83,7 @@ graph TD
 
 ## Pipeline Modes
 
-The crawler CLI (`bet_crawler/crawl.py`) supports 8 modes:
+The crawler CLI (`bet_crawler/crawl.py`) supports 5 modes:
 
 | Mode | Purpose | Parallel |
 |------|---------|----------|
@@ -98,9 +92,6 @@ The crawler CLI (`bet_crawler/crawl.py`) supports 8 modes:
 | `merge` | Combine all chunk DBs into a single final DB | No |
 | `generate-slips` | Build slips using a profile YAML | No |
 | `validate-slips` | Scrape results and settle pending legs | Yes (per result_url) |
-| `prepare-odds-scrape` | Generate mapping files for odds scraping workers | No |
-| `odds-scrape` | Scrape odds for a worker using its mapping file | Yes |
-| `merge-odds` | Merge all worker odds DBs into a single final odds DB | No |
 
 ### Standard Workflow
 
@@ -123,30 +114,7 @@ python -m bet_crawler.crawl --mode merge \
   --config_dir config
 ```
 
-### Odds Enrichment Workflow
 
-```bash
-# 1. Prepare odds scrape (generate mapping files)
-python -m bet_crawler.crawl --mode prepare-odds-scrape \
-  --matches_db_path final.db \
-  --config_dir config \
-  --workers 4
-
-# 2. Scrape odds (run workers in parallel)
-python -m bet_crawler.crawl --mode odds-scrape \
-  --matches_db_path final.db \
-  --mapping_file odds_mapping_worker_1.json \
-  --worker_db_path worker-1.db \
-  --config_dir config
-
-# 3. Merge odds DBs
-python -m bet_crawler.crawl --mode merge-odds \
-  --odds_db_path final-odds.db \
-  --workers_dir ./workers \
-  --config_dir config
-```
-
----
 
 ## Finder Architecture
 
@@ -580,9 +548,6 @@ choices=[
     "merge",
     "generate-slips",
     "validate-slips",
-    "prepare-odds-scrape",
-    "odds-scrape",
-    "merge-odds",
     "my-custom-mode",  # Add here
 ]
 

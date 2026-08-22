@@ -38,10 +38,7 @@ graph TB
         SC[scrape
         Parallel chunks]
         MR[merge
-        Fuzzy dedup]
-        ODDS[odds-scrape
-        Optional enrichment]
-    end
+        Fuzzy dedup]    end
 
     subgraph "Data Layer"
         MDB[(matches.db
@@ -92,10 +89,7 @@ graph TB
     DS12 --> PS
     
     PS --> SC
-    SC --> MR
-    MR --> MDB
-    MDB --> ODDS
-    ODDS --> MDB
+    SC --> MR    MR --> MDB
     
     MDB --> API
     SDB --> API
@@ -152,8 +146,7 @@ sequenceDiagram
         SC->>DS11: Scrape LegitPredict
     end
     SC->>MR: Chunk DBs (actions-1.db, local-1.db, etc.)
-    MR->>MR: Fuzzy deduplication (home/away/datetime)
-    MR->>MDB: Write final_matches.db
+    MR->>MR: Fuzzy deduplication (home/away/datetime)    MR->>MDB: Write final_matches.db
     MR->>GH: Upload as release artifact
     GH->>API: bet-updater pulls new image
     API->>MDB: Download latest DB on startup
