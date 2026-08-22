@@ -1,55 +1,162 @@
 # 🎯 Bet Assistant
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Node 22+](https://img.shields.io/badge/node-22+-green.svg)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 
-A powerful, 24/7 automated betting intelligence platform. **Bet Assistant** crawls multiple sources, aggregates consensus data, calculates value pips, and manages your betting slips through a premium Dash dashboard.
+A powerful, 24/7 automated betting intelligence platform. **Bet Assistant** crawls multiple sources, aggregates consensus data, calculates value pips, and manages your betting slips through a premium React dashboard.
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/architecture.md) | System architecture, data flows, and component diagrams |
+| [API Reference](docs/api.md) | Complete REST API and WebSocket documentation |
+| [Deployment](docs/deployment.md) | Docker, Kubernetes, and production deployment guides |
+| [Development](docs/development.md) | Local development setup and contribution guidelines |
+| [Frontend](docs/frontend.md) | React dashboard architecture and component guide |
+| [Backend](docs/backend.md) | FastAPI backend, services, and data models |
+| [Crawler](docs/crawler.md) | ETL pipeline, finders, and scraping modes |
+| [Infrastructure](docs/infrastructure.md) | Docker, CI/CD, and monitoring setup |
 
 ---
 
 ## 🚀 Key Features
 
-*   **Multi-Source Aggregation**: Intelligent crawlers for WhoScored, Forebet, SoccerVista, and more.
-*   **Consensus Engine**: Calculates betting "Consensus" based on agreement across providers.
-*   **Smart Slip Builder**: Dynamic generator that builds slips based on risk profiles (Low, Medium, High).
-*   **Real-time Analytics**: Track your success rate, market accuracy, and ROI over time.
-*   **24/7 Service Architecture**: Designed to run on a Raspberry Pi or server with automated daily updates.
-*   **Premium Web UI**: High-performance dashboard with glassmorphism aesthetics and live status monitoring.
+*   **Multi-Source Aggregation**: 18+ intelligent crawlers for WhoScored, Forebet, SoccerVista, Vitibet, ScorePredictor, Predictz, WinDrawWin, OneMillionPredictions, xGScore, EaglePredict, LegitPredict, and more
+*   **Consensus Engine**: Calculates betting "Consensus" based on agreement across providers with source-weighted Bayesian shrinkage
+*   **Smart Slip Builder**: Dynamic generator that builds slips based on configurable risk profiles (Low, Medium, High, Value Hunter)
+*   **Real-time Analytics**: Track success rate, market accuracy, ROI, Sharpe ratio, Kelly criterion, and drawdown over time
+*   **Odds Movement Tracking**: Embedded odds history with significance detection (5% relative change or 0.10 absolute for low odds)
+*   **24/7 Service Architecture**: Designed to run on Raspberry Pi or server with automated daily updates via GitHub Actions
+*   **Premium Web UI**: High-performance React 19 dashboard with MUI v9, TailwindCSS, Recharts, and glassmorphism aesthetics
+*   **WebSocket Real-time Updates**: Live match data, slip updates, and service status via push notifications
+*   **Automated CI/CD**: GitHub Actions with self-hosted runners, multi-stage Docker builds, and Watchtower auto-updates
 
 ---
 
-## 🐳 1. Docker Setup (Recommended)
+## 🏗️ System Architecture
 
-The easiest way to get started is using Docker Compose. This ensures all dependencies and background services are configured correctly.
+```mermaid
+graph TB
+    subgraph "GitHub Actions CI/CD"
+        GH1[Scrape Workflow
+        prepare-scrape → scrape → merge → release]
+        GH2[Deploy Workflow
+        Build & push Docker images]
+        GH3[CI Workflow
+        Auto-fix → Test → Audit → Gate]
+    end
+
+    subgraph "Docker Compose Stack"
+        DC[Docker Compose]
+        BA[bet-assistant:latest
+        Nginx + FastAPI + React]
+        GR[runner:latest
+        Self-hosted GH runners]
+        BU[bet-updater:latest
+        Watchtower auto-update]
+    end
+
+    subgraph "bet-assistant Container"
+        NG[Nginx :80
+        Static files + Reverse proxy]
+        API[FastAPI :8000
+        REST + WebSocket]
+        UI[React 19 + Vite
+        MUI v9 + Tailwind + Recharts]
+    end
+
+    subgraph "Data Layer"
+        MDB[(matches.db
+        SQLite + odds history)]
+        SDB[(slips.db
+        SQLite + slip storage)]
+        CFG[config/
+        YAML profiles + settings]
+    end
+
+    subgraph "Crawler Pipeline (External)"
+        PS[prepare-scrape
+        URL collection]
+        SC[scrape
+        Parallel chunk processing]
+        MR[merge
+        Fuzzy deduplication]
+        GS[generate-slips
+        Profile-based building]
+        VS[validate-slips
+        Result scraping]
+    end
+
+    GH1 --> PS
+    PS --> SC
+    SC --> MR
+    MR --> MDB
+    MDB --> GS
+    GS --> SDB
+    SDB --> VS
+    VS --> SDB
+    GH2 --> BA
+    GH2 --> GR
+    GH3 --> BA
+    DC --> BA
+    DC --> GR
+    DC --> BU
+    BA --> NG
+    NG --> API
+    NG --> UI
+    API --> MDB
+    API --> SDB
+    API --> CFG
+    UI --> API
+    BU --> BA
+    BU --> GR
+```
+
+---
+
+## 🐳 Quick Start (Docker - Recommended)
 
 ### Prerequisites
 
-*   Docker & Docker Compose installed on your system
+*   Docker & Docker Compose installed
 *   Git (to clone the repository)
+*   GitHub Personal Access Token (for self-hosted runners - optional)
 
-### Installation Steps
+### Installation
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/rotarurazvan07/bet-assistant.git
-    cd bet-assistant
-    ```
+```bash
+# 1. Clone the repository
+git clone https://github.com/rotarurazvan07/bet-assistant.git
+cd bet-assistant
 
-2.  **Launch the stack**:
-    ```bash
-    docker compose -f setup/compose.yaml up -d
-    ```
+# 2. Configure environment (optional - for self-hosted runners)
+cp setup/env.example .env
+# Edit .env with your GitHub credentials
 
-    This command starts three services:
-    *   **Backend** (API server on port 8000)
-    *   **Frontend** (Web dashboard on port 3002)
-    *   **Bet-Updater** (Watchtower for automatic updates)
+# 3. Launch the stack
+docker compose -f setup/compose.yaml up -d
+```
 
-3.  **Access the dashboard**:
-    Open your browser and navigate to `http://localhost:3002`.
+This starts three services:
 
-### Stopping the Services
+| Service | Description | Port |
+|---------|-------------|------|
+| **bet-assistant** | Main application (Nginx + FastAPI + React) | 3002 |
+| **runner** | GitHub Actions self-hosted runner | - |
+| **bet-updater** | Watchtower for automatic image updates | - |
+
+### Access the Dashboard
+
+Open your browser and navigate to **`http://localhost:3002`**
+
+### Stopping Services
 
 ```bash
 docker compose -f setup/compose.yaml down
@@ -62,25 +169,23 @@ docker compose -f setup/compose.yaml down
 docker compose -f setup/compose.yaml logs -f
 
 # Specific service
-docker compose -f setup/compose.yaml logs -f backend
-docker compose -f setup/compose.yaml logs -f frontend
+docker compose -f setup/compose.yaml logs -f bet-assistant
 ```
 
 ### Data Persistence
 
-The compose configuration mounts a `workspace` directory in your project folder:
-*   `./workspace/config/` — Stores your profile configurations
-*   `./workspace/data/` — Contains the SQLite databases (`matches.db`, `slips.db`)
+The compose configuration mounts a `workspace` directory:
 
-**Important**: The backend automatically copies default configs from `/app/config/` to `/app/workspace/config/` on first launch. After that, edit the files in `./workspace/config/` to customize your settings.
+*   `./workspace/config/` — Profile configurations (copied from `/app/config/` on first launch)
+*   `./workspace/data/` — SQLite databases (`matches.db`, `slips.db`)
+
+**Important**: After first launch, edit files in `./workspace/config/` to customize settings.
 
 ---
 
-## 📖 2. Frontend User Guide
+## 🖥️ Dashboard Overview
 
-The dashboard is the heart of Bet Assistant. It provides a real-time view of matches, slip building tools, analytics, and service management.
-
-### <a name="dashboard-tabs"></a>Dashboard Tabs Overview
+The dashboard provides 5 main tabs:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -90,314 +195,66 @@ The dashboard is the heart of Bet Assistant. It provides a real-time view of mat
 └─────────────────────────────────────────────────────────────┘
 ```
 
----
+### 📊 Betting Tips Tab
 
-### <a name="tab-betting-tips"></a>📊 Betting Tips Tab
+Displays all available matches with consensus predictions and odds.
 
-The **Betting Tips** tab displays all available matches with their consensus predictions and odds.
+*   **Live Preview**: Matches update automatically via WebSocket
+*   **Search & Filter**: By team name, minimum consensus, odds, date range
+*   **Sortable Columns**: Click any header to sort
+*   **Manual Slip Builder**: Click market cells to add selections to side panel
+*   **Pagination**: 40 matches per page
+*   **Odds Movement Indicators**: Visual up/down/stable badges with strength %
 
-#### Features
+### 🧠 Smart Builder Tab
 
-*   **Live Preview**: Matches update automatically via WebSocket connection.
-*   **Search & Filter**: Filter by team name or minimum consensus percentage.
-*   **Sortable Columns**: Click any column header to sort (datetime, home/away teams, consensus values, odds).
-*   **Manual Slip Builder**: Click any cell in the `1`, `X`, `2`, `O2.5`, `U2.5`, `BTTS Y`, `BTTS N` columns to add that selection to the side panel.
-*   **Pagination**: Navigate through large result sets with 40 matches per page.
+Intelligent engine that automatically constructs betting slips based on risk profiles.
 
-#### Table Columns
+**Configuration Panels:**
 
-| Column | Description |
-|--------|-------------|
-| `#` | Row number (for reference) |
-| `Date` | Match datetime (localized to your timezone) |
-| `Home` / `Away` | Team names |
-| `Sources` | Number of data providers covering this match |
-| `1` / `X` / `2` | Consensus percentages for Home/Draw/Away result markets |
-| `O2.5` / `U2.5` | Consensus percentages for Over/Under 2.5 goals |
-| `BTTS Y` / `BTTS N` | Consensus percentages for Both Teams To Score |
+| Section | Key Settings |
+|---------|--------------|
+| **Bet Shape** | Target Odds, Target Legs, Max Overflow Legs |
+| **Quality Gate** | Consensus Floor, Min Odds |
+| **Markets** | 1, X, 2, O/U 0.5-4.5, BTTS, Double Chance |
+| **Tolerance & Stop** | Tolerance Factor, Stop Threshold, Min Legs Fill Ratio |
+| **Scoring** | Quality vs Balance, Consensus vs Sources (dual sliders) |
+| **Advanced** | Consensus Shrinkage, Min Source Edge, Max Single Leg Odds, Asymmetric Tolerance |
 
-#### Side Panel — Slip Builder
+**Profiles**: Save/load/delete named configurations with daily run scheduling.
 
-The permanent side panel on the right shows your pending manual selections:
+### 📋 Slips Tab
 
-*   **Legs List**: Each added selection displays match name, market, odds, and datetime.
-*   **Total Odds**: Running product of all selected odds.
-*   **Remove**: Click the ✕ button to remove a leg.
-*   **Submit**: Enter units and click "Add to Slips" to save the slip to your database.
+All generated betting slips with full tracking.
 
----
+*   **Slip Cards**: Profile, units, total odds, status (Won/Lost/Live/Pending)
+*   **Leg Details**: Match, datetime, market, odds, live score
+*   **Filters**: By profile, hide settled, live only
+*   **Actions**: Validate Results (scrape scores), Generate Slips (run daily profiles)
 
-### <a name="tab-smart-builder"></a>🧠 Smart Builder Tab
+### 📈 Analytics Tab
 
-The **Smart Builder** is the intelligent engine that automatically constructs betting slips based on configurable risk profiles.
+Deep performance insights with 6 metric cards and 8 chart types:
 
-#### What is Smart Builder?
+*   **History Tracking**: Cumulative profit, rolling win rate, ROI over time
+*   **Market Statistics**: Profit contribution, accuracy by market
+*   **Correlation Analysis**: Win rate by legs count, profile scatter plots
+*   **Advanced Metrics**: Rolling edge trend, drawdown, return distribution, time patterns
+*   **League Breakdown**: Performance by competition
 
-Instead of manually picking legs, Smart Builder analyzes all available matches and selects the best combinations that meet your criteria. It uses a sophisticated scoring model that balances:
+### ⚙️ Services Tab
 
-*   **Consensus strength** (agreement across sources)
-*   **Number of sources** (data provider coverage)
-*   **Odds proximity** (how close each pick is to your target per-leg odds)
-*   **Match uniqueness** (no duplicate matches in a single slip)
+Manage automated background tasks:
 
-#### Configuration Panel (Left Side)
-
-The configuration is divided into logical sections:
-
----
-
-##### **Bet Shape**
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Target Odds** | Desired cumulative odds for the entire slip (e.g., 3.0 = 2.0 × 1.5). | `3.0` |
-| **Target Legs** | Desired number of selections in the slip (1–10). | `3` |
-| **Max Overflow Legs** | Extra legs allowed beyond target when good opportunities arise. Auto mode adds +1 for 2–4 leg targets, +2 for 5+. | `Auto` |
-
-**Example**: Target Odds = 3.0, Target Legs = 3
-*   Ideal per-leg odds = ∛3.0 ≈ 1.44
-*   Builder will try to find 3 legs with odds around 1.44 each
-*   If Max Overflow = 1, it may add a 4th leg if total odds are still close to target
+*   **Service Cards**: Toggle crawlers on/off, view last run, match count
+*   **Scheduled Hours**: Pull DB (data fetch) and Generate Slips (slip creation)
+*   **Real-time Status**: Live/active indicators with next run countdown
 
 ---
 
-##### **Quality Gate**
+## 🛠️ Manual Crawling with `crawl.py`
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Consensus Floor** | Minimum source agreement percentage. Picks below this are discarded. | `50%` |
-| **Min Odds** | Minimum bookmaker odds. Filters out extremely likely outcomes (value protection). | `1.05` |
-
-**Example**: Consensus Floor = 70%
-*   Only picks where ≥70% of sources agree on the outcome are considered
-*   A match with consensus `1: 65%` would be excluded
-
----
-
-##### **Markets**
-
-Select which betting markets to include. Options:
-
-*   `1` (Home Win)
-*   `X` (Draw)
-*   `2` (Away Win)
-*   `O2.5` (Over 2.5 Goals)
-*   `U2.5` (Under 2.5 Goals)
-*   `BTTS Y` (Both Teams To Score — Yes)
-*   `BTTS N` (Both Teams To Score — No)
-
-**All markets** are selected by default. Uncheck to exclude specific markets from slip generation.
-
----
-
-##### **Tolerance & Stop**
-
-| Setting | Description | Default |
-|---------|-------------|---------|
-| **Tolerance Factor** | ±% band around the ideal per-leg odds. Tier 1 picks sit within this band and always rank above Tier 2. | `25%` |
-| **Stop Threshold** | Stop building when total odds ≥ target × threshold AND enough legs are filled. | `91%` |
-| **Min Legs Fill Ratio** | Minimum fraction of target legs before early stop is allowed. | `70%` |
-
-**How Tolerance Works**:
-*   Target Odds = 3.0, Target Legs = 3 → Ideal per-leg = 1.44
-*   Tolerance = 25% → Acceptable range = 1.08 to 1.80
-*   Picks within this range are **Tier 1** (prioritized)
-*   Picks outside are **Tier 2** (used only if necessary)
-
-**How Stop Threshold Works**:
-*   Target Odds = 3.0, Stop Threshold = 91% → Stop when total ≥ 2.73
-*   Combined with Min Legs Fill Ratio = 70% → Need at least 2 legs (70% of 3) before stopping early
-
----
-
-##### **Scoring**
-
-Two dual-sliders control how picks are ranked:
-
-```
-Balance ────────○──────── Quality
-Sources ────────○──────── Consensus
-```
-
-*   **Quality vs Balance** (left): 
-    *   Left (0.0) = prioritize odds closest to ideal (balance)
-    *   Right (1.0) = prioritize high consensus and many sources (quality)
-*   **Consensus vs Sources** (right):
-    *   Left (0.0) = prioritize number of data sources
-    *   Right (1.0) = prioritize consensus percentage
-
-**Scoring Formula** (from [`BetAssistant.py`](bet_framework/BetAssistant.py:34-35)):
-```
-quality = consensus_vs_sources × consensus_score + (1 − consensus_vs_sources) × sources_score
-final   = quality_vs_balance × quality + (1 − quality_vs_balance) × balance_score
-```
-
-Each axis is normalized to 0.0–1.0:
-*   `consensus_score`: linear from `consensus_floor` → 100% = 1.0
-*   `sources_score`: 0 sources → 0.0; max sources in pool → 1.0
-*   `balance_score`: perfect match → 1.0; at tolerance edge → 0.0
-
----
-
-#### Live Preview (Right Side)
-
-The right panel shows a real-time preview of the slip that would be generated with the current configuration.
-
-**Preview Card**:
-*   **Total Odds**: Combined odds of all selected legs
-*   **Legs**: Number of selections
-*   **Out-of-band badge**: Appears if any Tier 2 picks are included (odds outside tolerance)
-
-**Each Leg Card**:
-*   Match name (clickable link to source)
-*   Datetime
-*   Market (e.g., `1`, `O2.5`, `BTTS Y`)
-*   Odds (highlighted)
-*   Consensus bar (visual progress bar showing agreement %)
-*   Consensus & Sources text
-*   Tier badge: "✓ Balanced" (Tier 1) or "⚠ Drift" (Tier 2)
-*   Score (numeric value from the ranking algorithm)
-*   **Exclude button (✕)**: Remove this specific match from consideration
-
-**Excluded Matches Section**:
-Shows all manually excluded matches. You can:
-*   See why each was excluded (pattern, date, or manual)
-*   Remove manual exclusions with the ✕ button
-*   Clear all exclusions with "Reset excluded" button
-
----
-
-#### Profiles & Automation
-
-**Save a Profile**:
-1.  Enter a profile name in the text field (e.g., `low_risk`, `high_value`)
-2.  Adjust configuration to your liking
-3.  Click **Save**
-4.  The profile appears as a button in the Profiles section
-
-**Load a Profile**:
-Click any saved profile button to instantly load its configuration.
-
-**Delete a Profile**:
-Select a profile, then click **Delete**.
-
-**Run Daily**:
-Set a number (0–24) to indicate how many times per day this profile should automatically generate slips via the Services tab. The backend scheduler will run it at the configured "Generate Slips" hour.
-
-**Add to Slips**:
-Click **+ Add to Slips** to save the current preview as an actual betting slip in the database (appears in the Slips tab).
-
----
-
-### <a name="tab-slips"></a>📋 Slips Tab
-
-The **Slips** tab displays all generated betting slips, both from profiles and manual creation.
-
-#### Features
-
-*   **Slip Cards**: Each slip shows:
-    *   Generation date & profile name
-    *   Units staked
-    *   Total odds
-    *   Status badge (Won / Lost / Live / Pending)
-    *   List of legs with match name, datetime, market, odds, and live score (if applicable)
-    *   Delete button (only for fully pending slips)
-*   **Filters**:
-    *   Profile dropdown (All / specific profile / Manual)
-    *   Hide settled (toggle to show only pending/live slips)
-    *   Live only (toggle to show only slips with at least one live leg)
-*   **Actions**:
-    *   **✓ Validate Results**: Scrapes current scores and updates all pending/live legs
-    *   **✦ Generate Slips**: Triggers all profiles with "Run Daily" > 0 to generate new slips immediately
-
-#### Slip Status Logic
-
-Derived from leg statuses (priority order):
-
-1.  **Lost** — At least one leg is Lost
-2.  **Live** — No Lost legs, but at least one Live
-3.  **Pending** — No Lost or Live legs, but at least one Pending
-4.  **Won** — All legs are Won
-
----
-
-### <a name="tab-analytics"></a>📈 Analytics Tab
-
-The **Analytics** tab provides deep insights into your betting performance.
-
-#### Metrics Overview
-
-Six stat cards at the top:
-
-| Metric | Formula |
-|--------|---------|
-| **Total Bet** | Sum of units staked across all settled legs |
-| **Gross Return** | Sum of `units × odds` for Won legs |
-| **Net Profit** | Gross Return − Total Bet |
-| **Win Rate** | (Won legs / Settled legs) × 100% |
-| **ROI** | (Net Profit / Total Bet) × 100% |
-| **Settled** | Number of legs with final outcome |
-| **Won** | Count of Won legs |
-
----
-
-#### Charts
-
-**History Tracking**:
-
-*   **Cumulative Net Profit**: Line chart showing profit over time
-*   **Win Rate — Cumulative vs Rolling (10)**: Compare long-term win % with recent 10-leg average
-*   **ROI % Over Time**: Return on Investment trend
-
-**Market Statistics**:
-
-*   **Net Profit Contribution by Market** (horizontal bar chart): Which markets are most profitable?
-*   **Market Accuracy — Won vs Lost** (stacked bar): Success rate per market
-
-**Correlation Analysis**:
-
-*   **Win Rate by Number of Legs**: Does slip length affect success?
-*   **Profile — Avg Odds vs Win Rate** (scatter plot): Bubble size = volume. Compare different profiles.
-
----
-
-### <a name="tab-services"></a>⚙️ Services Tab
-
-The **Services** tab manages automated background tasks.
-
-#### Service Cards
-
-Each crawler source appears as a card:
-
-*   **Name**: Data provider (e.g., `whoscored`, `forebet`, `soccervista`)
-*   **Status**: `● Active` or `○ Inactive` (toggle with the switch)
-*   **Last Run**: Timestamp of most recent successful crawl
-*   **Matches**: Count of matches collected in last run
-
-Toggle services on/off to control which providers are used during data collection.
-
----
-
-#### Scheduled Hours
-
-Configure two daily automation tasks:
-
-*   **Pull DB** (hour 0–23): When to automatically fetch new match data from all active sources
-*   **Generate Slips** (hour 0–23): When to automatically generate slips for profiles with "Run Daily" > 0
-
-**Example**: Set Pull DB = 06:00, Generate Slips = 08:00
-*   Every day at 6 AM, the system fetches fresh match data
-*   At 8 AM, it runs all daily-enabled profiles to create new slips
-
-Click **Save Settings** to persist changes. The system recalculates schedules immediately.
-
----
-
-## 🛠️ 3. Manual Crawling with `crawl.py`
-
-If you prefer not to use Docker or need to run custom crawl operations, the `bet_crawler/crawl.py` module provides a full CLI.
-
-### Modes Overview
+For custom operations or non-Docker environments:
 
 ```bash
 python -m bet_crawler.crawl --mode <mode> [options]
@@ -406,213 +263,44 @@ python -m bet_crawler.crawl --mode <mode> [options]
 | Mode | Purpose |
 |------|---------|
 | `prepare-scrape` | Collect match URLs from all active finders |
-| `scrape` | Scrape match data from URLs into a chunk database |
-| `merge` | Combine all chunk databases into a single final DB |
-| `generate-slips` | Build slips using a specific profile YAML |
+| `scrape` | Scrape match data from URLs into chunk DB |
+| `merge` | Combine chunk DBs into final database |
+| `generate-slips` | Build slips using a profile YAML |
 | `validate-slips` | Scrape results and settle pending legs |
 
----
-
-### <a name="crawl-prepare"></a>Mode 1: Prepare Scrape
-
-Collects URLs from all enabled finders and splits them into manageable chunks for parallel processing.
+### Example: Full Pipeline
 
 ```bash
-python -m bet_crawler.crawl \
-  --mode prepare-scrape \
-  --runners actions \
-  --config_dir ./config \
-  > urls.json
-```
+# 1. Collect URLs (cloud sources)
+python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir config > tasks.json
 
-**Parameters**:
+# 2. Scrape chunks (example: first task)
+python -m bet_crawler.crawl --mode scrape --matches_db_path chunk-1.db \
+  --urls "$(jq -r '.[0].urls' tasks.json)" --config_dir config
 
-*   `--runners`: Which finder set to use
-    *   `actions` — All cloud-based sources (Vitibet, ScorePredictor, Predictz, SoccerVista, WinDrawWin, OneMillionPredictions, xGScore, EaglePredict, LegitPredict)
-    *   `local` — Local-only sources (WhoScored, Forebet, FootballBettingTips)
-    *   `all` — Every registered finder
-    *   `test` — Single finder for debugging (LegitPredict)
-*   `--config_dir`: Path to config directory (contains `scraper_config.yaml`)
+# 3. Merge into final DB
+python -m bet_crawler.crawl --mode merge --matches_db_path final.db \
+  --chunks_dir ./ --config_dir config
 
-**Output**: JSON array of task objects printed to stdout:
-```json
-[
-  {
-    "db_path": "actions-1.db",
-    "urls": "url1,url2,url3,..."
-  },
-  ...
-]
-```
+# 4. Generate test slip
+python -m bet_crawler.crawl --mode generate-slips \
+  --matches_db_path final.db --slips_db_path test.db \
+  --profile_path config/profiles/medium_risk.yaml
 
-Each task contains a chunk of URLs (max 100 for `actions`, max 1 for `local`/`all`/`test`) and a target database path.
-
----
-
-### <a name="crawl-scrape"></a>Mode 2: Scrape
-
-Scrapes a specific chunk of URLs and stores match data in a SQLite database.
-
-```bash
-python -m bet_crawler.crawl \
-  --mode scrape \
-  --matches_db_path actions-1.db \
-  --urls "url1,url2,url3" \
-  --config_dir ./config
-```
-
-**Parameters**:
-
-*   `--matches_db_path`: Output database file (will be created/overwritten)
-*   `--urls`: Comma-separated URLs **or** path to a `.txt` file containing URLs
-*   `--config_dir`: Config directory
-
-**Process**:
-1.  Groups URLs by domain
-2.  For each domain, instantiates the appropriate finder (from [`crawl.py`](bet_crawler/crawl.py:80-85))
-3.  Scrapes each URL using the finder's `_parse_page()` method
-4.  Applies skip patterns (youth teams, reserves, etc.) and date validation
-5.  Stores normalized matches in the database
-
-**Example with file input**:
-```bash
-python -m bet_crawler.crawl \
-  --mode scrape \
-  --matches_db_path local-1.db \
-  --urls urls.txt \
-  --config_dir ./config
+# 5. Validate results
+python -m bet_crawler.crawl --mode validate-slips --slips_db_path test.db
 ```
 
 ---
 
-### <a name="crawl-merge"></a>Mode 3: Merge
-
-Combines all chunk databases into a single final database.
-
-```bash
-python -m bet_crawler.crawl \
-  --mode merge \
-  --matches_db_path final_matches.db \
-  --chunks_dir ./chunks \
-  --config_dir ./config
-```
-
-**Parameters**:
-
-*   `--matches_db_path`: Path to the final merged database (will be created/overwritten)
-*   `--chunks_dir`: Directory containing all chunk `.db` files
-*   `--config_dir`: Config directory (for similarity settings)
-
-**Process**:
-1.  Creates a new database at `matches_db_path`
-2.  Attaches each chunk database and copies all `matches` table rows
-3.  Deduplicates based on match identity (home, away, datetime)
-4.  Prints a summary:
-```
-  ==========================
-    MERGE SUMMARY
-  ==========================
-  Unique Matches: 1247
-  Chunks scanned: 5
-    - vitibet: 312 matches
-    - soccervista: 298 matches
-    - whoscored: 201 matches
-    ...
-```
-
----
-
-### <a name="crawl-generate"></a>Mode 4: Generate Slips
-
-Builds betting slips from a matches database using a profile configuration.
-
-```bash
-python -m bet_crawler.crawl \
-  --mode generate-slips \
-  --matches_db_path final_matches.db \
-  --slips_db_path slips.db \
-  --profile_path ./config/profiles/low_risk.yaml
-```
-
-**Parameters**:
-
-*   `--matches_db_path`: Input database with match data
-*   `--slips_db_path`: Output database for slips (created if doesn't exist)
-*   `--profile_path`: Path to a YAML profile file
-
-**Profile YAML Structure** (see [`BetAssistant.py`](bet_framework/BetAssistant.py:287-326) for all options):
-```yaml
-# Example: low_risk.yaml
-target_odds: 2.5
-target_legs: 3
-consensus_floor: 70
-min_odds: 1.2
-tolerance_factor: 0.2
-stop_threshold: 0.95
-min_legs_fill_ratio: 0.8
-quality_vs_balance: 0.7
-consensus_vs_sources: 0.6
-included_markets:
-  - 1
-  - X
-  - 2
-units: 1.0
-run_daily_count: 1  # Auto-generate once per day via Services
-```
-
-**Output**:
-```
-▶ Profile: LOW_RISK
-  ⚽ Team A vs Team B (1) @ 1.85
-  ⚽ Team C vs Team D (X) @ 2.10
-  ⚽ Team E vs Team F (2) @ 1.65
-  ✅ Slip #1 — 3 legs @ 6.42 (1.0u)
-```
-
----
-
-### <a name="crawl-validate"></a>Mode 5: Validate Slips
-
-Scrapes current match results and updates the status of pending/live legs.
-
-```bash
-python -m bet_crawler.crawl \
-  --mode validate-slips \
-  --slips_db_path slips.db
-```
-
-**Parameters**:
-
-*   `--slips_db_path`: Database containing slips to validate
-
-**Process**:
-1.  Fetches all legs with status `Pending` or `Live`
-2.  Groups by unique `result_url`
-3.  Scrapes each URL to extract current score and match status
-4.  Updates leg outcomes:
-    *   `FT` → Won/Lost based on market
-    *   `LIVE` → Status set to Live, minute and score recorded
-    *   `Pending` (not started) → No change
-
-**Output**:
-```
-✅ Checked 47 · Settled 12 · Live 8 · Errors 0
-  ✓ Team A vs Team B (1)  2:1  → Won
-  ✗ Team C vs Team D (X)  0:0  → Lost
-  ● Team E vs Team F (2)  1:0  (75')
-```
-
----
-
-## 🔧 4. How to Add a New Finder
+## 🔧 Adding a New Finder
 
 Bet Assistant's modular crawler architecture makes it easy to add new data sources.
 
-### Step 1: Create the Finder Class
+### 1. Create the Finder Class
 
-Create a new file in [`bet_crawler/finders/`](bet_crawler/finders/) (e.g., `MyNewFinder.py`).
+Create a new file in `bet_crawler/finders/` (e.g., `MyNewFinder.py`):
 
-**Template**:
 ```python
 from scrape_kit import get_logger
 from bs4 import BeautifulSoup
@@ -621,15 +309,10 @@ from .BaseMatchFinder import BaseMatchFinder
 logger = get_logger(__name__)
 
 class MyNewFinder(BaseMatchFinder):
-    # Set the timezone of the source (UTC, Europe/London, Asia/Bangkok, etc.)
-    TIMEZONE = "UTC"  # or None if no normalization needed
+    TIMEZONE = "UTC"  # Source timezone
 
     def get_matches_urls(self):
-        """
-        Fetch and return a list of match URLs to scrape.
-        This is called during prepare-scrape mode.
-        """
-        # Example: Use browser for JS-rendered pages
+        """Fetch and return list of match URLs to scrape."""
         from scrape_kit import browser
         with browser(solve_cloudflare=True) as session:
             page = session.fetch("https://example.com/previews")
@@ -640,133 +323,66 @@ class MyNewFinder(BaseMatchFinder):
             href = link.get("href")
             if href:
                 urls.append(f"https://example.com{href}" if href.startswith("/") else href)
-
         logger.info(f"Found {len(urls)} matches")
         return urls
 
     def get_matches(self, urls):
-        """
-        Main entry point for scraping. Called during scrape mode.
-        Typically delegates to scrape_urls() from scrape_kit.
-        """
+        """Main entry point for scraping."""
         from scrape_kit import scrape, ScrapeMode
-
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.FAST,  # or BALANCED, THOROUGH
-            max_concurrency=5,     # adjust based on source rate limits
-        )
+        scrape(urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=5)
 
     def _parse_page(self, url, html):
-        """
-        Parse a single match page and extract data.
-        Must call self.add_match(match) for each valid match.
-        """
+        """Parse a single match page and extract data."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-
-            # 1. Extract team names
             home = soup.select_one(".home-team").text.strip()
             away = soup.select_one(".away-team").text.strip()
-
-            # 2. Extract datetime
-            # Use self.normalise_datetime() if needed (handles TIMEZONE)
             dt_str = soup.select_one(".match-time")["datetime"]
             dt = datetime.fromisoformat(dt_str)
             dt = self.normalise_datetime(dt)
 
-            # 3. Extract predictions
-            # Find consensus values and odds from the page
-            # Example: home win odds = 2.10, consensus = 65%
             odds_home = float(soup.select_one(".odds-home").text)
             odds_draw = float(soup.select_one(".odds-draw").text)
             odds_away = float(soup.select_one(".odds-away").text)
 
-            # 4. Build the Match object
             from bet_framework.core.Match import Match, Score
+            scores = [Score(source="mynewfinder", home=str(int(65)), away=str(int(25)))]
+            odds = Odds(home=odds_home, draw=odds_draw, away=odds_away)
 
-            scores = [
-                Score(
-                    source="mynewfinder",  # unique source identifier
-                    home=str(int(65)),     # consensus home % as string
-                    away=str(int(25)),     # consensus away % as string
-                )
-            ]
-
-            # Optional: include bookmaker odds in the Match
-            odds = {
-                "home": odds_home,
-                "draw": odds_draw,
-                "away": odds_away,
-            }
-
-            match = Match(
-                home_team=home,
-                away_team=away,
-                datetime=dt,
-                predictions=scores,
-                odds=odds,
-                result_url=url  # important for validation later
-            )
-
-            # 5. Add to collection (applies skip patterns & date filters)
+            match = Match(home_team=home, away_team=away, datetime=dt,
+                         predictions=scores, odds=odds, result_url=url)
             self.add_match(match)
-
         except Exception as e:
             logger.error(f"Failed to parse {url}: {e}")
 ```
 
-**Key Points**:
+### 2. Register the Finder
 
-*   Inherit from [`BaseMatchFinder`](bet_crawler/finders/BaseMatchFinder.py)
-*   Set `TIMEZONE` to the source's timezone (or `None` to skip normalization)
-*   Implement `get_matches_urls()`, `get_matches()`, `_parse_page()`
-*   In `_parse_page()`, create a [`Match`](bet_framework/core/Match.py) object and call `self.add_match(match)`
-*   Use `Score` objects to represent predictions; `source` must be unique and lowercase
-*   Include `result_url` in the Match for later validation
-
----
-
-### Step 2: Register the Finder
-
-Edit [`bet_crawler/crawl.py`](bet_crawler/crawl.py:39-52) and add your finder to the `_CRAWLER_KEYS` dictionary:
+Edit `bet_crawler/crawl.py` and add to `_CRAWLER_KEYS`:
 
 ```python
 _CRAWLER_KEYS = {
-    "scorepredictor": lambda: _import("ScorePredictorFinder"),
     # ... existing entries ...
-    "mynewfinder": lambda: _import("MyNewFinder"),  # ← Add this line
+    "mynewfinder": lambda: _import("MyNewFinder"),
 }
 ```
 
-Then add it to one or more runner sets (lines 54–69):
+Add to runner sets:
 
 ```python
 _RUNNER_SETS = {
-    "actions": [
-        "vitibet",
-        # ... existing ...
-        "mynewfinder",  # ← Add here to include in 'actions' set
-    ],
+    "actions": ["vitibet", "mynewfinder", ...],
     "local": ["whoscored", "forebet", "footballbettingtips"],
     "all": list(_CRAWLER_KEYS.keys()),
     "test": ["legitpredict"],
 }
 ```
 
-**Concurrency Note**: Adjust `MAX_CHUNK_SIZE` if your finder needs special chunking (line 71).
-
----
-
-### Step 3: Test Your Finder
+### 3. Test Your Finder
 
 ```bash
 # Test in isolation
-python -m bet_crawler.crawl \
-  --mode prepare-scrape \
-  --runners test \
-  --config_dir ./config
+python -m bet_crawler.crawl --mode prepare-scrape --runners test --config_dir config
 
 # Or test directly
 python -c "
@@ -774,57 +390,9 @@ from bet_crawler.finders.MyNewFinder import MyNewFinder
 f = MyNewFinder(print)
 urls = f.get_matches_urls()
 print(f'Found {len(urls)} URLs')
-f.get_matches(urls[:3])  # test first 3
+f.get_matches(urls[:3])
 "
 ```
-
-Check the logs for errors and verify that matches appear in the database.
-
----
-
-### Step 4: Handle Skip Patterns (Optional)
-
-If your source includes youth teams, women's teams, or reserve sides, extend the `SKIP_PATTERNS` list in [`BaseMatchFinder.py`](bet_crawler/finders/BaseMatchFinder.py:11-21):
-
-```python
-SKIP_PATTERNS: list[tuple[str, str]] = [
-    (r"\bU\d{2}s?\b", "Youth team"),
-    (r"\bW\b", "Women's team"),
-    (r"\bII\b", "Reserve team II"),
-    # Add custom patterns for your source
-    (r"\bB Team\b", "B team"),
-    (r"\bU23\b", "U23 team"),
-]
-```
-
----
-
-### Step 5: Verify Integration
-
-Run the full pipeline:
-
-```bash
-# 1. Collect URLs
-python -m bet_crawler.crawl --mode prepare-scrape --runners all --config_dir ./config > tasks.json
-
-# 2. Scrape chunks (example: first task)
-python -m bet_crawler.crawl --mode scrape --matches_db_path chunk-1.db \
-  --urls "$(jq -r '.[0].urls' tasks.json)" --config_dir ./config
-
-# 3. Merge
-python -m bet_crawler.crawl --mode merge --matches_db_path final.db \
-  --chunks_dir ./ --config_dir ./config
-
-# 4. Generate a test slip
-python -m bet_crawler.crawl --mode generate-slips \
-  --matches_db_path final.db --slips_db_path test.db \
-  --profile_path ./config/profiles/medium_risk.yaml
-
-# 5. Validate
-python -m bet_crawler.crawl --mode validate-slips --slips_db_path test.db
-```
-
-If all steps succeed, your finder is ready for production use.
 
 ---
 
@@ -834,59 +402,98 @@ If all steps succeed, your finder is ready for production use.
 bet-assistant/
 ├── bet_crawler/              # CLI crawler module
 │   ├── crawl.py              # Main entry point with all modes
-│   └── finders/              # Individual source crawlers
-│       ├── BaseMatchFinder.py
-│       ├── WhoScoredFinder.py
-│       ├── ForebetFinder.py
-│       └── ...
+│   ├── finders/              # 18+ source-specific crawlers
+│   │   ├── BaseMatchFinder.py
+│   │   ├── WhoScoredFinder.py
+│   │   ├── ForebetFinder.py
+│   │   └── ...
+│   └── crawl_core/           # Pipeline stages
+│       ├── prepare_scrape.py
+│       ├── scrape.py
+│       ├── merge.py
+│       ├── generate_slips.py
+│       └── validate_slips.py
 ├── bet_dashboard/            # Web UI (React + FastAPI)
-│   ├── frontend/             # React + TypeScript + Vite
+│   ├── frontend/             # React 19 + TypeScript + Vite
 │   │   └── src/
-│   │       ├── pages/        # Dashboard tabs
+│   │       ├── pages/        # Dashboard tabs (5 pages)
 │   │       ├── components/   # Reusable UI components
-│   │       └── api/          # Backend API client
+│   │       ├── api/          # Backend API client (Axios)
+│   │       ├── hooks/        # Custom React hooks
+│   │       ├── config/       # Market configuration
+│   │       ├── types/        # TypeScript interfaces
+│   │       └── utils/        # Helper functions
 │   └── backend/              # FastAPI server
-│       ├── main.py
-│       └── routers/          # API endpoints
+│       ├── main.py           # App factory + lifespan
+│       ├── routers/          # 8 API routers
+│       │   ├── matches.py    # Match listing & filtering
+│       │   ├── builder.py    # Slip preview & excluded URLs
+│       │   ├── profiles.py   # Profile CRUD
+│       │   ├── slips.py      # Slip CRUD + validation
+│       │   ├── services.py   # Service management
+│       │   ├── analytics.py  # Analytics calculations
+│       │   ├── odds_history.py # Odds movement & history
+│       │   └── system.py     # Health, pull, WebSocket
+│       └── core/             # Backend core modules
+│           ├── logic.py      # AppLogic - unified business logic
+│           ├── ticker_service.py # Daemon thread polling
+│           ├── ws.py         # WebSocket connection manager
+│           ├── market_config.py # Market definitions
+│           ├── schemas.py    # Pydantic request/response models
+│           ├── analytics_utils.py # Statistics calculations
+│           └── config_helpers.py # Profile YAML conversion
 ├── bet_framework/            # Core logic library
-│   ├── BetAssistant.py       # Slip building & validation
-│   ├── MatchesManager.py     # SQLite buffer for matches
+│   ├── BetAssistant.py       # Slip building, validation, storage
+│   ├── MatchesManager.py     # SQLite buffer with fuzzy dedup
 │   └── core/
-│       ├── Match.py          # Match data model
-│       ├── Slip.py           # Slip data model
-│       ├── scoring.py        # Pick scoring algorithm
-│       └── consensus.py      # Consensus calculation
+│       ├── Match.py          # Match, Score, Odds data models
+│       ├── Slip.py           # Slip, Leg, Config, Profiles
+│       ├── consensus.py      # Consensus calculation engine
+│       ├── scoring.py        # Pick scoring & ranking algorithm
+│       ├── outcomes.py       # Result evaluation (Won/Lost/Live)
+│       ├── types.py          # Enums: MarketType, Outcome, MarketLabel
+│       ├── utils.py          # URL validation, datetime coercion
+│       └── leagues.py        # League name constants
 ├── config/
-│   ├── scraper_config.yaml   # Retry/block indicators
-│   ├── similarity_config.yaml # Team name matching rules
+│   ├── scraper_config.yaml   # Crawler keys, runner sets, skip patterns
+│   ├── similarity_config.yaml # Team name fuzzy matching rules
 │   └── profiles/             # YAML profiles for Smart Builder
 ├── setup/
-│   ├── compose.yaml          # Docker Compose stack
+│   ├── compose.yaml          # Docker Compose stack (3 services)
+│   ├── Dockerfile            # Multi-stage: Node 22 → Python 3.11
+│   ├── runner.Dockerfile     # Self-hosted GitHub runner image
+│   ├── nginx.conf            # Reverse proxy + SPA routing
+│   ├── start-dashboard.sh    # Entrypoint: nginx + uvicorn
 │   └── requirements-*.txt    # Python dependencies
 ├── workspace/                # Created on first Docker run
 │   ├── config/               # Copied from /app/config/
 │   └── data/                 # SQLite databases
-└── tests/                    # Unit & integration tests
+├── tests/                    # Unit & integration tests
+├── .github/workflows/
+│   ├── scrape.yml            # Daily scraping pipeline (8 jobs)
+│   ├── deploy.yml            # Docker image build & push
+│   └── cicd.yml              # Auto-fix, test, audit, gate
+└── docs/                     # This documentation
 ```
 
 ---
 
-## 🧠 Understanding the Scoring Model
+## 🧠 Scoring Model Deep Dive
 
-The Smart Builder's selection algorithm is based on three normalized axes:
+The Smart Builder uses a three-axis normalized scoring system:
 
 ### 1. Consensus Score
 ```
 Linear mapping: consensus_floor → 100% = 1.0
 ```
-Higher agreement across sources yields a higher score.
+Higher agreement across sources yields higher score.
 
 ### 2. Sources Score
 ```
 0 sources → 0.0
 max_sources_in_pool → 1.0
 ```
-More independent providers covering a match increases confidence.
+More independent providers increase confidence.
 
 ### 3. Balance Score
 ```
@@ -897,10 +504,9 @@ Within band: 1.0 (perfect)
 At band edge: 0.0
 Outside band: 0.0 (Tier 2)
 ```
-Measures how close the pick's odds are to the ideal per-leg odds needed to reach the target.
+Measures proximity to ideal per-leg odds.
 
 ### Combined Formula
-
 ```
 quality = consensus_vs_sources × consensus_score + (1 − consensus_vs_sources) × sources_score
 final   = quality_vs_balance × quality + (1 − quality_vs_balance) × balance_score
@@ -910,66 +516,99 @@ final   = quality_vs_balance × quality + (1 − quality_vs_balance) × balance_
 *   **Tier 1**: Balance score > 0 (within tolerance). Always ranked above Tier 2.
 *   **Tier 2**: Balance score = 0 (outside tolerance). Used only if insufficient Tier 1 options.
 
+**Advanced Features**:
+*   **Bayesian Consensus Shrinkage**: `adjusted = 50 + (sources/(sources+k)) × (raw - 50)`
+*   **Asymmetric Tolerance**: Separate lower/upper bands (default upper = 0.6 × lower)
+*   **Odds Movement Adjustment**: Post-scoring boost/penalty based on odds direction
+*   **Gaussian/Linear Decay**: Configurable balance penalty function
+
 ---
 
 ## 🔍 Troubleshooting
 
 ### No matches appearing in the dashboard
 
-1.  Check that the backend container is healthy:
+1.  Check backend container health:
     ```bash
-    docker compose -f setup/compose.yaml ps
+docker compose -f setup/compose.yaml ps
     ```
-2.  View backend logs for errors:
+2.  View backend logs:
     ```bash
-    docker compose -f setup/compose.yaml logs backend
+docker compose -f setup/compose.yaml logs bet-assistant
     ```
-3.  Verify that the `workspace/data/matches.db` file exists and contains data:
+3.  Verify database exists and has data:
     ```bash
-    sqlite3 workspace/data/matches.db "SELECT COUNT(*) FROM matches;"
+sqlite3 workspace/data/matches.db "SELECT COUNT(*) FROM matches;"
     ```
-4.  Ensure at least one finder is enabled in the Services tab.
+4.  Ensure at least one finder is enabled in Services tab.
 
 ### Smart Builder returns "No matches meet the current criteria"
 
-1.  Lower the **Consensus Floor** (try 40–50%)
-2.  Lower the **Min Odds** (try 1.01)
-3.  Check the **Excluded Matches** section — you may have manually excluded too many
-4.  Verify that the global date filters (top bar) are not restricting the date range too much
-5.  Ensure matches exist in the database for the selected date range
+1.  Lower **Consensus Floor** (try 40–50%)
+2.  Lower **Min Odds** (try 1.01)
+3.  Check **Excluded Matches** section
+4.  Verify global date filters aren't too restrictive
+5.  Ensure matches exist in database for selected date range
 
 ### Docker containers keep restarting
 
-Check the logs:
 ```bash
 docker compose -f setup/compose.yaml logs
 ```
 
 Common issues:
 *   Port 3002 or 8000 already in use → change ports in `compose.yaml`
-*   Permission errors on `./workspace/` → ensure the directory is writable
+*   Permission errors on `./workspace/` → ensure directory is writable
 
-### Finders are not collecting URLs
+### Finders not collecting URLs
 
-1.  Verify the finder's `get_matches_urls()` method works (test in isolation)
-2.  Check for Cloudflare blocks — some sources require `solve_cloudflare=True`
+1.  Test finder in isolation: `python -c "from bet_crawler.finders.X import X; f=X(print); print(f.get_matches_urls())"`
+2.  Check for Cloudflare blocks → some sources need `solve_cloudflare=True`
 3.  Review `scraper_config.yaml` for custom retry/block indicators
-4.  Ensure the finder is registered in `crawl.py` and enabled in Services
+4.  Ensure finder is registered in `crawl.py` and enabled in Services
 
 ### Validation fails to update leg status
 
-1.  Confirm `result_url` is stored correctly in the `legs` table:
-    ```bash
-    sqlite3 workspace/data/slips.db "SELECT result_url FROM legs LIMIT 3;"
-    ```
-2.  Test scraping the URL manually:
-    ```bash
-    curl -s "https://example.com/match" | grep -i "score\|status"
-    ```
-3.  Check that the parser in `_parse_match_result_html()` (BetAssistant.py:91) can handle the source's HTML structure. Some sites may need custom parsing logic.
+1.  Confirm `result_url` is stored: `sqlite3 workspace/data/slips.db "SELECT result_url FROM legs LIMIT 3;"`
+2.  Test scraping URL manually: `curl -s "https://example.com/match" | grep -i "score\|status"`
+3.  Check parser in `_parse_match_result_html()` (BetAssistant.py) for source's HTML structure
+
+---
+
+## 🧪 Testing & Quality
+
+```bash
+# Backend tests
+cd bet_dashboard/backend && python -m pytest tests/
+
+# Frontend tests
+cd bet_dashboard/frontend && npm test
+
+# Linting
+ruff check .                    # Python
+cd bet_dashboard/frontend && npm run lint  # TypeScript
+```
+
+**CI Pipeline** (`.github/workflows/cicd.yml`):
+1.  **Auto-fix**: autoflake, pyupgrade, autotyping, isort, ruff format/lint
+2.  **Test**: pytest on Python 3.10/3.11/3.12 with coverage
+3.  **Audit**: mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate
+4.  **Gate**: Consolidated report with GitHub annotations
 
 ---
 
 ## 📜 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+## 🙏 Acknowledgments
+
+*   [scrape-kit](https://github.com/rotarurazvan07/scrape-kit) - Web scraping framework
+*   [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+*   [React](https://react.dev/) - UI library
+*   [MUI](https://mui.com/) - Material Design components
+*   [Recharts](https://recharts.org/) - Charting library
+*   [TailwindCSS](https://tailwindcss.com/) - Utility-first CSS
+*   [Watchtower](https://containrrr.dev/watchtower/) - Auto-updating containers

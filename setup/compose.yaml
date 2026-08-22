@@ -1,4 +1,8 @@
-name: bet-assistant-dashboard
+name: bet-assistant
+
+networks:
+  lab_net:
+    external: true
 
 # ── Extension Templates ──────────────────────────────────────────────────────
 x-runner-base: &runner-base
@@ -9,14 +13,14 @@ x-runner-base: &runner-base
     GITHUB_REPO: "${GITHUB_REPO}"
     ACCESS_TOKEN: "${ACCESS_TOKEN}"
     RUNNER_NAME_PREFIX: "bet-runner"
-    LABELS: "${RUNNER_LABELS:-self-hosted,linux,bet-runner}"
+    LABELS: "bet-runner"
+    TZ: "Europe/Bucharest"
   labels:
     - "com.centurylinklabs.watchtower.enable=true"
-    - "com.centurylinklabs.watchtower.scope=bet-stack"
 
 # ── Services Matrix ─────────────────────────────────────────────────────────
 services:
-  bet-assistant:
+  app:
     image: ghcr.io/rotarurazvan07/bet-assistant:latest
     container_name: bet-assistant
     restart: unless-stopped
@@ -29,30 +33,22 @@ services:
     volumes:
       - ./workspace:/app/workspace
     ports:
-      - "3002:80"
+      - "${BET_ASSISTANT_PORT}:80"
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
-      - "com.centurylinklabs.watchtower.scope=bet-stack"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost/api/status')"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - lab_net
 
   # ── GITHUB ACTIONS SELF-HOSTED RUNNERS ────────────────────────────────────
   runner:
     <<: *runner-base
     deploy:
       replicas: 1
-
-  # ── AUTOMATED INFRASTRUCTURE DEPLOYER ─────────────────────────────────────
-  bet-updater:
-    image: containrrr/watchtower:1.7.1
-    container_name: bet-updater
-    restart: always
-    environment:
-      - DOCKER_API_VERSION=1.44
-    volumes:
-      - //var/run/docker.sock:/var/run/docker.sock
-    command: --interval 300 --cleanup --scope bet-stack --label-enable
+    networks:
+      - lab_net
