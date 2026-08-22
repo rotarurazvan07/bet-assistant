@@ -69,14 +69,20 @@ def _build_source_mapping(matches_df: pd.DataFrame) -> dict[str, set]:
         scores_list = row.get("scores")
 
         # Infer from URL
-        if url:
-            domain = urlparse(url).netloc
-            core_name = domain.split(".")[-2] if "." in domain else domain
-            source_to_matches[core_name.lower()].add(i)
+        if isinstance(url, str) and url.strip():
+            try:
+                domain = urlparse(url).netloc
+            except Exception:
+                domain = ""
+            if domain:
+                core_name = domain.split(".")[-2] if "." in domain else domain
+                source_to_matches[core_name.lower()].add(i)
 
         # Extract from predictions list
-        if scores_list:
+        if isinstance(scores_list, (list, tuple)):
             for p in scores_list:
+                if not isinstance(p, dict):
+                    continue
                 src = p.get("source")
                 if src:
                     source_to_matches[src.lower()].add(i)
