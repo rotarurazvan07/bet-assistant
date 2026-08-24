@@ -8,9 +8,12 @@ from core.analytics_utils import (
     calculate_market_accuracy,
     calculate_rolling_edge,
 )
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
+
+# Demo data provider
+from fixtures.demo_data import get_demo_provider
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -395,7 +398,13 @@ def get_analytics(
     profiles: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    data_source: str = Query("live", pattern="^(live|demo)$"),
 ):
+    # Route to demo data provider if requested
+    if data_source == "demo":
+        demo_provider = get_demo_provider()
+        return sanitize_floats(demo_provider.get_analytics(profiles, date_from, date_to))
+
     logic = _get(request).logic
 
     if profiles is None:

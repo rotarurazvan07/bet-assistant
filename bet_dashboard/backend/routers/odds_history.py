@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
+
+# Demo data provider
+from fixtures.demo_data import get_demo_provider
 
 router = APIRouter(prefix="/api/odds-history", tags=["odds-history"])
 
