@@ -544,6 +544,54 @@ class DemoDataProvider:
         if date_to:
             filtered = [m for m in filtered if m.datetime and m.datetime <= date_to]
 
+        # Apply min_consensus filter
+        if min_consensus is not None and min_consensus > 0:
+            consensus_fields = [
+                "cons_home", "cons_draw", "cons_away",
+                "cons_over_25", "cons_under_25",
+                "cons_btts_yes", "cons_btts_no",
+                "cons_over_05", "cons_under_05",
+                "cons_over_15", "cons_under_15",
+                "cons_over_35", "cons_under_35",
+                "cons_over_45", "cons_under_45",
+                "cons_dc_1x", "cons_dc_12", "cons_dc_x2"
+            ]
+            filtered = [m for m in filtered if any(getattr(m, field, 0) >= min_consensus for field in consensus_fields)]
+
+        # Apply min_odds filter
+        if min_odds is not None and min_odds > 1.0:
+            odds_fields = [
+                "odds_home", "odds_draw", "odds_away",
+                "odds_over_25", "odds_under_25",
+                "odds_btts_yes", "odds_btts_no",
+                "odds_over_05", "odds_under_05",
+                "odds_over_15", "odds_under_15",
+                "odds_over_35", "odds_under_35",
+                "odds_over_45", "odds_under_45",
+                "odds_dc_1x", "odds_dc_12", "odds_dc_x2"
+            ]
+            filtered = [m for m in filtered if any(getattr(m, field, 0) >= min_odds for field in odds_fields)]
+
+        # Apply only_significant_movement filter
+        if only_significant_movement:
+            filtered = [m for m in filtered if m.match_id in self._odds_history and len(self._odds_history[m.match_id]) >= 2]
+            # Check if any market has significant movement
+            def has_significant_movement(match):
+                if match.match_id not in self._odds_history:
+                    return False
+                history = self._odds_history[match.match_id]
+                if len(history) < 2:
+                    return False
+                first = history[0]["odds"]
+                last = history[-1]["odds"]
+                for key in first:
+                    if key in last:
+                        change = (last[key] - first[key]) / first[key] * 100
+                        if abs(change) > 2:
+                            return True
+                return False
+            filtered = [m for m in filtered if has_significant_movement(m)]
+
         # Sort
         reverse = sort_dir == "desc"
         if sort_by == "datetime":
