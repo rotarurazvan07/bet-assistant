@@ -3,10 +3,11 @@ from __future__ import annotations
 import math
 
 from core.schemas import BetSlipConfigIn, ExcludeUrlIn
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from utils.json_utils import sanitize_floats
 
 from bet_framework.core.Slip import BetSlipConfig
+from fixtures.demo_data import get_demo_provider
 
 router = APIRouter(prefix="/api/builder", tags=["builder"])
 
@@ -45,12 +46,16 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
 
 
 @router.post("/preview")
-def preview(request: Request, body: BetSlipConfigIn):
+def preview(request: Request, body: BetSlipConfigIn, data_source: str = Query("live", pattern="^(live|demo)$")):
     app = _get(request)
     cfg = _to_config(body)
-    legs = app.build_preview(cfg)
+    if data_source == "demo":
+        legs = get_demo_provider().get_builder_preview(cfg)
+        pending_urls: list[str] = []
+    else:
+        legs = app.build_preview(cfg)
+        pending_urls = list(app.logic.get_pending_urls())
     total_odds = math.prod(leg.odds for leg in legs) if legs else 1.0
-    pending_urls = list(app.logic.get_pending_urls())
 
     response_data = {
         "total_odds": round(total_odds, 4),
@@ -92,8 +97,10 @@ def get_excluded(request: Request):
 
 
 @router.get("/excluded/details")
-def get_excluded_details(request: Request):
+def get_excluded_details(request: Request, data_source: str = Query("live", pattern="^(live|demo)$")):
     """Get detailed info about manually excluded matches only."""
+    if data_source == "demo":
+        return {"excluded": []}
     app = _get(request)
     # Only return manually excluded URLs
     excluded_urls = app.get_manual_excluded()
@@ -148,6 +155,8 @@ def clear_excluded(request: Request):
 
 
 @router.get("/leagues")
-def get_leagues(request: Request):
+def get_leagues(request: Request, data_source: str = Query("live", pattern="^(live|demo)$")):
+    if data_source == "demo":
+        return get_demo_provider().LEAGUES
     app = _get(request)
     return app.get_leagues()

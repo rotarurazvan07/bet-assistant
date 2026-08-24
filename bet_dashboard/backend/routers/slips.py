@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.types import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
+
+# Demo data provider
+from fixtures.demo_data import get_demo_provider
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
 
@@ -221,7 +224,15 @@ def get_slips(
     date_to: str | None = None,
     hide_settled: str | None = None,
     live_only: str | None = None,
+    data_source: str = Query("live", pattern="^(live|demo)$"),
 ):
+    # Route to demo data provider if requested
+    if data_source == "demo":
+        demo_provider = get_demo_provider()
+        return sanitize_floats(demo_provider.get_slips(profiles, date_from, date_to,
+                                                        to_bool(hide_settled) if hide_settled else False,
+                                                        to_bool(live_only) if live_only else False))
+
     app = _get(request)
     logic = app.logic
 

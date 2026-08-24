@@ -7,7 +7,7 @@ import { fetchAnalytics } from '../api/data';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats } from '../types';
+import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, AttributionResult, AttributionDimension, AttributionDriver } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
@@ -135,6 +135,306 @@ function FinancialTile({ label, value, sub, color, tip, badge }: {
             </div>
             {sub && <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>{sub}</span>}
         </div>
+    );
+}
+
+// ── Profit Attribution Waterfall ─────────────────────────────────────────────
+
+interface ProfitAttributionCardProps {
+    data: AttributionResult | null | undefined;
+}
+
+export function ProfitAttributionExplorer({ data }: ProfitAttributionCardProps) {
+    const dimensions: AttributionDimension[] = data?.dimensions || [];
+    const drivers: AttributionDriver[] = data?.drivers || [];
+    if (!data || !dimensions.length) {
+        return <ProfitAttributionCard data={data} />;
+    }
+    const money = (value: number) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}U`;
+    return (
+        <ChartCard title="Profit Attribution" tip="Actual settled profit, grouped independently by decision factor. The factor totals are alternate views of the same slips and should not be added together.">
+            <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg-base)]/40 px-4 py-3">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] font-mono uppercase tracking-widest" style={{ color: 'var(--text-secondary)' }}>Net profit from settled slips</p>
+                        <p className="mt-1 text-2xl font-mono font-bold" style={{ color: data.total_profit >= 0 ? 'var(--win)' : 'var(--loss)' }}>{money(data.total_profit)}</p>
+                    </div>
+                    <p className="max-w-[560px] text-[11px] leading-5" style={{ color: 'var(--text-secondary)' }}>
+                        This answers two different questions: which individual slips moved the bankroll, and which construction choices performed best. Market and league performance remain in their dedicated intelligence panels below.
+                    </p>
+                </div>
+                <div className="mt-3 flex gap-4 text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    <span>{data.settled_slips ?? 0} settled slips</span><span>{data.settled_legs ?? 0} settled legs</span>
+                </div>
+            </div>
+            {drivers.length > 0 && (
+                <div className="mb-4 grid gap-3 lg:grid-cols-2">
+                    {(['Top Profit Drivers', 'Biggest Profit Drags'] as const).map((title, sectionIndex) => {
+                        const rows = sectionIndex === 0 ? drivers.slice(0, 5) : [...drivers].sort((a, b) => a.profit - b.profit).slice(0, 5);
+                        return (
+                            <div key={title} className="overflow-hidden rounded-lg border border-[var(--border)]">
+                                <div className="border-b border-[var(--border)] bg-[var(--bg-base)]/50 px-3 py-2">
+                                    <p className="font-display text-xs font-bold" style={{ color: 'var(--text-bright)' }}>{title}</p>
+                                    <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-secondary)' }}>Settled slips that moved the bankroll most</p>
+                                </div>
+                                <div className="divide-y divide-[var(--border)]">
+                                    {rows.map((slip) => (
+                                        <div key={`${title}-${slip.slip_id}`} className="px-3 py-2.5">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-[11px] font-mono" style={{ color: 'var(--text-bright)' }}>Slip #{slip.slip_id} · {slip.date} · {slip.profile}</p>
+                                                <p className="text-[11px] font-mono font-bold" style={{ color: slip.profit >= 0 ? 'var(--win)' : 'var(--loss)' }}>{money(slip.profit)}</p>
+                                            </div>
+                                            <p className="mt-1 truncate text-[10px]" style={{ color: 'var(--text-secondary)' }}>{slip.legs} legs · {slip.total_odds.toFixed(2)} total odds · {slip.stake.toFixed(2)}U stake · {slip.selections.join(' + ')}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            <div className="grid gap-3 md:grid-cols-2">
+                {dimensions.map((dimension) => (
+                    <div key={dimension.name} className="overflow-hidden rounded-lg border border-[var(--border)]">
+                        <div className="border-b border-[var(--border)] bg-[var(--bg-base)]/50 px-3 py-2">
+                            <p className="font-display text-xs font-bold" style={{ color: 'var(--text-bright)' }}>{dimension.name}</p>
+                            <p className="mt-0.5 text-[10px]" style={{ color: 'var(--text-secondary)' }}>Profit contribution by group</p>
+                        </div>
+                        <div className="divide-y divide-[var(--border)]">
+                            {[...dimension.groups].sort((a, b) => Math.abs(b.profit) - Math.abs(a.profit)).map((group) => (
+                                <div key={group.name} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2.5">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-[11px]" style={{ color: 'var(--text-bright)' }}>{group.name}</p>
+                                        <p className="mt-1 text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                                            {group.bets} bets · {group.wins}W / {group.losses}L · {group.stake.toFixed(2)}U staked
+                                        </p>
+                                    </div>
+                                    <div className="text-right font-mono">
+                                        <p className="text-[11px] font-bold" style={{ color: group.profit >= 0 ? 'var(--win)' : 'var(--loss)' }}>{money(group.profit)}</p>
+                                        <p className="mt-1 text-[10px]" style={{ color: group.roi_percentage >= 0 ? 'var(--win)' : 'var(--loss)' }}>{group.roi_percentage >= 0 ? '+' : ''}{group.roi_percentage.toFixed(1)}% ROI</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </ChartCard>
+    );
+}
+
+function ProfitAttributionCard({ data }: ProfitAttributionCardProps) {
+    if (!data?.components?.length) {
+        return (
+            <ChartCard title="Profit Attribution" tip="Decomposes net profit into decision dimensions using sequential Shapley approximation. Green = positive driver, Red = negative driver.">
+                <div className="flex items-center justify-center h-60">
+                    <p className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        No attribution data available.
+                    </p>
+                </div>
+            </ChartCard>
+        );
+    }
+
+    const components = data.components;
+    const totalProfit = data.total_profit;
+
+    type WaterfallPoint = {
+        name: string;
+        value: number;
+        percentage: number;
+        start: number;
+        end: number;
+        isTotal: boolean;
+        isPositive: boolean;
+        subComponents: NonNullable<AttributionResult['components'][number]['sub_components']>;
+    };
+
+    let cumulative = 0;
+    const waterfallData: WaterfallPoint[] = components.map((comp) => {
+        const start = cumulative;
+        const end = cumulative + comp.value;
+        cumulative = end;
+        return {
+            name: comp.name,
+            value: comp.value,
+            percentage: comp.percentage,
+            start,
+            end,
+            isTotal: comp.name === "Residual (Noise)",
+            isPositive: comp.value >= 0,
+            subComponents: comp.sub_components || [],
+        };
+    });
+
+    waterfallData.push({
+        name: "Total Profit",
+        value: totalProfit,
+        percentage: 100,
+        start: 0,
+        end: totalProfit,
+        isTotal: true,
+        isPositive: totalProfit >= 0,
+        subComponents: [],
+    });
+
+    const minCumulative = Math.min(0, ...waterfallData.map(d => Math.min(d.start, d.end)));
+    const maxCumulative = Math.max(0, ...waterfallData.map(d => Math.max(d.start, d.end)));
+    const domain = Math.max(maxCumulative - minCumulative, 0.5);
+
+    const axisTicks = useMemo(() => {
+        const ticks = 5;
+        return Array.from({ length: ticks }, (_, i) => {
+            const value = minCumulative + (domain * i) / (ticks - 1);
+            return {
+                value,
+                pct: ((value - minCumulative) / domain) * 100,
+            };
+        });
+    }, [domain, minCumulative]);
+
+    const scale = (value: number) => ((value - minCumulative) / domain) * 100;
+
+    const rowHeight = 34;
+    const chartHeight = waterfallData.length * rowHeight + 56;
+    const zeroPct = scale(0);
+
+    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+    const hovered = hoveredIndex !== null ? waterfallData[hoveredIndex] : null;
+
+    return (
+        <ChartCard title="Profit Attribution" tip="Decomposes net profit into decision dimensions using sequential Shapley approximation. Green = positive driver, Red = negative driver. Click a bar for sub-breakdown.">
+            <div className="relative rounded-xl border border-[var(--border)] bg-[var(--bg-base)]/40 overflow-hidden" style={{ minHeight: chartHeight }}>
+                <div className="absolute inset-x-0 top-0 px-4 pt-3 pb-1 text-[9px] font-mono text-[var(--text-secondary)]">
+                    <div className="relative" style={{ height: 14 }}>
+                        {axisTicks.map(tick => (
+                            <div
+                                key={`${tick.value.toFixed(2)}`}
+                                className="absolute -translate-x-1/2"
+                                style={{ left: `${tick.pct}%` }}
+                            >
+                                <span>{`${tick.value >= 0 ? '+' : ''}${tick.value.toFixed(2)}U`}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="absolute inset-0 px-4 pt-8 pb-12">
+                    <div className="relative h-full">
+                        <div
+                            className="absolute top-0 bottom-0 w-px"
+                            style={{
+                                left: `${zeroPct}%`,
+                                background: 'rgba(125, 160, 220, 0.22)',
+                            }}
+                        />
+
+                        {waterfallData.map((entry, index) => {
+                            const startPct = scale(Math.min(entry.start, entry.end));
+                            const endPct = scale(Math.max(entry.start, entry.end));
+                            const barWidthPct = Math.max(endPct - startPct, 0.8);
+                            const barColor = entry.isTotal
+                                ? 'var(--accent)'
+                                : entry.isPositive
+                                    ? 'var(--win)'
+                                    : 'var(--loss)';
+
+                            return (
+                                <div
+                                    key={entry.name}
+                                    className="absolute left-0 right-0"
+                                    style={{ top: `${index * rowHeight + 4}px`, height: `${rowHeight - 4}px` }}
+                                >
+                                    <div
+                                        className="absolute left-0 top-0 w-[145px] pr-3 text-right text-[11px] leading-5"
+                                        style={{ color: 'var(--text-bright)' }}
+                                    >
+                                        {entry.name}
+                                    </div>
+
+                                    <div className="absolute left-[145px] right-0 top-0 h-full">
+                                        <div
+                                            className="absolute top-1/2 h-4 -translate-y-1/2 rounded-sm"
+                                            style={{
+                                                left: `calc(${startPct}% )`,
+                                                width: `max(${barWidthPct}%, 4px)`,
+                                                background: barColor,
+                                                opacity: entry.isTotal ? 1 : 0.9,
+                                                boxShadow: `0 0 0 1px color-mix(in srgb, ${barColor} 35%, transparent)`,
+                                            }}
+                                            title={[
+                                                entry.name,
+                                                `Contribution: ${entry.value >= 0 ? '+' : ''}${entry.value.toFixed(2)}U`,
+                                                `% of Total: ${entry.percentage.toFixed(1)}%`,
+                                            ].join('\n')}
+                                            onMouseEnter={() => setHoveredIndex(index)}
+                                            onMouseLeave={() => setHoveredIndex(null)}
+                                        />
+
+                                        {index > 0 && (
+                                            <div
+                                                className="absolute top-1/2 h-px"
+                                                style={{
+                                                    left: `${scale(waterfallData[index - 1].end)}%`,
+                                                    width: `${Math.max(Math.abs(scale(waterfallData[index - 1].end) - scale(entry.start)), 0)}%`,
+                                                    background: 'rgba(125, 160, 220, 0.28)',
+                                                    transform: 'translateY(-0.5px)',
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {hovered && (
+                    <div className="absolute top-4 right-4 z-10 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-card)] px-4 py-3 shadow-lg max-w-[280px]">
+                        <p className="font-display font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
+                            {hovered.name}
+                        </p>
+                        <p className="mt-1 text-[11px] font-mono" style={{ color: hovered.value >= 0 ? 'var(--win)' : 'var(--loss)' }}>
+                            Contribution: {hovered.value >= 0 ? '+' : ''}{hovered.value.toFixed(2)}U
+                        </p>
+                        <p className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                            % of Total: {hovered.percentage.toFixed(1)}%
+                        </p>
+                        {hovered.subComponents.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                                <p className="font-mono text-[10px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-secondary)' }}>
+                                    Sub-breakdown
+                                </p>
+                                <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                                    {hovered.subComponents.slice(0, 5).map((sub, i) => (
+                                        <p key={i} className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                            {sub.name}: <span style={{ color: sub.value >= 0 ? 'var(--win)' : 'var(--loss)' }}>
+                                                {sub.value >= 0 ? '+' : ''}{sub.value.toFixed(2)}U
+                                            </span>{sub.count ? ` (n=${sub.count})` : ''}
+                                        </p>
+                                    ))}
+                                    {hovered.subComponents.length > 5 && (
+                                        <p className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                            ...and {hovered.subComponents.length - 5} more
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+            <div className="flex gap-4 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    Total: <span style={{ color: totalProfit >= 0 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>
+                        {totalProfit >= 0 ? '+' : ''}{totalProfit.toFixed(2)}U
+                    </span>
+                </span>
+                <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    Components: {components.length}
+                </span>
+            </div>
+        </ChartCard>
     );
 }
 
@@ -821,6 +1121,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
             const params: Record<string, unknown> = {
                 date_from: filters.dateFrom || undefined,
                 date_to: filters.dateTo || undefined,
+                data_source: filters.dataSource,
             };
             if (selectedProfiles.length > 0) params.profiles = selectedProfiles;
             const d = await fetchAnalytics(params as any);
@@ -852,7 +1153,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 drawdown: [], return_distribution: null, time_patterns: null,
             });
         } finally { setLoading(false); }
-    }, [selectedProfiles, filters, refreshKey]);
+    }, [selectedProfiles, filters.dateFrom, filters.dateTo, filters.dataSource, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -1353,6 +1654,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
                     </p>
                 )}
             </div>
+
+            {/* ── Profit Attribution Waterfall ───────────────────────────────── */}
         </div>
     );
 }

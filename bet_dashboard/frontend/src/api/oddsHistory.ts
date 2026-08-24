@@ -1,5 +1,6 @@
 import client from './client';
 import type { OddsHistory, OddsMovementSummary, MarketMovementDetail } from '../types';
+import type { DataSource } from '../types';
 
 /**
  * Get full odds history for a specific match
@@ -20,14 +21,18 @@ export async function getMatchMovement(matchId: number): Promise<OddsMovementSum
 /**
  * Get movement summary for all future matches
  */
-export async function getAllMovements(): Promise<Record<string, OddsMovementSummary>> {
-    const response = await client.get<Record<string, OddsMovementSummary>>('/odds-history/movements/all');
+export async function getAllMovements(dataSource: DataSource = 'live'): Promise<Record<string, OddsMovementSummary>> {
+    const response = await client.get<Record<string, OddsMovementSummary>>('/odds-history/movements/all', {
+        params: { data_source: dataSource },
+    });
     return response.data;
 }
 
 export type SignificantMovements = Record<string, Record<string, MarketMovementDetail>>;
 
-export async function getSignificantMovements(): Promise<SignificantMovements> {
-    const { data } = await client.get<SignificantMovements>('/odds-history/movements/significant');
+export async function getSignificantMovements(dataSource: DataSource = 'live'): Promise<SignificantMovements> {
+    const { data } = await client.get<SignificantMovements>('/odds-history/movements/significant', {
+        params: { data_source: dataSource },
+    });
     return data;
 }

@@ -1,5 +1,6 @@
 import client from './client';
 import type { MatchesPage } from '../types';
+import type { DataSource } from '../types';
 
 export async function fetchMatches(params: {
     page: number; page_size: number;
@@ -8,6 +9,7 @@ export async function fetchMatches(params: {
     min_consensus?: number | null;
     min_odds?: number | null;
     only_significant_movement?: boolean;
+    data_source?: DataSource;
 }): Promise<MatchesPage> {
     const res = await client.get<MatchesPage>('/matches', { params });
     return res.data;

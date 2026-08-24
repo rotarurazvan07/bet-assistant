@@ -1,3 +1,7 @@
+// ── Data Source ──────────────────────────────────────────────────────────────
+
+export type DataSource = 'live' | 'demo';
+
 // ── Match ─────────────────────────────────────────────────────────────────────
 
 export interface Match {
@@ -228,6 +232,41 @@ export interface LeagueBreakdown {
     avg_odds: number; net_profit: number;
 }
 
+export interface AttributionComponent {
+    name: string;
+    value: number;
+    percentage: number;
+    sub_components?: {
+        name: string;
+        value: number;
+        count?: number;
+    }[];
+}
+
+export interface AttributionResult {
+    total_profit: number;
+    components: AttributionComponent[];
+    settled_slips?: number;
+    settled_legs?: number;
+    dimensions?: AttributionDimension[];
+    drivers?: AttributionDriver[];
+}
+
+export interface AttributionDriver {
+    slip_id: number; date: string; status: string; profile: string;
+    stake: number; total_odds: number; legs: number; profit: number;
+    selections: string[];
+}
+
+export interface AttributionDimension {
+    name: string; groups: AttributionGroup[];
+}
+
+export interface AttributionGroup {
+    name: string; profit: number; stake: number; bets: number;
+    wins: number; losses: number; roi_percentage: number;
+}
+
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -269,6 +308,7 @@ export interface AnalyticsData {
         markets: string[];
         matrix: Record<string, Record<string, { win_rate: number; edge: number; total: number }>>;
     };
+    profit_attribution?: AttributionResult;
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

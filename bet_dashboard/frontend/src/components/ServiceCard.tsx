@@ -6,6 +6,7 @@ import { LiveDot, TooltipIcon } from './ui';
 interface Props {
   info: ServiceInfo;
   onToggle: () => void;
+  disabled?: boolean;
 }
 
 const ICONS: Record<string, string> = {
@@ -14,7 +15,7 @@ const ICONS: Record<string, string> = {
   verifier: '⟳',
 };
 
-export default function ServiceCard({ info, onToggle }: Props) {
+export default function ServiceCard({ info, onToggle, disabled = false }: Props) {
   const active = info.alive && info.enabled;
 
   // Card header with icon, name, description and status
@@ -75,6 +76,8 @@ export default function ServiceCard({ info, onToggle }: Props) {
         className={active ? 'btn-danger' : 'btn-success'}
         style={{ justifyContent: 'center', width: '100%' }}
         onClick={onToggle}
+        disabled={disabled}
+        title={disabled ? 'Service controls are disabled in demo mode' : undefined}
       >
         {active ? 'Stop Service' : 'Start Service'}
       </button>
