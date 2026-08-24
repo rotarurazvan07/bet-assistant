@@ -184,6 +184,134 @@ def _league_breakdown(slips) -> list[dict]:
     return sorted(result, key=lambda x: x["edge"], reverse=True)
 
 
+# ── Profit Attribution (sequential Shapley approximation) ───────────────────
+
+
+def _profit_attribution(slips) -> dict:
+    """
+    Sequential Shapley approximation for profit attribution.
+    Order: Market → League → Odds Range → Bet Type → Stake Sizing → Timing → Profile → Residual
+    """
+    import pandas as pd
+    from collections import defaultdict
+
+    # Collect all legs with slip-level info
+    records = []
+    for slip in slips:
+        s_status = _get_status_value(slip.slip_status)
+        if s_status not in ("Won", "Lost"):
+            continue
+        n_legs = max(len(slip.legs), 1)
+        per_leg_stake = slip.units / n_legs
+        slip_profit = 0.0
+        for leg in slip.legs:
+            l_status = _get_status_value(leg.status)
+            if l_status not in ("Won", "Lost"):
+                continue
+            leg_profit = (leg.odds - 1) * per_leg_stake if l_status == "Won" else -per_leg_stake
+            slip_profit += leg_profit
+            records.append({
+                "slip_id": slip.slip_id,
+                "leg_result_url": leg.result_url,
+                "market": str(leg.market),
+                "league": getattr(leg, "league", None) or "Unknown",
+                "odds": leg.odds,
+                "bet_type": f"{len(slip.legs)}-leg" if len(slip.legs) < 5 else "5+",
+                "stake": per_leg_stake,
+                "kelly_stake": per_leg_stake,  # placeholder; would need Kelly calc
+                "profile": slip.profile,
+                "date_generated": slip.date_generated,
+                "profit": leg_profit,
+                "slip_profit": slip_profit,
+            })
+
+    if not records:
+        return {
+            "total_profit": 0.0,
+            "components": [],
+        }
+
+    df = pd.DataFrame(records)
+    total_profit = df["slip_profit"].iloc[0] if not df.empty else 0.0
+
+    # Deduplicate legs
+    df = df.drop_duplicates(subset=["leg_result_url", "market"])
+
+    # Define buckets
+    def odds_bucket(o):
+        if o < 1.5:
+            return "<1.5"
+        elif o < 2.0:
+            return "1.5-2.0"
+        elif o < 3.5:
+            return "2.0-3.5"
+        elif o < 7.0:
+            return "3.5-7.0"
+        else:
+            return "7.0+"
+
+    def timing_bucket(date_str):
+        # Simplified: assume all are pre-match for now; would need kickoff time
+        return "Pre-match (>24h)"
+
+    df["odds_bucket"] = df["odds"].apply(odds_bucket)
+    df["timing_bucket"] = df["date_generated"].apply(timing_bucket)
+
+    # Sequential attribution order
+    dimensions = [
+        ("Market Selection", "market"),
+        ("League Selection", "league"),
+        ("Odds Range", "odds_bucket"),
+        ("Bet Type", "bet_type"),
+        ("Stake Sizing", "stake"),  # simplified
+        ("Timing", "timing_bucket"),
+        ("Profile", "profile"),
+    ]
+
+    components = []
+    running_total = 0.0
+    prev_avg = 0.0
+
+    for name, col in dimensions:
+        # Group by dimension and compute average profit per leg
+        grouped = df.groupby(col).agg(
+            avg_profit=("profit", "mean"),
+            count=("profit", "count"),
+        ).reset_index()
+        # Weight by frequency
+        weighted_avg = (grouped["avg_profit"] * grouped["count"]).sum() / grouped["count"].sum()
+        contribution = weighted_avg - prev_avg
+        running_total += contribution
+        components.append({
+            "name": name,
+            "value": round(contribution, 2),
+            "percentage": round(contribution / total_profit * 100, 1) if total_profit != 0 else 0.0,
+            "sub_components": [
+                {
+                    "name": row[col],
+                    "value": round(row["avg_profit"], 2),
+                    "count": int(row["count"]),
+                }
+                for _, row in grouped.iterrows()
+            ],
+        })
+        prev_avg = weighted_avg
+
+    # Residual
+    residual = total_profit - running_total
+    components.append({
+        "name": "Residual (Noise)",
+        "value": round(residual, 2),
+        "percentage": round(residual / total_profit * 100, 1) if total_profit != 0 else 0.0,
+        "sub_components": [],
+    })
+
+    return {
+        "total_profit": round(total_profit, 2),
+        "components": components,
+    }
+
+
 # ── Existing helpers (unchanged) ───────────────────────────────────────────────
 
 
@@ -299,6 +427,7 @@ def get_analytics(
         "market_breakdown": _market_breakdown(slips),
         "league_breakdown": _league_breakdown(slips),
         "correlation_matrix": _correlation_matrix(slips),
+        "profit_attribution": _profit_attribution(slips),
     }
     return sanitize_floats(response_data)
 

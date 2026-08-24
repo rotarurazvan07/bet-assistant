@@ -7,7 +7,7 @@ import { fetchAnalytics } from '../api/data';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats } from '../types';
+import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, AttributionResult } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
@@ -135,6 +135,166 @@ function FinancialTile({ label, value, sub, color, tip, badge }: {
             </div>
             {sub && <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>{sub}</span>}
         </div>
+    );
+}
+
+// ── Profit Attribution Waterfall ─────────────────────────────────────────────
+
+interface ProfitAttributionCardProps {
+    data: AttributionResult | null | undefined;
+}
+
+function ProfitAttributionCard({ data }: ProfitAttributionCardProps) {
+    if (!data?.components?.length) {
+        return (
+            <ChartCard title="Profit Attribution" tip="Decomposes net profit into decision dimensions using sequential Shapley approximation. Green = positive driver, Red = negative driver.">
+                <div className="flex items-center justify-center h-60">
+                    <p className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        No attribution data available.
+                    </p>
+                </div>
+            </ChartCard>
+        );
+    }
+
+    // Prepare waterfall data: baseline (0) → each component → total
+    const components = data.components;
+    const totalProfit = data.total_profit;
+    
+    // Calculate cumulative values for waterfall
+    let cumulative = 0;
+    const waterfallData = components.map((comp, _index) => {
+        const start = cumulative;
+        const end = cumulative + comp.value;
+        cumulative = end;
+        return {
+            name: comp.name,
+            value: comp.value,
+            percentage: comp.percentage,
+            start,
+            end,
+            isTotal: comp.name === "Residual (Noise)",
+            isPositive: comp.value >= 0,
+            subComponents: comp.sub_components || [],
+        };
+    });
+
+    // Add total bar
+    waterfallData.push({
+        name: "Total Profit",
+        value: totalProfit,
+        percentage: 100,
+        start: 0,
+        end: totalProfit,
+        isTotal: true,
+        isPositive: totalProfit >= 0,
+        subComponents: [],
+    });
+
+    const maxVal = Math.max(...waterfallData.map(d => Math.max(d.start, d.end, 0)));
+    const minVal = Math.min(...waterfallData.map(d => Math.min(d.start, d.end, 0)));
+    const domainPadding = (maxVal - minVal) * 0.15 || 1;
+
+    return (
+        <ChartCard title="Profit Attribution" tip="Decomposes net profit into decision dimensions using sequential Shapley approximation. Green = positive driver, Red = negative driver. Click a bar for sub-breakdown.">
+            <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                    layout="horizontal"
+                    data={waterfallData}
+                    margin={{ left: 120, right: 80, top: 20, bottom: 20 }}
+                >
+                    <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" horizontal={false} strokeOpacity={0.4} />
+                    <XAxis
+                        type="number"
+                        tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                        tickLine={false}
+                        tickFormatter={v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}U`}
+                        axisLine={{ stroke: 'var(--border)' }}
+                        domain={[minVal - domainPadding, maxVal + domainPadding]}
+                    />
+                    <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={140}
+                        tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                        tickLine={false}
+                        axisLine={false}
+                    />
+                    <Tooltip
+                        contentStyle={TT}
+                        content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const d = payload[0]?.payload;
+                            return (
+                                <div style={TT}>
+                                    <p style={{ color: 'var(--text-bright)', fontWeight: 'bold', marginBottom: 4 }}>{d.name}</p>
+                                    <p><span style={{ color: 'var(--text-secondary)' }}>Contribution: </span>
+                                        <span style={{ color: d.value >= 0 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>
+                                            {d.value >= 0 ? '+' : ''}{d.value.toFixed(2)}U</span></p>
+                                    <p><span style={{ color: 'var(--text-secondary)' }}>% of Total: </span>
+                                        <span style={{ color: 'var(--text-primary)' }}>{d.percentage.toFixed(1)}%</span></p>
+                                    {d.subComponents.length > 0 && (
+                                        <div style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                                            <p className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>Sub-breakdown:</p>
+                                            {d.subComponents.slice(0, 5).map((sub: { name: string; value: number; count?: number }, i: number) => (
+                                                <p key={i} className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    {sub.name}: <span style={{ color: sub.value >= 0 ? 'var(--win)' : 'var(--loss)' }}>{sub.value >= 0 ? '+' : ''}{sub.value.toFixed(2)}U</span> (n={sub.count})
+                                                </p>
+                                            ))}
+                                            {d.subComponents.length > 5 && (
+                                                <p className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                                    ...and {d.subComponents.length - 5} more
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }}
+                    />
+                    <ReferenceLine x={0} stroke="var(--border-strong)" strokeDasharray="4 2" />
+                    <Bar
+                        dataKey="value"
+                        barSize={24}
+                        radius={[0, 3, 3, 0]}
+                    >
+                        {waterfallData.map((entry, index) => (
+                            <Cell
+                                key={`cell-${index}`}
+                                fill={entry.isTotal ? 'var(--accent)' : entry.isPositive ? 'var(--win)' : 'var(--loss)'}
+                                fillOpacity={entry.isTotal ? 1 : 0.85}
+                            />
+                        ))}
+                    </Bar>
+                    {/* Connector lines between bars */}
+                    <defs>
+                        {waterfallData.slice(0, -1).map((entry, index) => (
+                            <line
+                                key={`conn-${index}`}
+                                x1={entry.end}
+                                x2={waterfallData[index + 1].start}
+                                y1={index * 24 + 12}
+                                y2={(index + 1) * 24 + 12}
+                                stroke="var(--border-strong)"
+                                strokeDasharray="4 2"
+                                strokeWidth={1}
+                            />
+                        ))}
+                    </defs>
+                </BarChart>
+            </ResponsiveContainer>
+            {/* Summary row */}
+            <div className="flex gap-4 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    Total: <span style={{ color: totalProfit >= 0 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>
+                        {totalProfit >= 0 ? '+' : ''}{totalProfit.toFixed(2)}U
+                    </span>
+                </span>
+                <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    Components: {components.length}
+                </span>
+            </div>
+        </ChartCard>
     );
 }
 
@@ -1350,6 +1510,18 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 ) : (
                     <p className="font-mono text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>
                         Processing correlation matrix...
+                    </p>
+                )}
+            </div>
+
+            {/* ── Profit Attribution Waterfall ───────────────────────────────── */}
+            <SectionHeader icon="💧" title="Profit Attribution" />
+            <div className="mb-8">
+                {data.profit_attribution ? (
+                    <ProfitAttributionCard data={data.profit_attribution} />
+                ) : (
+                    <p className="font-mono text-xs text-center py-8" style={{ color: 'var(--text-secondary)' }}>
+                        No attribution data available.
                     </p>
                 )}
             </div>

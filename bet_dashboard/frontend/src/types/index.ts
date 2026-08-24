@@ -228,6 +228,22 @@ export interface LeagueBreakdown {
     avg_odds: number; net_profit: number;
 }
 
+export interface AttributionComponent {
+    name: string;
+    value: number;
+    percentage: number;
+    sub_components?: {
+        name: string;
+        value: number;
+        count?: number;
+    }[];
+}
+
+export interface AttributionResult {
+    total_profit: number;
+    components: AttributionComponent[];
+}
+
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -269,6 +285,7 @@ export interface AnalyticsData {
         markets: string[];
         matrix: Record<string, Record<string, { win_rate: number; edge: number; total: number }>>;
     };
+    profit_attribution?: AttributionResult;
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────
