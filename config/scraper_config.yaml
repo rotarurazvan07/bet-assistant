@@ -6,7 +6,7 @@ block_indicators:
   - "403 Forbidden"
 
 # Matches filtering settings
-num_days_ahead: 3
+num_days_ahead: 1
 local_timezone: "Europe/Bucharest"
 
 SKIP_PATTERNS:
