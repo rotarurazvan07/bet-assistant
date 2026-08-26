@@ -20,9 +20,9 @@ BETEXPLORER_NAME = "betexplorer"
 MAX_CONCURRENCY = 10
 
 TOP_LEAGUES = [
-    "https://www.betexplorer.com/football/uefa-champions-league/",
-    "https://www.betexplorer.com/football/uefa-europa-league/",
-    "https://www.betexplorer.com/football/uefa-europa-conference-league/",
+    "https://www.betexplorer.com/football/europe/champions-league/",
+    "https://www.betexplorer.com/football/europe/europa-league/",
+    "https://www.betexplorer.com/football/europe/conference-league/",
     "https://www.betexplorer.com/football/england/premier-league/",
     "https://www.betexplorer.com/football/italy/serie-a/",
     "https://www.betexplorer.com/football/spain/laliga/",
