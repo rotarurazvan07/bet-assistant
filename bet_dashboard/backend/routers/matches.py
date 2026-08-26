@@ -5,6 +5,9 @@ import math
 from core.market_config import CONSENSUS_COLUMNS, MARKET_DEFINITIONS
 from fastapi import APIRouter, Query, Request
 
+# Demo data provider
+from fixtures.demo_data import get_demo_provider
+
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 
 
@@ -41,7 +44,14 @@ def get_matches(
     min_consensus: int | None = Query(None, ge=0, le=100),
     min_odds: float | None = Query(None, ge=1.0, le=50.0),
     only_significant_movement: bool = Query(False),
+    data_source: str = Query("live", pattern="^(live|demo)$"),
 ):
+    # Route to demo data provider if requested
+    if data_source == "demo":
+        demo_provider = get_demo_provider()
+        return demo_provider.get_matches(page, page_size, search, date_from, date_to,
+                                         sort_by, sort_dir, min_consensus, min_odds, only_significant_movement)
+
     logic = _get(request).logic
     df = logic.filter_matches(
         search_text=search or None,

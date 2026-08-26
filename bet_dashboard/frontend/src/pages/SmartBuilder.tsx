@@ -83,37 +83,37 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
     // Load profiles + excluded on mount
     useEffect(() => {
-        fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
-        fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
-        fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
-    }, []);
+        fetchProfiles(filters.dataSource).then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
+        fetchExcludedDetails(filters.dataSource).then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+        fetchLeagues(filters.dataSource).then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
+    }, [filters.dataSource]);
 
     // Compute merged config with global date filters (for preview only)
     const mergedCfg = { ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null };
 
     // Debounced preview — 350ms after any config change
-    const triggerPreview = useCallback((config: BuilderConfig) => {
+    const triggerPreview = useCallback((config: BuilderConfig, dataSource: 'live' | 'demo' = filters.dataSource) => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(async () => {
             setLoading(true);
             try {
-                const result = await fetchPreview(config);
+                const result = await fetchPreview(config, dataSource);
                 setPreview(result);
             } catch {
                 setPreview({ legs: [], total_odds: 1, pending_urls: [] });
             }
             finally { setLoading(false); }
         }, 350);
-    }, []);
+    }, [filters.dataSource]);
 
     function handleCfgChange(next: BuilderConfig) {
         setCfg(next);
         setActiveName('manual');
-        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null }, filters.dataSource);
     }
 
     // Trigger preview when refreshKey or global filters change
-    useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line
+    useEffect(() => { triggerPreview(mergedCfg, filters.dataSource); }, [refreshKey, filters.dateFrom, filters.dateTo, filters.dataSource]); // eslint-disable-line
 
     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
     useEffect(() => {
@@ -136,15 +136,17 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     }, [targetPayout, preview?.total_odds, preview?.legs.length, cfg.target_odds, units]);
 
     async function handleExclude(url: string) {
+        if (filters.dataSource === 'demo') { setStatus('Demo mode is read-only.'); return; }
         await addExcluded(url);
-        fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
-        triggerPreview(mergedCfg);
+        fetchExcludedDetails(filters.dataSource).then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+        triggerPreview(mergedCfg, filters.dataSource);
     }
 
     async function handleClearExcluded() {
+        if (filters.dataSource === 'demo') { setStatus('Demo mode is read-only.'); return; }
         await clearExcluded();
         setExcludedDetails([]);
-        triggerPreview(mergedCfg);
+        triggerPreview(mergedCfg, filters.dataSource);
     }
 
     function loadProfile(name: string, data: any) {
@@ -178,31 +180,34 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setUnits(data.units ?? 1);
         setRunDaily(data.run_daily_count ?? 0);
         setTargetPayout(data.target_payout ?? 0);
-        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null }, filters.dataSource);
     }
 
     async function handleSaveProfile() {
+        if (filters.dataSource === 'demo') { setStatus('Demo mode is read-only.'); return; }
         const clean = activeName.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
         if (!clean || clean === 'manual') {
             setStatus('Enter a profile name first.'); return;
         }
         const { date_from, date_to, ...cfgWithoutDates } = cfg;
         await saveProfile({ name: clean, ...cfgWithoutDates, units, target_payout: targetPayout, run_daily_count: runDaily });
-        const updated = await fetchProfiles();
+        const updated = await fetchProfiles(filters.dataSource);
         setProfiles(updated ?? {});
         setStatus(`✓ Profile '${clean}' saved`);
     }
 
     async function handleDeleteProfile() {
+        if (filters.dataSource === 'demo') { setStatus('Demo mode is read-only.'); return; }
         if (!activeName || activeName === 'manual') return;
         await deleteProfile(activeName);
-        const updated = await fetchProfiles();
+        const updated = await fetchProfiles(filters.dataSource);
         setProfiles(updated ?? {});
         setActiveName('manual');
         setStatus(`Deleted '${activeName}'`);
     }
 
     async function handleAddToSlips() {
+        if (filters.dataSource === 'demo') { setStatus('Demo mode is read-only.'); return; }
         if (!preview?.legs.length) {
             setStatus('No legs in preview.'); return;
         }
@@ -237,8 +242,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
         const id = await addSlip(activeName, manualLegs, units);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
-        triggerPreview(mergedCfg);
-        fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+        triggerPreview(mergedCfg, filters.dataSource);
+        fetchExcludedDetails(filters.dataSource).then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }
 
     return (
@@ -441,10 +446,10 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                             </div>
                                             <button className="btn-icon shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                                                 onClick={() => {
-                                                    if (item.reason === "Manually excluded") {
+                                                    if (item.reason === "Manually excluded" && filters.dataSource !== 'demo') {
                                                         removeExcluded(item.url).then(() => {
-                                                            fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
-                                                            triggerPreview(mergedCfg);
+                                                            fetchExcludedDetails(filters.dataSource).then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+                                                            triggerPreview(mergedCfg, filters.dataSource);
                                                         });
                                                     }
                                                 }}

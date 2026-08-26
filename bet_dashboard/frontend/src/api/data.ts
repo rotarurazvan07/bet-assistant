@@ -5,17 +5,22 @@ import type {
     SlipsPage, ManualLegIn,
     AnalyticsData,
     ServicesData,
+    MatchesPage,
+    OddsHistory,
+    DataSource,
 } from '../types';
 
 // ── Builder ──────────────────────────────────────────────────────────────────
 
-export async function fetchPreview(cfg: BuilderConfig): Promise<PreviewResult> {
-    const res = await client.post<PreviewResult>('/builder/preview', cfg);
+export async function fetchPreview(cfg: BuilderConfig, dataSource: DataSource = 'live'): Promise<PreviewResult> {
+    const res = await client.post<PreviewResult>('/builder/preview', cfg, {
+        params: { data_source: dataSource },
+    });
     return res.data;
 }
 
-export async function fetchLeagues(): Promise<string[]> {
-    const res = await client.get<string[]>('/builder/leagues');
+export async function fetchLeagues(dataSource: DataSource = 'live'): Promise<string[]> {
+    const res = await client.get<string[]>('/builder/leagues', { params: { data_source: dataSource } });
     return res.data;
 }
 
@@ -31,8 +36,8 @@ export interface ExcludedMatch {
     reason: string;
 }
 
-export async function fetchExcludedDetails(): Promise<ExcludedMatch[]> {
-    const res = await client.get<{ excluded: ExcludedMatch[] }>('/builder/excluded/details');
+export async function fetchExcludedDetails(dataSource: DataSource = 'live'): Promise<ExcludedMatch[]> {
+    const res = await client.get<{ excluded: ExcludedMatch[] }>('/builder/excluded/details', { params: { data_source: dataSource } });
     return res.data.excluded;
 }
 
@@ -52,8 +57,8 @@ export async function clearExcluded(): Promise<void> {
 
 // ── Profiles ─────────────────────────────────────────────────────────────────
 
-export async function fetchProfiles(): Promise<ProfilesMap> {
-    const res = await client.get<{ profiles: ProfilesMap }>('/profiles');
+export async function fetchProfiles(dataSource: DataSource = 'live'): Promise<ProfilesMap> {
+    const res = await client.get<{ profiles: ProfilesMap }>('/profiles', { params: { data_source: dataSource } });
     return res.data.profiles;
 }
 
@@ -70,6 +75,7 @@ export async function deleteProfile(name: string): Promise<void> {
 export async function fetchSlips(params: {
     profiles?: string[]; date_from?: string; date_to?: string;
     hide_settled?: boolean; live_only?: boolean;
+    data_source?: DataSource;
 }): Promise<SlipsPage> {
     const res = await client.get<SlipsPage>('/slips', { params });
     return res.data;
@@ -101,15 +107,47 @@ export async function generateSlips(): Promise<{ generated: number; by_profile: 
 
 export async function fetchAnalytics(params: {
     profiles?: string[]; date_from?: string; date_to?: string;
+    data_source?: DataSource;
 }): Promise<AnalyticsData> {
     const res = await client.get<AnalyticsData>('/analytics', { params });
     return res.data;
 }
 
+// ── Matches ──────────────────────────────────────────────────────────────────
+
+export async function fetchMatches(params: {
+    page?: number; page_size?: number; search?: string;
+    date_from?: string; date_to?: string;
+    sort_by?: string; sort_dir?: string;
+    min_consensus?: number; min_odds?: number;
+    only_significant_movement?: boolean;
+    data_source?: DataSource;
+}): Promise<MatchesPage> {
+    const res = await client.get<MatchesPage>('/matches', { params });
+    return res.data;
+}
+
+// ── Odds History ─────────────────────────────────────────────────────────────
+
+export async function fetchOddsHistory(matchId: number, dataSource: DataSource = 'live'): Promise<OddsHistory> {
+    const res = await client.get<OddsHistory>(`/odds-history/${matchId}`, { params: { data_source: dataSource } });
+    return res.data;
+}
+
+export async function fetchAllMovements(dataSource: DataSource = 'live'): Promise<Record<string, any>> {
+    const res = await client.get<Record<string, any>>('/odds-history/movements/all', { params: { data_source: dataSource } });
+    return res.data;
+}
+
+export async function fetchSignificantMovements(dataSource: DataSource = 'live'): Promise<Record<string, any>> {
+    const res = await client.get<Record<string, any>>('/odds-history/movements/significant', { params: { data_source: dataSource } });
+    return res.data;
+}
+
 // ── Services ─────────────────────────────────────────────────────────────────
 
-export async function fetchServices(): Promise<ServicesData> {
-    const res = await client.get<ServicesData>('/services');
+export async function fetchServices(dataSource: DataSource = 'live'): Promise<ServicesData> {
+    const res = await client.get<ServicesData>('/services', { params: { data_source: dataSource } });
     return res.data;
 }
 

@@ -9,6 +9,7 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { StaticTimePicker } from '@mui/x-date-pickers/StaticTimePicker';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import dayjs from 'dayjs';
+import { useDataSource } from '../components/Layout';
 
 // Custom theme mapping the high-fidelity CSS variable tokens
 const muiDarkTheme = createTheme({
@@ -95,6 +96,7 @@ const muiDarkTheme = createTheme({
 });
 
 export default function Services() {
+    const { dataSource } = useDataSource();
     const [data, setData] = useState<ServicesData | null>(null);
     const [genHour, setGenHour] = useState(8);
     const [genMinute, setGenMinute] = useState(0);
@@ -111,6 +113,7 @@ export default function Services() {
     useEffect(() => { load(); }, [load]);
 
     async function handleSave() {
+        if (dataSource === 'demo') { setStatus('Demo mode is read-only.'); return; }
         await saveServiceSettings(genHour, genMinute);
         setStatus('✓ Settings saved — schedules recalculated');
         load();
@@ -157,6 +160,7 @@ export default function Services() {
                         key={svc.name}
                         info={svc}
                         onToggle={() => handleToggle(svc.name)}
+                        disabled={dataSource === 'demo'}
                     />
                 ))}
 
@@ -189,6 +193,7 @@ export default function Services() {
                                                     setGenMinute(newValue.minute());
                                                 }
                                             }}
+                                            disabled={dataSource === 'demo'}
                                             slotProps={{
                                                 actionBar: {
                                                     actions: []
@@ -202,7 +207,7 @@ export default function Services() {
                     </div>
 
                     <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+                        <button className="btn-primary" onClick={handleSave} disabled={dataSource === 'demo'}>Save Settings</button>
                         {status && (
                             <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{status}</span>
                         )}

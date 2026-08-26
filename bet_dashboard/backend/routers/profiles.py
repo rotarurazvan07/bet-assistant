@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from core.config_helpers import _config_to_yaml_dict
 from core.schemas import ProfileIn
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from bet_framework.core.Slip import BetSlipConfig
+
+# Demo data provider
+from fixtures.demo_data import get_demo_provider
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
@@ -14,7 +17,12 @@ def _get(request: Request):
 
 
 @router.get("")
-def list_profiles(request: Request):
+def list_profiles(request: Request, data_source: str = Query("live", pattern="^(live|demo)$")):
+    # Route to demo data provider if requested
+    if data_source == "demo":
+        demo_provider = get_demo_provider()
+        return demo_provider.get_profiles()
+
     app = _get(request)
     profiles = app.settings.get("profiles") or {}
     return {"profiles": profiles}

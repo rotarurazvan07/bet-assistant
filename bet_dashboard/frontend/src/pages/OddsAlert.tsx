@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getSignificantMovements } from '../api/oddsHistory';
 import { fetchMatches } from '../api/matches';
 import { OddsMovementIndicator } from '../components/OddsMovementIndicator';
+import { useDataSource } from '../components/Layout';
 import type { MarketMovementDetail, Match } from '../types';
 import { MARKET_COLUMNS } from '../config/marketConfig';
 
@@ -63,6 +64,7 @@ const CATEGORY_META: Record<string, { title: string; color: string; desc: string
 };
 
 export default function OddsAlert() {
+    const { dataSource } = useDataSource();
     const [matches, setMatches] = useState<MovementMatch[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -71,8 +73,8 @@ export default function OddsAlert() {
         (async () => {
             try {
                 const [movements, firstPage] = await Promise.all([
-                    getSignificantMovements(),
-                    fetchMatches({ page: 1, page_size: PAGE_SIZE }),
+                    getSignificantMovements(dataSource),
+                    fetchMatches({ page: 1, page_size: PAGE_SIZE, data_source: dataSource }),
                 ]);
                 if (cancelled) return;
                 const allMatches: Match[] = [...firstPage.matches];
@@ -80,7 +82,7 @@ export default function OddsAlert() {
                 if (totalPages > 1) {
                     const remaining = await Promise.all(
                         Array.from({ length: totalPages - 1 }, (_, i) =>
-                            fetchMatches({ page: i + 2, page_size: PAGE_SIZE })
+                            fetchMatches({ page: i + 2, page_size: PAGE_SIZE, data_source: dataSource })
                         )
                     );
                     for (const pg of remaining) allMatches.push(...pg.matches);
@@ -106,7 +108,7 @@ export default function OddsAlert() {
             }
         })();
         return () => { cancelled = true; };
-    }, []);
+    }, [dataSource]);
 
     const cats = categorizeMatches(matches);
 

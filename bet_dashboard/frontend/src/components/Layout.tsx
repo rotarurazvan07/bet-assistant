@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { pullDb } from '../api/data';
 
@@ -11,9 +11,27 @@ const LINKS = [
     { to: '/odds-alert', label: 'Odds Alert' },
 ];
 
+export type DataSource = 'live' | 'demo';
+
+interface DataSourceContextValue {
+    dataSource: DataSource;
+    setDataSource: (source: DataSource) => void;
+}
+
+const DataSourceContext = createContext<DataSourceContextValue | null>(null);
+
+export function useDataSource() {
+    const context = useContext(DataSourceContext);
+    if (!context) {
+        throw new Error('useDataSource must be used within a DataSourceProvider');
+    }
+    return context;
+}
+
 export interface GlobalFilters {
     dateFrom: string;
     dateTo: string;
+    dataSource: DataSource;
 }
 
 interface Props {
@@ -28,6 +46,21 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [pulling, setPulling] = useState(false);
+    
+    // Data source state with localStorage persistence
+    const [dataSource, setDataSource] = useState<DataSource>(() => {
+        if (typeof window !== 'undefined') {
+            const stored = localStorage.getItem('bet-assistant.dataSource');
+            if (stored === 'demo' || stored === 'live') {
+                return stored;
+            }
+        }
+        return 'live';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('bet-assistant.dataSource', dataSource);
+    }, [dataSource]);
 
     const showFilters = location.pathname === '/' ||
         location.pathname === '/builder' ||
@@ -95,10 +128,30 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                 {lastPull}
                             </span>
                         )}
+                        {/* Data Source Toggle */}
+                        <div className="flex items-center gap-2" style={{ paddingLeft: '8px', borderLeft: '1px solid var(--border)' }}>
+                            <span className="text-[10px] font-mono uppercase hidden sm:inline"
+                                style={{ color: 'var(--text-secondary)' }}>Data</span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={dataSource === 'demo'}
+                                    onChange={() => setDataSource(dataSource === 'demo' ? 'live' : 'demo')}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-10 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-accent rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"
+                                    style={{ backgroundColor: dataSource === 'demo' ? 'var(--accent)' : 'var(--border)' }}>
+                                </div>
+                                <span className="ml-2 text-[11px] font-mono"
+                                    style={{ color: 'var(--text-bright)' }}>
+                                    {dataSource === 'demo' ? 'DEMO' : 'LIVE'}
+                                </span>
+                            </label>
+                        </div>
                         <button className="btn-ghost" onClick={handleRefresh}>
                             Refresh
                         </button>
-                        <button className="btn-primary" onClick={handlePull} disabled={pulling}>
+                        <button className="btn-primary" onClick={handlePull} disabled={pulling || dataSource === 'demo'} title={dataSource === 'demo' ? 'Database updates are disabled in demo mode' : undefined}>
                             {pulling ? 'Pulling…' : '↓ Pull Update'}
                         </button>
                     </div>
@@ -128,9 +181,11 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             )}
 
             {/* ── Page content — Fills available width ──────────────────────────── */}
-            <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
-                {children({ dateFrom, dateTo })}
-            </main>
+            <DataSourceContext.Provider value={{ dataSource, setDataSource }}>
+                <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
+                    {children({ dateFrom, dateTo, dataSource })}
+                </main>
+            </DataSourceContext.Provider>
         </div>
     );
 }

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
+
+# Demo data provider
+from fixtures.demo_data import get_demo_provider
 
 router = APIRouter(prefix="/api/odds-history", tags=["odds-history"])
 
@@ -16,8 +19,10 @@ def _get(request: Request):
 
 
 @router.get("/movements/all")
-def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
+def get_all_movements(request: Request, data_source: str = Query("live", pattern="^(live|demo)$")) -> dict[str, OddsMovementSummary]:
     """Get movement summary for all future matches."""
+    if data_source == "demo":
+        return get_demo_provider().get_all_movements()
     logic = _get(request).logic
     df = logic.match_df
 
@@ -46,8 +51,11 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
 
 
 @router.get("/movements/significant")
-def get_significant_movements(request: Request) -> dict:
+def get_significant_movements(request: Request, data_source: str = Query("live", pattern="^(live|demo)$")) -> dict:
     """Movement data with strength metrics, filtered to significant only."""
+    if data_source == "demo":
+        raw = get_demo_provider().get_significant_movements()
+        return {match_id: {key: {"direction": direction, "change_pct": 0.0, "significant": direction in ("up", "down")} for key, direction in movement.items()} for match_id, movement in raw.items()}
     logic = _get(request).logic
     df = logic.match_df
     if df.empty:
@@ -74,8 +82,10 @@ def get_significant_movements(request: Request) -> dict:
 
 
 @router.get("/{match_id}", response_model=OddsHistoryOut)
-def get_match_odds_history(request: Request, match_id: int):
+def get_match_odds_history(request: Request, match_id: int, data_source: str = Query("live", pattern="^(live|demo)$")):
     """Get full odds history for a specific match."""
+    if data_source == "demo":
+        return get_demo_provider().get_odds_history(match_id)
     logic = _get(request).logic
 
     # Get match info from the database
@@ -110,8 +120,10 @@ def get_match_odds_history(request: Request, match_id: int):
 
 
 @router.get("/{match_id}/movement", response_model=OddsMovementSummary)
-def get_match_movement(request: Request, match_id: int):
+def get_match_movement(request: Request, match_id: int, data_source: str = Query("live", pattern="^(live|demo)$")):
     """Get just the movement summary for a match."""
+    if data_source == "demo":
+        return get_demo_provider().get_all_movements().get(str(match_id), {})
     logic = _get(request).logic
     movement = logic.get_odds_movement(match_id)
 

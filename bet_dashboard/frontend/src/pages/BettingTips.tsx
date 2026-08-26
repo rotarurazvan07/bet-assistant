@@ -43,7 +43,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         let cancelled = false;
         const loadSlips = async () => {
             try {
-                const slipsData = await fetchSlips({ hide_settled: true });
+                const slipsData = await fetchSlips({ hide_settled: true, data_source: filters.dataSource });
                 const selections = new Set<string>();
                 slipsData.slips.forEach((slip: any) => {
                     // Only consider pending or live slips
@@ -64,7 +64,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         };
         loadSlips();
         return () => { cancelled = true; };
-    }, [refreshKey]); // Refetch when refreshKey changes
+    }, [filters.dataSource, refreshKey]); // Refetch when refreshKey or data source changes
 
     // Local filter state with localStorage persistence
     const [search, setSearch] = useState(() => {
@@ -138,16 +138,16 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     }, [search, minConsensus, minOdds, onlySignificantMovement, page, sortBy, sortDir, pendingLegs]);
 
     // Reset to page 1 when any filter changes
-    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey, search, minConsensus, minOdds, onlySignificantMovement]);
+    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, filters.dataSource, refreshKey, search, minConsensus, minOdds, onlySignificantMovement]);
 
     // Fetch odds movements
     useEffect(() => {
         let cancelled = false;
-        getAllMovements()
+        getAllMovements(filters.dataSource)
             .then(d => { if (!cancelled) setMovements(d); })
             .catch(() => {});
         return () => { cancelled = true; };
-    }, [refreshKey]);
+    }, [filters.dataSource, refreshKey]);
 
     useEffect(() => {
         let cancelled = false;
@@ -162,6 +162,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             min_consensus: minConsensus,
             min_odds: minOdds,
             only_significant_movement: onlySignificantMovement || undefined,
+            data_source: filters.dataSource,
         })
             .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
             .catch(() => {
@@ -171,7 +172,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 }
             });
         return () => { cancelled = true; };
-    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey]);
+    }, [page, filters.dateFrom, filters.dateTo, filters.dataSource, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey]);
 
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -253,7 +254,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             setPendingLegs([]);
             // Refresh slip selections after adding
             try {
-                const slipsData = await fetchSlips({ hide_settled: true });
+                const slipsData = await fetchSlips({ hide_settled: true, data_source: filters.dataSource });
                 const selections = new Set<string>();
                 slipsData.slips.forEach((slip: any) => {
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {

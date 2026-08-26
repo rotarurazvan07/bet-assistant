@@ -68,6 +68,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                 date_to: filters.dateTo || undefined,
                 hide_settled: hideSettled,
                 live_only: liveOnly,
+                data_source: filters.dataSource,
             };
             if (selectedProfiles.length > 0) {
                 params.profiles = selectedProfiles;
@@ -90,7 +91,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             // Set empty state on error
             setData({ slips: [], stats: { total_settled: 0, total_won_count: 0, win_rate: 0, implied_win_rate: 0, edge: 0, total_units_bet: 0, gross_return: 0, net_profit: 0, roi_percentage: 0, avg_odds: 0, avg_units: 0, units_std: 0, pending_count: 0, sharpe_ratio: null , kelly_suggested_units: 0, edge_trend: "neutral", recent_edge_value: 0.0, biggest_win_units: null, biggest_loss_units: null, best_day_pnl: null, worst_day_pnl: null, current_streak: 0, longest_win_streak: 0, longest_loss_streak: 0, profit_factor: 0 }, profiles: [] });
         } finally { setLoading(false); }
-    }, [selectedProfiles, filters, hideSettled, liveOnly, refreshKey]);
+    }, [selectedProfiles, filters.dateFrom, filters.dateTo, filters.dataSource, hideSettled, liveOnly, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
 
