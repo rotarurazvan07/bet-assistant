@@ -235,6 +235,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             consensus: leg.consensus,
             sources: leg.sources,
             league: leg.league,
+            predictions: leg.predictions || [],
         }));
 
         const id = await addSlip(activeName, manualLegs, units);

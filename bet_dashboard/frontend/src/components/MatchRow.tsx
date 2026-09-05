@@ -101,6 +101,17 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         if (!match.result_url || match.result_url.trim() === '') return null;
         if (!match.datetime) return null;
         if (match.sources == null) return null;
+        
+        // Extract predictions from match.scores (from the API response)
+        // Format: [{home: number, away: number, source: string}] -> [{source: string, home: number, away: number}]
+        const matchData = match as unknown as Record<string, unknown>;
+        const scores = matchData.scores as Array<{home: number; away: number; source: string}> | undefined;
+        const predictions = scores?.map(s => ({
+            source: s.source,
+            home: s.home,
+            away: s.away,
+        })) || [];
+        
         return {
             match_name: matchName,
             datetime: match.datetime,
@@ -113,7 +124,7 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
             league: match.league,
             tier: 0,
             score: 0,
-            predictions: [],
+            predictions,
         };
     }
 

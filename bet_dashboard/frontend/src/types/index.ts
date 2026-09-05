@@ -1,5 +1,11 @@
 // ── Match ─────────────────────────────────────────────────────────────────────
 
+export interface SourcePrediction {
+    source: string;
+    home: number;
+    away: number;
+}
+
 export interface Match {
     match_id: string;
     datetime: string | null;
@@ -24,6 +30,7 @@ export interface Match {
     odds_dc_1x: number; odds_dc_12: number; odds_dc_x2: number;
     result_url: string | null;
     league: string | null;
+    scores?: SourcePrediction[];  // Per-source score predictions for source reliability tracking
 }
 
 export interface MatchesPage {
@@ -150,6 +157,7 @@ export interface ManualLegIn {
     league?: string | null;
     odds_movement_direction?: OddsMovementDirection;
     odds_movement_strength?: number;
+    predictions?: SourcePrediction[];  // Per-source predictions for source reliability tracking
 }
 
 export interface BetLeg {
@@ -255,6 +263,18 @@ export interface SourceBreakdown {
     markets: SourceBreakdownMarket[];
 }
 
+export interface SourceMarketCorrelation {
+    sources: string[];
+    markets: string[];
+    matrix: Record<string, Record<string, { accuracy: number; total: number }>>;
+}
+
+export interface SourceComprehensiveAccuracy {
+    sources: string[];
+    markets: string[];
+    matrix: Record<string, Record<string, { accuracy: number; total: number; correct: number }>>;
+}
+
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -297,6 +317,8 @@ export interface AnalyticsData {
         matrix: Record<string, Record<string, { win_rate: number; edge: number; total: number }>>;
     };
     source_breakdown?: SourceBreakdown[];
+    source_market_correlation?: SourceMarketCorrelation;
+    source_comprehensive_accuracy?: SourceComprehensiveAccuracy;
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

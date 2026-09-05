@@ -25,6 +25,10 @@ def _row_to_dict(row: dict) -> dict:
             out[k] = v.isoformat()
         else:
             out[k] = _clean(v)
+    # Include predictions (scores) for source reliability tracking
+    # _filtered_scores is stored internally, expose as 'scores' for frontend
+    if "_filtered_scores" in row:
+        out["scores"] = _clean(row["_filtered_scores"])
     return out
 
 

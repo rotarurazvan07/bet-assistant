@@ -7,7 +7,7 @@ import { fetchAnalytics } from '../api/data';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, SourceBreakdown, SourceBreakdownMarket } from '../types';
+import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, SourceBreakdown, SourceBreakdownMarket, SourceMarketCorrelation, SourceComprehensiveAccuracy } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
@@ -769,7 +769,7 @@ function CorrelationMatrix({ data }: { data: NonNullable<AnalyticsData['correlat
 
 // ── Source Reliability Card ─────────────────────────────────────────────────────
 
-function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
+function SourceReliabilityCard({ data, showTable = true }: { data: SourceBreakdown[]; showTable?: boolean }) {
     const [sortKey, setSortKey] = useState<keyof SourceBreakdown>('accuracy');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -840,121 +840,123 @@ function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
             </div>
 
             {/* Source Table */}
-            <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
-                <table className="w-full" style={{ borderCollapse: 'collapse' }}>
-                    <thead>
-                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
-                            <th className="px-4 py-3 text-left cursor-pointer select-none"
-                                onClick={() => handleSort('source')}>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-mono tracking-widest uppercase"
-                                        style={{ color: sortKey === 'source' ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                                        Source</span>
-                                    {sortKey === 'source' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
-                                </div>
-                            </th>
-                            <th className="px-4 py-3 text-left cursor-pointer select-none"
-                                onClick={() => handleSort('total_predictions')}>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-mono tracking-widest uppercase"
-                                        style={{ color: sortKey === 'total_predictions' ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                                        Predictions</span>
-                                    <TooltipIcon text="Total predictions made by this source" align="center" />
-                                    {sortKey === 'total_predictions' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
-                                </div>
-                            </th>
-                            <th className="px-4 py-3 text-left cursor-pointer select-none"
-                                onClick={() => handleSort('correct_predictions')}>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-mono tracking-widest uppercase"
-                                        style={{ color: sortKey === 'correct_predictions' ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                                        Correct</span>
-                                    {sortKey === 'correct_predictions' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
-                                </div>
-                            </th>
-                            <th className="px-4 py-3 text-left cursor-pointer select-none"
-                                onClick={() => handleSort('accuracy')}>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-mono tracking-widest uppercase"
-                                        style={{ color: sortKey === 'accuracy' ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                                        Accuracy</span>
-                                    <TooltipIcon text="Percentage of correct predictions" align="center" />
-                                    {sortKey === 'accuracy' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
-                                </div>
-                            </th>
-                            <th className="px-4 py-3 text-left cursor-pointer select-none"
-                                onClick={() => handleSort('score_mae')}>
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-mono tracking-widest uppercase"
-                                        style={{ color: sortKey === 'score_mae' ? 'var(--accent)' : 'var(--text-secondary)' }}>
-                                        Score MAE</span>
-                                    <TooltipIcon text="Mean Absolute Error in goals (average |pred_home - actual_home| + |pred_away - actual_away| per team). Lower is better." align="center" />
-                                    {sortKey === 'score_mae' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
-                                </div>
-                            </th>
-                            <th className="px-4 py-3 text-left">Markets</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {sorted.map((row, i) => (
-                            <tr key={row.source} style={{
-                                borderBottom: '1px solid var(--border)',
-                                background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-                            }}>
-                                <td className="px-4 py-3">
-                                    <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
-                                        {row.source}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
-                                        {row.total_predictions}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="font-mono text-sm" style={{ color: 'var(--win)' }}>
-                                        {row.correct_predictions}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
-                                        style={{ color: accuracyColor(row.accuracy), background: accuracyBg(row.accuracy) }}>
-                                        {row.accuracy.toFixed(1)}%
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
-                                        style={{ color: maeColor(row.score_mae), background: maeBg(row.score_mae) }}>
-                                        {row.score_mae.toFixed(2)}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex flex-wrap gap-1">
-                                        {row.markets.slice(0, 5).map((mkt: SourceBreakdownMarket) => (
-                                            <span key={mkt.market}
-                                                className="text-[9px] font-mono px-1.5 py-0.5 rounded"
-                                                style={{
-                                                    background: mkt.accuracy >= 60 ? 'var(--win-bg)' : mkt.accuracy >= 50 ? 'var(--pending-bg)' : 'var(--loss-bg)',
-                                                    color: mkt.accuracy >= 60 ? 'var(--win)' : mkt.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)',
-                                                    border: `1px solid ${mkt.accuracy >= 60 ? 'var(--win)' : mkt.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)'}`
-                                                }}
-                                                title={`${mkt.market}: ${mkt.correct}/${mkt.predictions} (${mkt.accuracy}%)`}>
-                                                {mkt.market}: {mkt.accuracy.toFixed(0)}%
-                                            </span>
-                                        ))}
-                                        {row.markets.length > 5 && (
-                                            <span className="text-[9px] font-mono text-gray-500"
-                                                style={{ alignSelf: 'center' }}>
-                                                +{row.markets.length - 5} more
-                                            </span>
-                                        )}
+            {showTable && (
+                <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
+                    <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                        <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
+                                <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                    onClick={() => handleSort('source')}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                                            style={{ color: sortKey === 'source' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                            Source</span>
+                                        {sortKey === 'source' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
                                     </div>
-                                </td>
+                                </th>
+                                <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                    onClick={() => handleSort('total_predictions')}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                                            style={{ color: sortKey === 'total_predictions' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                            Predictions</span>
+                                        <TooltipIcon text="Total predictions made by this source" align="center" />
+                                        {sortKey === 'total_predictions' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                    </div>
+                                </th>
+                                <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                    onClick={() => handleSort('correct_predictions')}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                                            style={{ color: sortKey === 'correct_predictions' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                            Correct</span>
+                                        {sortKey === 'correct_predictions' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                    </div>
+                                </th>
+                                <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                    onClick={() => handleSort('accuracy')}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                                            style={{ color: sortKey === 'accuracy' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                            Accuracy</span>
+                                        <TooltipIcon text="Percentage of correct predictions" align="center" />
+                                        {sortKey === 'accuracy' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                    </div>
+                                </th>
+                                <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                    onClick={() => handleSort('score_mae')}>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-mono tracking-widest uppercase"
+                                            style={{ color: sortKey === 'score_mae' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                            Score MAE</span>
+                                        <TooltipIcon text="Mean Absolute Error in goals (average |pred_home - actual_home| + |pred_away - actual_away| per team). Lower is better." align="center" />
+                                        {sortKey === 'score_mae' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                    </div>
+                                </th>
+                                <th className="px-4 py-3 text-left">Markets</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {sorted.map((row, i) => (
+                                <tr key={row.source} style={{
+                                    borderBottom: '1px solid var(--border)',
+                                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                                }}>
+                                    <td className="px-4 py-3">
+                                        <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
+                                            {row.source}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                            {row.total_predictions}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="font-mono text-sm" style={{ color: 'var(--win)' }}>
+                                            {row.correct_predictions}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
+                                            style={{ color: accuracyColor(row.accuracy), background: accuracyBg(row.accuracy) }}>
+                                            {row.accuracy.toFixed(1)}%
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
+                                            style={{ color: maeColor(row.score_mae), background: maeBg(row.score_mae) }}>
+                                            {row.score_mae.toFixed(2)}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-wrap gap-1">
+                                            {row.markets.slice(0, 5).map((mkt: SourceBreakdownMarket) => (
+                                                <span key={mkt.market}
+                                                    className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                                                    style={{
+                                                        background: mkt.accuracy >= 60 ? 'var(--win-bg)' : mkt.accuracy >= 50 ? 'var(--pending-bg)' : 'var(--loss-bg)',
+                                                        color: mkt.accuracy >= 60 ? 'var(--win)' : mkt.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)',
+                                                        border: `1px solid ${mkt.accuracy >= 60 ? 'var(--win)' : mkt.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)'}`
+                                                    }}
+                                                    title={`${mkt.market}: ${mkt.correct}/${mkt.predictions} (${mkt.accuracy}%)`}>
+                                                    {mkt.market}: {mkt.accuracy.toFixed(0)}%
+                                                </span>
+                                            ))}
+                                            {row.markets.length > 5 && (
+                                                <span className="text-[9px] font-mono text-gray-500"
+                                                    style={{ alignSelf: 'center' }}>
+                                                    +{row.markets.length - 5} more
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
 
             {/* Detailed Market Breakdown per Source (expandable) */}
             <div className="mt-6 space-y-3">
@@ -997,6 +999,317 @@ function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
                         </div>
                     </details>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+// ── Source Comprehensive Accuracy Matrix (Diagnostic) ─────────────────────────────
+function SourceComprehensiveAccuracyMatrix({ data }: { data: SourceComprehensiveAccuracy }) {
+    if (!data.sources.length || !data.markets.length) return null;
+
+    return (
+        <details className="group mt-6">
+            <summary className="flex items-center justify-between cursor-pointer p-3 rounded-lg bg-black/20 border border-white/5">
+                <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
+                    Comprehensive Market Accuracy (Diagnostic)
+                </span>
+                <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                    Shows accuracy across ALL market types from score predictions. Not used for primary ranking.
+                </span>
+            </summary>
+            <div className="p-3 border-t border-white/5 mt-1">
+                <div className="overflow-x-auto rounded-xl border border-white/5">
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="bg-white/5 border-b border-white/10">
+                                <th className="p-3 text-left bg-black/20 sticky left-0 z-10 min-w-[140px]">
+                                    <span className="text-[9px] font-mono uppercase text-gray-500">Source \ Market</span>
+                                </th>
+                                {data.markets.map(m => (
+                                    <th key={m} className="p-3 text-center min-w-[100px]">
+                                        <span className="text-[9px] font-mono uppercase text-gray-400">{m}</span>
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {data.sources.map(src => (
+                                <tr key={src} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                    <td className="p-3 bg-black/20 sticky left-0 z-10 border-r border-white/5">
+                                        <span className="text-[11px] font-bold text-gray-300">{src}</span>
+                                    </td>
+                                    {data.markets.map(m => {
+                                        const cell = data.matrix[src]?.[m];
+                                        if (!cell || cell.total === 0) return <td key={m} className="p-3 text-center text-gray-700 text-[10px]">—</td>;
+
+                                        const val = cell.accuracy;
+                                        const label = `${val.toFixed(1)}%`;
+
+                                        // Heatmap colors based on accuracy
+                                        let color = 'var(--text-secondary)';
+                                        let bg = 'transparent';
+
+                                        if (val >= 60) { color = 'var(--win)'; bg = 'rgba(0, 200, 100, 0.15)'; }
+                                        else if (val >= 50) { color = 'var(--pending)'; bg = 'rgba(255, 170, 0, 0.1)'; }
+                                        else if (val >= 40) { color = 'var(--loss)'; bg = 'rgba(255, 80, 80, 0.05)'; }
+                                        else { color = 'var(--loss)'; bg = 'rgba(255, 80, 80, 0.15)'; }
+
+                                        const cellLowSample = cell.total < 5;
+                                        return (
+                                            <td key={m} className="p-2 text-center" style={{
+                                                backgroundColor: bg,
+                                                opacity: cellLowSample ? 0.35 : 1,
+                                                filter: cellLowSample ? 'grayscale(80%)' : 'none',
+                                            }} title={cellLowSample ? `Low sample (n=${cell.total})` : undefined}>
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[11px] font-mono font-bold" style={{ color }}>{label}</span>
+                                                    <span className="text-[8px] font-mono text-gray-500 mt-0.5">n={cell.total} ({cell.correct}✓)</span>
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+    );
+}
+
+// ── Source Breakdown Table ──────────────────────────────────────────────────────
+function SourceTable({ data }: { data: SourceBreakdown[] }) {
+    const [sortKey, setSortKey] = useState<keyof SourceBreakdown>('accuracy');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+    const sorted = useMemo(() => {
+        return [...data].sort((a, b) => {
+            const va = a[sortKey] as number;
+            const vb = b[sortKey] as number;
+            return sortDir === 'desc' ? vb - va : va - vb;
+        });
+    }, [data, sortKey, sortDir]);
+
+    const handleSort = (k: keyof SourceBreakdown) => {
+        if (k === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+        else { setSortKey(k); setSortDir('desc'); }
+    };
+
+    const accuracyColor = (acc: number) => {
+        if (acc >= 60) return 'var(--win)';
+        if (acc >= 50) return 'var(--pending)';
+        return 'var(--loss)';
+    };
+
+    const accuracyBg = (acc: number) => {
+        if (acc >= 60) return 'var(--win-bg)';
+        if (acc >= 50) return 'var(--pending-bg)';
+        return 'var(--loss-bg)';
+    };
+
+    const maeColor = (mae: number) => {
+        if (mae <= 1.0) return 'var(--win)';
+        if (mae <= 2.0) return 'var(--pending)';
+        return 'var(--loss)';
+    };
+
+    const maeBg = (mae: number) => {
+        if (mae <= 1.0) return 'var(--win-bg)';
+        if (mae <= 2.0) return 'var(--pending-bg)';
+        return 'var(--loss-bg)';
+    };
+
+    const cols: { key: keyof SourceBreakdown; label: string; tip: string }[] = [
+        { key: 'source', label: 'Source', tip: 'Prediction source name' },
+        { key: 'total_predictions', label: 'Predictions', tip: 'Total predictions made' },
+        { key: 'correct_predictions', label: 'Correct', tip: 'Correct predictions' },
+        { key: 'accuracy', label: 'Accuracy %', tip: 'Prediction accuracy percentage' },
+        { key: 'score_mae', label: 'Score MAE', tip: 'Mean Absolute Error in goals (lower is better)' },
+    ];
+
+    return (
+        <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
+            <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
+                        {cols.map(col => (
+                            <th key={col.key}
+                                className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => handleSort(col.key)}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === col.key ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        {col.label}
+                                    </span>
+                                    <TooltipIcon text={col.tip} align="center" />
+                                    {sortKey === col.key && (
+                                        <span style={{ color: 'var(--accent)', fontSize: 10 }}>
+                                            {sortDir === 'desc' ? '↓' : '↑'}
+                                        </span>
+                                    )}
+                                </div>
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {sorted.map((row, i) => (
+                        <tr key={row.source} style={{
+                            borderBottom: '1px solid var(--border)',
+                            background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                        }}>
+                            <td className="px-4 py-3">
+                                <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
+                                    {row.source}
+                                </span>
+                            </td>
+                            <td className="px-4 py-3">
+                                <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                    {row.total_predictions}
+                                </span>
+                            </td>
+                            <td className="px-4 py-3">
+                                <span className="font-mono text-sm" style={{ color: 'var(--win)' }}>
+                                    {row.correct_predictions}
+                                </span>
+                            </td>
+                            <td className="px-4 py-3">
+                                <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
+                                    style={{ color: accuracyColor(row.accuracy), background: accuracyBg(row.accuracy) }}>
+                                    {row.accuracy.toFixed(1)}%
+                                </span>
+                            </td>
+                            <td className="px-4 py-3">
+                                <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
+                                    style={{ color: maeColor(row.score_mae), background: maeBg(row.score_mae) }}>
+                                    {row.score_mae.toFixed(2)}
+                                </span>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+// ── Source Edge Chart (Accuracy by Source) ──────────────────────────────────────
+function SourceEdgeChart({ data }: { data: SourceBreakdown[] }) {
+    const sortedData = useMemo(() =>
+        [...data].sort((a, b) => b.accuracy - a.accuracy),
+    [data]);
+
+    return (
+        <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+                data={sortedData}
+                layout="vertical"
+                margin={{ left: 0, right: 30, top: 5, bottom: 0 }}>
+                <CartesianGrid stroke="var(--border)" strokeDasharray="4 4"
+                    vertical={false} strokeOpacity={0.4} />
+                <XAxis type="number" tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                    tickLine={false} tickFormatter={v => `${v}%`}
+                    axisLine={{ stroke: 'var(--border)' }} />
+                <YAxis type="category" dataKey="source" width={120}
+                    tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                    tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={TT} content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0]?.payload;
+                    return (
+                        <div style={TT}>
+                            <p style={{ color: 'var(--text-bright)', fontWeight: 'bold', marginBottom: 4 }}>{d.source}</p>
+                            <p><span style={{ color: 'var(--text-secondary)' }}>Accuracy: </span>
+                                <span style={{ color: d.accuracy >= 60 ? 'var(--win)' : d.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)', fontWeight: 'bold' }}>
+                                    {d.accuracy.toFixed(1)}%</span></p>
+                            <p><span style={{ color: 'var(--text-secondary)' }}>Predictions: </span>
+                                <span style={{ color: 'var(--text-primary)' }}>{d.total_predictions}</span></p>
+                            <p><span style={{ color: 'var(--text-secondary)' }}>Score MAE: </span>
+                                <span style={{ color: 'var(--text-primary)' }}>{d.score_mae.toFixed(2)}</span></p>
+                        </div>
+                    );
+                }} />
+                <ReferenceLine x={50} stroke="rgba(255,255,255,0.3)" />
+                <Bar dataKey="accuracy" radius={[0, 3, 3, 0]}>
+                    {sortedData.map((entry, i) => (
+                        <Cell key={i}
+                            fill={entry.accuracy >= 60 ? 'var(--win)' : entry.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)'}
+                            fillOpacity={entry.total_predictions < 10 ? 0.25 : 0.8} />
+                    ))}
+                </Bar>
+            </BarChart>
+        </ResponsiveContainer>
+    );
+}
+
+// ── Source x Market Correlation Matrix ──────────────────────────────────────────
+function SourceMarketCorrelationMatrix({ data }: { data: SourceMarketCorrelation }) {
+    if (!data.sources.length || !data.markets.length) return null;
+
+    return (
+        <div className="card p-4">
+            <div className="flex items-center gap-2 mb-6">
+                <p className="font-mono text-[11px] tracking-widest uppercase"
+                    style={{ color: 'var(--text-secondary)' }}>Source x Market Correlation</p>
+                <TooltipIcon text="Cross-tabulation of prediction accuracy across sources and markets. Green = High accuracy, Red = Low accuracy." align="right" />
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-white/5">
+                <table className="w-full border-collapse">
+                    <thead>
+                        <tr className="bg-white/5 border-b border-white/10">
+                            <th className="p-3 text-left bg-black/20 sticky left-0 z-10 min-w-[140px]">
+                                <span className="text-[9px] font-mono uppercase text-gray-500">Source \ Market</span>
+                            </th>
+                            {data.markets.map(m => (
+                                <th key={m} className="p-3 text-center min-w-[80px]">
+                                    <span className="text-[9px] font-mono uppercase text-gray-400">{m}</span>
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.sources.map(src => (
+                            <tr key={src} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                                <td className="p-3 bg-black/20 sticky left-0 z-10 border-r border-white/5">
+                                    <span className="text-[11px] font-bold text-gray-300">{src}</span>
+                                </td>
+                                {data.markets.map(m => {
+                                    const cell = data.matrix[src]?.[m];
+                                    if (!cell || cell.total === 0) return <td key={m} className="p-3 text-center text-gray-700 text-[10px]">—</td>;
+
+                                    const val = cell.accuracy;
+                                    const label = `${val.toFixed(1)}%`;
+
+                                    // Heatmap colors based on accuracy
+                                    let color = 'var(--text-secondary)';
+                                    let bg = 'transparent';
+
+                                    if (val >= 60) { color = 'var(--win)'; bg = 'rgba(0, 200, 100, 0.15)'; }
+                                    else if (val >= 50) { color = 'var(--pending)'; bg = 'rgba(255, 170, 0, 0.1)'; }
+                                    else if (val >= 40) { color = 'var(--loss)'; bg = 'rgba(255, 80, 80, 0.05)'; }
+                                    else { color = 'var(--loss)'; bg = 'rgba(255, 80, 80, 0.15)'; }
+
+                                    const cellLowSample = cell.total < 10 / 2;
+                                    return (
+                                        <td key={m} className="p-2 text-center" style={{
+                                            backgroundColor: bg,
+                                            opacity: cellLowSample ? 0.35 : 1,
+                                            filter: cellLowSample ? 'grayscale(80%)' : 'none',
+                                        }} title={cellLowSample ? `Low sample (n=${cell.total})` : undefined}>
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[11px] font-mono font-bold" style={{ color }}>{label}</span>
+                                                <span className="text-[8px] font-mono text-gray-500 mt-0.5">n={cell.total}</span>
+                                            </div>
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
     );
@@ -1231,6 +1544,49 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 <MarketSignalsCard marketBreakdown={data.market_breakdown ?? []} />
                 <MarketEfficiencyCard stats={stats} />
             </div>
+
+            {/* ── Source Signals ─────────────────────────────────────────────────── */}
+            {data.source_breakdown && data.source_breakdown.length > 0 && (() => {
+                const sources = data.source_breakdown;
+                const bestAccuracy = sources.reduce((best, s) => s.accuracy > best.accuracy ? s : best, sources[0]);
+                const worstAccuracy = sources.reduce((worst, s) => s.accuracy < worst.accuracy ? s : worst, sources[0]);
+                const bestMAE = sources.reduce((best, s) => s.score_mae < best.score_mae ? s : best, sources[0]);
+                const worstMAE = sources.reduce((worst, s) => s.score_mae > worst.score_mae ? s : worst, sources[0]);
+                return (
+                    <div className="card p-4 mb-8">
+                        <div className="flex items-center gap-2 mb-4">
+                            <p className="font-mono text-[11px] tracking-widest uppercase" style={{ color: 'var(--text-secondary)' }}>Source Signals</p>
+                            <TooltipIcon text="Best and worst sources by accuracy and score MAE." align="right" />
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--win-bg)' }}>
+                                <p className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--win)' }}>↑ Best Accuracy</p>
+                                <p className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{bestAccuracy.source}</p>
+                                <p className="text-[11px] font-mono font-bold" style={{ color: 'var(--win)' }}>+{bestAccuracy.accuracy.toFixed(1)}% accuracy</p>
+                                <p className="text-[9px] font-mono text-gray-500">{bestAccuracy.correct_predictions}/{bestAccuracy.total_predictions} correct</p>
+                            </div>
+                            <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--loss-bg)' }}>
+                                <p className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--loss)' }}>↓ Worst Accuracy</p>
+                                <p className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{worstAccuracy.source}</p>
+                                <p className="text-[11px] font-mono font-bold" style={{ color: 'var(--loss)' }}>{worstAccuracy.accuracy.toFixed(1)}% accuracy</p>
+                                <p className="text-[9px] font-mono text-gray-500">{worstAccuracy.correct_predictions}/{worstAccuracy.total_predictions} correct</p>
+                            </div>
+                            <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--win-bg)' }}>
+                                <p className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--win)' }}>↑ Best Score MAE</p>
+                                <p className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{bestMAE.source}</p>
+                                <p className="text-[11px] font-mono font-bold" style={{ color: 'var(--win)' }}>{bestMAE.score_mae.toFixed(2)} MAE</p>
+                                <p className="text-[9px] font-mono text-gray-500">{bestMAE.total_predictions} predictions</p>
+                            </div>
+                            <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--loss-bg)' }}>
+                                <p className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--loss)' }}>↓ Worst Score MAE</p>
+                                <p className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{worstMAE.source}</p>
+                                <p className="text-[11px] font-mono font-bold" style={{ color: 'var(--loss)' }}>{worstMAE.score_mae.toFixed(2)} MAE</p>
+                                <p className="text-[9px] font-mono text-gray-500">{worstMAE.total_predictions} predictions</p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ── History Tracking ─────────────────────────────────────────────── */}
             <SectionHeader icon="⟳" title="History Tracking" />
@@ -1577,13 +1933,48 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 </ChartCard>
             </div>
 
-            {/* ── Source Reliability ───────────────────────────────────────────── */}
+            {/* ── Source Intelligence ───────────────────────────────────────────── */}
             {data.source_breakdown && data.source_breakdown.length > 0 && (
                 <>
-                    <SectionHeader icon="🎯" title="Source Reliability" />
-                    <div className="mb-8">
-                        <SourceReliabilityCard data={data.source_breakdown} />
+                    <SectionHeader icon="🎯" title="Source Intelligence" />
+
+                    {/* Source Breakdown Table + Accuracy Chart */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+                        <div className="lg:col-span-2">
+                            <div className="card p-4 h-full flex flex-col">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <p className="font-mono text-[11px] tracking-widest uppercase"
+                                        style={{ color: 'var(--text-secondary)' }}>Source Breakdown</p>
+                                    <TooltipIcon text="Per-source prediction stats. Accuracy = correct/total predictions. Score MAE = Mean Absolute Error in goals (lower is better)." align="right" />
+                                </div>
+                                <div className="flex-1 overflow-y-auto max-h-[500px] rounded-xl border border-white/5">
+                                    <SourceTable data={data.source_breakdown} />
+                                </div>
+                            </div>
+                        </div>
+                        <ChartCard title="Accuracy by Source" className="h-full flex flex-col"
+                            tip="Source prediction accuracy. Green ≥60%, Amber 50-60%, Red <50%. Reference line at 50% (random).">
+                            <div className="flex-1" style={{ minHeight: 300 }}>
+                                <SourceEdgeChart data={data.source_breakdown} />
+                            </div>
+                        </ChartCard>
                     </div>
+                </>
+            )}
+
+            {/* ── Source Reliability (Detailed) ─────────────────────────────────── */}
+            {data.source_breakdown && data.source_breakdown.length > 0 && (
+                <>
+                    <SectionHeader icon="🔍" title="Source Reliability Details" />
+                    <div className="mb-8">
+                        <SourceReliabilityCard data={data.source_breakdown} showTable={false} />
+                    </div>
+                    {/* Comprehensive Market Accuracy (Diagnostic - Collapsed) */}
+                    {data.source_comprehensive_accuracy && (
+                        <div className="mb-8">
+                            <SourceComprehensiveAccuracyMatrix data={data.source_comprehensive_accuracy} />
+                        </div>
+                    )}
                 </>
             )}
 
@@ -1598,6 +1989,13 @@ export default function Analytics({ filters, refreshKey }: Props) {
                     </p>
                 )}
             </div>
+
+            {/* ── Source x Market Correlation ───────────────────────────────────── */}
+            {data.source_market_correlation && (
+                <div className="mb-8">
+                    <SourceMarketCorrelationMatrix data={data.source_market_correlation} />
+                </div>
+            )}
         </div>
     );
 }

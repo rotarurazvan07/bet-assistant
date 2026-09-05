@@ -247,6 +247,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 consensus: leg.consensus,
                 sources: leg.sources,
                 league: leg.league ?? null,
+                predictions: leg.predictions || [],
             }));
         try {
             await addSlip('manual', manualLegs, units);
