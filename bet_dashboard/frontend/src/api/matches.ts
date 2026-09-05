@@ -8,7 +8,12 @@ export async function fetchMatches(params: {
     min_consensus?: number | null;
     min_odds?: number | null;
     only_significant_movement?: boolean;
+    excluded_sources?: string[];
 }): Promise<MatchesPage> {
-    const res = await client.get<MatchesPage>('/matches', { params });
+    const queryParams: Record<string, unknown> = { ...params };
+    if (params.excluded_sources && params.excluded_sources.length > 0) {
+        queryParams.excluded_sources = params.excluded_sources.join(',');
+    }
+    const res = await client.get<MatchesPage>('/matches', { params: queryParams });
     return res.data;
 }

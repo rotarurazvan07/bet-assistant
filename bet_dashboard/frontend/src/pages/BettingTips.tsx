@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
 import { getAllMovements } from '../api/oddsHistory';
-import { addSlip, fetchSlips } from '../api/data';
+import { addSlip, fetchSlips, fetchSourcesConfig } from '../api/data';
 import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary } from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
@@ -11,6 +11,8 @@ import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
 import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS } from '../config/marketConfig';
+import { Popover, Checkbox, FormControlLabel, Button, Box, Typography, Divider } from '@mui/material';
+import { Settings as SettingsIcon } from '@mui/icons-material';
 
 // Derive columns from centralized config (fixed columns only - market columns filtered dynamically)
 const ALL_COLS = getTableColumns();
@@ -123,6 +125,38 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         localStorage.setItem('slip-minimized', String(isSlipMinimized));
     }, [isSlipMinimized]);
 
+    // Sources filter state
+    const [allSources, setAllSources] = useState<string[]>([]);
+    const [excludedSources, setExcludedSources] = useState<Set<string>>(() => {
+        try {
+            const saved = localStorage.getItem('betting_tips_excluded_sources');
+            return saved ? new Set(JSON.parse(saved)) : new Set<string>();
+        } catch { return new Set<string>(); }
+    });
+    const [sourcesPopoverOpen, setSourcesPopoverOpen] = useState<HTMLElement | null>(null);
+    const [sourcesLoading, setSourcesLoading] = useState(true);
+
+    // Fetch sources config on mount
+    useEffect(() => {
+        let cancelled = false;
+        fetchSourcesConfig()
+            .then(config => {
+                if (!cancelled) {
+                    setAllSources(config.sources);
+                    setSourcesLoading(false);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setSourcesLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, []);
+
+    // Persist excluded sources
+    useEffect(() => {
+        localStorage.setItem('betting_tips_excluded_sources', JSON.stringify([...excludedSources]));
+    }, [excludedSources]);
+
     // Persist state to localStorage
     useEffect(() => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -138,7 +172,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     }, [search, minConsensus, minOdds, onlySignificantMovement, page, sortBy, sortDir, pendingLegs]);
 
     // Reset to page 1 when any filter changes
-    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey, search, minConsensus, minOdds, onlySignificantMovement]);
+    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey, search, minConsensus, minOdds, onlySignificantMovement, excludedSources]);
 
     // Fetch odds movements
     useEffect(() => {
@@ -152,6 +186,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
+        // Always send excluded_sources array (empty = include all, non-empty = exclude those)
+        const excludedSourcesArray = Array.from(excludedSources);
         fetchMatches({
             page, page_size: PAGE_SIZE,
             search: search || undefined,
@@ -162,6 +198,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             min_consensus: minConsensus,
             min_odds: minOdds,
             only_significant_movement: onlySignificantMovement || undefined,
+            excluded_sources: excludedSourcesArray,
         })
             .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
             .catch(() => {
@@ -171,7 +208,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 }
             });
         return () => { cancelled = true; };
-    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey]);
+    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey, excludedSources]);
 
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -315,6 +352,109 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            {/* Sources Filter Cog Wheel */}
+                            <div>
+                                <Popover
+                                    open={sourcesPopoverOpen !== null}
+                                    anchorEl={sourcesPopoverOpen}
+                                    onClose={() => setSourcesPopoverOpen(null)}
+                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                                    slotProps={{
+                                        paper: {
+                                            sx: {
+                                                maxHeight: 400,
+                                                maxWidth: 300,
+                                                background: 'var(--bg-card)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: 'var(--radius-lg)',
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <Box sx={{ p: 2, minWidth: 280 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                                            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'var(--text-bright)' }}>
+                                                Sources Filter
+                                            </Typography>
+                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set())} disabled={excludedSources.size === 0 || sourcesLoading}>
+                                                    Select All
+                                                </Button>
+                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set(allSources))} disabled={excludedSources.size === allSources.length || sourcesLoading}>
+                                                    Deselect All
+                                                </Button>
+                                            </Box>
+                                        </Box>
+                                        <Divider sx={{ mb: 1, borderColor: 'var(--border)' }} />
+                                        {sourcesLoading ? (
+                                            <Typography variant="body2" sx={{ color: 'var(--text-secondary)', textAlign: 'center', py: 2 }}>
+                                                Loading sources...
+                                            </Typography>
+                                        ) : (
+                                            <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
+                                                {allSources.map(source => (
+                                                       <FormControlLabel
+                                                           key={source}
+                                                           control={
+                                                               <Checkbox
+                                                                   checked={!excludedSources.has(source)}
+                                                                   onChange={(event) => {
+                                                                       const checked = event.target.checked; // true = checked = include source
+                                                                       setExcludedSources(prev => {
+                                                                           const next = new Set(prev);
+                                                                           if (checked) {
+                                                                               next.delete(source); // include = remove from excluded
+                                                                           } else {
+                                                                               next.add(source); // exclude = add to excluded
+                                                                           }
+                                                                           return next;
+                                                                       });
+                                                                   }}
+                                                                   color="primary"
+                                                                   disabled={sourcesLoading}
+                                                               />
+                                                           }
+                                                           label={
+                                                               <Typography variant="body2" sx={{
+                                                                   color: excludedSources.has(source) ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                                                   textDecoration: excludedSources.has(source) ? 'line-through' : 'none'
+                                                               }}>
+                                                                   {source}
+                                                               </Typography>
+                                                           }
+                                                           labelPlacement="end"
+                                                       />
+                                                   ))}
+                                            </Box>
+                                        )}
+                                        <Divider sx={{ my: 1.5, borderColor: 'var(--border)' }} />
+                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                                            <Button size="small" onClick={() => setSourcesPopoverOpen(null)}>
+                                                Done
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                </Popover>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<SettingsIcon fontSize="small" />}
+                                    onClick={e => setSourcesPopoverOpen(e.currentTarget)}
+                                    disabled={sourcesLoading || allSources.length === 0}
+                                    sx={{
+                                        borderColor: excludedSources.size > 0 ? 'var(--accent)' : 'var(--border)',
+                                        color: excludedSources.size > 0 ? 'var(--accent)' : 'var(--text-primary)',
+                                        '&:hover': {
+                                            borderColor: 'var(--accent)',
+                                            backgroundColor: 'rgba(124, 58, 237, 0.08)',
+                                        }
+                                    }}
+                                    aria-label="Filter sources"
+                                >
+                                    Sources {excludedSources.size > 0 && `(${allSources.length - excludedSources.size}/${allSources.length})`}
+                                </Button>
+                            </div>
                             {/* Search */}
                             <div>
                                 <input

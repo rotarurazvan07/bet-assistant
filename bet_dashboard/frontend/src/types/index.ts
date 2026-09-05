@@ -370,3 +370,9 @@ export interface OddsHistory {
     snapshots: OddsSnapshot[];
     movement: Record<string, OddsMovementDirection>;
 }
+
+// ── Config ──────────────────────────────────────────────────────────────────────
+
+export interface SourcesConfig {
+    sources: string[];
+}

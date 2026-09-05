@@ -135,3 +135,15 @@ export async function fetchStatus(): Promise<{ last_pull: string; matches_loaded
     const res = await client.get('/status');
     return res.data;
 }
+
+// ── Config ──────────────────────────────────────────────────────────────────────
+
+export interface SourcesConfig {
+    sources: string[];
+}
+
+export async function fetchSourcesConfig(): Promise<SourcesConfig> {
+    const res = await client.get<SourcesConfig>('/config/sources');
+    return res.data;
+}
+

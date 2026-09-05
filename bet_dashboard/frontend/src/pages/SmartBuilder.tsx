@@ -6,7 +6,7 @@ import { TooltipIcon } from '../components/ui';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
-    fetchLeagues,
+    fetchLeagues, fetchSourcesConfig,
     type ExcludedMatch
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
@@ -68,6 +68,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [profiles, setProfiles] = useState<ProfilesMap>({});
     const [excludedDetails, setExcludedDetails] = useState<ExcludedMatch[]>([]);
     const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
+    const [availableSources, setAvailableSources] = useState<string[]>([]);
     const [status, setStatus] = useState('');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -87,6 +88,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
         fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
+        fetchSourcesConfig().then(c => setAvailableSources(c.sources)).catch(() => setAvailableSources([]));
     }, []);
 
     // Compute merged config with global date filters (for preview only)
@@ -115,6 +117,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
     // Trigger preview when refreshKey or global filters change
     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line
+
+    // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
+    useEffect(() => {
+        triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]);
 
     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
     useEffect(() => {
@@ -289,6 +296,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             <BuilderPanel
                                 cfg={cfg}
                                 availableLeagues={availableLeagues}
+                                availableSources={availableSources}
                                 onChange={handleCfgChange}
                             />
                         </div>

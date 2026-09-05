@@ -23,7 +23,7 @@ export default function App() {
     const statusLoaded = useRef(false);
     if (!statusLoaded.current) {
         statusLoaded.current = true;
-        fetchStatus().then(s => setLastPull(s.last_pull)).catch(() => { });
+        fetchStatus().then((s: { last_pull: string }) => setLastPull(s.last_pull)).catch(() => { });
     }
 
     // WebSocket: targeted refetch on named events only

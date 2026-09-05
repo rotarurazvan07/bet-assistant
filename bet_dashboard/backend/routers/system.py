@@ -34,6 +34,22 @@ def get_status(request: Request):
     }
 
 
+@router.get("/api/config/sources")
+def get_sources_config(request: Request):
+    """Get all unique sources from RUNNER_SETS in scraper_config.yaml"""
+    app = _get(request)
+    settings = app.logic.settings
+    scraper_cfg = settings.get("scraper_config") or {}
+    runner_sets = scraper_cfg.get("RUNNER_SETS", {})
+
+    # Get unique sources across all runner sets
+    all_sources = set()
+    for sources in runner_sets.values():
+        all_sources.update(sources)
+
+    return {"sources": sorted(all_sources)}
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await ws_manager.connect(websocket)
