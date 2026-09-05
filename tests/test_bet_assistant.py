@@ -40,7 +40,7 @@ from bet_framework.core.scoring import (
     score_pick,
     score_sources,
 )
-from bet_framework.core.Slip import PROFILES, BetSlipConfig, CandidateLeg, get_profile
+from bet_framework.core.Slip import PROFILES, BetSlipConfig, CandidateLeg, BetLeg, get_profile
 from bet_framework.core.types import MarketLabel, MarketType, Outcome
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -493,6 +493,17 @@ class TestCalcConsensus:
         result = calc_consensus(scores)
         assert result[MarketType.RESULT]["draw"] == 100.0  # 0 == 0 → draw
 
+    def test_edge_with_source_field(self):
+        scores = [
+            {"home": 2, "away": 0, "source": "src1"},
+            {"home": 2, "away": 1, "source": "src2"},
+            {"home": 1, "away": 2, "source": "src3"},
+        ]
+        result = calc_consensus(scores)
+        # Two home wins (2-0, 2-1) and one away win (1-2)
+        assert result[MarketType.RESULT]["home"] == pytest.approx(66.7, abs=0.1)
+        assert result[MarketType.RESULT]["away"] == pytest.approx(33.3, abs=0.1)
+
 
 # ── load_matches ──────────────────────────────────────────────────────────────
 
@@ -545,6 +556,45 @@ class TestLoadMatches:
         )
         ba.load_matches(df)
         assert ba._df.iloc[0]["sources"] == 0
+
+    def test_excluded_sources_filters_consensus(self, ba):
+        """Test that excluded_sources filters out specific sources from consensus calculation."""
+        df = pd.DataFrame(
+            [
+                {
+                    "home_name": "Home",
+                    "away_name": "Away",
+                    "datetime": DT_BASE,
+                    "scores": [
+                        {"home": 3, "away": 0, "source": "src_good"},
+                        {"home": 3, "away": 0, "source": "src_good2"},
+                        {"home": 0, "away": 3, "source": "src_bad"},  # predicts away win
+                    ],
+                    "odds": {"home": 1.5, "draw": 3.5, "away": 5.0},
+                    "result_url": "http://test",
+                }
+            ]
+        )
+        # Without exclusion: 2 home wins, 1 away win = 66.6% home
+        ba.load_matches(df)
+        assert ba._df.iloc[0]["cons_home"] == pytest.approx(66.6, abs=0.2)
+
+        # With exclusion of src_bad: only 2 home wins = 100% home
+        ba2 = BetAssistant(str(ba.db_path).replace(".db", "_2.db"))
+        ba2.load_matches(df, excluded_sources=["src_bad"])
+        assert ba2._df.iloc[0]["cons_home"] == 100.0
+        assert ba2._df.iloc[0]["sources"] == 2
+        ba2.close()
+
+    def test_excluded_sources_empty_list_unchanged(self, ba):
+        """Test that empty excluded_sources list behaves like None."""
+        df = make_matches_df(1, sources_per_match=3)
+        ba.load_matches(df, excluded_sources=[])
+        ba2 = BetAssistant(str(ba.db_path).replace(".db", "_3.db"))
+        ba2.load_matches(df, excluded_sources=None)
+        # Should have same consensus
+        assert ba._df.iloc[0]["cons_home"] == ba2._df.iloc[0]["cons_home"]
+        ba2.close()
 
 
 # ── filter_matches ────────────────────────────────────────────────────────────
@@ -862,6 +912,8 @@ class TestRowsToSlips:
                 Outcome.PENDING,
                 "http://x",
                 None,
+                None,
+                None,
             ),
             (
                 1,
@@ -876,6 +928,8 @@ class TestRowsToSlips:
                 2.0,
                 Outcome.PENDING,
                 "http://y",
+                None,
+                None,
                 None,
             ),
         ]
@@ -899,6 +953,8 @@ class TestRowsToSlips:
                 Outcome.PENDING,
                 None,
                 None,
+                None,
+                None,
             ),
         ]
         slips = BetAssistant._rows_to_slips(rows)
@@ -918,6 +974,8 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
+                None,
+                None,
                 None,
                 None,
             ),
@@ -941,6 +999,8 @@ class TestRowsToSlips:
                 Outcome.WON,
                 None,
                 None,
+                None,
+                None,
             ),
             (
                 1,
@@ -954,6 +1014,8 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.LOST,
+                None,
+                None,
                 None,
                 None,
             ),
@@ -977,6 +1039,8 @@ class TestRowsToSlips:
                 Outcome.LIVE,
                 None,
                 None,
+                None,
+                None,
             ),
             (
                 1,
@@ -990,6 +1054,8 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
+                None,
+                None,
                 None,
                 None,
             ),
@@ -1013,6 +1079,8 @@ class TestRowsToSlips:
                 Outcome.PENDING,
                 None,
                 None,
+                None,
+                None,
             ),
             (
                 2,
@@ -1026,6 +1094,8 @@ class TestRowsToSlips:
                 MarketType.RESULT,
                 2.0,
                 Outcome.WON,
+                None,
+                None,
                 None,
                 None,
             ),
@@ -1166,3 +1236,371 @@ class TestBetAssistantScenarios:
             market, market_type = rows[0]
             assert market == "BTTS Yes"
             assert market_type == "btts"
+
+
+# ── Source Reliability Tracking Tests ────────────────────────────────────────────
+
+
+class TestSourceReliabilityTracking:
+    """Tests for the source reliability tracking feature (predictions per leg, excluded sources)."""
+
+    def test_save_slip_stores_predictions(self, ba):
+        """Test that predictions are stored when saving a slip."""
+        legs = [
+            CandidateLeg(
+                match_name="Home_0 vs Away_0",
+                datetime=DT_BASE,
+                market=MarketLabel.HOME,
+                market_type=MarketType.RESULT,
+                odds=1.50,
+                result_url="https://example.com/match/0",
+                consensus=80.0,
+                sources=3,
+                predictions=[
+                    {"source": "src1", "home": 2, "away": 0},
+                    {"source": "src2", "home": 2, "away": 1},
+                    {"source": "src3", "home": 1, "away": 0},
+                ],
+            )
+        ]
+        ba.save_slip("test", legs)
+        rows = ba.fetch_rows("SELECT predictions, final_score FROM legs WHERE slip_id = 1")
+        assert rows[0]["predictions"] is not None
+        assert rows[0]["final_score"] is None  # Not settled yet
+        import json
+        stored = json.loads(rows[0]["predictions"])
+        assert len(stored) == 3
+        assert stored[0]["source"] == "src1"
+        assert stored[0]["home"] == 2
+        assert stored[0]["away"] == 0
+        # predicted_outcome should NOT be stored (computed at query time)
+        assert "predicted_outcome" not in stored[0]
+
+    def test_get_slips_returns_predictions(self, ba):
+        """Test that get_slips parses and returns predictions."""
+        legs = [
+            CandidateLeg(
+                match_name="Home_0 vs Away_0",
+                datetime=DT_BASE,
+                market=MarketLabel.HOME,
+                market_type=MarketType.RESULT,
+                odds=1.50,
+                result_url="https://example.com/match/0",
+                consensus=80.0,
+                sources=3,
+                predictions=[
+                    {"source": "src1", "home": 2, "away": 0},
+                    {"source": "src2", "home": 2, "away": 1},
+                ],
+            )
+        ]
+        ba.save_slip("test", legs)
+        slips = ba.get_slips()
+        assert len(slips[0].legs[0].predictions) == 2
+        assert slips[0].legs[0].predictions[0]["source"] == "src1"
+        assert slips[0].legs[0].predictions[0]["home"] == 2
+        assert slips[0].legs[0].predictions[0]["away"] == 0
+        assert "predicted_outcome" not in slips[0].legs[0].predictions[0]
+        # final_score should be None for unsettled legs
+        assert slips[0].legs[0].final_score is None
+
+    def test_get_slips_backward_compatibility_no_predictions(self, ba):
+        """Test that slips without predictions column still work."""
+        # Manually insert a leg without predictions
+        ba.conn.execute(
+            """INSERT INTO slips (date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?)""",
+            ("2026-04-01", "test", 2.0, 1.0),
+        )
+        ba.conn.execute(
+            """INSERT INTO legs (slip_id, match_name, match_datetime, market, market_type, odds, result_url, status, league, predictions, final_score)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (1, "A vs B", "2026-04-01T15:00:00", "1", "result", 1.5, "http://x", "Pending", None, None, None),
+        )
+        ba.conn.commit()
+        slips = ba.get_slips()
+        assert len(slips) == 1
+        assert slips[0].legs[0].predictions == []
+        assert slips[0].legs[0].final_score is None
+
+    def test_build_slip_includes_predictions(self, loaded_ba):
+        """Test that build_slip generates predictions for each leg."""
+        legs = loaded_ba.build_slip("medium_risk")
+        if legs:
+            # Each leg should have predictions field populated
+            for leg in legs:
+                assert hasattr(leg, "predictions")
+                # Note: predictions may be empty if no scores available for the market
+                # but the field should exist
+                assert isinstance(leg.predictions, list)
+
+    def test_excluded_sources_not_in_stored_predictions(self, ba):
+        """Test that excluded sources are not stored in predictions."""
+        df = pd.DataFrame(
+            [
+                {
+                    "home_name": "Home",
+                    "away_name": "Away",
+                    "datetime": DT_BASE,
+                    "scores": [
+                        {"home": 3, "away": 0, "source": "src_good"},
+                        {"home": 0, "away": 3, "source": "src_bad"},
+                    ],
+                    "odds": {"home": 1.5, "draw": 3.5, "away": 5.0},
+                    "result_url": "http://test",
+                }
+            ]
+        )
+        ba.load_matches(df, excluded_sources=["src_bad"])
+        legs = ba.build_slip(BetSlipConfig(target_odds=2.0, target_legs=1, consensus_floor=0.0))
+        if legs:
+            ba.save_slip("test", legs)
+            slips = ba.get_slips()
+            # Only src_good should be in predictions
+            assert len(slips[0].legs[0].predictions) == 1
+            assert slips[0].legs[0].predictions[0]["source"] == "src_good"
+            # Check no predicted_outcome field
+            assert "predicted_outcome" not in slips[0].legs[0].predictions[0]
+            # Check final_score is None for unsettled
+            assert slips[0].legs[0].final_score is None
+
+    def test_candidate_leg_has_predictions_field(self):
+        """Test that CandidateLeg dataclass has predictions field."""
+        leg = CandidateLeg(
+            match_name="A vs B",
+            datetime=DT_BASE,
+            market=MarketLabel.HOME,
+            market_type=MarketType.RESULT,
+            consensus=70.0,
+            odds=1.50,
+            result_url="http://x.com",
+            sources=3,
+        )
+        assert hasattr(leg, "predictions")
+        assert isinstance(leg.predictions, list)
+        assert leg.predictions == []
+
+    def test_bet_leg_has_predictions_field(self):
+        """Test that BetLeg dataclass has predictions field."""
+        leg = BetLeg(
+            match_name="A vs B",
+            datetime=DT_BASE,
+            market=MarketLabel.HOME,
+            market_type=MarketType.RESULT,
+            odds=1.50,
+            status=Outcome.PENDING,
+            result_url="http://x.com",
+        )
+        assert hasattr(leg, "predictions")
+        assert isinstance(leg.predictions, list)
+        assert leg.predictions == []
+        assert hasattr(leg, "final_score")
+        assert leg.final_score is None
+
+    def test_bet_slip_config_has_excluded_sources(self):
+        """Test that BetSlipConfig has excluded_sources field."""
+        cfg = BetSlipConfig()
+        assert hasattr(cfg, "excluded_sources")
+        assert cfg.excluded_sources is None
+
+        cfg2 = BetSlipConfig(excluded_sources=["src1", "src2"])
+        assert cfg2.excluded_sources == ["src1", "src2"]
+
+    def test_load_matches_stores_filtered_scores(self, ba):
+        """Test that load_matches stores filtered scores in _filtered_scores column."""
+        df = pd.DataFrame(
+            [
+                {
+                    "home_name": "Home",
+                    "away_name": "Away",
+                    "datetime": DT_BASE,
+                    "scores": [
+                        {"home": 3, "away": 0, "source": "src_good"},
+                        {"home": 0, "away": 3, "source": "src_bad"},
+                    ],
+                    "odds": {"home": 1.5, "draw": 3.5, "away": 5.0},
+                    "result_url": "http://test",
+                }
+            ]
+        )
+        ba.load_matches(df, excluded_sources=["src_bad"])
+        assert "_filtered_scores" in ba._df.columns
+        filtered = ba._df.iloc[0]["_filtered_scores"]
+        assert len(filtered) == 1
+        assert filtered[0]["source"] == "src_good"
+
+    def test_build_leg_predictions_for_different_markets(self, ba):
+        """Test that _build_leg_predictions works for different market types."""
+        df = pd.DataFrame(
+            [
+                {
+                    "home_name": "Home",
+                    "away_name": "Away",
+                    "datetime": DT_BASE,
+                    "scores": [
+                        {"home": 3, "away": 0, "source": "src1"},  # Home win, Over 2.5
+                        {"home": 1, "away": 1, "source": "src2"},  # Draw, Under 2.5, BTTS Yes
+                        {"home": 0, "away": 2, "source": "src3"},  # Away win, Over 2.5
+                    ],
+                    "odds": {
+                        "home": 1.5, "draw": 3.5, "away": 5.0,
+                        "over_25": 1.8, "under_25": 2.0,
+                        "btts_y": 1.9, "btts_n": 1.9,
+                    },
+                    "result_url": "http://test",
+                }
+            ]
+        )
+        ba.load_matches(df)
+
+        # Test RESULT market predictions - returns only source, home, away (no predicted_outcome)
+        result_preds = ba._build_leg_predictions(
+            ba._df.iloc[0]["_filtered_scores"],
+            MarketLabel.HOME,
+            MarketType.RESULT
+        )
+        assert len(result_preds) == 3
+        # Should only have source, home, away - no predicted_outcome
+        for pred in result_preds:
+            assert set(pred.keys()) == {"source", "home", "away"}
+            assert "predicted_outcome" not in pred
+        # Check values
+        assert result_preds[0] == {"source": "src1", "home": 3, "away": 0}
+        assert result_preds[1] == {"source": "src2", "home": 1, "away": 1}
+        assert result_preds[2] == {"source": "src3", "home": 0, "away": 2}
+
+        # Test OVER_UNDER_25 market predictions
+        ou_preds = ba._build_leg_predictions(
+            ba._df.iloc[0]["_filtered_scores"],
+            MarketLabel.OVER_25,
+            MarketType.OVER_UNDER_25
+        )
+        assert len(ou_preds) == 3
+        for pred in ou_preds:
+            assert set(pred.keys()) == {"source", "home", "away"}
+            assert "predicted_outcome" not in pred
+        assert ou_preds[0] == {"source": "src1", "home": 3, "away": 0}
+        assert ou_preds[1] == {"source": "src2", "home": 1, "away": 1}
+        assert ou_preds[2] == {"source": "src3", "home": 0, "away": 2}
+
+    def test_final_score_stored_on_settlement(self, ba):
+        """Test that final_score is stored when settling a leg."""
+        legs = [
+            CandidateLeg(
+                match_name="Home vs Away",
+                datetime=DT_BASE,
+                market=MarketLabel.HOME,
+                market_type=MarketType.RESULT,
+                odds=1.50,
+                result_url="http://test",
+                consensus=80.0,
+                sources=3,
+                predictions=[
+                    {"source": "src1", "home": 2, "away": 0},
+                    {"source": "src2", "home": 2, "away": 1},
+                ],
+            )
+        ]
+        ba.save_slip("test", legs)
+
+        # Manually settle with final score
+        rows = ba.fetch_rows("SELECT leg_id FROM legs WHERE slip_id = 1")
+        leg_id = rows[0]["leg_id"]
+
+        # Use settle_leg_manually which stores final_score
+        outcome = ba.settle_leg_manually(leg_id, "2:1", "1", "result")
+        assert outcome == "Won"
+
+        # Check final_score is stored
+        rows = ba.fetch_rows("SELECT final_score, status FROM legs WHERE leg_id = ?", (leg_id,))
+        assert rows[0]["final_score"] == "2:1"
+        assert rows[0]["status"] == "Won"
+
+        # Check get_slips returns final_score
+        slips = ba.get_slips()
+        assert slips[0].legs[0].final_score == "2:1"
+
+    def test_source_accuracy_computed_from_final_score(self, ba):
+        """Test that source accuracy can be computed from final_score."""
+        legs = [
+            CandidateLeg(
+                match_name="Home vs Away",
+                datetime=DT_BASE,
+                market=MarketLabel.HOME,
+                market_type=MarketType.RESULT,
+                odds=1.50,
+                result_url="http://test1",
+                consensus=80.0,
+                sources=2,
+                predictions=[
+                    {"source": "src_good", "home": 2, "away": 0},  # Correct: predicts home win
+                    {"source": "src_bad", "home": 0, "away": 2},   # Wrong: predicts away win
+                ],
+            ),
+            CandidateLeg(
+                match_name="Home2 vs Away2",
+                datetime=DT_BASE,
+                market=MarketLabel.OVER_25,
+                market_type=MarketType.OVER_UNDER_25,
+                odds=1.80,
+                result_url="http://test2",
+                consensus=70.0,
+                sources=2,
+                predictions=[
+                    {"source": "src_good", "home": 2, "away": 1},  # Correct: predicts over 2.5
+                    {"source": "src_bad", "home": 1, "away": 0},   # Wrong: predicts under 2.5
+                ],
+            ),
+        ]
+        ba.save_slip("test", legs)
+
+        # Settle first leg: 2:1 (home wins, over 2.5)
+        rows1 = ba.fetch_rows("SELECT leg_id FROM legs WHERE result_url = 'http://test1'")
+        ba.settle_leg_manually(rows1[0]["leg_id"], "2:1", "1", "result")
+
+        # Settle second leg: 2:1 (over 2.5)
+        rows2 = ba.fetch_rows("SELECT leg_id FROM legs WHERE result_url = 'http://test2'")
+        ba.settle_leg_manually(rows2[0]["leg_id"], "2:1", "Over 2.5", "over_under_25")
+
+        # Now check source accuracy by querying
+        slips = ba.get_slips()
+        all_preds = []
+        for slip in slips:
+            for leg in slip.legs:
+                if leg.final_score:
+                    all_preds.extend(leg.predictions)
+
+        # Manually compute accuracy
+        from collections import defaultdict
+        source_stats = defaultdict(lambda: {"total": 0, "correct": 0})
+
+        for slip in slips:
+            for leg in slip.legs:
+                if not leg.final_score:
+                    continue
+                actual_home, actual_away = map(int, leg.final_score.split(":"))
+                market_label = str(leg.market)
+                market_type = str(leg.market_type)
+
+                # Determine actual outcome
+                def predict_outcome(h, a, mkt, mkt_type):
+                    total = h + a
+                    if mkt_type == "result":
+                        return "HOME" if h > a else ("DRAW" if h == a else "AWAY")
+                    elif mkt_type == "over_under_25":
+                        return "OVER_25" if total > 2.5 else "UNDER_25"
+                    return "UNKNOWN"
+
+                actual_outcome = predict_outcome(actual_home, actual_away, market_label, market_type)
+
+                for pred in leg.predictions:
+                    source = pred["source"]
+                    pred_outcome = predict_outcome(pred["home"], pred["away"], market_label, market_type)
+                    source_stats[source]["total"] += 1
+                    if pred_outcome == actual_outcome:
+                        source_stats[source]["correct"] += 1
+
+        # src_good should have 100% accuracy, src_bad 0%
+        assert source_stats["src_good"]["correct"] == 2
+        assert source_stats["src_good"]["total"] == 2
+        assert source_stats["src_bad"]["correct"] == 0
+        assert source_stats["src_bad"]["total"] == 2

@@ -7,7 +7,7 @@ import { fetchAnalytics } from '../api/data';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats } from '../types';
+import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, SourceBreakdown, SourceBreakdownMarket } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
@@ -355,7 +355,7 @@ function SharpeCard({ stats }: { stats: SlipStats }) {
             <div className="flex items-center gap-2 mb-3">
                 <span className="text-[10px] font-mono tracking-widest uppercase"
                     style={{ color: 'var(--text-secondary)' }}>Sharpe Ratio</span>
-                <TooltipIcon text="Risk-adjusted return. &gt;1.5 = good, &gt;0.5 = fair, &lt;0.5 = poor." align="right" />
+                <TooltipIcon text="Risk-adjusted return. >1.5 = good, >0.5 = fair, <0.5 = poor." align="right" />
             </div>
             <p className="font-display font-bold text-2xl leading-none mb-1" style={{ color }}>
                 {sharpe != null ? sharpe.toFixed(2) : '—'}
@@ -762,6 +762,242 @@ function CorrelationMatrix({ data }: { data: NonNullable<AnalyticsData['correlat
                         ))}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    );
+}
+
+// ── Source Reliability Card ─────────────────────────────────────────────────────
+
+function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
+    const [sortKey, setSortKey] = useState<keyof SourceBreakdown>('accuracy');
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+    const sorted = useMemo(() => {
+        return [...data].sort((a, b) => {
+            const va = a[sortKey] as number;
+            const vb = b[sortKey] as number;
+            return sortDir === 'desc' ? vb - va : va - vb;
+        });
+    }, [data, sortKey, sortDir]);
+
+    const handleSort = (k: keyof SourceBreakdown) => {
+        if (k === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
+        else { setSortKey(k); setSortDir('desc'); }
+    };
+
+    const accuracyColor = (acc: number) => {
+        if (acc >= 60) return 'var(--win)';
+        if (acc >= 50) return 'var(--pending)';
+        return 'var(--loss)';
+    };
+
+    const accuracyBg = (acc: number) => {
+        if (acc >= 60) return 'var(--win-bg)';
+        if (acc >= 50) return 'var(--pending-bg)';
+        return 'var(--loss-bg)';
+    };
+
+    const maeColor = (mae: number) => {
+        if (mae <= 1.0) return 'var(--win)';
+        if (mae <= 2.0) return 'var(--pending)';
+        return 'var(--loss)';
+    };
+
+    const maeBg = (mae: number) => {
+        if (mae <= 1.0) return 'var(--win-bg)';
+        if (mae <= 2.0) return 'var(--pending-bg)';
+        return 'var(--loss-bg)';
+    };
+
+    return (
+        <div className="card p-4">
+            <div className="flex items-center gap-2 mb-4">
+                <p className="font-mono text-[11px] tracking-widest uppercase"
+                    style={{ color: 'var(--text-secondary)' }}>Source Reliability Breakdown</p>
+                <TooltipIcon text="Per-source prediction accuracy based on settled legs. Higher accuracy = more reliable source. Score MAE = Mean Absolute Error in goals (lower is better)." align="right" />
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                {(() => {
+                    const totalSources = data.length;
+                    const avgAccuracy = data.reduce((sum, s) => sum + s.accuracy, 0) / totalSources;
+                    const avgMAE = data.reduce((sum, s) => sum + s.score_mae, 0) / totalSources;
+                    const bestSource = data.reduce((best, s) => s.accuracy > best.accuracy ? s : best, data[0]);
+                    const bestMAESource = data.reduce((best, s) => s.score_mae < best.score_mae ? s : best, data[0]);
+                    const totalPredictions = data.reduce((sum, s) => sum + s.total_predictions, 0);
+
+                    return (
+                        <>
+                            <StatTile label="Sources" value={totalSources} />
+                            <StatTile label="Total Predictions" value={totalPredictions} />
+                            <StatTile label="Avg Accuracy" value={`${avgAccuracy.toFixed(1)}%`} />
+                            <StatTile label="Avg Score MAE" value={avgMAE.toFixed(2)} sub="goals" />
+                            <StatTile label="Best Source" value={bestSource.source} sub={`${bestSource.accuracy.toFixed(1)}% / ${bestSource.score_mae.toFixed(2)} MAE`} />
+                        </>
+                    );
+                })()}
+            </div>
+
+            {/* Source Table */}
+            <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid var(--border)' }}>
+                <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
+                            <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => handleSort('source')}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === 'source' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        Source</span>
+                                    {sortKey === 'source' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </div>
+                            </th>
+                            <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => handleSort('total_predictions')}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === 'total_predictions' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        Predictions</span>
+                                    <TooltipIcon text="Total predictions made by this source" align="center" />
+                                    {sortKey === 'total_predictions' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </div>
+                            </th>
+                            <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => handleSort('correct_predictions')}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === 'correct_predictions' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        Correct</span>
+                                    {sortKey === 'correct_predictions' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </div>
+                            </th>
+                            <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => handleSort('accuracy')}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === 'accuracy' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        Accuracy</span>
+                                    <TooltipIcon text="Percentage of correct predictions" align="center" />
+                                    {sortKey === 'accuracy' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </div>
+                            </th>
+                            <th className="px-4 py-3 text-left cursor-pointer select-none"
+                                onClick={() => handleSort('score_mae')}>
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-mono tracking-widest uppercase"
+                                        style={{ color: sortKey === 'score_mae' ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                                        Score MAE</span>
+                                    <TooltipIcon text="Mean Absolute Error in goals (average |pred_home - actual_home| + |pred_away - actual_away| per team). Lower is better." align="center" />
+                                    {sortKey === 'score_mae' && <span style={{ color: 'var(--accent)', fontSize: 10 }}>{sortDir === 'desc' ? '↓' : '↑'}</span>}
+                                </div>
+                            </th>
+                            <th className="px-4 py-3 text-left">Markets</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.map((row, i) => (
+                            <tr key={row.source} style={{
+                                borderBottom: '1px solid var(--border)',
+                                background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                            }}>
+                                <td className="px-4 py-3">
+                                    <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
+                                        {row.source}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
+                                        {row.total_predictions}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className="font-mono text-sm" style={{ color: 'var(--win)' }}>
+                                        {row.correct_predictions}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
+                                        style={{ color: accuracyColor(row.accuracy), background: accuracyBg(row.accuracy) }}>
+                                        {row.accuracy.toFixed(1)}%
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className="font-mono font-bold text-sm px-2 py-0.5 rounded"
+                                        style={{ color: maeColor(row.score_mae), background: maeBg(row.score_mae) }}>
+                                        {row.score_mae.toFixed(2)}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <div className="flex flex-wrap gap-1">
+                                        {row.markets.slice(0, 5).map((mkt: SourceBreakdownMarket, idx: number) => (
+                                            <span key={idx}
+                                                className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                                                style={{
+                                                    background: mkt.accuracy >= 60 ? 'var(--win-bg)' : mkt.accuracy >= 50 ? 'var(--pending-bg)' : 'var(--loss-bg)',
+                                                    color: mkt.accuracy >= 60 ? 'var(--win)' : mkt.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)',
+                                                    border: `1px solid ${mkt.accuracy >= 60 ? 'var(--win)' : mkt.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)'}`
+                                                }}
+                                                title={`${mkt.market}: ${mkt.correct}/${mkt.predictions} (${mkt.accuracy}%)`}>
+                                                {mkt.market}: {mkt.accuracy.toFixed(0)}%
+                                            </span>
+                                        ))}
+                                        {row.markets.length > 5 && (
+                                            <span className="text-[9px] font-mono text-gray-500"
+                                                style={{ alignSelf: 'center' }}>
+                                                +{row.markets.length - 5} more
+                                            </span>
+                                        )}
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Detailed Market Breakdown per Source (expandable) */}
+            <div className="mt-6 space-y-3">
+                {sorted.map((source, idx) => (
+                    <details key={source.source} className="group">
+                        <summary className="flex items-center justify-between cursor-pointer p-3 rounded-lg bg-black/20 border border-white/5">
+                            <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
+                                {source.source} — {source.markets.length} markets
+                            </span>
+                            <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                                Expand for details
+                            </span>
+                        </summary>
+                        <div className="p-3 border-t border-white/5 mt-1">
+                            <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <th className="px-3 py-2 text-left font-mono text-[9px] uppercase" style={{ color: 'var(--text-secondary)' }}>Market</th>
+                                        <th className="px-3 py-2 text-right font-mono text-[9px] uppercase" style={{ color: 'var(--text-secondary)' }}>Predictions</th>
+                                        <th className="px-3 py-2 text-right font-mono text-[9px] uppercase" style={{ color: 'var(--text-secondary)' }}>Correct</th>
+                                        <th className="px-3 py-2 text-right font-mono text-[9px] uppercase" style={{ color: 'var(--text-secondary)' }}>Accuracy</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {source.markets.map((mkt: SourceBreakdownMarket, mIdx: number) => (
+                                        <tr key={mkt.market} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-bright)' }}>{mkt.market}</td>
+                                            <td className="px-3 py-2 text-right font-mono" style={{ color: 'var(--text-secondary)' }}>{mkt.predictions}</td>
+                                            <td className="px-3 py-2 text-right font-mono" style={{ color: 'var(--win)' }}>{mkt.correct}</td>
+                                            <td className="px-3 py-2 text-right">
+                                                <span className="font-mono font-bold px-2 py-0.5 rounded"
+                                                    style={{ color: accuracyColor(mkt.accuracy), background: accuracyBg(mkt.accuracy) }}>
+                                                    {mkt.accuracy.toFixed(1)}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                ))}
             </div>
         </div>
     );
@@ -1323,8 +1559,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
                                                 <p><span style={{ color: 'var(--text-secondary)' }}>Edge: </span>
                                                     <span style={{ color: d.edge >= 0 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>
                                                         {d.edge >= 0 ? '+' : ''}{d.edge}%</span></p>
-                                            </div>
-                                        );
+                                        </div>
+                                    );
                                     }} />
                                     <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
                                     <Bar dataKey="edge" radius={[0, 3, 3, 0]}>
@@ -1341,6 +1577,16 @@ export default function Analytics({ filters, refreshKey }: Props) {
                     </div>
                 </ChartCard>
             </div>
+
+            {/* ── Source Reliability ───────────────────────────────────────────── */}
+            {data.source_breakdown && data.source_breakdown.length > 0 && (
+                <>
+                    <SectionHeader icon="🎯" title="Source Reliability" />
+                    <div className="mb-8">
+                        <SourceReliabilityCard data={data.source_breakdown} />
+                    </div>
+                </>
+            )}
 
             {/* ── Correlation Matrix ─────────────────────────────────────────── */}
             <SectionHeader icon="⊞" title="Intersectional Correlation" />

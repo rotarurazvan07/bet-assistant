@@ -275,6 +275,8 @@ class BetAssistant(BaseStorageManager):
                     result_url  TEXT,
                     status      TEXT DEFAULT 'Pending',
                     league      TEXT,
+                    predictions TEXT,
+                    final_score TEXT,
                     FOREIGN KEY(slip_id) REFERENCES slips(slip_id)
                 );
             """)
@@ -285,6 +287,10 @@ class BetAssistant(BaseStorageManager):
             columns = [row[1] for row in cursor.fetchall()]
             if "league" not in columns:
                 self.conn.execute("ALTER TABLE legs ADD COLUMN league TEXT")
+            if "predictions" not in columns:
+                self.conn.execute("ALTER TABLE legs ADD COLUMN predictions TEXT")
+            if "final_score" not in columns:
+                self.conn.execute("ALTER TABLE legs ADD COLUMN final_score TEXT")
 
             self.conn.commit()
 
@@ -300,7 +306,7 @@ class BetAssistant(BaseStorageManager):
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
-    def load_matches(self, df: pd.DataFrame) -> None:
+    def load_matches(self, df: pd.DataFrame, excluded_sources: list[str] | None = None) -> None:
         """
         Ingest a raw match DataFrame and build the internal flat representation.
 
@@ -309,10 +315,18 @@ class BetAssistant(BaseStorageManager):
 
         The 'scores' column must be a list of dicts with keys:
             home, away, source  (source used to count unique data providers)
+
+        Parameters
+        ----------
+        excluded_sources : list[str] | None
+            Source names to exclude from consensus calculation and source counting.
+            Predictions from these sources will be filtered out before consensus is computed.
         """
         if df.empty:
             self._df = pd.DataFrame()
             return
+
+        excluded = set(excluded_sources or [])
 
         rows: list[dict] = []
         for idx, row in df.iterrows():
@@ -323,8 +337,11 @@ class BetAssistant(BaseStorageManager):
                 dt = row["datetime"]
                 odds = row.get("odds") or {}
                 scores = row.get("scores") or []
-                cons_data = calc_consensus(scores)
-                n_sources = len({s.get("source", "") for s in scores if s.get("source")})
+
+                # Filter out excluded sources
+                filtered_scores = [s for s in scores if s.get("source") not in excluded]
+                cons_data = calc_consensus(filtered_scores)
+                n_sources = len({s.get("source", "") for s in filtered_scores if s.get("source")})
 
                 rows.append(
                     {
@@ -336,6 +353,8 @@ class BetAssistant(BaseStorageManager):
                         "odds": row.get("odds"),
                         "result_url": row.get("result_url"),
                         "league": row.get("league"),
+                        # Store filtered scores for later use in candidate generation
+                        "_filtered_scores": filtered_scores,
                         # Consensus
                         "cons_home": cons_data["result"]["home"],
                         "cons_draw": cons_data["result"]["draw"],
@@ -503,10 +522,15 @@ class BetAssistant(BaseStorageManager):
                     if leg.market_type
                     else None
                 )
+
+                # Serialize predictions to JSON
+                import json
+                predictions_json = json.dumps(leg.predictions) if leg.predictions else None
+
                 self.conn.execute(
                     """INSERT INTO legs
-                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url, league)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url, league, predictions, final_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         slip_id,
                         leg.match_name,
@@ -516,6 +540,8 @@ class BetAssistant(BaseStorageManager):
                         leg.odds,
                         leg.result_url,
                         leg.league,
+                        predictions_json,
+                        None,  # final_score will be set when leg is settled
                     ),
                 )
 
@@ -543,7 +569,7 @@ class BetAssistant(BaseStorageManager):
         query = """
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
-                l.match_name, l.match_datetime, l.market, l.market_type, l.odds, l.status, l.result_url, l.league
+                l.match_name, l.match_datetime, l.market, l.market_type, l.odds, l.status, l.result_url, l.league, l.predictions, l.final_score
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
@@ -626,7 +652,7 @@ class BetAssistant(BaseStorageManager):
         """
         h, a = parse_score(score)
         outcome = determine_outcome(h, a, market, market_type)
-        self.update_leg(leg_id, outcome)
+        self.update_leg(leg_id, outcome, final_score=score)
         logger.info(f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})")
         return outcome
 
@@ -748,11 +774,11 @@ class BetAssistant(BaseStorageManager):
                 pass
 
             if outcome_info.outcome in (Outcome.WON, Outcome.LOST):
-                self.update_leg(leg_id, outcome_info.outcome)
+                self.update_leg(leg_id, outcome_info.outcome, final_score=info.score)
                 return outcome_info
 
         elif info.status == MatchStatus.LIVE and info.score:
-            self.update_leg(leg_id, Outcome.LIVE)
+            self.update_leg(leg_id, Outcome.LIVE, final_score=info.score)
             return outcome_info
 
         return None
@@ -820,10 +846,13 @@ class BetAssistant(BaseStorageManager):
             errors=errors[0],
         )
 
-    def update_leg(self, leg_id: int, status: str) -> None:
+    def update_leg(self, leg_id: int, status: str, final_score: str | None = None) -> None:
         """Manually override a leg outcome ('Won', 'Lost', or 'Pending')."""
         with self.db_lock:
-            self.conn.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
+            if final_score is not None:
+                self.conn.execute("UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?", (status, final_score, leg_id))
+            else:
+                self.conn.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
             self.conn.commit()
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -867,6 +896,9 @@ class BetAssistant(BaseStorageManager):
 
             match_name = f"{row['home']} vs {row['away']}"
 
+            # Get filtered scores for this match (already filtered by excluded_sources in load_matches)
+            filtered_scores = row.get("_filtered_scores", [])
+
             for m_type, market_cols in MARKET_MAP.items():
                 for cons_col, odds_col, label in market_cols:
                     if markets and label not in markets:
@@ -890,6 +922,10 @@ class BetAssistant(BaseStorageManager):
                             continue
                         # Odds movement per market
                         mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
+
+                        # Build per-source predictions for this leg's market
+                        leg_predictions = self._build_leg_predictions(filtered_scores, label, m_type)
+
                         candidates.append(
                             CandidateLeg(
                                 match_name=match_name,
@@ -904,10 +940,35 @@ class BetAssistant(BaseStorageManager):
                                 _adjusted_consensus=adj_cons,
                                 odds_movement_direction=mov_dir,
                                 odds_movement_strength=mov_str,
+                                predictions=leg_predictions,
                             )
                         )
 
         return candidates
+
+    def _build_leg_predictions(self, filtered_scores: list[dict], market_label: MarketLabel, market_type: MarketType) -> list[dict]:
+        """
+        Build per-source predictions for a specific market from filtered scores.
+
+        Each prediction dict contains:
+        - source: str
+        - home: float (predicted home goals)
+        - away: float (predicted away goals)
+        NOTE: predicted_outcome is NOT stored - it's computed at query time from home/away + market
+        """
+        predictions = []
+        for score in filtered_scores:
+            source = score.get("source", "unknown")
+            home = score.get("home", 0) or 0
+            away = score.get("away", 0) or 0
+
+            predictions.append({
+                "source": source,
+                "home": home,
+                "away": away,
+            })
+
+        return predictions
 
     @staticmethod
     def _get_market_movement(odds_dict: dict | None, market_key: str) -> tuple[str | None, float]:
@@ -1023,6 +1084,8 @@ class BetAssistant(BaseStorageManager):
             status,
             url,
             league,
+            predictions_json,
+            final_score,
         ) in rows:
             if slip_id not in slips:
                 slips[slip_id] = BetSlip(
@@ -1042,6 +1105,15 @@ class BetAssistant(BaseStorageManager):
                     except (ValueError, TypeError):
                         leg_dt = dt
 
+                # Parse predictions JSON
+                import json
+                predictions = []
+                if predictions_json:
+                    try:
+                        predictions = json.loads(predictions_json)
+                    except (json.JSONDecodeError, TypeError):
+                        predictions = []
+
                 slips[slip_id].legs.append(
                     BetLeg(
                         match_name=match,
@@ -1052,6 +1124,8 @@ class BetAssistant(BaseStorageManager):
                         status=status,
                         result_url=url,
                         league=league,
+                        predictions=predictions,
+                        final_score=final_score,
                     )
                 )
 

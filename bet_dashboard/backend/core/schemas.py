@@ -20,6 +20,7 @@ class BetSlipConfigIn(BaseModel):
     included_leagues: list[str] | None = None
     date_from: str | None = None
     date_to: str | None = None
+    excluded_sources: list[str] | None = None
     # Advanced
     consensus_shrinkage_k: float | None = None
     min_source_edge: float | None = None
@@ -50,6 +51,7 @@ class CandidateLegOut(BaseModel):
     score: float = 0.0
     odds_movement_direction: str | None = None
     odds_movement_strength: float = 0.0
+    predictions: list[dict] = []
 
 
 class PreviewOut(BaseModel):
@@ -75,6 +77,7 @@ class ProfileIn(BaseModel):
     consensus_vs_sources: float = 0.5
     included_markets: list[str] | None = None
     included_leagues: list[str] | None = None
+    excluded_sources: list[str] | None = None
     units: float = 1.0
     target_payout: float | None = None
     run_daily_count: int = 0
@@ -120,6 +123,7 @@ class BetLegOut(BaseModel):
     status: str
     result_url: str | None = None
     league: str | None = None
+    predictions: list[dict] = []
 
 
 class BetSlipOut(BaseModel):
