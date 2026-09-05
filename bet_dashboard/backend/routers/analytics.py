@@ -284,7 +284,7 @@ def _source_breakdown(slips) -> list[dict]:
                 predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
 
                 # Check if prediction was correct
-                is_correct = (predicted_outcome == actual_outcome)
+                is_correct = predicted_outcome == actual_outcome
 
                 if is_correct:
                     source_data[source]["correct_predictions"] += 1

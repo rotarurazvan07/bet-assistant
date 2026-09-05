@@ -40,7 +40,7 @@ from bet_framework.core.scoring import (
     score_pick,
     score_sources,
 )
-from bet_framework.core.Slip import PROFILES, BetSlipConfig, CandidateLeg, BetLeg, get_profile
+from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
 from bet_framework.core.types import MarketLabel, MarketType, Outcome
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1268,6 +1268,7 @@ class TestSourceReliabilityTracking:
         assert rows[0]["predictions"] is not None
         assert rows[0]["final_score"] is None  # Not settled yet
         import json
+
         stored = json.loads(rows[0]["predictions"])
         assert len(stored) == 3
         assert stored[0]["source"] == "src1"
@@ -1442,9 +1443,13 @@ class TestSourceReliabilityTracking:
                         {"home": 0, "away": 2, "source": "src3"},  # Away win, Over 2.5
                     ],
                     "odds": {
-                        "home": 1.5, "draw": 3.5, "away": 5.0,
-                        "over_25": 1.8, "under_25": 2.0,
-                        "btts_y": 1.9, "btts_n": 1.9,
+                        "home": 1.5,
+                        "draw": 3.5,
+                        "away": 5.0,
+                        "over_25": 1.8,
+                        "under_25": 2.0,
+                        "btts_y": 1.9,
+                        "btts_n": 1.9,
                     },
                     "result_url": "http://test",
                 }
@@ -1453,11 +1458,7 @@ class TestSourceReliabilityTracking:
         ba.load_matches(df)
 
         # Test RESULT market predictions - returns only source, home, away (no predicted_outcome)
-        result_preds = ba._build_leg_predictions(
-            ba._df.iloc[0]["_filtered_scores"],
-            MarketLabel.HOME,
-            MarketType.RESULT
-        )
+        result_preds = ba._build_leg_predictions(ba._df.iloc[0]["_filtered_scores"], MarketLabel.HOME, MarketType.RESULT)
         assert len(result_preds) == 3
         # Should only have source, home, away - no predicted_outcome
         for pred in result_preds:
@@ -1469,11 +1470,7 @@ class TestSourceReliabilityTracking:
         assert result_preds[2] == {"source": "src3", "home": 0, "away": 2}
 
         # Test OVER_UNDER_25 market predictions
-        ou_preds = ba._build_leg_predictions(
-            ba._df.iloc[0]["_filtered_scores"],
-            MarketLabel.OVER_25,
-            MarketType.OVER_UNDER_25
-        )
+        ou_preds = ba._build_leg_predictions(ba._df.iloc[0]["_filtered_scores"], MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
         assert len(ou_preds) == 3
         for pred in ou_preds:
             assert set(pred.keys()) == {"source", "home", "away"}
@@ -1533,7 +1530,7 @@ class TestSourceReliabilityTracking:
                 sources=2,
                 predictions=[
                     {"source": "src_good", "home": 2, "away": 0},  # Correct: predicts home win
-                    {"source": "src_bad", "home": 0, "away": 2},   # Wrong: predicts away win
+                    {"source": "src_bad", "home": 0, "away": 2},  # Wrong: predicts away win
                 ],
             ),
             CandidateLeg(
@@ -1547,7 +1544,7 @@ class TestSourceReliabilityTracking:
                 sources=2,
                 predictions=[
                     {"source": "src_good", "home": 2, "away": 1},  # Correct: predicts over 2.5
-                    {"source": "src_bad", "home": 1, "away": 0},   # Wrong: predicts under 2.5
+                    {"source": "src_bad", "home": 1, "away": 0},  # Wrong: predicts under 2.5
                 ],
             ),
         ]
@@ -1571,6 +1568,7 @@ class TestSourceReliabilityTracking:
 
         # Manually compute accuracy
         from collections import defaultdict
+
         source_stats = defaultdict(lambda: {"total": 0, "correct": 0})
 
         for slip in slips:

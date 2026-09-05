@@ -525,6 +525,7 @@ class BetAssistant(BaseStorageManager):
 
                 # Serialize predictions to JSON
                 import json
+
                 predictions_json = json.dumps(leg.predictions) if leg.predictions else None
 
                 self.conn.execute(
@@ -850,7 +851,9 @@ class BetAssistant(BaseStorageManager):
         """Manually override a leg outcome ('Won', 'Lost', or 'Pending')."""
         with self.db_lock:
             if final_score is not None:
-                self.conn.execute("UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?", (status, final_score, leg_id))
+                self.conn.execute(
+                    "UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?", (status, final_score, leg_id)
+                )
             else:
                 self.conn.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
             self.conn.commit()
@@ -946,7 +949,9 @@ class BetAssistant(BaseStorageManager):
 
         return candidates
 
-    def _build_leg_predictions(self, filtered_scores: list[dict], market_label: MarketLabel, market_type: MarketType) -> list[dict]:
+    def _build_leg_predictions(
+        self, filtered_scores: list[dict], market_label: MarketLabel, market_type: MarketType
+    ) -> list[dict]:
         """
         Build per-source predictions for a specific market from filtered scores.
 
@@ -962,11 +967,13 @@ class BetAssistant(BaseStorageManager):
             home = score.get("home", 0) or 0
             away = score.get("away", 0) or 0
 
-            predictions.append({
-                "source": source,
-                "home": home,
-                "away": away,
-            })
+            predictions.append(
+                {
+                    "source": source,
+                    "home": home,
+                    "away": away,
+                }
+            )
 
         return predictions
 
@@ -1107,6 +1114,7 @@ class BetAssistant(BaseStorageManager):
 
                 # Parse predictions JSON
                 import json
+
                 predictions = []
                 if predictions_json:
                     try:
