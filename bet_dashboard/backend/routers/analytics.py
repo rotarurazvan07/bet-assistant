@@ -184,6 +184,156 @@ def _league_breakdown(slips) -> list[dict]:
     return sorted(result, key=lambda x: x["edge"], reverse=True)
 
 
+# ── Source Reliability Breakdown ────────────────────────────────────────────────
+
+
+def _predict_outcome_from_score(home_goals: int, away_goals: int, market_label: str, market_type: str) -> str:
+    """Predict outcome for a market based on a score prediction."""
+    total_goals = home_goals + away_goals
+
+    if market_type == "result":
+        if home_goals > away_goals:
+            return "HOME"
+        elif home_goals == away_goals:
+            return "DRAW"
+        else:
+            return "AWAY"
+    elif market_type == "over_under_25":
+        return "OVER_25" if total_goals > 2.5 else "UNDER_25"
+    elif market_type == "over_under_15":
+        return "OVER_15" if total_goals > 1.5 else "UNDER_15"
+    elif market_type == "over_under_05":
+        return "OVER_05" if total_goals > 0.5 else "UNDER_05"
+    elif market_type == "over_under_35":
+        return "OVER_35" if total_goals > 3.5 else "UNDER_35"
+    elif market_type == "over_under_45":
+        return "OVER_45" if total_goals > 4.5 else "UNDER_45"
+    elif market_type == "btts":
+        return "BTTS_YES" if home_goals > 0 and away_goals > 0 else "BTTS_NO"
+    elif market_type == "double_chance":
+        if home_goals > away_goals:
+            return "DC_1X"
+        elif home_goals == away_goals:
+            return "DC_X2"
+        else:
+            return "DC_12"
+
+    return "UNKNOWN"
+
+
+def _source_breakdown(slips) -> list[dict]:
+    """
+    Analyze source reliability by looking at per-leg predictions.
+
+    For each source, track:
+    - Total predictions made
+    - Correct predictions (computed from final_score)
+    - Accuracy rate
+    - Markets they predict well/poorly
+    - Mean Absolute Error (MAE) for score predictions
+    """
+    source_data: dict[str, dict] = {}
+
+    for slip in slips:
+        s_status = _get_status_value(slip.slip_status)
+        if s_status not in ("Won", "Lost"):
+            continue
+
+        for leg in slip.legs:
+            l_status = _get_status_value(leg.status)
+            if l_status not in ("Won", "Lost"):
+                continue
+
+            # Get predictions for this leg
+            predictions = getattr(leg, "predictions", None)
+            if not predictions:
+                continue
+
+            # Get final score for this leg
+            final_score = getattr(leg, "final_score", None)
+            if not final_score:
+                continue  # Skip legs without final score
+
+            try:
+                actual_home, actual_away = map(int, final_score.split(":"))
+            except (ValueError, AttributeError):
+                continue
+
+            # Determine actual outcome for this leg's market
+            market_label = str(leg.market)
+            market_type = str(leg.market_type)
+            actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market_label, market_type)
+
+            for pred in predictions:
+                source = pred.get("source", "unknown")
+                pred_home = pred.get("home", 0)
+                pred_away = pred.get("away", 0)
+
+                if source not in source_data:
+                    source_data[source] = {
+                        "source": source,
+                        "total_predictions": 0,
+                        "correct_predictions": 0,
+                        "markets": {},
+                        "score_mae_sum": 0.0,  # Sum of |pred_home - actual_home| + |pred_away - actual_away|
+                    }
+
+                source_data[source]["total_predictions"] += 1
+
+                # Compute predicted outcome for this market from source's predicted score
+                predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
+
+                # Check if prediction was correct
+                is_correct = (predicted_outcome == actual_outcome)
+
+                if is_correct:
+                    source_data[source]["correct_predictions"] += 1
+
+                # Track score MAE
+                source_data[source]["score_mae_sum"] += abs(pred_home - actual_home) + abs(pred_away - actual_away)
+
+                # Track per-market performance
+                if market_label not in source_data[source]["markets"]:
+                    source_data[source]["markets"][market_label] = {"total": 0, "correct": 0}
+                source_data[source]["markets"][market_label]["total"] += 1
+                if is_correct:
+                    source_data[source]["markets"][market_label]["correct"] += 1
+
+    result = []
+    for source, data in source_data.items():
+        total = data["total_predictions"]
+        correct = data["correct_predictions"]
+        accuracy = round(correct / total * 100, 1) if total else 0.0
+        score_mae = round(data["score_mae_sum"] / (total * 2), 2) if total else 0.0  # Avg goals error per team
+
+        # Per-market breakdown
+        market_breakdown = []
+        for mkt, mkt_data in data["markets"].items():
+            mkt_total = mkt_data["total"]
+            mkt_correct = mkt_data["correct"]
+            market_breakdown.append(
+                {
+                    "market": mkt,
+                    "predictions": mkt_total,
+                    "correct": mkt_correct,
+                    "accuracy": round(mkt_correct / mkt_total * 100, 1) if mkt_total else 0.0,
+                }
+            )
+
+        result.append(
+            {
+                "source": source,
+                "total_predictions": total,
+                "correct_predictions": correct,
+                "accuracy": accuracy,
+                "score_mae": score_mae,
+                "markets": sorted(market_breakdown, key=lambda x: x["accuracy"], reverse=True),
+            }
+        )
+
+    return sorted(result, key=lambda x: x["accuracy"], reverse=True)
+
+
 # ── Existing helpers (unchanged) ───────────────────────────────────────────────
 
 
@@ -299,6 +449,8 @@ def get_analytics(
         "market_breakdown": _market_breakdown(slips),
         "league_breakdown": _league_breakdown(slips),
         "correlation_matrix": _correlation_matrix(slips),
+        # ── Source Reliability ─────────────────────────────────────────
+        "source_breakdown": _source_breakdown(slips),
     }
     return sanitize_floats(response_data)
 

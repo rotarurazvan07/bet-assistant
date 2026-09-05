@@ -64,6 +64,7 @@ export interface BuilderConfig {
     consensus_vs_sources: number; // 0-1
     date_from: string | null;
     date_to: string | null;
+    excluded_sources: string[] | null;
     // Advanced
     consensus_shrinkage_k: number | null;
     min_source_edge: number | null;
@@ -91,6 +92,13 @@ export interface CandidateLeg {
     quality?: number;
     odds_movement_direction?: OddsMovementDirection;
     odds_movement_strength?: number;
+    predictions: SourcePrediction[];
+}
+
+export interface SourcePrediction {
+    source: string;
+    home: number;
+    away: number;
 }
 
 export interface PreviewResult {
@@ -107,6 +115,7 @@ export interface Profile {
     consensus_floor: number; min_odds: number;
     included_markets: string[] | null;
     included_leagues: string[] | null;
+    excluded_sources: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
     min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
     units: number;
@@ -148,6 +157,8 @@ export interface BetLeg {
     market: string; market_type: string | null;
     odds: number; status: string; result_url: string | null;
     league: string | null;
+    predictions: SourcePrediction[];
+    final_score: string | null;
 }
 
 export interface BetSlip {
@@ -228,6 +239,22 @@ export interface LeagueBreakdown {
     avg_odds: number; net_profit: number;
 }
 
+export interface SourceBreakdownMarket {
+    market: string;
+    predictions: number;
+    correct: number;
+    accuracy: number;
+}
+
+export interface SourceBreakdown {
+    source: string;
+    total_predictions: number;
+    correct_predictions: number;
+    accuracy: number;
+    score_mae: number;
+    markets: SourceBreakdownMarket[];
+}
+
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -269,6 +296,7 @@ export interface AnalyticsData {
         markets: string[];
         matrix: Record<string, Record<string, { win_rate: number; edge: number; total: number }>>;
     };
+    source_breakdown?: SourceBreakdown[];
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

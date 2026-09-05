@@ -31,6 +31,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
         included_leagues=body.included_leagues,
         date_from=body.date_from,
         date_to=body.date_to,
+        excluded_sources=body.excluded_sources,
         # Advanced
         consensus_shrinkage_k=body.consensus_shrinkage_k,
         min_source_edge=body.min_source_edge,
@@ -78,6 +79,7 @@ def preview(request: Request, body: BetSlipConfigIn):
                 "score": round(leg.score, 4),
                 "odds_movement_direction": leg.odds_movement_direction,
                 "odds_movement_strength": round(leg.odds_movement_strength, 6) if leg.odds_movement_strength else 0.0,
+                "predictions": leg.predictions if hasattr(leg, "predictions") else [],
             }
             for leg in legs
         ],
