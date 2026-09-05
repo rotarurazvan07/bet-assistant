@@ -221,6 +221,214 @@ def _predict_outcome_from_score(home_goals: int, away_goals: int, market_label: 
     return "UNKNOWN"
 
 
+def _source_market_correlation(slips) -> dict:
+    """
+    Compute Source x Market correlation matrix showing prediction accuracy per source per market.
+
+    Returns:
+        {
+            "sources": [...],
+            "markets": [...],
+            "matrix": {
+                "source_name": {
+                    "market_name": { "accuracy": float, "total": int }
+                }
+            }
+        }
+    """
+    source_data: dict[str, dict] = {}
+    sources_set = set()
+    markets_set = set()
+
+    for slip in slips:
+        s_status = _get_status_value(slip.slip_status)
+        if s_status not in ("Won", "Lost"):
+            continue
+
+        for leg in slip.legs:
+            l_status = _get_status_value(leg.status)
+            if l_status not in ("Won", "Lost"):
+                continue
+
+            predictions = getattr(leg, "predictions", None)
+            if not predictions:
+                continue
+
+            final_score = getattr(leg, "final_score", None)
+            if not final_score:
+                continue
+
+            try:
+                actual_home, actual_away = map(int, final_score.split(":"))
+            except (ValueError, AttributeError):
+                continue
+
+            market_label = str(leg.market)
+            market_type = str(leg.market_type)
+            actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market_label, market_type)
+
+            markets_set.add(market_label)
+
+            for pred in predictions:
+                source = pred.get("source", "unknown")
+                pred_home = pred.get("home", 0)
+                pred_away = pred.get("away", 0)
+
+                sources_set.add(source)
+
+                if source not in source_data:
+                    source_data[source] = {}
+                if market_label not in source_data[source]:
+                    source_data[source][market_label] = {"correct": 0, "total": 0}
+
+                source_data[source][market_label]["total"] += 1
+
+                predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
+                is_correct = (predicted_outcome == actual_outcome)
+
+                if is_correct:
+                    source_data[source][market_label]["correct"] += 1
+
+    # Build matrix
+    matrix = {}
+    for source in sorted(sources_set):
+        matrix[source] = {}
+        for market in sorted(markets_set):
+            data = source_data.get(source, {}).get(market, {"correct": 0, "total": 0})
+            total = data["total"]
+            accuracy = round(data["correct"] / total * 100, 1) if total else 0.0
+            matrix[source][market] = {"accuracy": accuracy, "total": total}
+
+    return {
+        "sources": sorted(sources_set),
+        "markets": sorted(markets_set),
+        "matrix": matrix
+    }
+
+
+def _source_comprehensive_accuracy(slips) -> dict:
+    """
+    Compute comprehensive market accuracy per source by testing ALL market types
+    from each source's predicted score against the actual final score.
+    
+    This is a diagnostic view showing how well a source's score predictions
+    translate to correctness across ALL market types, not just the bet market.
+    
+    Returns:
+        {
+            "sources": [...],
+            "markets": [...],
+            "matrix": {
+                "source_name": {
+                    "market_type": { "accuracy": float, "total": int, "correct": int }
+                }
+            }
+        }
+    """
+    # All individual market outcomes to test (expanded from market types)
+    # Each entry: (market_type_key, outcome_label)
+    MARKET_OUTCOMES = [
+        # Match Winner
+        ("result", "Home"),
+        ("result", "Draw"),
+        ("result", "Away"),
+        # Over/Under 0.5
+        ("over_under_05", "Over 0.5"),
+        ("over_under_05", "Under 0.5"),
+        # Over/Under 1.5
+        ("over_under_15", "Over 1.5"),
+        ("over_under_15", "Under 1.5"),
+        # Over/Under 2.5
+        ("over_under_25", "Over 2.5"),
+        ("over_under_25", "Under 2.5"),
+        # Over/Under 3.5
+        ("over_under_35", "Over 3.5"),
+        ("over_under_35", "Under 3.5"),
+        # Over/Under 4.5
+        ("over_under_45", "Over 4.5"),
+        ("over_under_45", "Under 4.5"),
+        # BTTS
+        ("btts", "BTTS Yes"),
+        ("btts", "BTTS No"),
+        # Double Chance
+        ("double_chance", "DC 1X"),
+        ("double_chance", "DC X2"),
+        ("double_chance", "DC 12"),
+    ]
+    
+    source_data: dict[str, dict] = {}
+    sources_set = set()
+    markets_set = set(mkt[1] for mkt in MARKET_OUTCOMES)
+    
+    for slip in slips:
+        s_status = _get_status_value(slip.slip_status)
+        if s_status not in ("Won", "Lost"):
+            continue
+        
+        for leg in slip.legs:
+            l_status = _get_status_value(leg.status)
+            if l_status not in ("Won", "Lost"):
+                continue
+            
+            predictions = getattr(leg, "predictions", None)
+            if not predictions:
+                continue
+            
+            final_score = getattr(leg, "final_score", None)
+            if not final_score:
+                continue
+            
+            try:
+                actual_home, actual_away = map(int, final_score.split(":"))
+            except (ValueError, AttributeError):
+                continue
+            
+            # Compute actual outcomes for ALL market outcomes
+            actual_outcomes = {}
+            for mkt_key, mkt_label in MARKET_OUTCOMES:
+                actual_outcomes[mkt_label] = _predict_outcome_from_score(actual_home, actual_away, mkt_label, mkt_key)
+            
+            for pred in predictions:
+                source = pred.get("source", "unknown")
+                pred_home = pred.get("home", 0)
+                pred_away = pred.get("away", 0)
+                
+                sources_set.add(source)
+                
+                if source not in source_data:
+                    source_data[source] = {}
+                
+                # Test each market outcome
+                for mkt_key, mkt_label in MARKET_OUTCOMES:
+                    if mkt_label not in source_data[source]:
+                        source_data[source][mkt_label] = {"correct": 0, "total": 0}
+                    
+                    source_data[source][mkt_label]["total"] += 1
+                    
+                    predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, mkt_label, mkt_key)
+                    is_correct = (predicted_outcome == actual_outcomes[mkt_label])
+                    
+                    if is_correct:
+                        source_data[source][mkt_label]["correct"] += 1
+    
+    # Build matrix
+    matrix = {}
+    for source in sorted(sources_set):
+        matrix[source] = {}
+        for mkt_label in sorted(markets_set):
+            data = source_data.get(source, {}).get(mkt_label, {"correct": 0, "total": 0})
+            total = data["total"]
+            correct = data["correct"]
+            accuracy = round(correct / total * 100, 1) if total else 0.0
+            matrix[source][mkt_label] = {"accuracy": accuracy, "total": total, "correct": correct}
+    
+    return {
+        "sources": sorted(sources_set),
+        "markets": sorted(markets_set),
+        "matrix": matrix
+    }
+
+
 def _source_breakdown(slips) -> list[dict]:
     """
     Analyze source reliability by looking at per-leg predictions.
@@ -451,6 +659,8 @@ def get_analytics(
         "correlation_matrix": _correlation_matrix(slips),
         # ── Source Reliability ─────────────────────────────────────────
         "source_breakdown": _source_breakdown(slips),
+        "source_market_correlation": _source_market_correlation(slips),
+        "source_comprehensive_accuracy": _source_comprehensive_accuracy(slips),
     }
     return sanitize_floats(response_data)
 

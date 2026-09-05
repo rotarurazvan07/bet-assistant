@@ -106,6 +106,7 @@ class ManualLegIn(BaseModel):
     consensus: float  # 0-100 percentage, required for scoring
     sources: int  # number of sources, required for scoring
     league: str | None = None
+    predictions: list[dict] | None = None  # Per-source predictions for source reliability tracking
 
 
 class SlipIn(BaseModel):

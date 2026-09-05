@@ -320,9 +320,9 @@ class AppLogic:
 
     # ── Match data ─────────────────────────────────────────────────────────[...]
 
-    def refresh_data(self) -> pd.DataFrame:
+    def refresh_data(self, excluded_sources: list[str] | None = None) -> pd.DataFrame:
         raw_df = self._matches_manager.fetch_matches()
-        self._assistant.load_matches(raw_df)
+        self._assistant.load_matches(raw_df, excluded_sources=excluded_sources)
         return self._assistant._df.copy()
 
     def filter_matches(
@@ -330,8 +330,17 @@ class AppLogic:
         search_text: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        excluded_sources: list[str] | None = None,
     ) -> pd.DataFrame:
-        """Return a filtered view of the loaded match DataFrame."""
+        """Return a filtered view of the loaded match DataFrame.
+        
+        If excluded_sources is provided (including empty list), reloads matches with
+        consensus recalculated excluding those sources.
+        """
+        if excluded_sources is not None:
+            # Reload matches with excluded sources to recalculate consensus
+            # Empty list means include all sources (reload without exclusions)
+            self.refresh_data(excluded_sources=excluded_sources)
         return self._assistant.filter_matches(search_text=search_text, date_from=date_from, date_to=date_to)
 
     def pull_matches_db(self, matches_db_path: str) -> str:
@@ -392,10 +401,23 @@ class AppLogic:
         Returns list of leg dicts:
             match, market, market_type, consensus, odds, result_url, sources, tier, score
         """
+        # Reload matches with config's excluded_sources for complete isolation from other filters
+        # Always reload when excluded_sources is explicitly set (including [] for "include all")
+        if cfg.excluded_sources is not None:
+            self.refresh_data(excluded_sources=cfg.excluded_sources)
+        elif hasattr(cfg, 'excluded_sources'):  # Field present but None - explicit "no filter"
+            # Reload with empty list to ensure all sources are included
+            self.refresh_data(excluded_sources=[])
         return self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
 
     def build_preview(self, cfg: BetSlipConfig) -> list[CandidateLeg]:
         # Only use manual exclusions for preview - pending slip matches should show with warning
+        # Reload matches with config's excluded_sources for complete isolation
+        if cfg.excluded_sources is not None:
+            self.refresh_data(excluded_sources=cfg.excluded_sources)
+        elif hasattr(cfg, 'excluded_sources'):
+            # Reload with empty list to ensure all sources are included
+            self.refresh_data(excluded_sources=[])
         return self.build_slip(cfg, extra_excluded_urls=list(self._manual_excluded))
 
     def generate_slips(self, profiles: dict[str, tuple]) -> dict[str, Any]:

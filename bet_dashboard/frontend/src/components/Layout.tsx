@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { pullDb } from '../api/data';
 
@@ -23,11 +23,40 @@ interface Props {
     onMatchesUpdated: () => void;
 }
 
+const STORAGE_KEY = 'bet-assistant-time-horizon';
+
+function getInitialDate(key: string): string {
+    if (typeof window === 'undefined') return '';
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            return parsed[key] || '';
+        }
+    } catch {
+        // Ignore parse errors
+    }
+    return '';
+}
+
+function saveDates(dateFrom: string, dateTo: string) {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dateFrom, dateTo }));
+    } catch {
+        // Ignore storage errors
+    }
+}
+
 export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated }: Props) {
     const location = useLocation();
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
+    const [dateFrom, setDateFrom] = useState(() => getInitialDate('dateFrom'));
+    const [dateTo, setDateTo] = useState(() => getInitialDate('dateTo'));
     const [pulling, setPulling] = useState(false);
+
+    useEffect(() => {
+        saveDates(dateFrom, dateTo);
+    }, [dateFrom, dateTo]);
 
     const showFilters = location.pathname === '/' ||
         location.pathname === '/builder' ||

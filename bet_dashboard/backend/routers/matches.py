@@ -25,6 +25,10 @@ def _row_to_dict(row: dict) -> dict:
             out[k] = v.isoformat()
         else:
             out[k] = _clean(v)
+    # Include predictions (scores) for source reliability tracking
+    # _filtered_scores is stored internally, expose as 'scores' for frontend
+    if "_filtered_scores" in row:
+        out["scores"] = _clean(row["_filtered_scores"])
     return out
 
 
@@ -41,12 +45,15 @@ def get_matches(
     min_consensus: int | None = Query(None, ge=0, le=100),
     min_odds: float | None = Query(None, ge=1.0, le=50.0),
     only_significant_movement: bool = Query(False),
+    excluded_sources: str | None = Query(None),
 ):
     logic = _get(request).logic
+    excluded = excluded_sources.split(",") if excluded_sources else []
     df = logic.filter_matches(
         search_text=search or None,
         date_from=date_from or None,
         date_to=date_to or None,
+        excluded_sources=excluded,
     )
 
     if df.empty:

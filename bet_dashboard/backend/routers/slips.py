@@ -104,6 +104,7 @@ def _leg_to_dict(leg) -> dict:
         "status": _enum_or_str(leg.status),
         "result_url": leg.result_url,
         "league": leg.league,
+        "predictions": leg.predictions,
     }
 
 
@@ -186,6 +187,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         score=d.get("score", 0.0),
         odds_movement_direction=d.get("odds_movement_direction"),
         odds_movement_strength=d.get("odds_movement_strength", 0.0),
+        predictions=d.get("predictions", []),
     )
 
 

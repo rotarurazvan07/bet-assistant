@@ -8,6 +8,7 @@ import { ALL_MARKETS } from '../types';
 interface Props {
     cfg: BuilderConfig;
     availableLeagues: string[];
+    availableSources: string[];
     onChange: (c: BuilderConfig) => void;
 }
 
@@ -251,7 +252,7 @@ function DualSlider({ label, tip, left, right, value, onChange, disabled = false
 
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
-export default function BuilderPanel({ cfg, availableLeagues, onChange }: Props) {
+export default function BuilderPanel({ cfg, availableLeagues, availableSources, onChange }: Props) {
     const up = <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => onChange(set(cfg, k, v));
 
     const allSelected = !cfg.included_markets ||
@@ -388,6 +389,54 @@ export default function BuilderPanel({ cfg, availableLeagues, onChange }: Props)
                             </button>
                         </div>
                     )}
+                </AccordionSection>
+            )}
+
+            {/* ── Sources ────────────────────────────────────────────── */}
+            {availableSources.length > 0 && (
+                <AccordionSection
+                    title={`Sources ${cfg.excluded_sources ? `(${availableSources.length - cfg.excluded_sources.length}/${availableSources.length})` : `(${availableSources.length})`}`}
+                    icon="📡"
+                    defaultOpen={false}
+                >
+                    <div className="grid grid-cols-3 gap-1.5 py-2">
+                        {availableSources.map((source: string) => {
+                            const excluded = cfg.excluded_sources?.includes(source) ?? false;
+                            return (
+                                <button
+                                    key={source}
+                                    type="button"
+                                    onClick={() => {
+                                        let next: string[] | null;
+                                        if (excluded) {
+                                            next = (cfg.excluded_sources ?? []).filter(s => s !== source);
+                                            if (next.length === 0) next = null;
+                                        } else {
+                                            next = [...(cfg.excluded_sources ?? []), source];
+                                        }
+                                        up('excluded_sources', next);
+                                    }}
+                                    className="px-2 py-2 rounded-lg text-[9px] font-sans font-bold uppercase
+                                               transition-all duration-200 text-center leading-tight truncate"
+                                    title={source}
+                                    style={{
+                                        background: excluded
+                                            ? 'var(--bg-raised)'
+                                            : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
+                                        color: excluded ? 'var(--text-secondary)' : 'var(--text-bright)',
+                                        border: excluded
+                                            ? '1px solid var(--border)'
+                                            : '1px solid var(--border-accent)',
+                                        boxShadow: excluded
+                                            ? 'none'
+                                            : '0 2px 8px var(--accent-glow)',
+                                    }}
+                                >
+                                    {source}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </AccordionSection>
             )}
 
