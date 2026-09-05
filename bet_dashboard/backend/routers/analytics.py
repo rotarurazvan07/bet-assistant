@@ -284,7 +284,7 @@ def _source_market_correlation(slips) -> dict:
                 source_data[source][market_label]["total"] += 1
 
                 predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
-                is_correct = (predicted_outcome == actual_outcome)
+                is_correct = predicted_outcome == actual_outcome
 
                 if is_correct:
                     source_data[source][market_label]["correct"] += 1
@@ -299,21 +299,17 @@ def _source_market_correlation(slips) -> dict:
             accuracy = round(data["correct"] / total * 100, 1) if total else 0.0
             matrix[source][market] = {"accuracy": accuracy, "total": total}
 
-    return {
-        "sources": sorted(sources_set),
-        "markets": sorted(markets_set),
-        "matrix": matrix
-    }
+    return {"sources": sorted(sources_set), "markets": sorted(markets_set), "matrix": matrix}
 
 
 def _source_comprehensive_accuracy(slips) -> dict:
     """
     Compute comprehensive market accuracy per source by testing ALL market types
     from each source's predicted score against the actual final score.
-    
+
     This is a diagnostic view showing how well a source's score predictions
     translate to correctness across ALL market types, not just the bet market.
-    
+
     Returns:
         {
             "sources": [...],
@@ -355,62 +351,62 @@ def _source_comprehensive_accuracy(slips) -> dict:
         ("double_chance", "DC X2"),
         ("double_chance", "DC 12"),
     ]
-    
+
     source_data: dict[str, dict] = {}
     sources_set = set()
-    markets_set = set(mkt[1] for mkt in MARKET_OUTCOMES)
-    
+    markets_set = {mkt[1] for mkt in MARKET_OUTCOMES}
+
     for slip in slips:
         s_status = _get_status_value(slip.slip_status)
         if s_status not in ("Won", "Lost"):
             continue
-        
+
         for leg in slip.legs:
             l_status = _get_status_value(leg.status)
             if l_status not in ("Won", "Lost"):
                 continue
-            
+
             predictions = getattr(leg, "predictions", None)
             if not predictions:
                 continue
-            
+
             final_score = getattr(leg, "final_score", None)
             if not final_score:
                 continue
-            
+
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
             except (ValueError, AttributeError):
                 continue
-            
+
             # Compute actual outcomes for ALL market outcomes
             actual_outcomes = {}
             for mkt_key, mkt_label in MARKET_OUTCOMES:
                 actual_outcomes[mkt_label] = _predict_outcome_from_score(actual_home, actual_away, mkt_label, mkt_key)
-            
+
             for pred in predictions:
                 source = pred.get("source", "unknown")
                 pred_home = pred.get("home", 0)
                 pred_away = pred.get("away", 0)
-                
+
                 sources_set.add(source)
-                
+
                 if source not in source_data:
                     source_data[source] = {}
-                
+
                 # Test each market outcome
                 for mkt_key, mkt_label in MARKET_OUTCOMES:
                     if mkt_label not in source_data[source]:
                         source_data[source][mkt_label] = {"correct": 0, "total": 0}
-                    
+
                     source_data[source][mkt_label]["total"] += 1
-                    
+
                     predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, mkt_label, mkt_key)
-                    is_correct = (predicted_outcome == actual_outcomes[mkt_label])
-                    
+                    is_correct = predicted_outcome == actual_outcomes[mkt_label]
+
                     if is_correct:
                         source_data[source][mkt_label]["correct"] += 1
-    
+
     # Build matrix
     matrix = {}
     for source in sorted(sources_set):
@@ -421,12 +417,8 @@ def _source_comprehensive_accuracy(slips) -> dict:
             correct = data["correct"]
             accuracy = round(correct / total * 100, 1) if total else 0.0
             matrix[source][mkt_label] = {"accuracy": accuracy, "total": total, "correct": correct}
-    
-    return {
-        "sources": sorted(sources_set),
-        "markets": sorted(markets_set),
-        "matrix": matrix
-    }
+
+    return {"sources": sorted(sources_set), "markets": sorted(markets_set), "matrix": matrix}
 
 
 def _source_breakdown(slips) -> list[dict]:

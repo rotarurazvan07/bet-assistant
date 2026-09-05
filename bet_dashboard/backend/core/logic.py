@@ -333,7 +333,7 @@ class AppLogic:
         excluded_sources: list[str] | None = None,
     ) -> pd.DataFrame:
         """Return a filtered view of the loaded match DataFrame.
-        
+
         If excluded_sources is provided (including empty list), reloads matches with
         consensus recalculated excluding those sources.
         """
@@ -405,7 +405,7 @@ class AppLogic:
         # Always reload when excluded_sources is explicitly set (including [] for "include all")
         if cfg.excluded_sources is not None:
             self.refresh_data(excluded_sources=cfg.excluded_sources)
-        elif hasattr(cfg, 'excluded_sources'):  # Field present but None - explicit "no filter"
+        elif hasattr(cfg, "excluded_sources"):  # Field present but None - explicit "no filter"
             # Reload with empty list to ensure all sources are included
             self.refresh_data(excluded_sources=[])
         return self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
@@ -415,7 +415,7 @@ class AppLogic:
         # Reload matches with config's excluded_sources for complete isolation
         if cfg.excluded_sources is not None:
             self.refresh_data(excluded_sources=cfg.excluded_sources)
-        elif hasattr(cfg, 'excluded_sources'):
+        elif hasattr(cfg, "excluded_sources"):
             # Reload with empty list to ensure all sources are included
             self.refresh_data(excluded_sources=[])
         return self.build_slip(cfg, extra_excluded_urls=list(self._manual_excluded))
