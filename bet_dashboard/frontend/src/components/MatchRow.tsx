@@ -113,6 +113,7 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
             league: match.league,
             tier: 0,
             score: 0,
+            predictions: [],
         };
     }
 

@@ -825,7 +825,6 @@ function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
                     const avgAccuracy = data.reduce((sum, s) => sum + s.accuracy, 0) / totalSources;
                     const avgMAE = data.reduce((sum, s) => sum + s.score_mae, 0) / totalSources;
                     const bestSource = data.reduce((best, s) => s.accuracy > best.accuracy ? s : best, data[0]);
-                    const bestMAESource = data.reduce((best, s) => s.score_mae < best.score_mae ? s : best, data[0]);
                     const totalPredictions = data.reduce((sum, s) => sum + s.total_predictions, 0);
 
                     return (
@@ -931,8 +930,8 @@ function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
                                 </td>
                                 <td className="px-4 py-3">
                                     <div className="flex flex-wrap gap-1">
-                                        {row.markets.slice(0, 5).map((mkt: SourceBreakdownMarket, idx: number) => (
-                                            <span key={idx}
+                                        {row.markets.slice(0, 5).map((mkt: SourceBreakdownMarket) => (
+                                            <span key={mkt.market}
                                                 className="text-[9px] font-mono px-1.5 py-0.5 rounded"
                                                 style={{
                                                     background: mkt.accuracy >= 60 ? 'var(--win-bg)' : mkt.accuracy >= 50 ? 'var(--pending-bg)' : 'var(--loss-bg)',
@@ -959,7 +958,7 @@ function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
 
             {/* Detailed Market Breakdown per Source (expandable) */}
             <div className="mt-6 space-y-3">
-                {sorted.map((source, idx) => (
+                {sorted.map((source) => (
                     <details key={source.source} className="group">
                         <summary className="flex items-center justify-between cursor-pointer p-3 rounded-lg bg-black/20 border border-white/5">
                             <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
@@ -980,7 +979,7 @@ function SourceReliabilityCard({ data }: { data: SourceBreakdown[] }) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {source.markets.map((mkt: SourceBreakdownMarket, mIdx: number) => (
+                                    {source.markets.map((mkt: SourceBreakdownMarket) => (
                                         <tr key={mkt.market} style={{ borderBottom: '1px solid var(--border)' }}>
                                             <td className="px-3 py-2 font-mono" style={{ color: 'var(--text-bright)' }}>{mkt.market}</td>
                                             <td className="px-3 py-2 text-right font-mono" style={{ color: 'var(--text-secondary)' }}>{mkt.predictions}</td>
