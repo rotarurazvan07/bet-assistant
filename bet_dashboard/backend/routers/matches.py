@@ -47,6 +47,25 @@ def get_matches(
     only_significant_movement: bool = Query(False),
     excluded_sources: str | None = Query(None),
 ):
+    """Get paginated list of matches with optional filtering and sorting.
+
+    Args:
+        request: FastAPI request object.
+        page: Page number (1-indexed).
+        page_size: Number of matches per page.
+        search: Search term for team names.
+        date_from: Filter matches from this date (ISO format).
+        date_to: Filter matches to this date (ISO format).
+        sort_by: Field to sort by.
+        sort_dir: Sort direction (asc/desc).
+        min_consensus: Minimum consensus percentage.
+        min_odds: Minimum odds value.
+        only_significant_movement: Only show matches with significant odds movement.
+        excluded_sources: Comma-separated list of sources to exclude.
+
+    Returns:
+        Paginated response with matches list and metadata.
+    """
     logic = _get(request).logic
     excluded = excluded_sources.split(",") if excluded_sources else []
     df = logic.filter_matches(

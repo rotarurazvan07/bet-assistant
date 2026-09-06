@@ -288,6 +288,8 @@ ALL_LINKS = [
 
 
 class BetExplorerFinder(BaseMatchFinder):
+    """Finder for BetExplorer football match data and odds."""
+
     # TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:
@@ -295,6 +297,7 @@ class BetExplorerFinder(BaseMatchFinder):
         self._add_match_lock = threading.Lock()
 
     def get_matches_urls(self):
+        """Return list of match URLs to scrape from BetExplorer."""
         urls = []
 
         for url in TOP_LEAGUES if self.top_leagues_only else ALL_LINKS:

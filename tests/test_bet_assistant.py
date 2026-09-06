@@ -41,7 +41,7 @@ from bet_framework.core.scoring import (
     score_sources,
 )
 from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
-from bet_framework.core.types import MarketLabel, MarketType, Outcome
+from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1458,7 +1458,7 @@ class TestSourceReliabilityTracking:
         ba.load_matches(df)
 
         # Test RESULT market predictions - returns only source, home, away (no predicted_outcome)
-        result_preds = ba._build_leg_predictions(ba._df.iloc[0]["_filtered_scores"], MarketLabel.HOME, MarketType.RESULT)
+        result_preds = ba._build_leg_predictions(ba._df.iloc[0]["_filtered_scores"], MarketType.RESULT)
         assert len(result_preds) == 3
         # Should only have source, home, away - no predicted_outcome
         for pred in result_preds:
@@ -1470,7 +1470,7 @@ class TestSourceReliabilityTracking:
         assert result_preds[2] == {"source": "src3", "home": 0, "away": 2}
 
         # Test OVER_UNDER_25 market predictions
-        ou_preds = ba._build_leg_predictions(ba._df.iloc[0]["_filtered_scores"], MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
+        ou_preds = ba._build_leg_predictions(ba._df.iloc[0]["_filtered_scores"], MarketType.OVER_UNDER_25)
         assert len(ou_preds) == 3
         for pred in ou_preds:
             assert set(pred.keys()) == {"source", "home", "away"}

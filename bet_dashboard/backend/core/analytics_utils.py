@@ -155,7 +155,7 @@ def _get_status_value(status) -> str:
 def calculate_daily_summary(
     slips, profile: str | list[str] | None = None, date_from: str | None = None, date_to: str | None = None
 ) -> list[dict[str, Any]]:
-    from bet_framework.core.types import Outcome
+    from bet_framework.core.type_defs import Outcome
 
     settled_slips = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
     settled_slips.sort(key=lambda x: x.date_generated)

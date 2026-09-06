@@ -61,6 +61,57 @@ acronyms:
   "lok. ": "lokomotiva "
   " lok.": " lokomotiva"
 
+  # ── Turkish club suffixes ──────────────────────────────────────────────────
+  " sk": ""
+  " sk.": ""
+  " as": ""
+  " fk": ""
+
+  # ── Turkish character normalization (NFD doesn't decompose dotless i, g-breve, s-cedilla) ─────
+  "ı": "i"
+  "ğ": "g"
+  "ş": "s"
+  "ç": "c"
+  "ö": "o"
+  "ü": "u"
+  "İ": "i"
+  "Ğ": "g"
+  "Ş": "s"
+  "Ç": "c"
+  "Ö": "o"
+  "Ü": "u"
+
+  # ── Polish character normalization ──────────────────────────────────────────
+  "ł": "l"
+  "Ł": "l"
+  "ń": "n"
+  "Ń": "n"
+  "ó": "o"
+  "Ó": "o"
+  "ś": "s"
+  "Ś": "s"
+  "ź": "z"
+  "Ź": "z"
+  "ż": "z"
+  "Ż": "z"
+
+  # ── Romanian character normalization ────────────────────────────────────────
+  "ț": "t"
+  "Ț": "t"
+  "ș": "s"
+  "Ș": "s"
+  "ă": "a"
+  "Ă": "a"
+  "â": "a"
+  "Â": "a"
+  "î": "i"
+  "Î": "i"
+
+  # ── Hebrew punctuation ──────────────────────────────────────────────────────
+  "'": ""
+  "׳": ""
+  "״": ""
+
   # ── Germanic / Nordic ──────────────────────────────────────────────────────
   "borussia ": ""
   "vfb ": ""
@@ -183,6 +234,8 @@ synonyms:
   "porto": "fc porto"
   "benfica": "sl benfica"
   "braga": "sc braga"
+  "vitoria sc": "vitoria guimaraes"
+  "guimaraes": "vitoria guimaraes"
 
   # ── Dutch clubs ────────────────────────────────────────────────────────────
   "psv": "psv eindhoven"
@@ -209,6 +262,9 @@ synonyms:
   "antwerp fc": "royal antwerp"
   "antwerp": "royal antwerp"
   "kv mechelen": "mechelen"
+  "oud heverlee": "leuven"
+  "oh leuven": "leuven"
+  "waasland beveren": "sk beveren"
 
   # ── Scottish clubs ────────────────────────────────────────────────────────
   "celtic": "celtic glasgow"
@@ -223,6 +279,7 @@ synonyms:
   "besiktas": "besiktas jk"
   "trabzonspor": "trabzonspor sk"
   "basaksehir": "istanbul basaksehir"
+  "kasimpasa": "kasimpasa sk"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"

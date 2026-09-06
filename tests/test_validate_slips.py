@@ -5,7 +5,7 @@ import pytest
 
 from bet_framework.BetAssistant import BetAssistant, _parse_match_result_html
 from bet_framework.core.Slip import CandidateLeg
-from bet_framework.core.types import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
 
 # ── Mock Data ────────────────────────────────────────────────────────────────
 

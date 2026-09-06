@@ -72,7 +72,7 @@ from bet_framework.core.Slip import (
     ValidationReport,
     get_profile,
 )
-from bet_framework.core.types import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
 from bet_framework.core.utils import coerce_datetime_str, is_valid_url
 
 logger = get_logger(__name__)
@@ -243,7 +243,6 @@ class BetAssistant(BaseStorageManager):
     def __init__(
         self,
         db_path: str,
-        config_path: str | None = None,
     ) -> None:
         """
         Parameters
@@ -927,7 +926,7 @@ class BetAssistant(BaseStorageManager):
                         mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
 
                         # Build per-source predictions for this leg's market
-                        leg_predictions = self._build_leg_predictions(filtered_scores, label, m_type)
+                        leg_predictions = self._build_leg_predictions(filtered_scores, m_type)
 
                         candidates.append(
                             CandidateLeg(
@@ -950,7 +949,7 @@ class BetAssistant(BaseStorageManager):
         return candidates
 
     def _build_leg_predictions(
-        self, filtered_scores: list[dict], market_label: MarketLabel, market_type: MarketType
+        self, filtered_scores: list[dict], market_type: MarketType
     ) -> list[dict]:
         """
         Build per-source predictions for a specific market from filtered scores.

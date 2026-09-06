@@ -7,7 +7,7 @@ from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 from bet_framework.core.Slip import CandidateLeg
-from bet_framework.core.types import MarketLabel, MarketType
+from bet_framework.core.type_defs import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])

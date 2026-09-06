@@ -13,7 +13,7 @@ Public surface
 
 from __future__ import annotations
 
-from bet_framework.core.types import MarketLabel, MarketType, Outcome
+from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
 
 
 def parse_score(raw: str) -> tuple[int, int]:
