@@ -941,8 +941,8 @@ function SourceMarketCorrelationMatrix({ data, sourceBreakdown }: { data: Source
         <div className="card p-4">
             <div className="flex items-center gap-2 mb-6">
                 <p className="font-mono text-[11px] tracking-widest uppercase"
-                    style={{ color: 'var(--text-secondary)' }}>Source x Market Correlation</p>
-                <TooltipIcon text="Cross-tabulation of prediction accuracy across sources and markets. Green = High accuracy, Red = Low accuracy." align="right" />
+                    style={{ color: 'var(--text-secondary)' }}>Source x Market Type Correlation</p>
+                <TooltipIcon text="Cross-tabulation of prediction accuracy across sources and market types. Green = High accuracy, Red = Low accuracy." align="right" />
             </div>
 
             {/* Source Reliability Summary */}
@@ -961,7 +961,7 @@ function SourceMarketCorrelationMatrix({ data, sourceBreakdown }: { data: Source
                     <thead>
                         <tr className="bg-white/5 border-b border-white/10">
                             <th className="p-3 text-left bg-black/20 sticky left-0 z-10 min-w-[140px]">
-                                <span className="text-[9px] font-mono uppercase text-gray-500">Source \ Market</span>
+                                <span className="text-[9px] font-mono uppercase text-gray-500">Source \ Market Type</span>
                             </th>
                             {data.markets.map(m => (
                                 <th key={m} className="p-3 text-center min-w-[80px]">
