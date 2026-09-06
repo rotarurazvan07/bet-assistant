@@ -269,12 +269,6 @@ export interface SourceMarketCorrelation {
     matrix: Record<string, Record<string, { accuracy: number; total: number }>>;
 }
 
-export interface SourceComprehensiveAccuracy {
-    sources: string[];
-    markets: string[];
-    matrix: Record<string, Record<string, { accuracy: number; total: number; correct: number }>>;
-}
-
 export interface RollingEdgePoint {
     date: string; rolling_edge: number; rolling_win_rate: number;
     rolling_implied: number; sample_size: number;
@@ -318,7 +312,6 @@ export interface AnalyticsData {
     };
     source_breakdown?: SourceBreakdown[];
     source_market_correlation?: SourceMarketCorrelation;
-    source_comprehensive_accuracy?: SourceComprehensiveAccuracy;
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────
