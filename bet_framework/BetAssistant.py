@@ -948,9 +948,7 @@ class BetAssistant(BaseStorageManager):
 
         return candidates
 
-    def _build_leg_predictions(
-        self, filtered_scores: list[dict], market_type: MarketType
-    ) -> list[dict]:
+    def _build_leg_predictions(self, filtered_scores: list[dict], market_type: MarketType) -> list[dict]:
         """
         Build per-source predictions for a specific market from filtered scores.
 
