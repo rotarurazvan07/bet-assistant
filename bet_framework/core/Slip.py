@@ -24,7 +24,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
-from bet_framework.core.types import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
 
 # ── Candidate / Match / Leg data models ───────────────────────────────────────
 

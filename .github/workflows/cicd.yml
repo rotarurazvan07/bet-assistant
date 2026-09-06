@@ -471,7 +471,7 @@ jobs:
             fi
             echo ""
             echo "── TEST RESULTS ──────────────────────────────────────────"
-            for py in 3.10 3.11 3.12; do
+            for py in 3.14; do
               if [ -f "artifacts/test-summary-py${py}/test-summary-py${py}.md" ]; then
                 cat "artifacts/test-summary-py${py}/test-summary-py${py}.md"
               else

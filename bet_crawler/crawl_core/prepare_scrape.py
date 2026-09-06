@@ -16,6 +16,13 @@ logger = get_logger(__name__)
 
 
 def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int]) -> None:
+    """Prepare scraping by collecting URLs and creating chunk tasks.
+
+    Args:
+        runner: Runner type (actions, local, test).
+        crawler_factory: Factory for creating crawler instances.
+        max_chunk_size: Dict mapping runner to max chunk size.
+    """
     crawlers = crawler_factory.create_for_runner(runner)
     if not crawlers:
         logger.error("❌ No crawlers found for runner type.")

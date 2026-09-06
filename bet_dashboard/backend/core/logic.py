@@ -31,8 +31,7 @@ from bet_framework.MatchesManager import MatchesManager
 
 
 class AppLogic:
-    """
-    Unified application logic combining DashboardLogic and service orchestration.
+    """Unified application logic combining DashboardLogic and service orchestration.
 
     Lifecycle:
         1. Created at startup → starts TickerService daemon threads
@@ -170,7 +169,7 @@ class AppLogic:
         url = f"https://github.com/{repo}/releases/download/latest-db/final_matches.db"
         try:
             req = urllib.request.Request(url, method="HEAD")
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310 - URL is hardcoded HTTPS to GitHub
                 etag = resp.headers.get("ETag")
                 if etag and etag != self._last_etag:
                     self._last_etag = etag
@@ -360,7 +359,7 @@ class AppLogic:
             temp_path = tmp.name
 
         try:
-            urllib.request.urlretrieve(url, temp_path)
+            urllib.request.urlretrieve(url, temp_path)  # nosec B310 - URL is hardcoded HTTPS to GitHub
         except urllib.error.URLError as e:
             os.unlink(temp_path)
             raise RuntimeError(f"Failed to download DB from Release: {e}")

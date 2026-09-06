@@ -35,12 +35,16 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class CrawlerRuntimeSettings:
+    """Runtime settings for the crawler loaded from scraper_config.yaml."""
+
     num_days_ahead: int
     local_timezone: str
     skip_patterns: tuple[tuple[str, str], ...]
 
 
 class CrawlerFactory:
+    """Factory for creating crawler instances from configuration."""
+
     def __init__(
         self,
         crawler_keys: dict[str, dict[str, Any]],
@@ -52,10 +56,12 @@ class CrawlerFactory:
         self.runtime_settings = runtime_settings
 
     def create_for_url(self, url: str, on_match_callback: Callable | None = None):
+        """Create a crawler instance for a specific URL."""
         crawler_key = self._crawler_key_for_url(url)
         return self.create(crawler_key, on_match_callback)
 
     def create(self, crawler_key: str, on_match_callback: Callable | None = None):
+        """Create a crawler instance by key."""
         crawler_config = self.crawler_keys[crawler_key]
         crawler_class = self._load_class(crawler_config["class"])
         return crawler_class(
@@ -68,15 +74,19 @@ class CrawlerFactory:
         )
 
     def create_for_runner(self, runner: str, on_match_callback: Callable | None = None):
+        """Create all crawler instances for a runner type."""
         return [self.create(key, on_match_callback) for key in self.runner_keys(runner)]
 
     def runner_keys(self, runner: str) -> list[str]:
+        """Get crawler keys for a runner type."""
         return self.runner_sets.get(runner, [])
 
     def runner_names(self) -> list[str]:
+        """Get all runner type names."""
         return list(self.runner_sets.keys())
 
     def _crawler_key_for_url(self, url: str) -> str:
+        """Find the crawler key that matches a URL."""
         lower_url = url.lower()
         for crawler_key in self.crawler_keys:
             if crawler_key in lower_url:
@@ -84,18 +94,28 @@ class CrawlerFactory:
         raise ValueError(f"No crawler registered for URL: {url}")
 
     def _normalise_runner_sets(self, runner_sets: dict[str, list[str]]) -> dict[str, list[str]]:
+        """Normalise runner sets, adding an 'all' set."""
         normalised = {name: list(crawler_keys) for name, crawler_keys in runner_sets.items()}
         normalised.setdefault("all", list(self.crawler_keys.keys()))
         return normalised
 
     @staticmethod
     def _load_class(class_name: str):
+        """Load a finder class by name from bet_crawler.finders."""
         from bet_crawler import finders
 
         return getattr(finders, class_name)
 
 
 def load_runtime(config_dir: str):
+    """Load runtime configuration from a config directory.
+
+    Args:
+        config_dir: Path to the directory containing scraper_config.yaml and similarity_config.yaml.
+
+    Returns:
+        Dictionary with factory, max_chunk_size, and similarity_config.
+    """
     configure(config_dir)
     settings = SettingsManager(config_dir)
     scraper_config = settings.get("scraper_config")
@@ -119,6 +139,14 @@ def load_runtime(config_dir: str):
 
 
 def load_profile(profile_path: str) -> tuple[str, dict[str, Any]]:
+    """Load a profile configuration from a YAML file.
+
+    Args:
+        profile_path: Path to the profile YAML file.
+
+    Returns:
+        Tuple of (profile_name, profile_data_dict).
+    """
     settings = SettingsManager(profile_path)
     profile_name = os.path.basename(profile_path).split(".")[0]
     profile_data = settings.get(profile_name)

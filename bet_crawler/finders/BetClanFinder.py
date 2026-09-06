@@ -24,10 +24,13 @@ URLS = [
 
 
 class BetClanFinder(BaseMatchFinder):
+    """Finder for BetClan football predictions."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return list of match URLs to scrape from BetClan."""
         matches_urls = []
         for url in URLS:
             page = fetch(url, stealthy_headers=False)
@@ -40,6 +43,7 @@ class BetClanFinder(BaseMatchFinder):
         return matches_urls
 
     def get_matches(self, urls) -> None:
+        """Scrape match details from a list of URLs."""
         scrape(
             urls,
             self._parse_page,
@@ -48,6 +52,7 @@ class BetClanFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse a single match page and add match via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
 
