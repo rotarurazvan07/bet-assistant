@@ -350,14 +350,12 @@ synonyms:
   "newell's old boys": "newells old boys"
   "newells": "newells old boys"
   "newell's": "newells old boys"
-  "velez sarsfield": "velez sarsfield"
   "vélez sarsfield": "velez sarsfield"
   "velez": "velez sarsfield"
 
   # ── Polish clubs ───────────────────────────────────────────────────────────
   "puszczanie": "puszczanie niepolomice"
   "puszczanie niepołomice": "puszczanie niepolomice"
-  "lks lodz": "lks lodz"
   "łks łódź": "lks lodz"
 
 weak_tokens:
