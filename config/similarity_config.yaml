@@ -12,9 +12,6 @@ acronyms:
   "cf ": ""
   "rfc ": ""
   " rfc": ""
-  # Common abbreviation: "M." -> "Munich" (Bayern M. vs Bayern Munich)
-  " m.": " munich"
-  "m. ": "munich "
 
   # ── Spanish / Portuguese / Latin American ─────────────────────────────────
   "al ": ""
@@ -168,7 +165,6 @@ acronyms:
   "bodø": "bodo"
   "bodö": "bodo"
   "bodoe": "bodo"
-  "glimt": "glimt"
 
 synonyms:
   # ── English clubs ──────────────────────────────────────────────────────────
@@ -323,12 +319,6 @@ synonyms:
 
   # ── Norwegian clubs ───────────────────────────────────────────────────────
   "ham-kam": "hamkam"
-  # Bodø/Glimt
-  "bodo glimt": "bodo glimt"
-  "bodø glimt": "bodo glimt"
-  "bodo/gli": "bodo glimt"
-  "bodø/gli": "bodo glimt"
-  "bodoe glimt": "bodo glimt"
 
   # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
@@ -362,17 +352,13 @@ synonyms:
   "newell's": "newells old boys"
   "velez sarsfield": "velez sarsfield"
   "vélez sarsfield": "velez sarsfield"
-  "velez sarsfield": "velez sarsfield"
   "velez": "velez sarsfield"
 
   # ── Polish clubs ───────────────────────────────────────────────────────────
   "puszczanie": "puszczanie niepolomice"
   "puszczanie niepołomice": "puszczanie niepolomice"
-  "puszczanie niepolomice": "puszczanie niepolomice"
   "lks lodz": "lks lodz"
   "łks łódź": "lks lodz"
-  "lks łódź": "lks lodz"
-  "lks lodz": "lks lodz"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
