@@ -12,6 +12,9 @@ acronyms:
   "cf ": ""
   "rfc ": ""
   " rfc": ""
+  # Common abbreviation: "M." -> "Munich" (Bayern M. vs Bayern Munich)
+  " m.": " munich"
+  "m. ": "munich "
 
   # ── Spanish / Portuguese / Latin American ─────────────────────────────────
   "al ": ""
@@ -128,6 +131,9 @@ acronyms:
   " ik": ""
   "gf ": ""
   " gf": ""
+  # German club: "München" -> "Munich"
+  "münchen ": "munich "
+  " münchen": " munich"
 
   # ── Italian / French ───────────────────────────────────────────────────────
   "ac ": ""
@@ -143,6 +149,9 @@ acronyms:
   " stade": ""
   "olympique ": ""
   " olympique": ""
+  # French club abbreviation: "FCO" -> "" (Dijon FCO)
+  "fco ": ""
+  " fco": ""
 
   # ── Middle East / North Africa ─────────────────────────────────────────────
   "el ": ""
@@ -153,6 +162,13 @@ acronyms:
   "sporting ": ""
   " sporting": ""
   # Note: do NOT strip "city" – it is discriminative (Man City ≠ Man United)
+
+  # ── Norwegian / Nordic ──────────────────────────────────────────────────────
+  # Bodø/Glimt variants
+  "bodø": "bodo"
+  "bodö": "bodo"
+  "bodoe": "bodo"
+  "glimt": "glimt"
 
 synonyms:
   # ── English clubs ──────────────────────────────────────────────────────────
@@ -203,6 +219,11 @@ synonyms:
   "rb leipzig": "rasenballsport leipzig"
   "rbl": "rasenballsport leipzig"
   "hertha": "hertha berlin"
+  # Bayern Munich abbreviations
+  "bayern m.": "bayern munich"
+  "bayern münchen": "bayern munich"
+  "bayern munchen": "bayern munich"
+  "bayern": "bayern munich"
 
   # ── Italian clubs ──────────────────────────────────────────────────────────
   "inter": "inter milan"
@@ -228,6 +249,8 @@ synonyms:
   "nantes": "fc nantes"
   "rennes": "stade rennais"
   "strasbourg": "rc strasbourg"
+  # Dijon FCO
+  "dijon fco": "dijon"
 
   # ── Portuguese clubs ───────────────────────────────────────────────────────
   "sporting cp": "sporting lisbon"
@@ -300,6 +323,12 @@ synonyms:
 
   # ── Norwegian clubs ───────────────────────────────────────────────────────
   "ham-kam": "hamkam"
+  # Bodø/Glimt
+  "bodo glimt": "bodo glimt"
+  "bodø glimt": "bodo glimt"
+  "bodo/gli": "bodo glimt"
+  "bodø/gli": "bodo glimt"
+  "bodoe glimt": "bodo glimt"
 
   # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
@@ -325,6 +354,25 @@ synonyms:
 
   # ── South American clubs ───────────────────────────────────────────────────
   "o'higgins": "ohiggins"
+
+  # ── Argentine clubs ────────────────────────────────────────────────────────
+  "newells old boys": "newells old boys"
+  "newell's old boys": "newells old boys"
+  "newells": "newells old boys"
+  "newell's": "newells old boys"
+  "velez sarsfield": "velez sarsfield"
+  "vélez sarsfield": "velez sarsfield"
+  "velez sarsfield": "velez sarsfield"
+  "velez": "velez sarsfield"
+
+  # ── Polish clubs ───────────────────────────────────────────────────────────
+  "puszczanie": "puszczanie niepolomice"
+  "puszczanie niepołomice": "puszczanie niepolomice"
+  "puszczanie niepolomice": "puszczanie niepolomice"
+  "lks lodz": "lks lodz"
+  "łks łódź": "lks lodz"
+  "lks łódź": "lks lodz"
+  "lks lodz": "lks lodz"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
