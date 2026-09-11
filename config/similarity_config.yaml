@@ -131,6 +131,9 @@ acronyms:
   # German club: "München" -> "Munich"
   "münchen ": "munich "
   " münchen": " munich"
+  # German club: "Köln" -> "Cologne"
+  "köln ": "cologne "
+  " köln": " cologne"
 
   # ── Italian / French ───────────────────────────────────────────────────────
   "ac ": ""
@@ -149,6 +152,15 @@ acronyms:
   # French club abbreviation: "FCO" -> "" (Dijon FCO)
   "fco ": ""
   " fco": ""
+  # Argentine club abbreviations (appear in 3+ runs, score 56)
+  "newell's ob ": "newell's old boys "
+  " newell's ob": " newell's old boys"
+  "newells ob ": "newells old boys "
+  " newells ob": " newells old boys"
+  "vélez s. ": "vélez sarsfield "
+  " vélez s.": " vélez sarsfield"
+  "velez s. ": "velez sarsfield "
+  " velez s.": " velez sarsfield"
 
   # ── Middle East / North Africa ─────────────────────────────────────────────
   "el ": ""
@@ -220,6 +232,11 @@ synonyms:
   "bayern münchen": "bayern munich"
   "bayern munchen": "bayern munich"
   "bayern": "bayern munich"
+  # FC Köln / Cologne
+  "fc köln": "fc cologne"
+  "fc koln": "fc cologne"
+  "köln": "cologne"
+  "koln": "cologne"
 
   # ── Italian clubs ──────────────────────────────────────────────────────────
   "inter": "inter milan"
@@ -247,6 +264,8 @@ synonyms:
   "strasbourg": "rc strasbourg"
   # Dijon FCO
   "dijon fco": "dijon"
+  # Stade Laval / Stade Lavallois (2 runs, score 63)
+  "stade laval": "stade lavallois"
 
   # ── Portuguese clubs ───────────────────────────────────────────────────────
   "sporting cp": "sporting lisbon"
@@ -352,6 +371,11 @@ synonyms:
   "newell's": "newells old boys"
   "vélez sarsfield": "velez sarsfield"
   "velez": "velez sarsfield"
+  # Abbreviated forms from NEAR-MISS (3 runs, score 56)
+  "newell's ob": "newells old boys"
+  "newells ob": "newells old boys"
+  "vélez s.": "velez sarsfield"
+  "velez s.": "velez sarsfield"
 
   # ── Polish clubs ───────────────────────────────────────────────────────────
   "puszczanie": "puszczanie niepolomice"
