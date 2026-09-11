@@ -128,8 +128,6 @@ acronyms:
   " ik": ""
   "gf ": ""
   " gf": ""
-  # German club: "München" -> "Munich" (handled in synonyms)
-  # German club: "Köln" -> "Cologne" (handled in synonyms)
 
   # ── Italian / French ───────────────────────────────────────────────────────
   "ac ": ""
@@ -148,9 +146,6 @@ acronyms:
   # French club abbreviation: "FCO" -> "" (Dijon FCO)
   "fco ": ""
   " fco": ""
-  # Argentine club abbreviations (appear in 3+ runs, score 56) - handled in synonyms
-  # "newell's ob " -> "newell's old boys " (moved to synonyms)
-  # "vélez s. " -> "vélez sarsfield " (moved to synonyms)
 
   # ── Middle East / North Africa ─────────────────────────────────────────────
   "el ": ""
@@ -163,10 +158,6 @@ acronyms:
   # Note: do NOT strip "city" – it is discriminative (Man City ≠ Man United)
 
   # ── Norwegian / Nordic ──────────────────────────────────────────────────────
-  # Bodø/Glimt character normalization (handled in synonyms)
-  # "bodø": "bodo" (moved to synonyms)
-  # "bodö": "bodo" (moved to synonyms)
-  # "bodoe": "bodo" (moved to synonyms)
 
 synonyms:
   # ── English clubs ──────────────────────────────────────────────────────────
@@ -333,7 +324,6 @@ synonyms:
   "bodø": "bodo"
   "bodö": "bodo"
   "bodoe": "bodo"
-  "glimt": "glimt"
 
   # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
