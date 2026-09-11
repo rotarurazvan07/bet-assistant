@@ -128,12 +128,8 @@ acronyms:
   " ik": ""
   "gf ": ""
   " gf": ""
-  # German club: "München" -> "Munich"
-  "münchen ": "munich "
-  " münchen": " munich"
-  # German club: "Köln" -> "Cologne"
-  "köln ": "cologne "
-  " köln": " cologne"
+  # German club: "München" -> "Munich" (handled in synonyms)
+  # German club: "Köln" -> "Cologne" (handled in synonyms)
 
   # ── Italian / French ───────────────────────────────────────────────────────
   "ac ": ""
@@ -152,15 +148,9 @@ acronyms:
   # French club abbreviation: "FCO" -> "" (Dijon FCO)
   "fco ": ""
   " fco": ""
-  # Argentine club abbreviations (appear in 3+ runs, score 56)
-  "newell's ob ": "newell's old boys "
-  " newell's ob": " newell's old boys"
-  "newells ob ": "newells old boys "
-  " newells ob": " newells old boys"
-  "vélez s. ": "vélez sarsfield "
-  " vélez s.": " vélez sarsfield"
-  "velez s. ": "velez sarsfield "
-  " velez s.": " velez sarsfield"
+  # Argentine club abbreviations (appear in 3+ runs, score 56) - handled in synonyms
+  # "newell's ob " -> "newell's old boys " (moved to synonyms)
+  # "vélez s. " -> "vélez sarsfield " (moved to synonyms)
 
   # ── Middle East / North Africa ─────────────────────────────────────────────
   "el ": ""
@@ -173,10 +163,10 @@ acronyms:
   # Note: do NOT strip "city" – it is discriminative (Man City ≠ Man United)
 
   # ── Norwegian / Nordic ──────────────────────────────────────────────────────
-  # Bodø/Glimt variants
-  "bodø": "bodo"
-  "bodö": "bodo"
-  "bodoe": "bodo"
+  # Bodø/Glimt character normalization (handled in synonyms)
+  # "bodø": "bodo" (moved to synonyms)
+  # "bodö": "bodo" (moved to synonyms)
+  # "bodoe": "bodo" (moved to synonyms)
 
 synonyms:
   # ── English clubs ──────────────────────────────────────────────────────────
@@ -232,6 +222,7 @@ synonyms:
   "bayern münchen": "bayern munich"
   "bayern munchen": "bayern munich"
   "bayern": "bayern munich"
+  "münchen": "munich"
   # FC Köln / Cologne
   "fc köln": "fc cologne"
   "fc koln": "fc cologne"
@@ -338,6 +329,11 @@ synonyms:
 
   # ── Norwegian clubs ───────────────────────────────────────────────────────
   "ham-kam": "hamkam"
+  # Bodø/Glimt character normalization
+  "bodø": "bodo"
+  "bodö": "bodo"
+  "bodoe": "bodo"
+  "glimt": "glimt"
 
   # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
@@ -369,11 +365,10 @@ synonyms:
   "newell's old boys": "newells old boys"
   "newells": "newells old boys"
   "newell's": "newells old boys"
-  "vélez sarsfield": "velez sarsfield"
-  "velez": "velez sarsfield"
-  # Abbreviated forms from NEAR-MISS (3 runs, score 56)
   "newell's ob": "newells old boys"
   "newells ob": "newells old boys"
+  "vélez sarsfield": "velez sarsfield"
+  "velez": "velez sarsfield"
   "vélez s.": "velez sarsfield"
   "velez s.": "velez sarsfield"
 
