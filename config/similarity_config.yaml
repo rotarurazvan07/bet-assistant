@@ -256,6 +256,8 @@ synonyms:
   "braga": "sc braga"
   "vitoria sc": "vitoria guimaraes"
   "guimaraes": "vitoria guimaraes"
+  "sporting lisbon": "sporting lisboa"
+  "sporting lisboa": "sporting lisbon"
 
   # ── Dutch clubs ────────────────────────────────────────────────────────────
   "psv": "psv eindhoven"
@@ -263,6 +265,8 @@ synonyms:
   "az": "az alkmaar"
   "feyenoord": "feyenoord rotterdam"
   "utrecht": "fc utrecht"
+  "nec": "nijmegen"
+  "nijmegen": "nec"
 
   # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
@@ -300,17 +304,25 @@ synonyms:
   "trabzonspor": "trabzonspor sk"
   "basaksehir": "istanbul basaksehir"
   "kasimpasa": "kasimpasa sk"
+  "amedspor": "amed sportif faaliyetler"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"
   "fc salzburg": "red bull salzburg"
   "salzburg": "red bull salzburg"
   "rapid vienna": "rapid wien"
+  "rapid": "rapid bucuresti"
 
   # ── Swiss clubs ───────────────────────────────────────────────────────────
   "young boys": "bsc young boys"
   "basel": "fc basel"
   "zurich": "fc zurich"
+  "lucerne": "luzern"
+  "basle": "basel"
+
+  # ── Finnish clubs ──────────────────────────────────────────────────────────
+  "mariehamn": "ifk mariehamn"
+  "turku ps": "tps"
 
   # ── Danish clubs ──────────────────────────────────────────────────────────
   "copenhagen": "fc copenhagen"
