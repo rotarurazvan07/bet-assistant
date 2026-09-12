@@ -143,6 +143,9 @@ acronyms:
   " stade": ""
   "olympique ": ""
   " olympique": ""
+  # French club abbreviation: "FCO" -> "" (Dijon FCO)
+  "fco ": ""
+  " fco": ""
 
   # ── Middle East / North Africa ─────────────────────────────────────────────
   "el ": ""
@@ -153,6 +156,8 @@ acronyms:
   "sporting ": ""
   " sporting": ""
   # Note: do NOT strip "city" – it is discriminative (Man City ≠ Man United)
+
+  # ── Norwegian / Nordic ──────────────────────────────────────────────────────
 
 synonyms:
   # ── English clubs ──────────────────────────────────────────────────────────
@@ -203,6 +208,17 @@ synonyms:
   "rb leipzig": "rasenballsport leipzig"
   "rbl": "rasenballsport leipzig"
   "hertha": "hertha berlin"
+  # Bayern Munich abbreviations
+  "bayern m.": "bayern munich"
+  "bayern münchen": "bayern munich"
+  "bayern munchen": "bayern munich"
+  "bayern": "bayern munich"
+  "münchen": "munich"
+  # FC Köln / Cologne
+  "fc köln": "fc cologne"
+  "fc koln": "fc cologne"
+  "köln": "cologne"
+  "koln": "cologne"
 
   # ── Italian clubs ──────────────────────────────────────────────────────────
   "inter": "inter milan"
@@ -228,6 +244,10 @@ synonyms:
   "nantes": "fc nantes"
   "rennes": "stade rennais"
   "strasbourg": "rc strasbourg"
+  # Dijon FCO
+  "dijon fco": "dijon"
+  # Stade Laval / Stade Lavallois (2 runs, score 63)
+  "stade laval": "stade lavallois"
 
   # ── Portuguese clubs ───────────────────────────────────────────────────────
   "sporting cp": "sporting lisbon"
@@ -236,6 +256,8 @@ synonyms:
   "braga": "sc braga"
   "vitoria sc": "vitoria guimaraes"
   "guimaraes": "vitoria guimaraes"
+  "sporting lisbon": "sporting lisboa"
+  "sporting lisboa": "sporting lisbon"
 
   # ── Dutch clubs ────────────────────────────────────────────────────────────
   "psv": "psv eindhoven"
@@ -243,6 +265,8 @@ synonyms:
   "az": "az alkmaar"
   "feyenoord": "feyenoord rotterdam"
   "utrecht": "fc utrecht"
+  "nec": "nijmegen"
+  "nijmegen": "nec"
 
   # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
@@ -280,17 +304,25 @@ synonyms:
   "trabzonspor": "trabzonspor sk"
   "basaksehir": "istanbul basaksehir"
   "kasimpasa": "kasimpasa sk"
+  "amedspor": "amed sportif faaliyetler"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"
   "fc salzburg": "red bull salzburg"
   "salzburg": "red bull salzburg"
   "rapid vienna": "rapid wien"
+  "rapid": "rapid bucuresti"
 
   # ── Swiss clubs ───────────────────────────────────────────────────────────
   "young boys": "bsc young boys"
   "basel": "fc basel"
   "zurich": "fc zurich"
+  "lucerne": "luzern"
+  "basle": "basel"
+
+  # ── Finnish clubs ──────────────────────────────────────────────────────────
+  "mariehamn": "ifk mariehamn"
+  "turku ps": "tps"
 
   # ── Danish clubs ──────────────────────────────────────────────────────────
   "copenhagen": "fc copenhagen"
@@ -300,6 +332,10 @@ synonyms:
 
   # ── Norwegian clubs ───────────────────────────────────────────────────────
   "ham-kam": "hamkam"
+  # Bodø/Glimt character normalization
+  "bodø": "bodo"
+  "bodö": "bodo"
+  "bodoe": "bodo"
 
   # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
@@ -325,6 +361,23 @@ synonyms:
 
   # ── South American clubs ───────────────────────────────────────────────────
   "o'higgins": "ohiggins"
+
+  # ── Argentine clubs ────────────────────────────────────────────────────────
+  "newells old boys": "newells old boys"
+  "newell's old boys": "newells old boys"
+  "newells": "newells old boys"
+  "newell's": "newells old boys"
+  "newell's ob": "newells old boys"
+  "newells ob": "newells old boys"
+  "vélez sarsfield": "velez sarsfield"
+  "velez": "velez sarsfield"
+  "vélez s.": "velez sarsfield"
+  "velez s.": "velez sarsfield"
+
+  # ── Polish clubs ───────────────────────────────────────────────────────────
+  "puszczanie": "puszczanie niepolomice"
+  "puszczanie niepołomice": "puszczanie niepolomice"
+  "łks łódź": "lks lodz"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
