@@ -231,6 +231,7 @@ synonyms:
 
   # ── Portuguese clubs ───────────────────────────────────────────────────────
   "sporting cp": "sporting lisbon"
+  "sporting lisboa": "sporting lisbon"
   "porto": "fc porto"
   "benfica": "sl benfica"
   "braga": "sc braga"
@@ -243,6 +244,8 @@ synonyms:
   "az": "az alkmaar"
   "feyenoord": "feyenoord rotterdam"
   "utrecht": "fc utrecht"
+  "jong utrecht": "fc utrecht reserves"
+  "jong ajax": "ajax reserves"
 
   # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
@@ -280,6 +283,9 @@ synonyms:
   "trabzonspor": "trabzonspor sk"
   "basaksehir": "istanbul basaksehir"
   "kasimpasa": "kasimpasa sk"
+  "amed sk": "amedspor"
+  "amed sportif": "amedspor"
+  "amed": "amedspor"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"
@@ -298,11 +304,11 @@ synonyms:
   "fc kobenhavn": "fc copenhagen"
   "midtjylland": "fc midtjylland"
 
-  # ── Norwegian clubs ───────────────────────────────────────────────────────
+  # ── Nordic clubs (Finland, Norway, Sweden, Denmark misc) ──────────────────
   "ham-kam": "hamkam"
-
-  # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
+  "bodo glimt": "bodo/glimt"
+  "inter turku": "fc inter"
 
   # ── Croatian clubs ────────────────────────────────────────────────────────
   "dinamo zagreb": "gnk dinamo zagreb"
@@ -325,6 +331,9 @@ synonyms:
 
   # ── South American clubs ───────────────────────────────────────────────────
   "o'higgins": "ohiggins"
+  "guadalajara chivas": "chivas guadalajara"
+  "a. italiano": "audax italiano"
+  "alianza": "alianza lima"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
