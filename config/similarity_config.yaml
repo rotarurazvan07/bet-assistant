@@ -243,6 +243,8 @@ synonyms:
   "az": "az alkmaar"
   "feyenoord": "feyenoord rotterdam"
   "utrecht": "fc utrecht"
+  "jong utrecht": "fc utrecht reserves"
+  "jong ajax": "ajax reserves"
 
   # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
@@ -280,6 +282,8 @@ synonyms:
   "trabzonspor": "trabzonspor sk"
   "basaksehir": "istanbul basaksehir"
   "kasimpasa": "kasimpasa sk"
+  "amed sk": "amedspor"
+  "amed sportif": "amedspor"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"
@@ -298,10 +302,8 @@ synonyms:
   "fc kobenhavn": "fc copenhagen"
   "midtjylland": "fc midtjylland"
 
-  # ── Norwegian clubs ───────────────────────────────────────────────────────
+  # ── Nordic clubs (Finland, Norway, Sweden, Denmark misc) ──────────────────
   "ham-kam": "hamkam"
-
-  # ── Danish / Nordic misc ──────────────────────────────────────────────────
   "aab": "aalborg"
 
   # ── Croatian clubs ────────────────────────────────────────────────────────
@@ -325,6 +327,8 @@ synonyms:
 
   # ── South American clubs ───────────────────────────────────────────────────
   "o'higgins": "ohiggins"
+  "guadalajara chivas": "chivas guadalajara"
+  "a. italiano": "audax italiano"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
