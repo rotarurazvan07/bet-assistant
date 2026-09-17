@@ -245,6 +245,7 @@ synonyms:
   "utrecht": "fc utrecht"
   "jong utrecht": "fc utrecht reserves"
   "jong ajax": "ajax reserves"
+  "nec": "nijmegen"
 
   # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
@@ -284,6 +285,10 @@ synonyms:
   "kasimpasa": "kasimpasa sk"
   "amed sk": "amedspor"
   "amed sportif": "amedspor"
+  "igdir fk": "76 igdir belediyespor"
+
+  # ── Romanian clubs ────────────────────────────────────────────────────────
+  "rapid": "rapid bucuresti"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"
@@ -317,6 +322,9 @@ synonyms:
   "paok fc": "paok thessaloniki"
   "paok": "paok thessaloniki"
 
+  # ── Israeli clubs ─────────────────────────────────────────────────────────
+  "hapoel ra'anana": "hapoel raanana"
+
   # ── American clubs ─────────────────────────────────────────────────────────
   "nycfc": "new york city"
   "lafc": "los angeles"
@@ -329,6 +337,7 @@ synonyms:
   "o'higgins": "ohiggins"
   "guadalajara chivas": "chivas guadalajara"
   "a. italiano": "audax italiano"
+  "gualberto villarroel sj": "gv san jose"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
@@ -372,7 +381,7 @@ weak_tokens:
 #     • "Manchester City"   strong = {city}
 #     • "Manchester United" strong = {united}
 #   Because "manchester" is weak, the strong sets are disjoint → strong-token
-#   enforcement caps the score → they never merge.  Correct behaviour.
+  # enforcement caps the score → they never merge.  Correct behaviour.
 #
 #   If you added "city" / "united" to weak_tokens BOTH names would have empty
 #   strong sets, enforcement would never fire, and the raw fuzzy scores (~63-70)
