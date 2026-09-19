@@ -194,6 +194,7 @@ synonyms:
   "betis": "real betis"
   "sociedad": "real sociedad"
   "vallecano": "rayo vallecano"
+  "athletic club mg": "athletic bilbao"
 
   # ── German clubs ───────────────────────────────────────────────────────────
   "bvb": "borussia dortmund"
@@ -205,6 +206,7 @@ synonyms:
   "hertha": "hertha berlin"
   "hamburger sv": "hamburg"
   "fc koln": "cologne"
+  "monchengladbach": "borussia monchengladbach"
 
   # ── German character normalization ─────────────────────────────────────────
   "ö": "o"
@@ -325,6 +327,7 @@ synonyms:
   # ── Croatian clubs ────────────────────────────────────────────────────────
   "dinamo zagreb": "gnk dinamo zagreb"
   "hajduk": "hajduk split"
+  "varteks": "varazdin"
 
   # ── Greek clubs ───────────────────────────────────────────────────────────
   "olympiakos": "olympiacos"
