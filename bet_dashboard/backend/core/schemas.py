@@ -175,8 +175,8 @@ class OddsMovementSummary(BaseModel):
     under_35: str | None = None
     over_45: str | None = None
     under_45: str | None = None
-    btts_y: str | None = None
-    btts_n: str | None = None
+    btts_yes: str | None = None
+    btts_no: str | None = None
     dc_1x: str | None = None
     dc_12: str | None = None
     dc_x2: str | None = None
