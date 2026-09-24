@@ -246,3 +246,7 @@ memory-bank
 .clinerules
 .roo/
 _bmad*/
+# Playwright artifacts
+bet_dashboard/frontend/test-results/
+bet_dashboard/frontend/playwright-report/
+bet_dashboard/frontend/.playwright-cache/
