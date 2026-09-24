@@ -20,6 +20,10 @@ export default defineConfig({
         // vitest 5 removed `poolOptions` from the config schema — defaults apply.
         pool: 'threads',
         isolate: false,
+        // Serialize test files through the single shared worker: parallel
+        // thread workers each pay ~45-60s jsdom+MSW env setup under container
+        // CPU and can lose vitest's hardcoded 60s worker-start race.
+        fileParallelism: false,
         coverage: {
             provider: 'v8',
             reporter: ['text', 'html', 'lcov'],
