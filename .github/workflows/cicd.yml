@@ -1,5 +1,6 @@
 name: CI
 
+
 on:
   push:
     branches: ["main"]
@@ -16,17 +17,15 @@ env:
 
   # Source directories (space-separated for tools like mypy, radon, etc.)
   SRC_DIR: "bet_crawler bet_dashboard/backend bet_framework"
-  TEST_DIR: "tests"
+  # All three Python test suites (auto-fix covers the full corpus)
+  TEST_DIR: "tests bet_crawler/tests bet_dashboard/backend/tests"
 
-  # Coverage threshold
-  COVERAGE_FAIL_UNDER: "10"
-
-  # Requirements files (template - customize these for your project)
+  # Requirements files
   REQUIREMENTS_FILES: |
     bet_dashboard/backend/requirements.txt
     setup/requirements-scrape.txt
 
-  # Additional install commands (e.g., scrapling install, playwright install)
+  # Additional install commands (scrapling: Camoufox binaries for finders)
   POST_INSTALL_CMDS: "scrapling install"
 
 jobs:
@@ -59,10 +58,10 @@ jobs:
           # Process all source and test directories
           autoflake --in-place --recursive             --remove-all-unused-imports --remove-unused-variables             --exclude .venv,__pycache__             $SRC_DIR $TEST_DIR
 
-      - name: pyupgrade — modernise syntax to Python 3.10+
+      - name: pyupgrade — modernise syntax to Python 3.14+
         run: |
-          # Process all source and test directories
-          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py310-plus || true
+          # CI is 3.14-only (D-F); target the interpreter we actually run
+          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py314-plus || true
 
       - name: autotyping — infer trivial return type annotations
         run: |
@@ -77,13 +76,15 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py310             $SRC_DIR $TEST_DIR
+          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
           # Process all source and test directories
-          ruff check --select E,F,B,C,SIM,PERF --ignore UP           --fix --unsafe-fixes --output-format=concise           $SRC_DIR $TEST_DIR || true
-          ruff check --select E,F,B,C,SIM,PERF --ignore UP           --fix --unsafe-fixes --output-format=github           $SRC_DIR $TEST_DIR || true
+          # --line-length 127 matches project convention (ruff.toml header
+          # + AGENTS.md) — without it ruff defaults to 88 and floods E501s
+          ruff check --select E,F,B,C,SIM,PERF --ignore UP --line-length 127           --fix --unsafe-fixes --output-format=concise           $SRC_DIR $TEST_DIR || true
+          ruff check --select E,F,B,C,SIM,PERF --ignore UP --line-length 127           --fix --unsafe-fixes --output-format=github           $SRC_DIR $TEST_DIR || true
 
       - name: Commit fixes (if any)
         run: |
@@ -106,7 +107,7 @@ jobs:
           retention-days: 14
           path: ruff-fix-output.txt
 
-  # ── 2. TESTS ─────────────────────────────────────────────────────────────
+  # ── 2. TESTS (three per-suite invocations — D-A) ─────────────────────────
   test:
     name: "Test (Python ${{ matrix.python-version }})"
     runs-on: ubuntu-latest
@@ -129,7 +130,7 @@ jobs:
 
       - name: Install project and test deps
         run: |
-          # Install dependencies from requirements files (template-driven)
+          # Install dependencies from requirements files
           echo "Installing requirements from:"
           echo "$REQUIREMENTS_FILES"
           while IFS= read -r req_file; do
@@ -142,35 +143,49 @@ jobs:
             fi
           done <<< "$REQUIREMENTS_FILES"
 
-          # Install test dependencies
-          pip install pytest pytest-cov pytest-xdist pytest-timeout
+          # Test dependencies (D-C: asyncio + hypothesis for backend WS
+          # strict-mode tests and hypothesis property suites)
+          pip install pytest pytest-cov pytest-xdist pytest-timeout pytest-asyncio hypothesis
 
-          # Set PYTHONPATH to include source directories for local package imports
-          echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
-
-          # Run any post-install commands (e.g., scrapling install, playwright install)
+          # scrapling install: finders import scrape_kit (backed by scrapling
+          # Camoufox); crawler tests import the finders package
           if [ -n "$POST_INSTALL_CMDS" ]; then
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
           fi
 
-
-      - name: Run tests
+      - name: Run tests — framework suite (root tests/)
+        # D-A: per-suite invocations. A combined 'pytest tests/ bet_crawler/tests
+        # bet_dashboard/backend/tests' from repo root resolves rootdir=repo root
+        # where NO pytest.ini exists → per-suite addopts (pythonpath, --cov
+        # targets, cycle-14 --cov-fail-under gates) never apply → root suite
+        # imports of bet_framework FAIL and all gates vanish. cd per suite makes
+        # local = CI exactly.
+        # D-B: NO CLI --cov/--cov-fail-under here — they would override the
+        # ini gates from cycle 14 (f26a130). Only report formats are added.
+        working-directory: tests
         run: |
-          # Build --cov arguments for each directory in SRC_DIR
-          COV_ARGS=""
-          for dir in $SRC_DIR; do
-            COV_ARGS="$COV_ARGS --cov=$dir"
-          done
+          python -m pytest             --cov-report=term-missing             --cov-report=xml:coverage-framework.xml             --junitxml=test-results-framework.xml             --timeout=60             -n auto -v
 
-          pytest $COV_ARGS             --cov-report=term-missing             --cov-report=xml:coverage.xml             --cov-report=html:htmlcov             --cov-fail-under=$COVERAGE_FAIL_UNDER             --junitxml=test-results.xml             --timeout=60             -n auto -v $TEST_DIR
+      - name: Run tests — backend suite (bet_dashboard/backend/tests)
+        working-directory: bet_dashboard/backend
+        run: |
+          python -m pytest tests/             --cov-report=term-missing             --cov-report=xml:coverage-backend.xml             --junitxml=test-results-backend.xml             --timeout=60             -n auto -v
 
-      - name: Upload coverage report
+      - name: Run tests — crawler suite (bet_crawler/tests)
+        working-directory: bet_crawler
+        run: |
+          python -m pytest tests/             --cov-report=term-missing             --cov-report=xml:coverage-crawler.xml             --junitxml=test-results-crawler.xml             --timeout=60             -n auto -v
+
+      - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-html-py${{ matrix.python-version }}
-          path: htmlcov/
+          name: coverage-xml-py${{ matrix.python-version }}
+          path: |
+            tests/coverage-framework.xml
+            bet_dashboard/backend/coverage-backend.xml
+            bet_crawler/coverage-crawler.xml
           retention-days: 14
 
       - name: Upload test results
@@ -178,40 +193,53 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-py${{ matrix.python-version }}
-          path: test-results.xml
+          path: |
+            tests/test-results-framework.xml
+            bet_dashboard/backend/test-results-backend.xml
+            bet_crawler/test-results-crawler.xml
           retention-days: 14
 
-      - name: Upload test summary
+      - name: Generate per-suite test summary
         if: always()
         run: |
           SUMMARY_FILE="test-summary-py${{ matrix.python-version }}.md"
           echo "## Python ${{ matrix.python-version }} Test Summary" > "$SUMMARY_FILE"
           echo "" >> "$SUMMARY_FILE"
-          if [ -f test-results.xml ]; then
-            TESTS=$(python3 -c "
-            import xml.etree.ElementTree as ET
-            tree = ET.parse('test-results.xml')
-            root = tree.getroot()
-            tests = int(root.get('tests', 0))
-            failures = int(root.get('failures', 0))
-            errors = int(root.get('errors', 0))
-            skipped = int(root.get('skipped', 0))
-            passed = tests - failures - errors - skipped
-            print(f'Passed: {passed}, Failed: {failures}, Errors: {errors}, Skipped: {skipped}, Total: {tests}')
-            " 2>/dev/null || echo "N/A")
-            echo "Results: $TESTS" >> "$SUMMARY_FILE"
-          fi
-          if [ -f coverage.xml ]; then
-            COV=$(python3 -c "
-            import xml.etree.ElementTree as ET
-            tree = ET.parse('coverage.xml')
-            root = tree.getroot()
-            line_rate = root.get('line-rate', '0')
-            pct = round(float(line_rate) * 100, 1)
-            print(f'{pct}%')
-            " 2>/dev/null || echo "N/A")
-            echo "Coverage: $COV" >> "$SUMMARY_FILE"
-          fi
+          for suite in "framework|tests/test-results-framework.xml|tests/coverage-framework.xml"                          "backend|bet_dashboard/backend/test-results-backend.xml|bet_dashboard/backend/coverage-backend.xml"                          "crawler|bet_crawler/test-results-crawler.xml|bet_crawler/coverage-crawler.xml"; do
+            name="${suite%%|*}"
+            rest="${suite#*|}"
+            junit="${rest%%|*}"
+            covxml="${rest##*|}"
+            echo "### $name suite" >> "$SUMMARY_FILE"
+            if [ -f "$junit" ]; then
+              TESTS=$(python3 -c "
+              import xml.etree.ElementTree as ET
+              tree = ET.parse('$junit')
+              root = tree.getroot()
+              tests = int(root.get('tests', 0))
+              failures = int(root.get('failures', 0))
+              errors = int(root.get('errors', 0))
+              skipped = int(root.get('skipped', 0))
+              passed = tests - failures - errors - skipped
+              print(f'Passed: {passed}, Failed: {failures}, Errors: {errors}, Skipped: {skipped}, Total: {tests}')
+              " 2>/dev/null || echo "N/A")
+              echo "Results: $TESTS" >> "$SUMMARY_FILE"
+            else
+              echo "Results: no junit xml" >> "$SUMMARY_FILE"
+            fi
+            if [ -f "$covxml" ]; then
+              COV=$(python3 -c "
+              import xml.etree.ElementTree as ET
+              tree = ET.parse('$covxml')
+              root = tree.getroot()
+              line_rate = root.get('line-rate', '0')
+              pct = round(float(line_rate) * 100, 1)
+              print(f'{pct}%')
+              " 2>/dev/null || echo "N/A")
+              echo "Coverage: $COV" >> "$SUMMARY_FILE"
+            fi
+            echo "" >> "$SUMMARY_FILE"
+          done
 
       - name: Upload test summary artifact
         if: always()
@@ -249,7 +277,7 @@ jobs:
 
       - name: Install audit tools
         run: |
-          # Install dependencies from requirements files (template-driven)
+          # Install dependencies from requirements files
           echo "Installing requirements from:"
           echo "$REQUIREMENTS_FILES"
           while IFS= read -r req_file; do
@@ -268,7 +296,7 @@ jobs:
           # Set PYTHONPATH to include source directories for local package imports
           echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
 
-          # Run any post-install commands (e.g., scrapling install, playwright install)
+          # Run any post-install commands
           if [ -n "$POST_INSTALL_CMDS" ]; then
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
@@ -302,8 +330,8 @@ jobs:
         id: mypy
         run: |
           echo "── Type Checking ─────────────────────────────────────────────"
-          # Run mypy on all source directories at once
-          mypy $SRC_DIR             --strict             --ignore-missing-imports             --python-version 3.10             --no-error-summary 2>&1 | tee mypy-output.txt || true
+          # D-F: mypy targets the 3.14 interpreter CI actually runs
+          mypy $SRC_DIR             --strict             --ignore-missing-imports             --python-version 3.14             --no-error-summary 2>&1 | tee mypy-output.txt || true
           MYPY_ERRORS=$(grep -c "error:" mypy-output.txt 2>/dev/null || echo "0")
           MYPY_ERRORS=$(echo "$MYPY_ERRORS" | tr -d '[:space:]')
           echo "mypy_errors=${MYPY_ERRORS:-0}" >> "$GITHUB_OUTPUT"
@@ -434,11 +462,120 @@ jobs:
           path: audit-summary.md
           retention-days: 30
 
-  # ── GATE ─────────────────────────────────────────────────────────────────
+  # ── 4. FRONTEND TESTS (D-G — parallel to python tests, no needs) ──────────
+  frontend-tests:
+    name: "Frontend (typecheck · lint · vitest)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bet_dashboard/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: bet_dashboard/frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: bet_dashboard/frontend
+        run: npm run typecheck
+
+      - name: Lint
+        # Advisory initially: `eslint .` carries 21 pre-existing src/ errors
+        # (documented cycle 9; none in test files). Pay down the debt, then
+        # remove continue-on-error to make lint blocking.
+        continue-on-error: true
+        working-directory: bet_dashboard/frontend
+        run: npm run lint
+
+      - name: Unit tests (vitest)
+        # Standing vitest config (threads pool + isolate:false +
+        # fileParallelism:false) is deterministic; CI runners are fast —
+        # the 60s worker-start hazard documented in cycle 9/12 is a
+        # constrained-container artifact, not a CI-runner risk.
+        working-directory: bet_dashboard/frontend
+        run: npm test
+
+      - name: Upload coverage (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: bet_dashboard/frontend/coverage/
+          retention-days: 14
+
+      - name: Upload playwright test results (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-playwright-results
+          path: bet_dashboard/frontend/test-results/
+          retention-days: 14
+
+  # ── 5. E2E TESTS (D-H — advisory initially) ───────────────────────────────
+  e2e-tests:
+    name: "E2E (docker stack · playwright)"
+    runs-on: ubuntu-latest
+    needs: [test, frontend-tests]
+    # Advisory initially: docker-stack E2E is new infrastructure.
+    # Promotion path: flip continue-on-error to false once 3 consecutive
+    # green main-branch runs establish baseline stability.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bet_dashboard/frontend/package-lock.json
+
+      - name: Start docker stack
+        run: docker compose -f setup/compose.yaml up -d
+
+      - name: Wait for health (dashboard on :3002)
+        run: |
+          timeout 120 bash -c '
+            until curl -sf -o /dev/null http://localhost:3002; do
+              echo "waiting for dashboard..."
+              sleep 5
+            done
+          '
+
+      - name: Install frontend deps + playwright browsers
+        working-directory: bet_dashboard/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run playwright tests
+        working-directory: bet_dashboard/frontend
+        run: npx playwright test
+
+      - name: Upload playwright results (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-playwright-results
+          path: |
+            bet_dashboard/frontend/test-results/
+            bet_dashboard/frontend/playwright-report/
+          retention-days: 14
+
+  # ── GATE (D-I — required: auto-fix, test, frontend-tests; audit/e2e advisory) ─
   ci-gate:
     name: "CI Gate"
     if: always()
-    needs: [auto-fix, test, audit]
+    needs: [auto-fix, test, audit, frontend-tests, e2e-tests]
     runs-on: ubuntu-latest
 
     steps:
@@ -470,7 +607,7 @@ jobs:
               echo "No auto-fix report available."
             fi
             echo ""
-            echo "── TEST RESULTS ──────────────────────────────────────────"
+            echo "── TEST RESULTS (3 python suites) ────────────────────────"
             for py in 3.14; do
               if [ -f "artifacts/test-summary-py${py}/test-summary-py${py}.md" ]; then
                 cat "artifacts/test-summary-py${py}/test-summary-py${py}.md"
@@ -479,6 +616,12 @@ jobs:
               fi
               echo ""
             done
+            echo "── FRONTEND RESULTS ──────────────────────────────────────"
+            echo "frontend-tests: ${{ needs.frontend-tests.result }}"
+            echo ""
+            echo "── E2E RESULTS ────────────────────────────────────────────"
+            echo "e2e-tests (advisory): ${{ needs.e2e-tests.result }}"
+            echo ""
             echo "── AUDIT RESULTS ─────────────────────────────────────────"
             if [ -f artifacts/audit-summary/audit-summary.md ]; then
               cat artifacts/audit-summary/audit-summary.md
@@ -487,9 +630,11 @@ jobs:
             fi
             echo ""
             echo "── JOB STATUSES ──────────────────────────────────────────"
-            echo "auto-fix: ${{ needs.auto-fix.result }}"
-            echo "test:     ${{ needs.test.result }}"
-            echo "audit:    ${{ needs.audit.result }}"
+            echo "auto-fix:        ${{ needs.auto-fix.result }}"
+            echo "test:            ${{ needs.test.result }}"
+            echo "frontend-tests:  ${{ needs.frontend-tests.result }}"
+            echo "e2e-tests:       ${{ needs.e2e-tests.result }}"
+            echo "audit:           ${{ needs.audit.result }}"
             echo ""
             echo "── KEY METRICS ───────────────────────────────────────────"
             echo "mypy errors:        ${{ needs.audit.outputs.mypy_errors }}"
@@ -548,8 +693,9 @@ jobs:
           python3 -c "
           import sys
           required = {
-              'auto-fix': '${{ needs.auto-fix.result }}',
-              'test':     '${{ needs.test.result }}',
+              'auto-fix':       '${{ needs.auto-fix.result }}',
+              'test':           '${{ needs.test.result }}',
+              'frontend-tests': '${{ needs.frontend-tests.result }}',
           }
           failures = [n for n, r in required.items() if r not in ('success', 'skipped')]
           if failures:
@@ -557,4 +703,5 @@ jobs:
               sys.exit(1)
           print('All required jobs passed.')
           print('Audit result (advisory):', '${{ needs.audit.result }}')
+          print('E2E result (advisory):', '${{ needs.e2e-tests.result }}')
           "
