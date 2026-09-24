@@ -46,13 +46,26 @@ class TestPredictz:
         assert m.odds.draw == 3.5
         assert m.odds.away == 4.2
 
-    def test_closest_year_resolution(self):
+    def test_closest_year_resolution(self, monkeypatch):
+        # Date-independent pin (cycle-8 D5 protocol): the fixture h2 carries a
+        # fixed weekday+date ('Friday, September 25'). Originally expected was
+        # TODAY+1 — which broke at midnight (fixture static, expected moving).
+        # Freeze the finder's clock (datetime.now) to a date BEFORE the fixture
+        # date so closest-year resolution is deterministic: Sep 25 2026 (Friday).
+        frozen = dtmod.datetime(2026, 9, 10, 12, 0, 0)
+
+        class _FrozenDatetime(dtmod.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen
+
+        import bet_crawler.finders.PredictzFinder as _  # noqa: F401 — ensure module loaded
+        monkeypatch.setattr(pz, "datetime", _FrozenDatetime)
 
         finder, collector = _finder()
         url = next(iter(pz.TOP_LEAGUES))
         finder._parse_page(url, load_fixture("predictz", "league.html"))
-        expected = dtmod.date.today() + dtmod.timedelta(days=1)
-        assert collector.first.datetime.date() == expected
+        assert collector.first.datetime.date() == dtmod.date(2026, 9, 25)
 
     def test_no_matches_guard(self):
         finder, collector = _finder()
