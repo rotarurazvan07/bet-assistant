@@ -11,6 +11,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for every job (CodeQL: actions/missing-workflow-
+# permissions). Jobs needing more override at job level — auto-fix below
+# sets contents: write for its push-back commit.
+permissions:
+  contents: read
+
 env:
   # Python configuration
   PYTHON_VERSION: "3.14"
@@ -144,8 +150,11 @@ jobs:
           done <<< "$REQUIREMENTS_FILES"
 
           # Test dependencies (D-C: asyncio + hypothesis for backend WS
-          # strict-mode tests and hypothesis property suites)
-          pip install pytest pytest-cov pytest-xdist pytest-timeout pytest-asyncio hypothesis
+          # strict-mode tests and hypothesis property suites; httpx required
+          # by starlette.testclient — backend router tests construct
+          # fastapi.testclient.TestClient and CI installs only requirements
+          # files, which omit httpx)
+          pip install pytest pytest-cov pytest-xdist pytest-timeout pytest-asyncio hypothesis httpx
 
           # scrapling install: finders import scrape_kit (backed by scrapling
           # Camoufox); crawler tests import the finders package

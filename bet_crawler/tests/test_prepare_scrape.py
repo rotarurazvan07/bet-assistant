@@ -156,8 +156,11 @@ class TestPrepareScrapeP2:
             _run(tmp_cwd, crawlers, capsys=capsys)
         msg = [r.getMessage() for r in caplog.records if "Collected" in r.getMessage()]
         assert msg, "expected domain summary log"
-        assert "3 URLs across 2 domains" in msg[0]
-        assert "a.com" in msg[0] and "b.org" in msg[0]
+        # Exact-equality pin (not substring): unique_domains are sorted and
+        # joined deterministically in prepare_scrape — avoids CodeQL
+        # py/incomplete-url-substring-sanitization false positives while
+        # making the assertion STRONGER.
+        assert msg[0] == "Collected 3 URLs across 2 domains: a.com, b.org"
 
     def test_unknown_runner_defaults_chunk_size_1(self, tmp_cwd, capsys):
         """max_chunk_size.get(runner, 1) → chunk_size = max(20, n)."""
