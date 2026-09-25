@@ -4,11 +4,32 @@ test_forebet.py
 
 import importlib
 
+import pytest
 from datetime import datetime
 from bet_crawler.finders.ForebetFinder import FOREBET_NAME, ForebetFinder
 from .finder_test_helpers import load_fixture, make_finder, relax_date_window
 
 fb = importlib.import_module("bet_crawler.finders.ForebetFinder")
+
+
+@pytest.fixture(autouse=True)
+def _pin_forebet_timezone(monkeypatch):
+    """Runner-TZ pin (PR #75 CI fix, D51).
+
+    ForebetFinder.TIMEZONE is `BaseMatchFinder._detect_local_timezone()`
+    (ForebetFinder.py:226) — the tzlocal probe resolved at IMPORT time, i.e.
+    the RUNNER's zone. Under TZ=UTC CI runners the parsed naive 20:00 gets
+    tagged UTC then converted to Europe/Bucharest (+3h) — the exact skew the
+    CI caught. The production self-hosted runner is Europe/Bucharest, so the
+    historically-pinned expectation (datetime(2035, 6, 15, 20, 0)) encodes
+    Bucharest-tagged behaviour. Pin TIMEZONE to Europe/Bucharest for the
+    test context — the same value tzlocal resolves on the production runner.
+
+    NOTE: this masks a latent production inconsistency (the BaseMatchFinder
+    docstring documents Forebet as Asia/Bangkok) — reported, not refactored
+    (BaseMatchFinder behaviour is production-proven; see cycle report).
+    """
+    monkeypatch.setattr(fb.ForebetFinder, "TIMEZONE", "Europe/Bucharest")
 
 
 def _finder(**kw):

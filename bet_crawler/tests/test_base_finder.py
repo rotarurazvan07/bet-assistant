@@ -33,11 +33,25 @@ class _TzFinder(_Finder):
     TIMEZONE = "Asia/Bangkok"
 
 
+# Runner-TZ pin (PR #75 CI fix, D51): validate_match_date compares against an
+# AWARE now in the finder's local_timezone (Europe/Bucharest in these tests),
+# but naive datetime.now() is RUNNER wall-clock. Under TZ=UTC runners the
+# naive clock trails Bucharest by 3h (a full calendar day across UTC
+# midnight) and fixtures fall outside the date gate. _now_local() builds
+# fixtures from the naive BUCHAREST wall clock — identical semantics to the
+# Bucharest-runner behaviour these tests have always pinned.
+BUCHAREST = ZoneInfo("Europe/Bucharest")
+
+
+def _now_local():
+    return datetime.now(BUCHAREST).replace(tzinfo=None, microsecond=0)
+
+
 def _mk(home="Arsenal", away="Chelsea", dt=None, preds=None, odds=None):
     return Match(
         home,
         away,
-        dt if dt is not None else datetime.now(),
+        dt if dt is not None else _now_local(),
         preds if preds is not None else [Score("test", 2, 1)],
         odds,
     )
@@ -120,22 +134,22 @@ class TestSkipPatterns:
 class TestDateWindow:
     def test_today_match_kept(self):
         finder, collector = make_finder(_Finder)
-        assert finder.add_match(_mk(dt=datetime.now().replace(microsecond=0))) is True
+        assert finder.add_match(_mk(dt=_now_local())) is True
         assert len(collector) == 1
 
     def test_within_days_ahead_kept(self):
         finder, collector = make_finder(_Finder, num_days_ahead=2)
-        assert finder.add_match(_mk(dt=datetime.now() + timedelta(days=2))) is True
+        assert finder.add_match(_mk(dt=_now_local() + timedelta(days=2))) is True
         assert len(collector) == 1
 
     def test_beyond_days_ahead_skipped(self):
         finder, collector = make_finder(_Finder, num_days_ahead=1)
-        assert finder.add_match(_mk(dt=datetime.now() + timedelta(days=2))) is False
+        assert finder.add_match(_mk(dt=_now_local() + timedelta(days=2))) is False
         assert len(collector) == 0
 
     def test_past_match_skipped(self):
         finder, collector = make_finder(_Finder)
-        assert finder.add_match(_mk(dt=datetime.now() - timedelta(days=1))) is False
+        assert finder.add_match(_mk(dt=_now_local() - timedelta(days=1))) is False
         assert len(collector) == 0
 
     def test_validate_match_date_bounds(self):
@@ -151,13 +165,13 @@ class TestAddMatchPipeline:
     def test_odds_stripped_for_non_odds_finder(self):
         finder, collector = make_finder(_Finder, contributes_odds=False)
         odds = Odds(home=2.1, draw=3.2, away=3.8)
-        assert finder.add_match(_mk(dt=datetime.now(), odds=odds)) is True
+        assert finder.add_match(_mk(dt=_now_local(), odds=odds)) is True
         assert collector.first.odds is None
 
     def test_odds_kept_for_odds_finder(self):
         finder, collector = make_finder(_Finder, contributes_odds=True)
         odds = Odds(home=2.1)
-        assert finder.add_match(_mk(dt=datetime.now(), odds=odds)) is True
+        assert finder.add_match(_mk(dt=_now_local(), odds=odds)) is True
         assert collector.first.odds is not None
         assert collector.first.odds.home == 2.1
 
@@ -182,11 +196,11 @@ class TestAddMatchPipeline:
             local_timezone="UTC",
             skip_patterns=(),
         )
-        assert finder.add_match(_mk(dt=datetime.now())) is False
+        assert finder.add_match(_mk(dt=_now_local())) is False
 
     def test_match_passed_through_with_prediction_source(self):
         finder, collector = make_finder(_Finder)
-        finder.add_match(_mk(dt=datetime.now()))
+        finder.add_match(_mk(dt=_now_local()))
         assert collector.first.predictions[0].source == "test"
         assert collector.first.home_team == "Arsenal"
 
