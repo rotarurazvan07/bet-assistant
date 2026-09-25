@@ -3,7 +3,7 @@
 // and installs the MSW server lifecycle hooks.
 
 import '@testing-library/jest-dom/vitest';
-import { afterEach, beforeAll, afterAll } from 'vitest';
+import { afterEach, beforeAll, afterAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { server } from './handlers';
 
@@ -79,6 +79,13 @@ if (typeof globalThis.WebSocket === 'undefined') {
         value: WebSocketMock,
     });
 }
+
+// jsdom does not implement Element.scrollIntoView; BettingTips calls it on
+// pagination (topRef.current?.scrollIntoView). Without a stub the rejection
+// leaks AFTER the test completes and vitest exits non-zero on unhandled
+// errors even when all tests pass. Standard practice: unconditional no-op.
+// (Grep verified scrollIntoView is the ONLY scroll/focus API the pages use.)
+Element.prototype.scrollIntoView = vi.fn();
 
 // ── MSW lifecycle ────────────────────────────────────────────────────────────
 

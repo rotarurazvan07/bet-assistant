@@ -4,22 +4,19 @@
 // returns null with no legs; NO filters. Assert radarData shape reaches
 // recharts via vi.mock capture.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { radarChartMock } from '../../test/recharts-stub';
 
+// Order-robust shared stub (final-gate fix): the IDENTICAL factory is
+// registered in EVERY file that renders recharts — whichever file the
+// shared worker runs first defines recharts for the whole run. See
+// src/test/recharts-stub.tsx for the rationale.
+vi.mock('recharts', async () => (await import('../../test/recharts-stub')).rechartsStub);
 
-const { radarChartMock } = vi.hoisted(() => ({
-    radarChartMock: vi.fn(),
-}));
-vi.mock('recharts', () => ({
-    RadarChart: (props: unknown) => { radarChartMock(props); return <div data-testid="radar-mock" />; },
-    PolarGrid: () => <div />,
-    PolarAngleAxis: () => <div />,
-    PolarRadiusAxis: () => <div />,
-    Radar: () => <div />,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => <div data-testid="responsive-mock">{children}</div>,
-}));
-
+beforeEach(() => {
+    radarChartMock.mockClear();
+});
 
 import AnalyticsDashboard from '../AnalyticsDashboard';
 import { makeCandidateLeg } from '../../test/factories';
