@@ -23,11 +23,18 @@ class TestPullDb:
         assert data["message"] == "Pull successful"
         assert data["timestamp"] == "2030-01-01 09:00"
 
-    def test_pull_exception_returns_error_envelope(self, client, fake_app):
+    def test_pull_exception_returns_error_envelope(self, client, fake_app, caplog):
+        """Error path: generic client message (no stack-trace/str(exc) leak),
+        full trace logged server-side (code-scanning fix, PR #75 batch)."""
         fake_app.pull_and_broadcast.side_effect = RuntimeError("network down")
-        data = client.post(f"{BASE}/pull").json()
+        with caplog.at_level("ERROR", logger="routers.system"):
+            data = client.post(f"{BASE}/pull").json()
         assert data["status"] == "error"
-        assert "network down" in data["message"]
+        assert data["message"] == "Database pull failed — see server logs"
+        assert "network down" not in data["message"]
+        # server-side trace: exception logged with the original error
+        assert any("pull_db failed" in r.message for r in caplog.records)
+        assert any(r.exc_info and r.exc_info[0] is RuntimeError for r in caplog.records)
 
 
 class TestGetStatus:

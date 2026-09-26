@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import logging
+
 from core.ws import ws_manager
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["system"])
 
@@ -20,8 +24,11 @@ def pull_db(request: Request):
             "message": msg,
             "timestamp": app.logic.last_pull_timestamp,
         }
-    except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+    except Exception:
+        # Server-side trace only: never leak str(exc) to the client (code
+        # scanning: py/stack-trace-exposure). Same envelope keys as before.
+        logger.exception("pull_db failed")
+        return {"status": "error", "message": "Database pull failed — see server logs"}
 
 
 @router.get("/api/status")
