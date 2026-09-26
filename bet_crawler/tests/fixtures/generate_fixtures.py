@@ -14,7 +14,15 @@ from pathlib import Path
 FIXTURES = Path(__file__).parent / "html"
 
 FUTURE_DATE = datetime(2035, 6, 15)  # Saturday; fixtures valid ~65y vs date window
-TOMORROW = datetime.now(timezone.utc).date() + timedelta(days=1)
+# D53: FIXED anchor date (was datetime.now()+1 — fixtures rotted when the
+# discovery window [today, today+N] slid past the baked-in date overnight;
+# 4 CI failures on 2026-09-26). Consumers of "in-window" fixture dates must
+# freeze the finder's clock to a date where this anchor is in-window — see
+# the clock-freeze fixtures in test_oddsportal.py / test_betexplorer.py
+# (predictz D5 pattern). Byte-stable: anchor equals the originally committed
+# fixture dates, so regeneration is a no-op diff.
+ANCHOR_TOMORROW = datetime(2026, 9, 25).date()  # 2026-09-25 (TODAY+1 when generated in cycle 8)
+TOMORROW = ANCHOR_TOMORROW
 
 
 def w(key, name, html):

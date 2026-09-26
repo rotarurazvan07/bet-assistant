@@ -4,12 +4,36 @@ Discovery patched at fetch(); odds flow via FakeBrowserSession (D7).
 MAX_CONCURRENCY patched to 1 for deterministic single-thread batch path.
 """
 
+import datetime as dtmod
 import importlib
+
+import pytest
 
 from bet_crawler.finders.OddsPortalFinder import ODDSPORTAL_NAME, OddsPortalFinder
 from .finder_test_helpers import fake_browser, load_fixture, make_finder, patch_fetch, relax_date_window
 
 op = importlib.import_module("bet_crawler.finders.OddsPortalFinder")
+
+# D53 (fixture-date rot): league.html carries a FIXED anchor date
+# (2026-09-25, generator ANCHOR_TOMORROW). The discovery window is
+# [today, today+N] on the finder's UTC clock — freezing the clock to
+# 2026-09-24 puts that anchor at today+1: deterministically in-window on
+# any runner, any day, forever (predictz D5 protocol applied at module
+# scope so future discovery tests inherit the freeze).
+_FROZEN_NOW = dtmod.datetime(2026, 9, 24, 12, 0, 0, tzinfo=dtmod.timezone.utc)
+
+
+class _FrozenDatetime(dtmod.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        if tz is not None:
+            return _FROZEN_NOW.astimezone(tz)
+        return _FROZEN_NOW.replace(tzinfo=None)
+
+
+@pytest.fixture(autouse=True)
+def _freeze_discovery_clock(monkeypatch):
+    monkeypatch.setattr(op, "datetime", _FrozenDatetime)
 
 
 def _finder(**kw):
