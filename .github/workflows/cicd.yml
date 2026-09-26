@@ -702,15 +702,18 @@ jobs:
     name: "E2E (docker stack · playwright)"
     runs-on: ubuntu-latest
     needs: [test, frontend-tests]
-    # Explicit if (E2E-skip fix): GitHub's default graph evaluation skips a
-    # job when ANY ancestor in its needs graph is skipped — on PR events the
-    # push-only auto-fix job is always skipped, so e2e-tests was
-    # DETERMINISTICALLY skipped even though both direct needs succeeded
-    # (observed twice: runs 36197998947 and 36272817397, both with
-    # test=success + frontend-tests=success + e2e skipped, 0 steps, no
-    # runner assigned). An explicit `if` overrides the default skip
-    # evaluation: run exactly when both DIRECT needs succeeded.
-    if: ${{ needs.test.result == 'success' && needs.frontend-tests.result == 'success' }}
+    # E2E-skip fix, attempt 3 (canonical): GitHub's skip propagation is
+    # TRANSITIVE through the needs graph — auto-fix (push-only, always
+    # skipped on PR events) → test → e2e-tests. An explicit `if` WITHOUT a
+    # status-check function does NOT opt out (proven: runs 36197998947,
+    # 36272817397 with no if, AND 36274660503 with a bare result-comparison
+    # if — all skipped e2e with both DIRECT needs green, 0 steps, no
+    # runner). Every job that escapes the skip carries a status function:
+    # test/audit/ci-gate all run via `if: always()`. Per GitHub docs, the
+    # documented opt-out for "run even when a needed job was skipped" is
+    # `always()` in the if. The result comparisons preserve the blocking
+    # gate: e2e runs ONLY when both direct needs succeeded.
+    if: ${{ always() && needs.test.result == 'success' && needs.frontend-tests.result == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
