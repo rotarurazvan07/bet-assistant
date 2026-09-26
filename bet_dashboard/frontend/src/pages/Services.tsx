@@ -101,10 +101,16 @@ export default function Services() {
     const [status, setStatus] = useState('');
 
     const load = useCallback(async () => {
-        const d = await fetchServices();
-        setData(d);
-        setGenHour(d.generate_hour);
-        setGenMinute(d.generate_minute);
+        try {
+            const d = await fetchServices();
+            setData(d);
+            setGenHour(d.generate_hour);
+            setGenMinute(d.generate_minute);
+        } catch {
+            // Network/API failure: keep the loading card rather than crash;
+            // surface the failure in the status line (existing app pattern).
+            setStatus('⚠ Failed to load services — check connection');
+        }
     }, []);
 
     // eslint-disable-next-line react-hooks/set-state-in-effect

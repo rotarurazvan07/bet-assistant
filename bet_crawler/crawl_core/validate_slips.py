@@ -19,12 +19,12 @@ def validate_slips(slips_db_path: str) -> None:
     assistant.close()
 
     logger.info(
-        f"✅ Checked {result['checked']} · Settled {len(result['settled'])} · Live {len(result['live'])} · Errors {result['errors']}"
+        f"✅ Checked {result.checked} · Settled {len(result.settled)} · Live {len(result.live)} · Errors {result.errors}"
     )
 
-    for item in result["live"]:
-        logger.info(f"  🟡 {item['match_name']} ({item['market']})  {item['score']}  {item['minute']}")
+    for item in result.live:
+        logger.info(f"  🟡 {item.match_name} ({item.market})  {item.score}  {item.minute}")
 
-    for item in result["settled"]:
-        icon = "✅" if item["outcome"] == "Won" else "❌"
-        logger.info(f"  {icon} {item['match_name']} ({item['market']})  {item['score']}  → {item['outcome']}")
+    for item in result.settled:
+        icon = "✅" if item.outcome == "Won" else "❌"
+        logger.info(f"  {icon} {item.match_name} ({item.market})  {item.score}  → {item.outcome}")

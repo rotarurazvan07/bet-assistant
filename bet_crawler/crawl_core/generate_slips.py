@@ -25,24 +25,29 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, 
 
     units = float(profile_data.get("units", 1.0))
 
-    cfg = BetSlipConfig(
-        target_odds=profile_data.get("target_odds"),
-        target_legs=profile_data.get("target_legs"),
-        max_legs_overflow=profile_data.get("max_legs_overflow"),
-        consensus_floor=profile_data.get("consensus_floor"),
-        min_odds=profile_data.get("min_odds"),
-        tolerance_factor=profile_data.get("tolerance_factor"),
-        stop_threshold=profile_data.get("stop_threshold"),
-        min_legs_fill_ratio=profile_data.get("min_legs_fill_ratio"),
-        quality_vs_balance=profile_data.get("quality_vs_balance"),
-        consensus_vs_sources=profile_data.get("consensus_vs_sources"),
-        included_markets=profile_data.get("included_markets"),
-        date_from=profile_data.get("date_from"),
-        date_to=profile_data.get("date_to"),
-        excluded_urls=profile_data.get("excluded_urls"),
-        odds_movement_weight=profile_data.get("odds_movement_weight"),
-        odds_movement_strength_min=profile_data.get("odds_movement_strength_min"),
+    # Pass only the keys actually present in the profile: omitted keys fall back
+    # to BetSlipConfig dataclass defaults (explicit None would crash the
+    # __post_init__ clamps on partial/hand-edited profiles).
+    _cfg_keys = (
+        "target_odds",
+        "target_legs",
+        "max_legs_overflow",
+        "consensus_floor",
+        "min_odds",
+        "tolerance_factor",
+        "stop_threshold",
+        "min_legs_fill_ratio",
+        "quality_vs_balance",
+        "consensus_vs_sources",
+        "included_markets",
+        "date_from",
+        "date_to",
+        "excluded_urls",
+        "odds_movement_weight",
+        "odds_movement_strength_min",
     )
+    cfg_kwargs = {k: profile_data[k] for k in _cfg_keys if k in profile_data}
+    cfg = BetSlipConfig(**cfg_kwargs)
 
     logger.info(f"\n▶ Profile: {profile_name.upper()}")
 

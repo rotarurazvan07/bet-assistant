@@ -26,6 +26,7 @@ from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
 
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core import leagues
 from bet_framework.MatchesManager import MatchesManager
 
@@ -362,7 +363,7 @@ class AppLogic:
             urllib.request.urlretrieve(url, temp_path)  # nosec B310 - URL is hardcoded HTTPS to GitHub
         except urllib.error.URLError as e:
             os.unlink(temp_path)
-            raise RuntimeError(f"Failed to download DB from Release: {e}")
+            raise RuntimeError(f"Failed to download DB from Release: {e}") from e
 
         # Get config values for history preservation
         scraper_cfg = self._settings.get("scraper_config") or {}
@@ -506,7 +507,9 @@ class AppLogic:
         slips = self.get_slips()
         urls = set()
         for slip in slips:
-            if slip.slip_status == "Pending":
+            # Issue #59 spec: pending/live slip legs. A slip whose leg is Live
+            # derives slip_status "Live" and must still report its leg URLs.
+            if slip.slip_status in ("Pending", "Live"):
                 for leg in slip.legs:
                     if leg.status in ("Pending", "Live"):
                         urls.add(leg.result_url)

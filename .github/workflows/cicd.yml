@@ -1,5 +1,6 @@
 name: CI
 
+
 on:
   push:
     branches: ["main"]
@@ -10,23 +11,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for every job (CodeQL: actions/missing-workflow-
+# permissions). Jobs needing more override at job level — auto-fix below
+# sets contents: write for its push-back commit.
+permissions:
+  contents: read
+
 env:
   # Python configuration
   PYTHON_VERSION: "3.14"
 
   # Source directories (space-separated for tools like mypy, radon, etc.)
   SRC_DIR: "bet_crawler bet_dashboard/backend bet_framework"
-  TEST_DIR: "tests"
+  # All three Python test suites (auto-fix covers the full corpus)
+  TEST_DIR: "tests bet_crawler/tests bet_dashboard/backend/tests"
 
-  # Coverage threshold
-  COVERAGE_FAIL_UNDER: "10"
-
-  # Requirements files (template - customize these for your project)
+  # Requirements files
   REQUIREMENTS_FILES: |
     bet_dashboard/backend/requirements.txt
     setup/requirements-scrape.txt
 
-  # Additional install commands (e.g., scrapling install, playwright install)
+  # Additional install commands (scrapling: Camoufox binaries for finders)
   POST_INSTALL_CMDS: "scrapling install"
 
 jobs:
@@ -59,10 +64,10 @@ jobs:
           # Process all source and test directories
           autoflake --in-place --recursive             --remove-all-unused-imports --remove-unused-variables             --exclude .venv,__pycache__             $SRC_DIR $TEST_DIR
 
-      - name: pyupgrade — modernise syntax to Python 3.10+
+      - name: pyupgrade — modernise syntax to Python 3.14+
         run: |
-          # Process all source and test directories
-          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py310-plus || true
+          # CI is 3.14-only (D-F); target the interpreter we actually run
+          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py314-plus || true
 
       - name: autotyping — infer trivial return type annotations
         run: |
@@ -77,13 +82,13 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py310             $SRC_DIR $TEST_DIR
+          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
-          # Process all source and test directories
-          ruff check --select E,F,B,C,SIM,PERF --ignore UP           --fix --unsafe-fixes --output-format=concise           $SRC_DIR $TEST_DIR || true
-          ruff check --select E,F,B,C,SIM,PERF --ignore UP           --fix --unsafe-fixes --output-format=github           $SRC_DIR $TEST_DIR || true
+          # --line-length 127 matches project convention (ruff.toml header
+          # + AGENTS.md) — without it ruff defaults to 88 and floods E501s
+          ruff check --select E,F,B,C,SIM,PERF --ignore UP --line-length 127           --fix --unsafe-fixes --output-format=concise           $SRC_DIR $TEST_DIR || true
 
       - name: Commit fixes (if any)
         run: |
@@ -92,21 +97,33 @@ jobs:
           if git diff --quiet; then
             echo "Nothing to fix — working tree is clean."
           else
+            git diff --stat > autofix-diffstat.txt
             git add -A
             git commit -m "chore: auto-fix (types · lint · perf) [skip ci]"
             git push
             echo "Fixes committed and pushed."
           fi
 
-      - name: Upload auto-fix report
+      - name: Write auto-fix summary
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: autofix-report
-          retention-days: 14
-          path: ruff-fix-output.txt
+        run: |
+          {
+            echo "## 🔧 Auto-fix"
+            echo ""
+            if [ "${{ github.event_name }}" != "push" ]; then
+              echo "Skipped — runs on pushes only (PR runs skip to avoid clobbering the review branch)."
+            elif [ -f autofix-diffstat.txt ]; then
+              echo "Committed and pushed fixes:"
+              echo ""
+              echo '```'
+              cat autofix-diffstat.txt
+              echo '```'
+            else
+              echo "✅ Working tree clean — nothing to fix."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  # ── 2. TESTS ─────────────────────────────────────────────────────────────
+  # ── 2. TESTS (three per-suite invocations — D-A) ─────────────────────────
   test:
     name: "Test (Python ${{ matrix.python-version }})"
     runs-on: ubuntu-latest
@@ -129,7 +146,7 @@ jobs:
 
       - name: Install project and test deps
         run: |
-          # Install dependencies from requirements files (template-driven)
+          # Install dependencies from requirements files
           echo "Installing requirements from:"
           echo "$REQUIREMENTS_FILES"
           while IFS= read -r req_file; do
@@ -142,84 +159,115 @@ jobs:
             fi
           done <<< "$REQUIREMENTS_FILES"
 
-          # Install test dependencies
-          pip install pytest pytest-cov pytest-xdist pytest-timeout
+          # Test dependencies (D-C: asyncio + hypothesis for backend WS
+          # strict-mode tests and hypothesis property suites; httpx required
+          # by starlette.testclient — backend router tests construct
+          # fastapi.testclient.TestClient and CI installs only requirements
+          # files, which omit httpx)
+          pip install pytest pytest-cov pytest-xdist pytest-timeout pytest-asyncio hypothesis httpx
 
-          # Set PYTHONPATH to include source directories for local package imports
-          echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
-
-          # Run any post-install commands (e.g., scrapling install, playwright install)
+          # scrapling install: finders import scrape_kit (backed by scrapling
+          # Camoufox); crawler tests import the finders package
           if [ -n "$POST_INSTALL_CMDS" ]; then
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
           fi
 
-
-      - name: Run tests
+      - name: Run tests — framework suite (root tests/)
+        # D-A: per-suite invocations. A combined 'pytest tests/ bet_crawler/tests
+        # bet_dashboard/backend/tests' from repo root resolves rootdir=repo root
+        # where NO pytest.ini exists → per-suite addopts (pythonpath, --cov
+        # targets, cycle-14 --cov-fail-under gates) never apply → root suite
+        # imports of bet_framework FAIL and all gates vanish. cd per suite makes
+        # local = CI exactly.
+        # D-B: NO CLI --cov/--cov-fail-under here — they would override the
+        # ini gates from cycle 14 (f26a130). Only report formats are added.
+        working-directory: tests
         run: |
-          # Build --cov arguments for each directory in SRC_DIR
-          COV_ARGS=""
-          for dir in $SRC_DIR; do
-            COV_ARGS="$COV_ARGS --cov=$dir"
-          done
+          python -m pytest             --cov-report=term-missing             --cov-report=xml:coverage-framework.xml             --junitxml=test-results-framework.xml             --timeout=60             -n auto -v
 
-          pytest $COV_ARGS             --cov-report=term-missing             --cov-report=xml:coverage.xml             --cov-report=html:htmlcov             --cov-fail-under=$COVERAGE_FAIL_UNDER             --junitxml=test-results.xml             --timeout=60             -n auto -v $TEST_DIR
+      - name: Run tests — backend suite (bet_dashboard/backend/tests)
+        working-directory: bet_dashboard/backend
+        run: |
+          python -m pytest tests/             --cov-report=term-missing             --cov-report=xml:coverage-backend.xml             --junitxml=test-results-backend.xml             --timeout=60             -n auto -v
 
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-html-py${{ matrix.python-version }}
-          path: htmlcov/
-          retention-days: 14
+      - name: Run tests — crawler suite (bet_crawler/tests)
+        working-directory: bet_crawler
+        run: |
+          python -m pytest tests/             --cov-report=term-missing             --cov-report=xml:coverage-crawler.xml             --junitxml=test-results-crawler.xml             --timeout=60             -n auto -v
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-py${{ matrix.python-version }}
-          path: test-results.xml
-          retention-days: 14
-
-      - name: Upload test summary
+      - name: Write test summary
         if: always()
         run: |
-          SUMMARY_FILE="test-summary-py${{ matrix.python-version }}.md"
-          echo "## Python ${{ matrix.python-version }} Test Summary" > "$SUMMARY_FILE"
-          echo "" >> "$SUMMARY_FILE"
-          if [ -f test-results.xml ]; then
-            TESTS=$(python3 -c "
-            import xml.etree.ElementTree as ET
-            tree = ET.parse('test-results.xml')
-            root = tree.getroot()
-            tests = int(root.get('tests', 0))
-            failures = int(root.get('failures', 0))
-            errors = int(root.get('errors', 0))
-            skipped = int(root.get('skipped', 0))
-            passed = tests - failures - errors - skipped
-            print(f'Passed: {passed}, Failed: {failures}, Errors: {errors}, Skipped: {skipped}, Total: {tests}')
-            " 2>/dev/null || echo "N/A")
-            echo "Results: $TESTS" >> "$SUMMARY_FILE"
-          fi
-          if [ -f coverage.xml ]; then
-            COV=$(python3 -c "
-            import xml.etree.ElementTree as ET
-            tree = ET.parse('coverage.xml')
-            root = tree.getroot()
-            line_rate = root.get('line-rate', '0')
-            pct = round(float(line_rate) * 100, 1)
-            print(f'{pct}%')
-            " 2>/dev/null || echo "N/A")
-            echo "Coverage: $COV" >> "$SUMMARY_FILE"
-          fi
+          python3 - << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
 
-      - name: Upload test summary artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-summary-py${{ matrix.python-version }}
-          path: test-summary-py${{ matrix.python-version }}.md
-          retention-days: 14
+          SUITES = [
+              ("framework", "tests/test-results-framework.xml", "tests/coverage-framework.xml", 80),
+              ("backend", "bet_dashboard/backend/test-results-backend.xml", "bet_dashboard/backend/coverage-backend.xml", 85),
+              ("crawler", "bet_crawler/test-results-crawler.xml", "bet_crawler/coverage-crawler.xml", 75),
+          ]
+          MAX_LISTED = 40
+
+          def parse_junit(path):
+              try:
+                  root = ET.parse(path).getroot()
+              except Exception:
+                  return None, []
+              agg = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+              fails = []
+              for ts in root.iter("testsuite"):
+                  for k in agg:
+                      agg[k] += int(ts.get(k, "0") or 0)
+                  for tc in ts.iter("testcase"):
+                      f = tc.find("failure")
+                      e = tc.find("error")
+                      if (f is None) and (e is None):
+                          continue
+                      el = f if f is not None else e
+                      msg = el.get("message") or (el.text or "")
+                      first = msg.strip().splitlines()[0] if msg.strip() else "(no message)"
+                      fails.append((tc.get("classname", "?"), tc.get("name", "?"), first[:200]))
+              passed = agg["tests"] - agg["failures"] - agg["errors"] - agg["skipped"]
+              return (passed, agg["failures"], agg["errors"], agg["skipped"], agg["tests"]), fails
+
+          def cov_pct(path):
+              try:
+                  root = ET.parse(path).getroot()
+                  return round(float(root.get("line-rate", "0")) * 100, 1)
+              except Exception:
+                  return None
+
+          print("## 🧪 Python Tests (3.14) — 3 suites, coverage gates enforced")
+          print()
+          print("| Suite | Passed | Failed | Errors | Skipped | Total | Coverage | Gate |")
+          print("|---|---|---|---|---|---|---|---|")
+          all_fails = []
+          for name, junit, cov, gate in SUITES:
+              stats, fails = parse_junit(junit)
+              if stats is None:
+                  print(f"| {name} | ⚠️ no results — suite crashed before junit was written | | | | | — | ≥{gate}% |")
+              else:
+                  p, fe, er, sk, to = stats
+                  c = cov_pct(cov)
+                  c_str = f"{c}%" if c is not None else "—"
+                  ok = "✅" if (c is not None and c >= gate) else "❌"
+                  print(f"| {name} | {p} | {fe} | {er} | {sk} | {to} | {c_str} | {ok} ≥{gate}% |")
+              all_fails.append((name, fails))
+
+          if any(f for _, f in all_fails):
+              print()
+              print("### ❌ Failing tests (file :: test — first failure line)")
+              for name, fails in all_fails:
+                  if not fails:
+                      continue
+                  print()
+                  print(f"**{name}** — {len(fails)} failure(s):")
+                  for cls, tname, first in fails[:MAX_LISTED]:
+                      print(f"- `{cls}::{tname}` — {first}")
+                  if len(fails) > MAX_LISTED:
+                      print(f"- … and {len(fails) - MAX_LISTED} more (see job log)")
+          PY
 
   # ── 3. AUDIT ─────────────────────────────────────────────────────────────
   audit:
@@ -249,7 +297,7 @@ jobs:
 
       - name: Install audit tools
         run: |
-          # Install dependencies from requirements files (template-driven)
+          # Install dependencies from requirements files
           echo "Installing requirements from:"
           echo "$REQUIREMENTS_FILES"
           while IFS= read -r req_file; do
@@ -268,7 +316,7 @@ jobs:
           # Set PYTHONPATH to include source directories for local package imports
           echo "PYTHONPATH=$SRC_DIR" >> $GITHUB_ENV
 
-          # Run any post-install commands (e.g., scrapling install, playwright install)
+          # Run any post-install commands
           if [ -n "$POST_INSTALL_CMDS" ]; then
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
@@ -302,8 +350,8 @@ jobs:
         id: mypy
         run: |
           echo "── Type Checking ─────────────────────────────────────────────"
-          # Run mypy on all source directories at once
-          mypy $SRC_DIR             --strict             --ignore-missing-imports             --python-version 3.10             --no-error-summary 2>&1 | tee mypy-output.txt || true
+          # D-F: mypy targets the 3.14 interpreter CI actually runs
+          mypy $SRC_DIR             --strict             --ignore-missing-imports             --python-version 3.14             --no-error-summary 2>&1 | tee mypy-output.txt || true
           MYPY_ERRORS=$(grep -c "error:" mypy-output.txt 2>/dev/null || echo "0")
           MYPY_ERRORS=$(echo "$MYPY_ERRORS" | tr -d '[:space:]')
           echo "mypy_errors=${MYPY_ERRORS:-0}" >> "$GITHUB_OUTPUT"
@@ -331,7 +379,9 @@ jobs:
           try:
               with open('pip-audit-report.json') as f:
                   data = json.load(f)
-              print(len(data.get('dependencies', [])))
+              if isinstance(data, dict):
+                  data = data.get('dependencies', [])
+              print(sum(1 for d in data if d.get('vulns')))
           except:
               print('0')
           " 2>/dev/null || echo "0")
@@ -391,54 +441,135 @@ jobs:
           echo "interrogate_pct=${INTERROGATE_PCT:-0}" >> "$GITHUB_OUTPUT"
           echo "Docstring coverage: ${INTERROGATE_PCT:-0}%"
 
-      - name: Upload all audit reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: audit-reports
-          retention-days: 30
-          path: |
-            bandit-report.json
-            semgrep-report.json
-            semgrep-output.txt
-            pip-audit-report.json
-            radon-cc-report.json
-            radon-mi-report.json
-            vulture-report.txt
-            mypy-output.txt
-            interrogate-output.txt
-
-      - name: Generate audit summary
+      - name: Write audit summary
         if: always()
         run: |
-          cat > audit-summary.md << 'HEADER'
-          # Audit Summary
+          python3 - << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import re
+          from pathlib import Path
 
-          HEADER
+          MAX = 50
 
-          for section in "Type Checking (mypy)|mypy-output.txt"                          "Security (bandit)|bandit-output.txt"                          "Pattern Security (semgrep)|semgrep-output.txt"                          "Dependencies (pip-audit)|pip-audit-output.txt"                          "Complexity (radon)|radon-cc-output.txt"                          "Dead Code (vulture)|vulture-report.txt"                          "Docstring Coverage (interrogate)|interrogate-output.txt"; do
-            title="${section%%|*}"
-            file="${section##*|}"
-            echo "## $title" >> audit-summary.md
-            echo '```' >> audit-summary.md
-            cat "$file" 2>/dev/null >> audit-summary.md || echo "No output" >> audit-summary.md
-            echo '```' >> audit-summary.md
-            echo "" >> audit-summary.md
-          done
+          def section(title):
+              print()
+              print(f"### {title}")
 
-      - name: Upload audit summary artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: audit-summary
-          path: audit-summary.md
-          retention-days: 30
+          def show_list(items):
+              if not items:
+                  print("✅ No findings.")
+                  return
+              for it in items[:MAX]:
+                  print(f"- {it}")
+              if len(items) > MAX:
+                  print(f"- … and {len(items) - MAX} more (see job log)")
 
-  # ── GATE ─────────────────────────────────────────────────────────────────
-  ci-gate:
-    name: "CI Gate"
-    if: always()
-    needs: [auto-fix, test, audit]
+          print("## 🔍 Audit findings (advisory — does not gate the run)")
+
+          # mypy — file:line: error
+          errors = []
+          p = Path("mypy-output.txt")
+          if p.exists():
+              rx = re.compile(r"^(\S+\.py):(\d+): error: (.*)$")
+              for line in p.read_text(errors="ignore").splitlines():
+                  m = rx.match(line.strip())
+                  if m:
+                      errors.append(f"`{m.group(1)}:{m.group(2)}` — {m.group(3)}")
+          section(f"🧩 Types (mypy, strict) — {len(errors)} error(s)")
+          show_list(errors)
+
+          # bandit — file:line [SEVERITY] test_id: text
+          issues = []
+          p = Path("bandit-report.json")
+          if p.exists():
+              try:
+                  for r in json.loads(p.read_text(errors="ignore")).get("results", []):
+                      issues.append(
+                          f"`{r.get('filename', '?')}:{r.get('line_number', '?')}` "
+                          f"[{r.get('issue_severity', '?')}] {r.get('test_id', '?')} — {r.get('issue_text', '')[:150]}"
+                      )
+              except Exception:
+                  issues = ["(failed to parse bandit-report.json)"]
+          else:
+              issues = ["(no bandit report)"]
+          section(f"🛡️ Security (bandit) — {len(issues)} issue(s)")
+          show_list(issues)
+
+          # semgrep — file:line rule: message
+          findings = []
+          p = Path("semgrep-report.json")
+          if p.exists():
+              try:
+                  for r in json.loads(p.read_text(errors="ignore")).get("results", []):
+                      loc = r.get("start", {}).get("line", "?")
+                      findings.append(
+                          f"`{r.get('path', '?')}:{loc}` {r.get('check_id', '?')} — "
+                          f"{r.get('extra', {}).get('message', '')[:150]}"
+                      )
+              except Exception:
+                  findings = ["(failed to parse semgrep-report.json)"]
+          section(f"🔎 Semgrep — {len(findings)} finding(s)")
+          show_list(findings)
+
+          # pip-audit — package@version: vuln ids (fix versions)
+          vulns = []
+          p = Path("pip-audit-report.json")
+          if p.exists():
+              try:
+                  data = json.loads(p.read_text(errors="ignore"))
+                  if isinstance(data, dict):
+                      data = data.get("dependencies", [])
+                  for dep in data:
+                      vs = dep.get("vulns", [])
+                      if not vs:
+                          continue
+                      ids = ", ".join(v.get("id", "?") for v in vs)
+                      fixes = "; ".join(", ".join(v.get("fix_versions", [])) or "none" for v in vs)
+                      vulns.append(f"**{dep.get('name', '?')}@{dep.get('version', '?')}** — {ids} (fix: {fixes})")
+              except Exception:
+                  vulns = ["(failed to parse pip-audit-report.json)"]
+          section(f"📦 Dependencies (pip-audit) — {len(vulns)} vulnerable package(s)")
+          show_list(vulns)
+
+          # radon — hot functions rank C+
+          hot = []
+          p = Path("radon-cc-report.json")
+          if p.exists():
+              try:
+                  data = json.loads(p.read_text(errors="ignore"))
+                  for fname, funcs in data.items():
+                      for fn in funcs:
+                          if fn.get("rank", "") in ("C", "D", "E", "F"):
+                              hot.append(f"`{fname}:{fn.get('lineno', '?')}` — {fn.get('name', '?')}() rank {fn['rank']} (complexity {fn.get('complexity', '?')})")
+              except Exception:
+                  hot = ["(failed to parse radon-cc-report.json)"]
+          section(f"📈 Complexity (radon, rank ≥C) — {len(hot)} hot function(s)")
+          show_list(hot)
+
+          # vulture — raw file:line entries
+          dead = []
+          p = Path("vulture-report.txt")
+          if p.exists():
+              dead = [l.strip() for l in p.read_text(errors="ignore").splitlines() if l.strip()]
+          section(f"🧟 Dead code (vulture, conf ≥80%) — {len(dead)} candidate(s)")
+          show_list(dead)
+
+          # interrogate — coverage summary lines
+          p = Path("interrogate-output.txt")
+          lines = []
+          if p.exists():
+              lines = [l.strip() for l in p.read_text(errors="ignore").splitlines() if "Coverage:" in l]
+          section("📝 Docstrings (interrogate) — per-directory coverage")
+          if lines:
+              for l in lines:
+                  print(f"- `{l}`")
+          else:
+              print("(no coverage lines found)")
+          PY
+
+  # ── 4. FRONTEND TESTS (D-G — parallel to python tests, no needs) ──────────
+  frontend-tests:
+    name: "Frontend (typecheck · lint · vitest)"
     runs-on: ubuntu-latest
 
     steps:
@@ -446,115 +577,294 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Download all artifacts
-        if: always()
-        uses: actions/download-artifact@v4
+      - uses: actions/setup-node@v4
         with:
-          path: artifacts
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bet_dashboard/frontend/package-lock.json
 
-      - name: Generate consolidated CI report
+      - name: Install frontend dependencies
+        working-directory: bet_dashboard/frontend
+        run: npm ci
+
+      - name: Type check
+        working-directory: bet_dashboard/frontend
+        run: npm run typecheck 2>&1 | tee typecheck-output.txt
+
+      - name: Lint
+        # Advisory initially: `eslint .` carries 21 pre-existing src/ errors
+        # (documented cycle 9; none in test files). Pay down the debt, then
+        # remove continue-on-error to make lint blocking.
+        continue-on-error: true
+        working-directory: bet_dashboard/frontend
+        run: npx eslint . --format json --output-file eslint-report.json
+
+      - name: Unit tests (vitest)
+        # Standing vitest config (threads pool + isolate:false +
+        # fileParallelism:false) is deterministic; CI runners are fast —
+        # the 60s worker-start hazard documented in cycle 9/12 is a
+        # constrained-container artifact, not a CI-runner risk.
+        working-directory: bet_dashboard/frontend
+        run: |
+          mkdir -p test-results
+          npm test -- --reporter=default --reporter=junit --outputFile=test-results/vitest-junit.xml
+
+      - name: Write frontend summary
+        if: always()
+        working-directory: bet_dashboard/frontend
+        run: |
+          python3 - << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          MAX = 60
+
+          print("## 🖥️ Frontend — typecheck · lint · vitest")
+
+          # typecheck
+          p = Path("typecheck-output.txt")
+          ts_errors = []
+          if p.exists():
+              ts_errors = [l.strip() for l in p.read_text(errors="ignore").splitlines() if "error TS" in l]
+          print()
+          print(f"### 🧩 Typecheck (tsc -b) — {len(ts_errors)} error(s)")
+          if not ts_errors:
+              print("✅ Clean.")
+          else:
+              for l in ts_errors[:MAX]:
+                  print(f"- {l}")
+              if len(ts_errors) > MAX:
+                  print(f"- … and {len(ts_errors) - MAX} more")
+
+          # eslint
+          p = Path("eslint-report.json")
+          problems = []
+          if p.exists():
+              try:
+                  for f in json.loads(p.read_text(errors="ignore")):
+                      for m in f.get("messages", []):
+                          sev = "❌" if m.get("severity") == 2 else "⚠️"
+                          fp = f.get("filePath", "?").replace(str(Path.cwd()) + "/", "")
+                          problems.append(f"{sev} `{fp}:{m.get('line', '?')}` — {m.get('ruleId', '?')} — {m.get('message', '')[:150]}")
+              except Exception:
+                  problems = ["(failed to parse eslint-report.json)"]
+          print()
+          print(f"### 🧹 Lint (eslint) — {len(problems)} problem(s) — advisory until src/ debt is paid down")
+          if not problems:
+              print("✅ Clean.")
+          else:
+              for l in problems[:MAX]:
+                  print(f"- {l}")
+              if len(problems) > MAX:
+                  print(f"- … and {len(problems) - MAX} more")
+
+          # vitest junit
+          p = Path("test-results/vitest-junit.xml")
+          if p.exists():
+              try:
+                  root = ET.parse(p).getroot()
+              except Exception:
+                  root = None
+          else:
+              root = None
+          print()
+          if root is None:
+              print("### ⚠️ Vitest — no junit results (crashed before write?)")
+          else:
+              agg = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+              fails = []
+              for ts in root.iter("testsuite"):
+                  for k in agg:
+                      agg[k] += int(ts.get(k, "0") or 0)
+                  for tc in ts.iter("testcase"):
+                      f = tc.find("failure")
+                      e = tc.find("error")
+                      if (f is None) and (e is None):
+                          continue
+                      el = f if f is not None else e
+                      msg = el.get("message") or (el.text or "")
+                      first = msg.strip().splitlines()[0] if msg.strip() else "(no message)"
+                      fails.append((tc.get("classname", "?"), tc.get("name", "?"), first[:200]))
+              passed = agg["tests"] - agg["failures"] - agg["errors"] - agg["skipped"]
+              print(f"### 🧪 Vitest — {passed} passed, {agg['failures'] + agg['errors']} failed, {agg['skipped']} skipped (total {agg['tests']})")
+              if fails:
+                  print()
+                  print("**Failing tests:**")
+                  for cls, tname, first in fails[:MAX]:
+                      print(f"- `{cls}::{tname}` — {first}")
+                  if len(fails) > MAX:
+                      print(f"- … and {len(fails) - MAX} more")
+          PY
+
+  # ── 5. E2E TESTS (blocking — real stack, PR code, local build) ───────────
+  e2e-tests:
+    name: "E2E (docker stack · playwright)"
+    runs-on: ubuntu-latest
+    needs: [test, frontend-tests]
+    # E2E-skip fix, attempt 3 (canonical): GitHub's skip propagation is
+    # TRANSITIVE through the needs graph — auto-fix (push-only, always
+    # skipped on PR events) → test → e2e-tests. An explicit `if` WITHOUT a
+    # status-check function does NOT opt out (proven: runs 36197998947,
+    # 36272817397 with no if, AND 36274660503 with a bare result-comparison
+    # if — all skipped e2e with both DIRECT needs green, 0 steps, no
+    # runner). Every job that escapes the skip carries a status function:
+    # test/audit/ci-gate all run via `if: always()`. Per GitHub docs, the
+    # documented opt-out for "run even when a needed job was skipped" is
+    # `always()` in the if. The result comparisons preserve the blocking
+    # gate: e2e runs ONLY when both direct needs succeeded.
+    if: ${{ always() && needs.test.result == 'success' && needs.frontend-tests.result == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bet_dashboard/frontend/package-lock.json
+
+      - name: Install frontend deps + playwright browsers
+        working-directory: bet_dashboard/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+
+      - name: Build local E2E image (from PR code — never pushed, never pulled)
+        run: docker compose -f setup/compose.e2e.yaml build
+
+      - name: Start E2E stack (backend + frontend only)
+        run: docker compose -f setup/compose.e2e.yaml up -d
+
+      - name: Wait for health (nginx + backend answering /api/status on :3002)
+        run: |
+          timeout 180 bash -c '
+            until curl -sf -o /dev/null http://localhost:3002/api/status; do
+              echo "waiting for stack..."
+              sleep 5
+            done
+          '
+
+      - name: Run playwright tests (external stack)
+        working-directory: bet_dashboard/frontend
+        env:
+          E2E_BASE_URL: "http://localhost:3002"
+        run: npx playwright test
+
+      - name: Write E2E summary
+        if: always()
+        working-directory: bet_dashboard/frontend
+        run: |
+          {
+            echo "## 🌐 E2E — docker stack (backend + frontend, PR code, locally built)"
+            echo ""
+            echo "Stack: built locally from this PR's checkout (setup/compose.e2e.yaml) — no registry pull/push; ghcr.io is only ever touched by deploy.yml on main. Torn down at job end (down -v --rmi all)."
+            echo ""
+            if curl -sf -o /dev/null http://localhost:3002/api/status; then
+              echo "Stack health: ✅ healthy — nginx + backend answering /api/status on :3002"
+            else
+              echo "Stack health: ❌ not answering — see the job log above"
+            fi
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          p = Path("test-results/e2e-junit.xml")
+          if not p.exists():
+              print("### ⚠️ Playwright — no junit results (tests never ran: build, health, or browser install failed — see job log)")
+          else:
+              try:
+                  root = ET.parse(p).getroot()
+              except Exception:
+                  print("### ⚠️ Playwright — failed to parse e2e-junit.xml")
+                  root = None
+              if root is not None:
+                  agg = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+                  fails = []
+                  for ts in root.iter("testsuite"):
+                      for k in agg:
+                          agg[k] += int(ts.get(k, "0") or 0)
+                      for tc in ts.iter("testcase"):
+                          f = tc.find("failure")
+                          e = tc.find("error")
+                          if (f is None) and (e is None):
+                              continue
+                          el = f if f is not None else e
+                          msg = el.get("message") or (el.text or "")
+                          first = msg.strip().splitlines()[0] if msg.strip() else "(no message)"
+                          fails.append((tc.get("classname", "?"), tc.get("name", "?"), first[:200]))
+                  passed = agg["tests"] - agg["failures"] - agg["errors"] - agg["skipped"]
+                  print(f"### 🧪 Playwright — {passed} passed, {agg['failures'] + agg['errors']} failed, {agg['skipped']} skipped (total {agg['tests']}) across chromium + firefox + webkit")
+                  if fails:
+                      print()
+                      print("**Failing tests:**")
+                      for cls, tname, first in fails:
+                          print(f"- `{cls}::{tname}` — {first}")
+          PY
+
+      - name: Tear down E2E stack (always — nothing persists)
+        if: always()
+        run: docker compose -f setup/compose.e2e.yaml down -v --rmi all --remove-orphans
+
+  # ── GATE (required: auto-fix, test, frontend-tests, e2e-tests) ────────────
+  ci-gate:
+    name: "CI Gate"
+    if: always()
+    needs: [auto-fix, test, audit, frontend-tests, e2e-tests]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write run summary (verdict)
         if: always()
         run: |
           {
-            echo "═══════════════════════════════════════════════════════════"
-            echo "  CI CONSOLIDATED REPORT"
-            echo "  Run: ${{ github.run_number }}"
-            echo "  Commit: ${{ github.sha }}"
-            echo "  Branch: ${{ github.ref_name }}"
-            echo "═══════════════════════════════════════════════════════════"
+            echo "# 🚦 CI Verdict — run #${{ github.run_number }}"
             echo ""
-            echo "── AUTO-FIX RESULTS ──────────────────────────────────────"
-            if [ -f artifacts/autofix-report/ruff-fix-output.txt ]; then
-              cat artifacts/autofix-report/ruff-fix-output.txt
-            else
-              echo "No auto-fix report available."
-            fi
+            echo "${{ github.event_name }} on \`${{ github.ref_name }}\` — commit \`${{ github.sha }}\`"
             echo ""
-            echo "── TEST RESULTS ──────────────────────────────────────────"
-            for py in 3.14; do
-              if [ -f "artifacts/test-summary-py${py}/test-summary-py${py}.md" ]; then
-                cat "artifacts/test-summary-py${py}/test-summary-py${py}.md"
-              else
-                echo "Python $py: No test summary available."
-              fi
-              echo ""
-            done
-            echo "── AUDIT RESULTS ─────────────────────────────────────────"
-            if [ -f artifacts/audit-summary/audit-summary.md ]; then
-              cat artifacts/audit-summary/audit-summary.md
-            else
-              echo "No audit summary available."
-            fi
+            echo "| Job | Result |"
+            echo "|---|---|"
+            echo "| Auto-fix | ${{ needs.auto-fix.result }} |"
+            echo "| Tests (3 Python suites) | ${{ needs.test.result }} |"
+            echo "| Frontend (typecheck · lint · vitest) | ${{ needs.frontend-tests.result }} |"
+            echo "| E2E (docker stack · playwright) | ${{ needs.e2e-tests.result }} |"
+            echo "| Audit (advisory) | ${{ needs.audit.result }} |"
             echo ""
-            echo "── JOB STATUSES ──────────────────────────────────────────"
-            echo "auto-fix: ${{ needs.auto-fix.result }}"
-            echo "test:     ${{ needs.test.result }}"
-            echo "audit:    ${{ needs.audit.result }}"
+            echo "### Audit key metrics (advisory — details in the Audit summary section)"
             echo ""
-            echo "── KEY METRICS ───────────────────────────────────────────"
-            echo "mypy errors:        ${{ needs.audit.outputs.mypy_errors }}"
-            echo "bandit issues:      ${{ needs.audit.outputs.bandit_issues }}"
-            echo "semgrep findings:   ${{ needs.audit.outputs.semgrep_findings }}"
-            echo "pip-audit vulns:    ${{ needs.audit.outputs.pip_audit_vulns }}"
-            echo "radon complexity:   ${{ needs.audit.outputs.radon_complexity }}"
-            echo "vulture dead code:  ${{ needs.audit.outputs.vulture_dead }}"
-            echo "interrogate docs:   ${{ needs.audit.outputs.interrogate_pct }}%"
-            echo "═══════════════════════════════════════════════════════════"
-          } > consolidated-report.txt
-          cat consolidated-report.txt
-
-      - name: Create GitHub annotations
-        if: always()
-        run: |
-          MYPY_ERRORS="${{ needs.audit.outputs.mypy_errors }}"
-          if [ "$MYPY_ERRORS" != "0" ] && [ -n "$MYPY_ERRORS" ]; then
-            echo "::warning::mypy found $MYPY_ERRORS type error(s)."
-          fi
-          BANDIT_ISSUES="${{ needs.audit.outputs.bandit_issues }}"
-          if [ "$BANDIT_ISSUES" != "0" ] && [ -n "$BANDIT_ISSUES" ]; then
-            echo "::warning::bandit found $BANDIT_ISSUES security issue(s)."
-          fi
-          SEMGREP_FINDINGS="${{ needs.audit.outputs.semgrep_findings }}"
-          if [ "$SEMGREP_FINDINGS" != "0" ] && [ -n "$SEMGREP_FINDINGS" ]; then
-            echo "::warning::semgrep found $SEMGREP_FINDINGS finding(s)."
-          fi
-          PIP_AUDIT_VULNS="${{ needs.audit.outputs.pip_audit_vulns }}"
-          if [ "$PIP_AUDIT_VULNS" != "0" ] && [ -n "$PIP_AUDIT_VULNS" ]; then
-            echo "::warning::pip-audit found $PIP_AUDIT_VULNS vulnerable dependency(ies)."
-          fi
-          RADON_COMPLEXITY="${{ needs.audit.outputs.radon_complexity }}"
-          if [ "$RADON_COMPLEXITY" != "0" ] && [ -n "$RADON_COMPLEXITY" ]; then
-            echo "::warning::radon found $RADON_COMPLEXITY high-complexity function(s)."
-          fi
-          VULTURE_DEAD="${{ needs.audit.outputs.vulture_dead }}"
-          if [ "$VULTURE_DEAD" != "0" ] && [ -n "$VULTURE_DEAD" ]; then
-            echo "::notice::vulture found $VULTURE_DEAD potential dead code location(s)."
-          fi
-          INTERROGATE_PCT="${{ needs.audit.outputs.interrogate_pct }}"
-          if [ -n "$INTERROGATE_PCT" ] && [ "$INTERROGATE_PCT" != "0" ] && [ "$INTERROGATE_PCT" -lt 80 ] 2>/dev/null; then
-            echo "::notice::Docstring coverage is ${INTERROGATE_PCT}%."
-          fi
-
-      - name: Upload consolidated report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: consolidated-ci-report
-          path: consolidated-report.txt
-          retention-days: 30
+            echo "- mypy errors: **${{ needs.audit.outputs.mypy_errors }}**"
+            echo "- bandit issues: **${{ needs.audit.outputs.bandit_issues }}**"
+            echo "- semgrep findings: **${{ needs.audit.outputs.semgrep_findings }}**"
+            echo "- pip-audit vulnerable packages: **${{ needs.audit.outputs.pip_audit_vulns }}**"
+            echo "- radon hot functions: **${{ needs.audit.outputs.radon_complexity }}**"
+            echo "- vulture dead-code candidates: **${{ needs.audit.outputs.vulture_dead }}**"
+            echo "- docstring coverage: **${{ needs.audit.outputs.interrogate_pct }}%**"
+            echo ""
+            echo "Per-suite test results, failing tests, and audit findings with file:line"
+            echo "are in the corresponding job summaries above on this page."
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check required jobs passed
         run: |
           python3 -c "
           import sys
+
           required = {
-              'auto-fix': '${{ needs.auto-fix.result }}',
-              'test':     '${{ needs.test.result }}',
+              # auto-fix legitimately skips on PR events (push-only job)
+              'auto-fix':       ('${{ needs.auto-fix.result }}', ('success', 'skipped')),
+              'test':           ('${{ needs.test.result }}', ('success',)),
+              'frontend-tests': ('${{ needs.frontend-tests.result }}', ('success',)),
+              'e2e-tests':      ('${{ needs.e2e-tests.result }}', ('success',)),
           }
-          failures = [n for n, r in required.items() if r not in ('success', 'skipped')]
+          failures = [n for n, (r, ok) in required.items() if r not in ok]
           if failures:
-              print('Blocking failures in:', ', '.join(failures))
+              print('BLOCKING failures in:', ', '.join(failures))
               sys.exit(1)
-          print('All required jobs passed.')
+          print('All required jobs passed (auto-fix, test, frontend-tests, e2e-tests).')
           print('Audit result (advisory):', '${{ needs.audit.result }}')
           "

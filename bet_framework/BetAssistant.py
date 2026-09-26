@@ -374,27 +374,27 @@ class BetAssistant(BaseStorageManager):
                         "cons_dc_12": cons_data["double_chance"]["12"],
                         "cons_dc_x2": cons_data["double_chance"]["x2"],
                         # Odds
-                        "odds_home": odds.get("home", 0.0),
-                        "odds_draw": odds.get("draw", 0.0),
-                        "odds_away": odds.get("away", 0.0),
-                        "odds_over_15": odds.get("over_15", 0.0),
-                        "odds_under_15": odds.get("under_15", 0.0),
-                        "odds_over_25": odds.get("over_25", 0.0),
-                        "odds_under_25": odds.get("under_25", 0.0),
-                        "odds_btts_yes": odds.get("btts_y", 0.0),
-                        "odds_btts_no": odds.get("btts_n", 0.0),
-                        "odds_over_05": odds.get("over_05", 0.0),
-                        "odds_under_05": odds.get("under_05", 0.0),
-                        "odds_over_35": odds.get("over_35", 0.0),
-                        "odds_under_35": odds.get("under_35", 0.0),
-                        "odds_over_45": odds.get("over_45", 0.0),
-                        "odds_under_45": odds.get("under_45", 0.0),
-                        "odds_dc_1x": odds.get("dc_1x", 0.0),
-                        "odds_dc_12": odds.get("dc_12", 0.0),
-                        "odds_dc_x2": odds.get("dc_x2", 0.0),
+                        "odds_home": (odds.get("home") or 0.0),
+                        "odds_draw": (odds.get("draw") or 0.0),
+                        "odds_away": (odds.get("away") or 0.0),
+                        "odds_over_15": (odds.get("over_15") or 0.0),
+                        "odds_under_15": (odds.get("under_15") or 0.0),
+                        "odds_over_25": (odds.get("over_25") or 0.0),
+                        "odds_under_25": (odds.get("under_25") or 0.0),
+                        "odds_btts_yes": (odds.get("btts_y") or 0.0),
+                        "odds_btts_no": (odds.get("btts_n") or 0.0),
+                        "odds_over_05": (odds.get("over_05") or 0.0),
+                        "odds_under_05": (odds.get("under_05") or 0.0),
+                        "odds_over_35": (odds.get("over_35") or 0.0),
+                        "odds_under_35": (odds.get("under_35") or 0.0),
+                        "odds_over_45": (odds.get("over_45") or 0.0),
+                        "odds_under_45": (odds.get("under_45") or 0.0),
+                        "odds_dc_1x": (odds.get("dc_1x") or 0.0),
+                        "odds_dc_12": (odds.get("dc_12") or 0.0),
+                        "odds_dc_x2": (odds.get("dc_x2") or 0.0),
                     }
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one bad row must not abort the load
                 logger.info(f"[BetAssistant] Skipping row {idx}: {e}")
 
         self._df = pd.DataFrame(rows)
@@ -529,7 +529,8 @@ class BetAssistant(BaseStorageManager):
 
                 self.conn.execute(
                     """INSERT INTO legs
-                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url, league, predictions, final_score)
+                    (slip_id, match_name, match_datetime, market, market_type, odds,
+                     result_url, league, predictions, final_score)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         slip_id,
@@ -569,7 +570,8 @@ class BetAssistant(BaseStorageManager):
         query = """
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
-                l.match_name, l.match_datetime, l.market, l.market_type, l.odds, l.status, l.result_url, l.league, l.predictions, l.final_score
+                l.match_name, l.match_datetime, l.market, l.market_type, l.odds,
+                l.status, l.result_url, l.league, l.predictions, l.final_score
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
@@ -640,7 +642,8 @@ class BetAssistant(BaseStorageManager):
         leg_id      : Primary key of the leg row.
         score       : Full-time score in 'H:A' format (e.g. '2:1').
         market      : Leg market label (e.g. '1', 'X', 'Over 2.5', 'Over 1.5', 'Over 0.5', 'Over 3.5', 'Over 4.5').
-        market_type : One of 'result', 'btts', 'over_under_25', 'over_under_15', 'over_under_05', 'over_under_35', 'over_under_45'.
+        market_type : One of 'result', 'btts', 'over_under_25', 'over_under_15',
+            'over_under_05', 'over_under_35', 'over_under_45'.
 
         Returns
         -------
@@ -783,7 +786,7 @@ class BetAssistant(BaseStorageManager):
 
         return None
 
-    def validate_slips(self) -> ValidationReport:
+    def validate_slips(self) -> ValidationReport:  # noqa: C901 - pre-existing complexity on main; refactor out of testing-cycle scope
         self.reopen_if_changed()
 
         pending = self.fetch_rows(
@@ -870,7 +873,7 @@ class BetAssistant(BaseStorageManager):
 
     # ── Candidate collection ──────────────────────────────────────────────────
 
-    def _collect_candidates(self, cfg: BetSlipConfig) -> list[dict]:
+    def _collect_candidates(self, cfg: BetSlipConfig) -> list[dict]:  # noqa: C901 - pre-existing complexity on main; refactor out of testing-cycle scope
         # TODO - this wont work unless datetimes are fixed first!
         # now       = pd.Timestamp.now()
         # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
