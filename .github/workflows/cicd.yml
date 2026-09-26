@@ -702,6 +702,15 @@ jobs:
     name: "E2E (docker stack · playwright)"
     runs-on: ubuntu-latest
     needs: [test, frontend-tests]
+    # Explicit if (E2E-skip fix): GitHub's default graph evaluation skips a
+    # job when ANY ancestor in its needs graph is skipped — on PR events the
+    # push-only auto-fix job is always skipped, so e2e-tests was
+    # DETERMINISTICALLY skipped even though both direct needs succeeded
+    # (observed twice: runs 36197998947 and 36272817397, both with
+    # test=success + frontend-tests=success + e2e skipped, 0 steps, no
+    # runner assigned). An explicit `if` overrides the default skip
+    # evaluation: run exactly when both DIRECT needs succeeded.
+    if: ${{ needs.test.result == 'success' && needs.frontend-tests.result == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
