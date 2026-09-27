@@ -592,12 +592,23 @@ jobs:
         run: npm run typecheck 2>&1 | tee typecheck-output.txt
 
       - name: Lint
-        # Advisory initially: `eslint .` carries 21 pre-existing src/ errors
-        # (documented cycle 9; none in test files). Pay down the debt, then
-        # remove continue-on-error to make lint blocking.
-        continue-on-error: true
+        # Advisory: `eslint .` carries 21 pre-existing src/ errors (documented
+        # cycle 9; none in test files). Pay down the debt, then drop the
+        # exit-code guard below to make lint blocking.
+        # eslint exits 1 BY CONTRACT when it finds problems — continue-on-error
+        # still rendered a red X annotation on every run. Instead we swallow
+        # exactly that expected code (findings + report written) so the step
+        # stays green; a genuine tool crash (any other exit code, or exit 1
+        # with NO report file) still fails the step loudly.
         working-directory: bet_dashboard/frontend
-        run: npx eslint . --format json --output-file eslint-report.json
+        run: |
+          npx eslint . --format json --output-file eslint-report.json && rc=0 || rc=$?
+          if [ "$rc" -eq 0 ] || { [ "$rc" -eq 1 ] && [ -f eslint-report.json ]; }; then
+            echo "eslint exit code: $rc (advisory — findings listed in the run summary)"
+          else
+            echo "eslint crashed (exit $rc, no report written) — failing loudly"
+            exit "$rc"
+          fi
 
       - name: Unit tests (vitest)
         # Standing vitest config (threads pool + isolate:false +
