@@ -33,6 +33,38 @@ from bet_framework.core import leagues
 from bet_framework.MatchesManager import MatchesManager
 
 
+def _units_std(settled, n_settled: int, avg_units: float) -> float:
+    """Sample standard deviation of stakes (0.0 when fewer than two slips)."""
+    if n_settled <= 1:
+        return 0.0
+    return round((sum((s.units - avg_units) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2)
+
+
+def _daily_pnl_and_sharpe(settled) -> tuple[dict[str, float], float | None]:
+    """Aggregate daily P&L and the annualised Sharpe ratio over those days."""
+    daily_pnl: dict[str, float] = {}
+    for s in settled:
+        day = s.date_generated[:10]
+        pnl = (s.total_odds - 1) * s.units if _get_status_value(s.slip_status) == "Won" else -s.units
+        daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
+
+    sharpe_ratio: float | None = None
+    if len(daily_pnl) >= 3:
+        vals = list(daily_pnl.values())
+        _m = sum(vals) / len(vals)
+        _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
+        sharpe_ratio = round((_m / _std * (252**0.5)) if _std > 0 else 0.0, 2)
+    return daily_pnl, sharpe_ratio
+
+
+def _partition_slips(slips):
+    """Split slips into (settled, won, pending) buckets by status."""
+    settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
+    won = [s for s in settled if _get_status_value(s.slip_status) == "Won"]
+    pending = [s for s in slips if _get_status_value(s.slip_status) == "Pending"]
+    return settled, won, pending
+
+
 class AppLogic:
     """Unified application logic combining DashboardLogic and service orchestration.
 
@@ -547,9 +579,7 @@ class AppLogic:
     ) -> dict[str, Any]:
         """Return aggregate slip statistics for the current filters."""
         slips = self.get_slips(profile, date_from, date_to)
-        settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
-        won = [s for s in settled if _get_status_value(s.slip_status) == "Won"]
-        pending = [s for s in slips if _get_status_value(s.slip_status) == "Pending"]
+        settled, won, pending = _partition_slips(slips)
 
         n_settled = len(settled)
         n_won = len(won)
@@ -569,24 +599,10 @@ class AppLogic:
 
         # ── Staking consistency ──────────────────────────────────────────────
         avg_units = round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
-        units_std = 0.0
-        if n_settled > 1:
-            _mean = avg_units
-            units_std = round((sum((s.units - _mean) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2)
+        units_std = _units_std(settled, n_settled, avg_units)
 
         # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
-        daily_pnl: dict[str, float] = {}
-        for s in settled:
-            day = s.date_generated[:10]
-            pnl = (s.total_odds - 1) * s.units if _get_status_value(s.slip_status) == "Won" else -s.units
-            daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
-
-        sharpe_ratio: float | None = None
-        if len(daily_pnl) >= 3:
-            vals = list(daily_pnl.values())
-            _m = sum(vals) / len(vals)
-            _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
-            sharpe_ratio = round((_m / _std * (252**0.5)) if _std > 0 else 0.0, 2)
+        daily_pnl, sharpe_ratio = _daily_pnl_and_sharpe(settled)
 
         # Best and worst day P&L
         best_day_pnl = max(daily_pnl.values()) if daily_pnl else None
@@ -596,18 +612,12 @@ class AppLogic:
         edge_analysis = get_rolling_edge_trend(settled)
 
         # ── New advanced metrics ───────────────────────────────────────────────
-        # Calculate biggest win/loss
         biggest_win_loss = calculate_biggest_win_loss(settled)
         biggest_win_units = biggest_win_loss["biggest_win_units"]
         biggest_loss_units = biggest_win_loss["biggest_loss_units"]
 
-        # Calculate streak metrics
+        # Calculate streak metrics + profit factor
         streak_metrics = calculate_streak_metrics(slips)  # Pass all slips, not just settled ones
-        current_streak = streak_metrics["current_streak"]
-        longest_win_streak = streak_metrics["longest_win_streak"]
-        longest_loss_streak = streak_metrics["longest_loss_streak"]
-
-        # Calculate profit factor
         profit_factor = calculate_profit_factor(settled)
 
         return {
@@ -633,9 +643,9 @@ class AppLogic:
             "biggest_loss_units": biggest_loss_units,
             "best_day_pnl": round(best_day_pnl, 2) if best_day_pnl is not None else None,
             "worst_day_pnl": round(worst_day_pnl, 2) if worst_day_pnl is not None else None,
-            "current_streak": current_streak,
-            "longest_win_streak": longest_win_streak,
-            "longest_loss_streak": longest_loss_streak,
+            "current_streak": streak_metrics["current_streak"],
+            "longest_win_streak": streak_metrics["longest_win_streak"],
+            "longest_loss_streak": streak_metrics["longest_loss_streak"],
             "profit_factor": profit_factor,
         }
 

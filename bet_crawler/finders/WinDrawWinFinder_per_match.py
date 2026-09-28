@@ -112,7 +112,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                         for i, attr in enumerate(attr_names):
                             try:
                                 odds_data[attr] = float(links[i].get_text(strip=True))
-                            except (ValueError, TypeError):
+                            except (ValueError, TypeError):  # noqa: PERF203 - intentional per-item fault isolation: one malformed odds cell must not kill the parse
                                 logger.error(f"Could not parse odds for {attr} in {url}")
                                 continue
 

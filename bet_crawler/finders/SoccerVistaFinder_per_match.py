@@ -65,7 +65,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                         if url:
                             matches_url.append(url)
                             # matches_url.append(SOCCERVISTA_URL + url)
-                except Exception as e:
+                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                     logger.debug(f"Failed to parse JSON-LD script: {e}")
                     continue
 
@@ -193,7 +193,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     value = element.get_text(strip=True)
                     if value and value != "-":
                         extracted_data[attr_name] = value
-            except Exception as e:
+            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                 logger.error(f"Error extracting {attr_name} for class {class_name}: {e}")
                 continue
         valid_field_names = {f.name for f in fields(Odds)}

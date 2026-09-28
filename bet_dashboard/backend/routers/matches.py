@@ -37,6 +37,47 @@ def _row_to_dict(row: dict) -> dict:
     return out
 
 
+def _significant_mask(df, sig_data, odds_key):
+    """Boolean mask of rows whose movement for this market is significant."""
+    import pandas as pd
+
+    market_key = odds_key.replace("odds_", "")
+    sig_mask = pd.Series(False, index=df.index)
+    for idx in df.index:
+        s = sig_data.get(idx)
+        if s and isinstance(s.get(market_key), dict) and s[market_key].get("significant"):
+            sig_mask.at[idx] = True
+    return sig_mask
+
+
+def _apply_cell_filters(logic, df, has_cons, has_odds, has_sig, min_consensus, min_odds):
+    """Keep rows where at least one market cell passes every active filter."""
+    import pandas as pd
+
+    sig_data: dict = {}
+    if has_sig:
+        for idx in df.index:
+            strength = logic.get_odds_movement_with_strength(idx)
+            if strength:
+                sig_data[idx] = strength
+
+    mask = pd.Series(False, index=df.index)
+    for md in MARKET_DEFINITIONS:
+        if md.cons_key not in df.columns:
+            continue
+        cell_ok = pd.Series(True, index=df.index)
+        if has_cons:
+            cell_ok &= df[md.cons_key].ge(min_consensus)
+        if has_odds and md.odds_key in df.columns:
+            cell_ok &= df[md.odds_key].ge(min_odds)
+        elif has_odds:
+            cell_ok = pd.Series(False, index=df.index)
+        if has_sig:
+            cell_ok &= _significant_mask(df, sig_data, md.odds_key)
+        mask |= cell_ok
+    return df[mask]
+
+
 @router.get("")
 def get_matches(
     request: Request,
@@ -96,37 +137,7 @@ def get_matches(
     has_sig = only_significant_movement
 
     if has_cons or has_odds or has_sig:
-        import pandas as pd
-
-        # Pre-compute significant movement data per row if needed
-        sig_data: dict = {}
-        if has_sig:
-            for idx in df.index:
-                strength = logic.get_odds_movement_with_strength(idx)
-                if strength:
-                    sig_data[idx] = strength
-
-        mask = pd.Series(False, index=df.index)
-        for md in MARKET_DEFINITIONS:
-            if md.cons_key not in df.columns:
-                continue
-            cell_ok = pd.Series(True, index=df.index)
-            if has_cons:
-                cell_ok &= df[md.cons_key].ge(min_consensus)
-            if has_odds and md.odds_key in df.columns:
-                cell_ok &= df[md.odds_key].ge(min_odds)
-            elif has_odds:
-                cell_ok = pd.Series(False, index=df.index)
-            if has_sig:
-                market_key = md.odds_key.replace("odds_", "")
-                sig_mask = pd.Series(False, index=df.index)
-                for idx in df.index:
-                    s = sig_data.get(idx)
-                    if s and isinstance(s.get(market_key), dict) and s[market_key].get("significant"):
-                        sig_mask.at[idx] = True
-                cell_ok &= sig_mask
-            mask |= cell_ok
-        df = df[mask]
+        df = _apply_cell_filters(logic, df, has_cons, has_odds, has_sig, min_consensus, min_odds)
 
     if df.empty:
         return {

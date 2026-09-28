@@ -146,6 +146,25 @@ class MatchesManager(BufferedStorageManager):
 
     # ── Similarity search inside the buffer ───────────────────────────────────
 
+    def _fuzzy_row_score(self, home, away, rh, ra) -> float | None:
+        """Score one buffered row against the target teams; None means not a match."""
+        ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
+        if not ok_h:
+            # Near-miss: check away too for score tracking
+            if sc_h >= 30:
+                _, sc_a = self.similarity_engine.is_similar(ra, away)
+                combined = (sc_h + sc_a) / 2
+                if 40 <= combined < 65:
+                    self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
+            return None
+        ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
+        if not ok_a:
+            combined = (sc_h + sc_a) / 2
+            if 40 <= combined < 65:
+                self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
+            return None
+        return (sc_h + sc_a) / 2
+
     def _find(self, home: str, away: str, dt: datetime) -> tuple[dict | None, int | None]:
         """Find a stored match by home/away names using fuzzy matching."""
         buf = self.ensure_buffer()
@@ -165,22 +184,9 @@ class MatchesManager(BufferedStorageManager):
 
             # Fuzzy matching only if similarity_engine is available
             if self.similarity_engine is not None:
-                ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
-                if not ok_h:
-                    # Near-miss: check away too for score tracking
-                    if sc_h >= 30:
-                        _, sc_a = self.similarity_engine.is_similar(ra, away)
-                        combined = (sc_h + sc_a) / 2
-                        if 40 <= combined < 65:
-                            self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
+                avg = self._fuzzy_row_score(home, away, rh, ra)
+                if avg is None:
                     continue
-                ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
-                if not ok_a:
-                    combined = (sc_h + sc_a) / 2
-                    if 40 <= combined < 65:
-                        self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
-                    continue
-                avg = (sc_h + sc_a) / 2
                 if avg > max_score:
                     max_score, best, best_idx = avg, row.to_dict(), idx
 
@@ -197,21 +203,26 @@ class MatchesManager(BufferedStorageManager):
 
         data = []
         for _, row in buf.iterrows():
-            try:
-                data.append(
-                    {
-                        "home_name": row["home_team_name"],
-                        "away_name": row["away_team_name"],
-                        "datetime": datetime.fromisoformat(row["datetime"]),
-                        "scores": self.deserialize_json(row["predictions_scores"]) or [],
-                        "odds": self.deserialize_json(row["odds"]),
-                        "result_url": row["result_url"],
-                        "league": row["league"],
-                    }
-                )
-            except Exception as exc:
-                logger.warning(f"skipping malformed row: {exc}")
+            item = self._try_row_to_public_dict(row)
+            if item is not None:
+                data.append(item)
         return pd.DataFrame(data)
+
+    def _try_row_to_public_dict(self, row):
+        """Build the public dict for one row; None (with a warning) when malformed."""
+        try:
+            return {
+            "home_name": row["home_team_name"],
+            "away_name": row["away_team_name"],
+            "datetime": datetime.fromisoformat(row["datetime"]),
+            "scores": self.deserialize_json(row["predictions_scores"]) or [],
+            "odds": self.deserialize_json(row["odds"]),
+            "result_url": row["result_url"],
+            "league": row["league"],
+        }
+        except Exception as exc:
+            logger.warning(f"skipping malformed row: {exc}")
+            return None
 
     @time_profiler
     def add_match(self, match: Match) -> int | None:
@@ -625,6 +636,63 @@ class MatchesManager(BufferedStorageManager):
         odds_dict = self.deserialize_json(odds_json) if odds_json else {}
         return self.calculate_movement_from_odds(odds_dict)
 
+    def _collect_future_matches(self, current_buf, today_start, tz) -> list:
+        """Collect current rows whose match datetime is not past, with their odds."""
+        future_matches = []
+        for _idx, row in current_buf.iterrows():
+            match = self._try_future_match_row(row, today_start, tz)
+            if match is not None:
+                future_matches.append(match)
+        return future_matches
+
+    def _try_future_match_row(self, row, today_start, tz):
+        """Build one future-match dict; None (debug-logged) when the row is malformed."""
+        try:
+            match_dt_str = row.get("datetime", "")
+            match_dt = datetime.fromisoformat(match_dt_str)
+            if match_dt.tzinfo is None:
+                match_dt = match_dt.replace(tzinfo=tz)
+            if match_dt < today_start:
+                return None
+            odds_dict = self.deserialize_json(row.get("odds")) if row.get("odds") else {}
+            return {
+                "home": row["home_team_name"],
+                "away": row["away_team_name"],
+                "datetime": match_dt,
+                "odds": odds_dict,
+            }
+        except Exception as exc:
+            logger.debug(f"Skipping row during history preservation: {exc}")
+            return None
+
+    def _transfer_match_history(self, fresh_manager, fresh_buf, match_data, timestamp, max_history) -> bool:
+        """Fuzzy-match one future match into the fresh buffer and append its odds history."""
+        found, fresh_idx = fresh_manager._find(match_data["home"], match_data["away"], match_data["datetime"])
+        if found is None or fresh_idx is None:
+            return False
+
+        snapshot = {"ts": timestamp}
+        snapshot.update(self._get_current_odds_snapshot(match_data["odds"]))
+
+        fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
+        fresh_odds = (
+            fresh_manager.deserialize_json(fresh_odds_json)
+            if (fresh_odds_json and not pd.isna(fresh_odds_json))
+            else {}
+        )
+        fresh_odds = fresh_odds or {}
+
+        existing_history = self._extract_history_from_odds(match_data["odds"])
+
+        combined_odds = dict(fresh_odds)
+        combined_odds["history"] = existing_history
+
+        combined_odds = self._append_to_history(combined_odds, snapshot, max_history)
+
+        fresh_buf.at[fresh_idx, "odds"] = fresh_manager.serialize_json(combined_odds)
+        fresh_manager._dirty = True
+        return True
+
     def merge_with_history_preservation(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
         """Merge fresh database while preserving odds history from current data.
 
@@ -651,25 +719,7 @@ class MatchesManager(BufferedStorageManager):
         future_matches = []
 
         if not current_buf.empty:
-            for _idx, row in current_buf.iterrows():
-                try:
-                    match_dt_str = row.get("datetime", "")
-                    match_dt = datetime.fromisoformat(match_dt_str)
-                    # Make timezone-aware for comparison
-                    if match_dt.tzinfo is None:
-                        match_dt = match_dt.replace(tzinfo=tz)
-                    if match_dt >= today_start:
-                        odds_dict = self.deserialize_json(row.get("odds")) if row.get("odds") else {}
-                        future_matches.append(
-                            {
-                                "home": row["home_team_name"],
-                                "away": row["away_team_name"],
-                                "datetime": match_dt,
-                                "odds": odds_dict,
-                            }
-                        )
-                except Exception as exc:
-                    logger.debug(f"Skipping row during history preservation: {exc}")
+            future_matches = self._collect_future_matches(current_buf, today_start, tz)
 
         logger.info(f"Found {len(future_matches)} future matches with potential history to preserve")
 
@@ -694,38 +744,7 @@ class MatchesManager(BufferedStorageManager):
             try:
                 if not match_data["odds"]:
                     continue
-
-                # Use fuzzy matching to find corresponding row in fresh DB
-                found, fresh_idx = fresh_manager._find(match_data["home"], match_data["away"], match_data["datetime"])
-
-                if found is not None and fresh_idx is not None:
-                    # Create snapshot from current odds
-                    snapshot = {"ts": timestamp}
-                    current_odds = self._get_current_odds_snapshot(match_data["odds"])
-                    snapshot.update(current_odds)
-
-                    # Get fresh row's odds and append history
-                    fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
-                    fresh_odds = (
-                        fresh_manager.deserialize_json(fresh_odds_json)
-                        if (fresh_odds_json and not pd.isna(fresh_odds_json))
-                        else {}
-                    )
-                    fresh_odds = fresh_odds or {}
-
-                    # Preserve existing history from current match
-                    existing_history = self._extract_history_from_odds(match_data["odds"])
-
-                    # Merge histories: existing + new snapshot
-                    combined_odds = dict(fresh_odds)
-                    combined_odds["history"] = existing_history
-
-                    # Append current snapshot
-                    combined_odds = self._append_to_history(combined_odds, snapshot, max_history)
-
-                    # Update fresh buffer
-                    fresh_buf.at[fresh_idx, "odds"] = fresh_manager.serialize_json(combined_odds)
-                    fresh_manager._dirty = True
+                if self._transfer_match_history(fresh_manager, fresh_buf, match_data, timestamp, max_history):
                     transferred += 1
             except Exception as exc:
                 logger.error(f"History transfer error for {match_data.get('home')} vs {match_data.get('away')}: {exc}")

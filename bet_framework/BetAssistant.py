@@ -333,74 +333,71 @@ class BetAssistant(BaseStorageManager):
         rows: list[dict] = []
         for idx, row in df.iterrows():
             try:
-                match_key = f"{row['home_name']}_{row['away_name']}_{row['datetime']}"
-                # MD5 used for deterministic ID generation, not security (B324 fix)
-                match_id = f"match_{idx}_{hashlib.md5(match_key.encode(), usedforsecurity=False).hexdigest()}"
-                dt = row["datetime"]
-                odds = row.get("odds") or {}
-                scores = row.get("scores") or []
-
-                # Filter out excluded sources
-                filtered_scores = [s for s in scores if s.get("source") not in excluded]
-                cons_data = calc_consensus(filtered_scores)
-                n_sources = len({s.get("source", "") for s in filtered_scores if s.get("source")})
-
-                rows.append(
-                    {
-                        "match_id": match_id,
-                        "datetime": dt,
-                        "home": row["home_name"],
-                        "away": row["away_name"],
-                        "sources": n_sources,
-                        "odds": row.get("odds"),
-                        "result_url": row.get("result_url"),
-                        "league": row.get("league"),
-                        # Store filtered scores for later use in candidate generation
-                        "_filtered_scores": filtered_scores,
-                        # Consensus
-                        "cons_home": cons_data["result"]["home"],
-                        "cons_draw": cons_data["result"]["draw"],
-                        "cons_away": cons_data["result"]["away"],
-                        "cons_over_15": cons_data["over_under_15"]["over"],
-                        "cons_under_15": cons_data["over_under_15"]["under"],
-                        "cons_over_05": cons_data["over_under_05"]["over"],
-                        "cons_under_05": cons_data["over_under_05"]["under"],
-                        "cons_over_25": cons_data["over_under_25"]["over"],
-                        "cons_under_25": cons_data["over_under_25"]["under"],
-                        "cons_over_35": cons_data["over_under_35"]["over"],
-                        "cons_under_35": cons_data["over_under_35"]["under"],
-                        "cons_over_45": cons_data["over_under_45"]["over"],
-                        "cons_under_45": cons_data["over_under_45"]["under"],
-                        "cons_btts_yes": cons_data["btts"]["yes"],
-                        "cons_btts_no": cons_data["btts"]["no"],
-                        "cons_dc_1x": cons_data["double_chance"]["1x"],
-                        "cons_dc_12": cons_data["double_chance"]["12"],
-                        "cons_dc_x2": cons_data["double_chance"]["x2"],
-                        # Odds
-                        "odds_home": (odds.get("home") or 0.0),
-                        "odds_draw": (odds.get("draw") or 0.0),
-                        "odds_away": (odds.get("away") or 0.0),
-                        "odds_over_15": (odds.get("over_15") or 0.0),
-                        "odds_under_15": (odds.get("under_15") or 0.0),
-                        "odds_over_25": (odds.get("over_25") or 0.0),
-                        "odds_under_25": (odds.get("under_25") or 0.0),
-                        "odds_btts_yes": (odds.get("btts_y") or 0.0),
-                        "odds_btts_no": (odds.get("btts_n") or 0.0),
-                        "odds_over_05": (odds.get("over_05") or 0.0),
-                        "odds_under_05": (odds.get("under_05") or 0.0),
-                        "odds_over_35": (odds.get("over_35") or 0.0),
-                        "odds_under_35": (odds.get("under_35") or 0.0),
-                        "odds_over_45": (odds.get("over_45") or 0.0),
-                        "odds_under_45": (odds.get("under_45") or 0.0),
-                        "odds_dc_1x": (odds.get("dc_1x") or 0.0),
-                        "odds_dc_12": (odds.get("dc_12") or 0.0),
-                        "odds_dc_x2": (odds.get("dc_x2") or 0.0),
-                    }
-                )
+                rows.append(self._build_match_row(idx, row, excluded))
             except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one bad row must not abort the load
                 logger.info(f"[BetAssistant] Skipping row {idx}: {e}")
 
         self._df = pd.DataFrame(rows)
+
+    def _build_match_row(self, idx, row, excluded: set) -> dict:
+        """Build the flat match dict (consensus + odds keys) for one raw row."""
+        match_key = f"{row['home_name']}_{row['away_name']}_{row['datetime']}"
+        # MD5 used for deterministic ID generation, not security (B324 fix)
+        match_id = f"match_{idx}_{hashlib.md5(match_key.encode(), usedforsecurity=False).hexdigest()}"
+        odds = row.get("odds") or {}
+        scores = row.get("scores") or []
+
+        # Filter out excluded sources
+        filtered_scores = [s for s in scores if s.get("source") not in excluded]
+        cons_data = calc_consensus(filtered_scores)
+        n_sources = len({s.get("source", "") for s in filtered_scores if s.get("source")})
+
+        row_data = {
+            "match_id": match_id,
+            "datetime": row["datetime"],
+            "home": row["home_name"],
+            "away": row["away_name"],
+            "sources": n_sources,
+            "odds": row.get("odds"),
+            "result_url": row.get("result_url"),
+            "league": row.get("league"),
+            "_filtered_scores": filtered_scores,
+            "cons_home": cons_data["result"]["home"],
+            "cons_draw": cons_data["result"]["draw"],
+            "cons_away": cons_data["result"]["away"],
+            "cons_over_15": cons_data["over_under_15"]["over"],
+            "cons_under_15": cons_data["over_under_15"]["under"],
+            "cons_over_05": cons_data["over_under_05"]["over"],
+            "cons_under_05": cons_data["over_under_05"]["under"],
+            "cons_over_25": cons_data["over_under_25"]["over"],
+            "cons_under_25": cons_data["over_under_25"]["under"],
+            "cons_over_35": cons_data["over_under_35"]["over"],
+            "cons_under_35": cons_data["over_under_35"]["under"],
+            "cons_over_45": cons_data["over_under_45"]["over"],
+            "cons_under_45": cons_data["over_under_45"]["under"],
+            "cons_btts_yes": cons_data["btts"]["yes"],
+            "cons_btts_no": cons_data["btts"]["no"],
+            "cons_dc_1x": cons_data["double_chance"]["1x"],
+            "cons_dc_12": cons_data["double_chance"]["12"],
+            "cons_dc_x2": cons_data["double_chance"]["x2"],
+        }
+        row_data.update(self._flatten_odds(odds))
+        return row_data
+
+    _ODDS_KEY_MAP = {
+        "home": "home", "draw": "draw", "away": "away",
+        "over_15": "over_15", "under_15": "under_15",
+        "over_25": "over_25", "under_25": "under_25",
+        "btts_yes": "btts_y", "btts_no": "btts_n",
+        "over_05": "over_05", "under_05": "under_05",
+        "over_35": "over_35", "under_35": "under_35",
+        "over_45": "over_45", "under_45": "under_45",
+        "dc_1x": "dc_1x", "dc_12": "dc_12", "dc_x2": "dc_x2",
+    }
+
+    def _flatten_odds(self, odds: dict) -> dict:
+        """Flatten an odds dict into odds_* columns (None entries become 0.0)."""
+        return {f"odds_{key}": (odds.get(src) or 0.0) for key, src in self._ODDS_KEY_MAP.items()}
 
     # ── Match browsing ────────────────────────────────────────────────────────
 
@@ -878,7 +875,7 @@ class BetAssistant(BaseStorageManager):
 
     # ── Candidate collection ──────────────────────────────────────────────────
 
-    def _collect_candidates(self, cfg: BetSlipConfig) -> list[dict]:  # noqa: C901 - pre-existing complexity on main; refactor out of testing-cycle scope
+    def _collect_candidates(self, cfg: BetSlipConfig) -> list[dict]:
         # TODO - this wont work unless datetimes are fixed first!
         # now       = pd.Timestamp.now()
         # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
@@ -890,21 +887,10 @@ class BetAssistant(BaseStorageManager):
 
         candidates = []
         for _, row in self._df.iterrows():
-            if date_from and row["datetime"] < date_from:
-                continue
-            if date_to and row["datetime"] >= date_to:
-                continue
-            url = row.get("result_url")
-            if not is_valid_url(url) or url in excluded:
+            if not self._row_passes_filters(row, cfg, date_from, date_to, excluded):
                 continue
 
-            # --- league filter ---
-            league = row.get("league", None)
-            if pd.isna(league):
-                league = None
-            if cfg.included_leagues and (league is None or league not in cfg.included_leagues):
-                continue
-
+            league = None if pd.isna(row.get("league", None)) else row.get("league", None)
             match_name = f"{row['home']} vs {row['away']}"
 
             # Get filtered scores for this match (already filtered by excluded_sources in load_matches)
@@ -912,50 +898,73 @@ class BetAssistant(BaseStorageManager):
 
             for m_type, market_cols in MARKET_MAP.items():
                 for cons_col, odds_col, label in market_cols:
-                    if markets and label not in markets:
-                        continue
-                    consensus = float(row.get(cons_col, 0))
-                    odds = float(row.get(odds_col, 0))
-                    if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
-                        # Hard filter for max single leg odds
-                        if odds > resolve_max_single_leg_odds(cfg):
-                            continue
-
-                        # Apply shrinkage BEFORE edge check (Phase 1 fix)
-                        sources = int(row["sources"])
-                        shrinkage_k = resolve_shrinkage_k(cfg)
-                        adj_cons = adjusted_consensus(consensus, sources, shrinkage_k)
-                        # Apply min_source_edge hard filter with adjusted consensus
-                        min_edge = resolve_min_source_edge(cfg)
-                        implied_prob = 1.0 / odds
-                        source_edge = (adj_cons / 100.0) - implied_prob
-                        if source_edge < min_edge:
-                            continue
-                        # Odds movement per market
-                        mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
-
-                        # Build per-source predictions for this leg's market
-                        leg_predictions = self._build_leg_predictions(filtered_scores, m_type)
-
-                        candidates.append(
-                            CandidateLeg(
-                                match_name=match_name,
-                                datetime=row["datetime"],
-                                market=label,
-                                market_type=m_type,
-                                consensus=consensus,
-                                odds=odds,
-                                result_url=row["result_url"],
-                                sources=sources,
-                                league=league,
-                                _adjusted_consensus=adj_cons,
-                                odds_movement_direction=mov_dir,
-                                odds_movement_strength=mov_str,
-                                predictions=leg_predictions,
-                            )
-                        )
+                    leg = self._cell_to_candidate(row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores)
+                    if leg is not None:
+                        candidates.append(leg)
 
         return candidates
+
+    def _row_passes_filters(self, row, cfg, date_from, date_to, excluded) -> bool:
+        """Check date, URL and league filters for one match row."""
+        if date_from and row["datetime"] < date_from:
+            return False
+        if date_to and row["datetime"] >= date_to:
+            return False
+        url = row.get("result_url")
+        if not is_valid_url(url) or url in excluded:
+            return False
+
+        # --- league filter ---
+        league = row.get("league", None)
+        if pd.isna(league):
+            league = None
+        if cfg.included_leagues and (league is None or league not in cfg.included_leagues):
+            return False
+        return True
+
+    def _cell_to_candidate(self, row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores):
+        """Build a CandidateLeg from one market cell if it passes all gate filters."""
+        if markets and label not in markets:
+            return None
+        consensus = float(row.get(cons_col, 0))
+        odds = float(row.get(odds_col, 0))
+        if not (consensus >= cfg.consensus_floor and odds >= cfg.min_odds):
+            return None
+        # Hard filter for max single leg odds
+        if odds > resolve_max_single_leg_odds(cfg):
+            return None
+
+        # Apply shrinkage BEFORE edge check (Phase 1 fix)
+        sources = int(row["sources"])
+        shrinkage_k = resolve_shrinkage_k(cfg)
+        adj_cons = adjusted_consensus(consensus, sources, shrinkage_k)
+        # Apply min_source_edge hard filter with adjusted consensus
+        min_edge = resolve_min_source_edge(cfg)
+        implied_prob = 1.0 / odds
+        source_edge = (adj_cons / 100.0) - implied_prob
+        if source_edge < min_edge:
+            return None
+        # Odds movement per market
+        mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
+
+        # Build per-source predictions for this leg's market
+        leg_predictions = self._build_leg_predictions(filtered_scores, m_type)
+
+        return CandidateLeg(
+            match_name=match_name,
+            datetime=row["datetime"],
+            market=label,
+            market_type=m_type,
+            consensus=consensus,
+            odds=odds,
+            result_url=row["result_url"],
+            sources=sources,
+            league=league,
+            _adjusted_consensus=adj_cons,
+            odds_movement_direction=mov_dir,
+            odds_movement_strength=mov_str,
+            predictions=leg_predictions,
+        )
 
     def _build_leg_predictions(self, filtered_scores: list[dict], market_type: MarketType) -> list[dict]:
         """

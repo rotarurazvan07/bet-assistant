@@ -352,111 +352,27 @@ class OddsPortalFinder(BaseMatchFinder):
                     away_team = soup.select_one('[data-testid="game-guest"] a').text.strip()
                     date_text = soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)').text.strip().rstrip(",")
 
-                    for fmt in ("%d %b %Y", "%d %B %Y"):
-                        try:
-                            match_date = datetime.strptime(date_text, fmt).replace(hour=0, minute=0, second=0)
-                            break
-                        except ValueError:
-                            pass
-                    else:
-                        raise ValueError(f"Unknown date format: {date_text}")
+                    match_date = self._parse_match_date(date_text)
 
-                    odds_1, odds_X, odds_2 = None, None, None
-                    odds_btts_y, odds_btts_n = None, None
-                    odds_dc_1x, odds_dc_12, odds_dc_x2 = None, None, None
-                    odds_over05, odds_under05 = None, None
-                    odds_over15, odds_under15 = None, None
-                    odds_over25, odds_under25 = None, None
-                    odds_over35, odds_under35 = None, None
-                    odds_over45, odds_under45 = None, None
-
-                    try:
-                        logger.info("[%s] Extracting 1X2 odds", thread_name)
-                        assert session.click("li.odds-item", "1X2"), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        cells = soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all(
-                            "div", {"data-testid": "odd-container"}
-                        )
-                        odds_1 = cells[0].find("a", class_="odds-link").get_text(strip=True)
-                        odds_X = cells[1].find("a", class_="odds-link").get_text(strip=True)
-                        odds_2 = cells[2].find("a", class_="odds-link").get_text(strip=True)
-                        odds_1 = odds_1 if odds_1 != "-" else None
-                        odds_X = odds_X if odds_X != "-" else None
-                        odds_2 = odds_2 if odds_2 != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
-
-                    try:
-                        logger.info("[%s] Extracting BTTS odds", thread_name)
-                        assert session.click("li.odds-item", "Both Teams to Score"), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        cells = soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all(
-                            "div", {"data-testid": "odd-container"}
-                        )
-                        odds_btts_y = cells[0].find("a", class_="odds-link").get_text(strip=True)
-                        odds_btts_n = cells[1].find("a", class_="odds-link").get_text(strip=True)
-                        odds_btts_y = odds_btts_y if odds_btts_y != "-" else None
-                        odds_btts_n = odds_btts_n if odds_btts_n != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
-
-                    try:
-                        logger.info("[%s] Extracting DC odds", thread_name)
-                        assert session.click("li.odds-item", "Double Chance"), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        cells = soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all(
-                            "div", {"data-testid": "odd-container"}
-                        )
-                        odds_dc_1x = cells[0].find("a", class_="odds-link").get_text(strip=True)
-                        odds_dc_12 = cells[1].find("a", class_="odds-link").get_text(strip=True)
-                        odds_dc_x2 = cells[2].find("a", class_="odds-link").get_text(strip=True)
-                        odds_dc_1x = odds_dc_1x if odds_dc_1x != "-" else None
-                        odds_dc_12 = odds_dc_12 if odds_dc_12 != "-" else None
-                        odds_dc_x2 = odds_dc_x2 if odds_dc_x2 != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape DC odds", thread_name)
-
-                    try:
-                        logger.info("[%s] Extracting O/U odds", thread_name)
-                        assert session.click("li.odds-item", "Over/Under"), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        for row in soup.find_all("div", {"data-testid": "over-under-collapsed-row"}):
-                            name = row.find("div", {"data-testid": "over-under-collapsed-option-box"}).get_text(strip=True)
-                            conts = row.find_all("div", {"data-testid": "odd-container-default"})
-                            over = conts[0].find("p").get_text(strip=True)
-                            under = conts[1].find("p").get_text(strip=True)
-                            if "+0.5" in name:
-                                odds_over05 = over if over != "-" else None
-                                odds_under05 = under if under != "-" else None
-                            if "+1.5" in name:
-                                odds_over15 = over if over != "-" else None
-                                odds_under15 = under if under != "-" else None
-                            if "+2.5" in name:
-                                odds_over25 = over if over != "-" else None
-                                odds_under25 = under if under != "-" else None
-                            if "+3.5" in name:
-                                odds_over35 = over if over != "-" else None
-                                odds_under35 = under if under != "-" else None
-                            if "+4.5" in name:
-                                odds_over45 = over if over != "-" else None
-                                odds_under45 = under if under != "-" else None
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape O/U odds", thread_name)
+                    odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
+                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
+                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
+                    ou = self._scrape_tab_ou(session, thread_name)
 
                     odds = Odds(
                         home=odds_1,
                         draw=odds_X,
                         away=odds_2,
-                        over_05=odds_over05,
-                        under_05=odds_under05,
-                        over_15=odds_over15,
-                        under_15=odds_under15,
-                        over_25=odds_over25,
-                        under_25=odds_under25,
-                        over_35=odds_over35,
-                        under_35=odds_under35,
-                        over_45=odds_over45,
-                        under_45=odds_under45,
+                        over_05=ou[0],
+                        under_05=ou[1],
+                        over_15=ou[2],
+                        under_15=ou[3],
+                        over_25=ou[4],
+                        under_25=ou[5],
+                        over_35=ou[6],
+                        under_35=ou[7],
+                        over_45=ou[8],
+                        under_45=ou[9],
                         btts_y=odds_btts_y,
                         btts_n=odds_btts_n,
                         dc_1x=odds_dc_1x,
@@ -471,11 +387,104 @@ class OddsPortalFinder(BaseMatchFinder):
                             Match(home_team=home_team, away_team=away_team, datetime=match_date, predictions=None, odds=odds)
                         )
 
-                except Exception as e:
+                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                     logger.error("[%s] Error parsing %s: %s", thread_name, url, e)
                     continue
 
         logger.info("[%s] Batch complete", thread_name)
+
+    def _parse_match_date(self, date_text: str):
+        """Parse the OddsPortal date header into a midnight datetime."""
+        for fmt in ("%d %b %Y", "%d %B %Y"):
+            parsed = self._try_parse_date(date_text, fmt)
+            if parsed is not None:
+                return parsed.replace(hour=0, minute=0, second=0)
+        raise ValueError(f"Unknown date format: {date_text}")
+
+    def _try_parse_date(self, date_text: str, fmt: str):
+        """Parse date_text with one format; None when it does not match."""
+        try:
+            return datetime.strptime(date_text, fmt)
+        except ValueError:
+            return None
+
+    def _click_tab_cells(self, session, thread_name: str, tab_label: str):
+        """Click a market tab and return its expanded odd-container cells."""
+        assert session.click("li.odds-item", tab_label), "Click failed"
+        soup = BeautifulSoup(session.page.content(), "html.parser")
+        return soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all(
+            "div", {"data-testid": "odd-container"}
+        )
+
+    def _scrape_tab_1x2(self, session, thread_name: str):
+        """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure)."""
+        odds_1 = odds_X = odds_2 = None
+        try:
+            logger.info("[%s] Extracting 1X2 odds", thread_name)
+            cells = self._click_tab_cells(session, thread_name, "1X2")
+            odds_1 = cells[0].find("a", class_="odds-link").get_text(strip=True)
+            odds_X = cells[1].find("a", class_="odds-link").get_text(strip=True)
+            odds_2 = cells[2].find("a", class_="odds-link").get_text(strip=True)
+            odds_1 = odds_1 if odds_1 != "-" else None
+            odds_X = odds_X if odds_X != "-" else None
+            odds_2 = odds_2 if odds_2 != "-" else None
+        except Exception:
+            logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
+        return odds_1, odds_X, odds_2
+
+    def _scrape_tab_btts(self, session, thread_name: str):
+        """Scrape the BTTS tab; returns (yes, no) odds (None on miss/failure)."""
+        odds_btts_y = odds_btts_n = None
+        try:
+            logger.info("[%s] Extracting BTTS odds", thread_name)
+            cells = self._click_tab_cells(session, thread_name, "Both Teams to Score")
+            odds_btts_y = cells[0].find("a", class_="odds-link").get_text(strip=True)
+            odds_btts_n = cells[1].find("a", class_="odds-link").get_text(strip=True)
+            odds_btts_y = odds_btts_y if odds_btts_y != "-" else None
+            odds_btts_n = odds_btts_n if odds_btts_n != "-" else None
+        except Exception:
+            logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
+        return odds_btts_y, odds_btts_n
+
+    def _scrape_tab_dc(self, session, thread_name: str):
+        """Scrape the Double Chance tab; returns (1x, 12, x2) odds (None on miss/failure)."""
+        odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
+        try:
+            logger.info("[%s] Extracting DC odds", thread_name)
+            cells = self._click_tab_cells(session, thread_name, "Double Chance")
+            odds_dc_1x = cells[0].find("a", class_="odds-link").get_text(strip=True)
+            odds_dc_12 = cells[1].find("a", class_="odds-link").get_text(strip=True)
+            odds_dc_x2 = cells[2].find("a", class_="odds-link").get_text(strip=True)
+            odds_dc_1x = odds_dc_1x if odds_dc_1x != "-" else None
+            odds_dc_12 = odds_dc_12 if odds_dc_12 != "-" else None
+            odds_dc_x2 = odds_dc_x2 if odds_dc_x2 != "-" else None
+        except Exception:
+            logger.warning("[%s] Failed to scrape DC odds", thread_name)
+        return odds_dc_1x, odds_dc_12, odds_dc_x2
+
+    def _scrape_tab_ou(self, session, thread_name: str):
+        """Scrape the Over/Under tab; returns the 10 O/U odds (None on miss/failure)."""
+        out = [None] * 10
+        try:
+            logger.info("[%s] Extracting O/U odds", thread_name)
+            assert session.click("li.odds-item", "Over/Under"), "Click failed"
+            soup = BeautifulSoup(session.page.content(), "html.parser")
+            buckets = {
+                "+0.5": (0, 1), "+1.5": (2, 3), "+2.5": (4, 5),
+                "+3.5": (6, 7), "+4.5": (8, 9),
+            }
+            for row in soup.find_all("div", {"data-testid": "over-under-collapsed-row"}):
+                name = row.find("div", {"data-testid": "over-under-collapsed-option-box"}).get_text(strip=True)
+                conts = row.find_all("div", {"data-testid": "odd-container-default"})
+                over = conts[0].find("p").get_text(strip=True)
+                under = conts[1].find("p").get_text(strip=True)
+                for prefix, (oi, ui) in buckets.items():
+                    if prefix in name:
+                        out[oi] = over if over != "-" else None
+                        out[ui] = under if under != "-" else None
+        except Exception:
+            logger.warning("[%s] Failed to scrape O/U odds", thread_name)
+        return tuple(out)
 
     def get_matches(self, urls) -> None:
         """Discover oddsportal match URLs, then scrape them in parallel batches."""

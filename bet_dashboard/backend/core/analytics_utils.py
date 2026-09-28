@@ -276,97 +276,78 @@ def calculate_correlation_data(slips) -> list[dict[str, Any]]:
     return data
 
 
-def calculate_streak_metrics(slips) -> dict:
-    """
-    Calculate streak-related metrics from slips based on daily P&L.
-
-    A "winning day" has positive net profit, a "losing day" has negative net profit.
-    Break-even days (zero P&L) are ignored and don't break streaks.
-    Pending and Live slips are excluded from daily P&L calculations.
-
-    Parameters:
-    slips: List of slips (all statuses)
-
-    Returns:
-    dict with current_streak (days), longest_win_streak (days), longest_loss_streak (days)
-    """
-    if not slips:
-        return {"current_streak": 0, "longest_win_streak": 0, "longest_loss_streak": 0}
-
-    # Filter for settled slips only (Won or Lost) - Pending/Live excluded from P&L
-    settled_slips = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
-
-    if not settled_slips:
-        return {"current_streak": 0, "longest_win_streak": 0, "longest_loss_streak": 0}
-
-    # Group slips by date and calculate daily P&L
-    daily_pnl: dict[str, float] = {}
-    for slip in settled_slips:
-        # Extract date part from date_generated (ISO string)
+def _daily_pnl_by_date(slips) -> dict:
+    """Aggregate settled-slip profit by calendar date (date -> net P&L)."""
+    daily_pnl = {}
+    for slip in slips:
+        if _get_status_value(slip.slip_status) not in ("Won", "Lost"):
+            continue
         date_str = slip.date_generated.split("T")[0] if "T" in slip.date_generated else slip.date_generated
         date = datetime.strptime(date_str, "%Y-%m-%d")
-
-        # Calculate slip profit/loss
         profit = (slip.total_odds - 1) * slip.units if _get_status_value(slip.slip_status) == "Won" else -slip.units
-
         daily_pnl[date] = daily_pnl.get(date, 0) + profit
+    return daily_pnl
 
-    # Sort dates in descending order (newest first) for current streak
-    sorted_dates = sorted(daily_pnl.keys(), reverse=True)
 
-    # Calculate current streak: consecutive days from newest with same sign
-    current_streak = 0
-    current_streak_type = None  # 'win' or 'loss'
-
-    for date in sorted_dates:
+def _scan_current_streak(daily_pnl) -> tuple[str | None, int]:
+    """Walk days newest-first; return (day-type, run length) of the current streak."""
+    streak_type = None
+    streak = 0
+    for date in sorted(daily_pnl.keys(), reverse=True):
         pnl = daily_pnl[date]
         if pnl == 0:
-            continue  # Break-even days don't count and don't break streak
-
+            continue
         day_type = "win" if pnl > 0 else "loss"
-
-        if current_streak_type is None:
-            current_streak_type = day_type
-            current_streak = 1
-        elif day_type == current_streak_type:
-            current_streak += 1
+        if streak_type is None:
+            streak_type = day_type
+            streak = 1
+        elif day_type == streak_type:
+            streak += 1
         else:
-            break  # Streak broken
+            break
+    return streak_type, streak
 
-    # For longest streaks, we need to consider all days in chronological order
-    chronological_dates = sorted(daily_pnl.keys())
 
-    longest_win_streak = 0
-    longest_loss_streak = 0
-    win_streak = 0
-    loss_streak = 0
-
-    for date in chronological_dates:
+def _scan_longest_streaks(daily_pnl) -> tuple[int, int]:
+    """Walk days chronologically; return (longest win run, longest loss run)."""
+    longest_win = longest_loss = 0
+    win_streak = loss_streak = 0
+    for date in sorted(daily_pnl.keys()):
         pnl = daily_pnl[date]
         if pnl == 0:
-            continue  # Skip break-even days
-
+            continue
         if pnl > 0:
             win_streak += 1
             loss_streak = 0
-            longest_win_streak = max(longest_win_streak, win_streak)
-        else:  # pnl < 0
+            longest_win = max(longest_win, win_streak)
+        else:
             loss_streak += 1
             win_streak = 0
-            longest_loss_streak = max(longest_loss_streak, loss_streak)
+            longest_loss = max(longest_loss, loss_streak)
+    return longest_win, longest_loss
 
-    # Apply sign to current_streak: positive for win streak, negative for loss streak
-    if current_streak_type == "win":
-        current_streak = current_streak  # positive
-    elif current_streak_type == "loss":
-        current_streak = -current_streak  # negative
-    else:
-        current_streak = 0
+
+def calculate_streak_metrics(slips) -> dict:
+    """Calculate streak metrics from daily P&L (break-even days are skipped)."""
+    empty = {"current_streak": 0, "longest_win_streak": 0, "longest_loss_streak": 0}
+    if not slips:
+        return empty
+
+    settled_slips = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
+    if not settled_slips:
+        return empty
+
+    daily_pnl = _daily_pnl_by_date(settled_slips)
+
+    streak_type, streak = _scan_current_streak(daily_pnl)
+    longest_win, longest_loss = _scan_longest_streaks(daily_pnl)
+
+    current_streak = streak if streak_type == "win" else -streak if streak_type == "loss" else 0
 
     return {
         "current_streak": current_streak,
-        "longest_win_streak": longest_win_streak,
-        "longest_loss_streak": longest_loss_streak,
+        "longest_win_streak": longest_win,
+        "longest_loss_streak": longest_loss,
     }
 
 

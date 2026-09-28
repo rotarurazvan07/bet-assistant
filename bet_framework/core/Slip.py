@@ -29,6 +29,28 @@ from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, O
 # ── Candidate / Match / Leg data models ───────────────────────────────────────
 
 
+def _clean_league(league) -> str | None:
+    """Normalize the league label; NaN/None-like values become None."""
+    import math
+
+    if (
+        league is None
+        or (isinstance(league, float) and math.isnan(league))
+        or str(league).lower() in ("nan", "none", "null")
+    ):
+        return None
+    return str(league)
+
+
+def _clean_float(value, fallback: float) -> float:
+    """Replace NaN/Inf floats with the fallback value."""
+    import math
+
+    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+        return fallback
+    return value
+
+
 @dataclass
 class CandidateLeg:
     """
@@ -54,25 +76,10 @@ class CandidateLeg:
 
     def __post_init__(self) -> None:
         """Validate and clamp candidate-leg fields after construction."""
-        import math
-
-        # Clean league
-        if (
-            self.league is None
-            or (isinstance(self.league, float) and math.isnan(self.league))
-            or str(self.league).lower() in ("nan", "none", "null")
-        ):
-            self.league = None
-        else:
-            self.league = str(self.league)
-
-        # Clean float fields to prevent NaN or Inf
-        if isinstance(self.consensus, float) and (math.isnan(self.consensus) or math.isinf(self.consensus)):
-            self.consensus = 0.0
-        if isinstance(self.odds, float) and (math.isnan(self.odds) or math.isinf(self.odds)):
-            self.odds = 1.00
-        if isinstance(self.score, float) and (math.isnan(self.score) or math.isinf(self.score)):
-            self.score = 0.0
+        self.league = _clean_league(self.league)
+        self.consensus = _clean_float(self.consensus, 0.0)
+        self.odds = _clean_float(self.odds, 1.00)
+        self.score = _clean_float(self.score, 0.0)
 
 
 @dataclass
@@ -175,6 +182,13 @@ class BetSlip:
 # ── Slip configuration ────────────────────────────────────────────────────────
 
 
+def _clamp_optional(value, low: float, high: float):
+    """Clamp a value to [low, high]; None passes through unchanged."""
+    if value is None:
+        return None
+    return max(low, min(high, value))
+
+
 @dataclass
 class BetSlipConfig:
     """
@@ -275,24 +289,16 @@ class BetSlipConfig:
             self.max_legs_overflow = max(0, min(5, self.max_legs_overflow))
 
         # Advanced validation
-        if self.consensus_shrinkage_k is not None:
-            self.consensus_shrinkage_k = max(1.0, min(10.0, self.consensus_shrinkage_k))
-        if self.min_source_edge is not None:
-            self.min_source_edge = max(0.0, min(0.50, self.min_source_edge))
-        if self.max_single_leg_odds is not None:
-            self.max_single_leg_odds = max(1.0, min(10.0, self.max_single_leg_odds))
-        if self.tol_lower is not None:
-            self.tol_lower = max(0.01, min(1.00, self.tol_lower))
-        if self.tol_upper is not None:
-            self.tol_upper = max(0.01, min(1.00, self.tol_upper))
+        self.consensus_shrinkage_k = _clamp_optional(self.consensus_shrinkage_k, 1.0, 10.0)
+        self.min_source_edge = _clamp_optional(self.min_source_edge, 0.0, 0.50)
+        self.max_single_leg_odds = _clamp_optional(self.max_single_leg_odds, 1.0, 10.0)
+        self.tol_lower = _clamp_optional(self.tol_lower, 0.01, 1.00)
+        self.tol_upper = _clamp_optional(self.tol_upper, 0.01, 1.00)
         if self.balance_decay not in ("linear", "gaussian"):
             self.balance_decay = "gaussian"
-        if self.min_pick_quality is not None:
-            self.min_pick_quality = max(0.0, min(1.00, self.min_pick_quality))
-        if self.odds_movement_weight is not None:
-            self.odds_movement_weight = max(0.0, min(0.30, self.odds_movement_weight))
-        if self.odds_movement_strength_min is not None:
-            self.odds_movement_strength_min = max(0.05, min(0.20, self.odds_movement_strength_min))
+        self.min_pick_quality = _clamp_optional(self.min_pick_quality, 0.0, 1.00)
+        self.odds_movement_weight = _clamp_optional(self.odds_movement_weight, 0.0, 0.30)
+        self.odds_movement_strength_min = _clamp_optional(self.odds_movement_strength_min, 0.05, 0.20)
 
 
 # ── Built-in risk profiles ────────────────────────────────────────────────────

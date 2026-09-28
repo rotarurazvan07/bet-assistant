@@ -131,7 +131,7 @@ class VitibetFinder(BaseMatchFinder):
                         )
                     )
 
-                except Exception as e:
+                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                     logger.error(f"SKIPPED [{url}]: {e}")
 
         except Exception as e:
