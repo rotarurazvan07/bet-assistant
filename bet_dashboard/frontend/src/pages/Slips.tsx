@@ -59,11 +59,12 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     }, [hideSettled, liveOnly, sortBy]);
 
     const load = useCallback(async () => {
+        void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
         setLoading(true);
         try {
             // If no profiles selected, pass undefined to get all profiles
             // Otherwise pass the selected profiles array
-            const params: any = {
+            const params: Parameters<typeof fetchSlips>[0] = {
                 date_from: filters.dateFrom || undefined,
                 date_to: filters.dateTo || undefined,
                 hide_settled: hideSettled,
@@ -184,7 +185,6 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                     profiles={data?.profiles ?? []}
                     selectedProfiles={selectedProfiles}
                     onChange={setSelectedProfiles}
-                    profileData={data}
                 />
             </div>
 

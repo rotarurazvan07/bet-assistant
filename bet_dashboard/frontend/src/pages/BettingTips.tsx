@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import {useCallback,  useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
 import { getAllMovements } from '../api/oddsHistory';
 import { addSlip, fetchSlips, fetchSourcesConfig } from '../api/data';
-import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary } from '../types';
+import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
@@ -47,7 +47,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             try {
                 const slipsData = await fetchSlips({ hide_settled: true });
                 const selections = new Set<string>();
-                slipsData.slips.forEach((slip: any) => {
+                slipsData.slips.forEach((slip: BetSlip) => {
                     // Only consider pending or live slips
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
                         slip.legs.forEach((leg: BetLeg) => {
@@ -171,8 +171,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         }));
     }, [search, minConsensus, minOdds, onlySignificantMovement, page, sortBy, sortDir, pendingLegs]);
 
-    // Reset to page 1 when any filter changes
-    useEffect(() => { setPage(1); }, [filters.dateFrom, filters.dateTo, refreshKey, search, minConsensus, minOdds, onlySignificantMovement, excludedSources]);
+    // Reset to page 1 when any filter changes — render-time adjustment
+    // (React-documented "adjust state when a prop changes" pattern;
+    // replaces setState-in-effect flagged by react-hooks/set-state-in-effect).
+    const resetKey = `${filters.dateFrom}|${filters.dateTo}|${refreshKey}|${search}|${minConsensus}|${minOdds}|${onlySignificantMovement}|${Array.from(excludedSources).join(',')}`;
+    const [prevResetKey, setPrevResetKey] = useState(resetKey);
+    if (resetKey !== prevResetKey) {
+        setPrevResetKey(resetKey);
+        setPage(1);
+    }
 
     // Fetch odds movements
     useEffect(() => {
@@ -183,9 +190,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         return () => { cancelled = true; };
     }, [refreshKey]);
 
-    useEffect(() => {
-        let cancelled = false;
-        setLoading(true);
+    const load = useCallback(async () => {
+        void refreshKey; // deliberate signal: WS matches_updated triggers refetch (test-pinned wiring)
         // Always send excluded_sources array (empty = include all, non-empty = exclude those)
         const excludedSourcesArray = Array.from(excludedSources);
         fetchMatches({
@@ -200,15 +206,14 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             only_significant_movement: onlySignificantMovement || undefined,
             excluded_sources: excludedSourcesArray,
         })
-            .then(d => { if (!cancelled) { setData(d); setLoading(false); } })
+            .then(d => { setData(d); setLoading(false); })
             .catch(() => {
-                if (!cancelled) {
-                    setData({ total: 0, page: 1, page_size: PAGE_SIZE, total_pages: 1, matches: [] });
-                    setLoading(false);
-                }
+                setData({ total: 0, page: 1, page_size: PAGE_SIZE, total_pages: 1, matches: [] });
+                setLoading(false);
             });
-        return () => { cancelled = true; };
     }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey, excludedSources]);
+
+    useEffect(() => { load(); }, [load]);
 
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -293,7 +298,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             try {
                 const slipsData = await fetchSlips({ hide_settled: true });
                 const selections = new Set<string>();
-                slipsData.slips.forEach((slip: any) => {
+                slipsData.slips.forEach((slip: BetSlip) => {
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
                         slip.legs.forEach((leg: BetLeg) => {
                             if (leg.result_url && leg.market) {
@@ -306,9 +311,10 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             } catch (err) {
                 console.error('Failed to refresh slips after add:', err);
             }
-        } catch (error: any) {
-            console.error('Failed to add slip:', error.response?.data || error.message);
-            alert(`Failed to add slip: ${error.response?.data?.detail || 'Unknown error'}`);
+        } catch (error: unknown) {
+            const e = error as { response?: { data?: { detail?: string } }; message?: string };
+            console.error('Failed to add slip:', e.response?.data || e.message);
+            alert(`Failed to add slip: ${e.response?.data?.detail || 'Unknown error'}`);
         }
     }
 

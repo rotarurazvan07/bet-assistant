@@ -10,33 +10,33 @@ import { ProfileSelector } from '../ui/ProfileSelector';
 
 describe('ProfileSelector', () => {
     it('renders all profile chips', () => {
-        render(<ProfileSelector profiles={['low', 'medium', 'high_risk']} selectedProfiles={['low']} onChange={() => {}} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium', 'high_risk']} selectedProfiles={['low']} onChange={() => {}} />);
         expect(screen.getByText('low')).toBeInTheDocument();
         expect(screen.getByText('medium')).toBeInTheDocument();
         expect(screen.getByText('high_risk')).toBeInTheDocument();
     });
 
     it('shows empty-state text when no profiles', () => {
-        render(<ProfileSelector profiles={[]} selectedProfiles={[]} onChange={() => {}} profileData={null} />);
+        render(<ProfileSelector profiles={[]} selectedProfiles={[]} onChange={() => {}} />);
         expect(screen.getByText('No profiles available')).toBeInTheDocument();
     });
 
     it('auto-selects all on mount when none selected (divergence: no manual default)', async () => {
         const onChange = vi.fn();
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={[]} onChange={onChange} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={[]} onChange={onChange} />);
         expect(onChange).toHaveBeenCalledWith(['low', 'medium']);
     });
 
     it('does not auto-select when something already selected', () => {
         const onChange = vi.fn();
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} />);
         expect(onChange).not.toHaveBeenCalled();
     });
 
     it('toggles a profile off when clicked', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low', 'medium']} onChange={onChange} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low', 'medium']} onChange={onChange} />);
         await user.click(screen.getByText('low'));
         expect(onChange).toHaveBeenCalledWith(['medium']);
     });
@@ -44,7 +44,7 @@ describe('ProfileSelector', () => {
     it('toggles an unselected profile on when clicked', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} />);
         await user.click(screen.getByText('medium'));
         expect(onChange).toHaveBeenCalledWith(['low', 'medium']);
     });
@@ -52,7 +52,7 @@ describe('ProfileSelector', () => {
     it('blocks deselecting the last remaining profile', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} />);
         await user.click(screen.getByText('low'));
         expect(onChange).not.toHaveBeenCalled();
     });
@@ -60,13 +60,13 @@ describe('ProfileSelector', () => {
     it('SELECT ALL fires with all profiles when not all selected', async () => {
         const user = userEvent.setup();
         const onChange = vi.fn();
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low']} onChange={onChange} />);
         await user.click(screen.getByText('SELECT ALL'));
         expect(onChange).toHaveBeenCalledWith(['low', 'medium']);
     });
 
     it('SELECT ALL disabled when all selected', () => {
-        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low', 'medium']} onChange={() => {}} profileData={null} />);
+        render(<ProfileSelector profiles={['low', 'medium']} selectedProfiles={['low', 'medium']} onChange={() => {}} />);
         expect(screen.getByText('SELECT ALL')).toBeDisabled();
     });
 });

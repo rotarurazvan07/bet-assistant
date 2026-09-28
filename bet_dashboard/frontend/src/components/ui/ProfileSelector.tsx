@@ -4,7 +4,6 @@ interface ProfileSelectorProps {
     profiles: string[];
     selectedProfiles: string[];
     onChange: (value: string[]) => void;
-    profileData: Record<string, any> | null; // Kept for compatibility but not used
 }
 
 export function ProfileSelector({ profiles, selectedProfiles, onChange }: ProfileSelectorProps) {

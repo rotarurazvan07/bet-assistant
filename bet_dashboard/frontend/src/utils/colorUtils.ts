@@ -72,7 +72,7 @@ export function getPotentialStatusColor(leg: { market: string; odds: number; sta
         return '';
     }
 
-    const scoreMatch = liveScore.match(/(\d+)\s*[\-:]\s*(\d+)/);
+    const scoreMatch = liveScore.match(/(\d+)\s*[-:]\s*(\d+)/);
     if (!scoreMatch) {
         return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
     }

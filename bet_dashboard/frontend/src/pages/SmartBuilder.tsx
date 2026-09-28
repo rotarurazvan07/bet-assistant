@@ -10,7 +10,7 @@ import {
     type ExcludedMatch
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
-import type { BuilderConfig, ProfilesMap, PreviewResult, ManualLegIn } from '../types';
+import type { BuilderConfig, Profile, ProfilesMap, PreviewResult, ManualLegIn } from '../types';
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
@@ -115,10 +115,13 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
 
-    // Trigger preview when refreshKey or global filters change
-    useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line
+    // Trigger preview when refreshKey or global filters change. Deliberate
+    // dep omission: cfg is NOT a dep — config changes trigger the preview
+    // directly in handleCfgChange (adding cfg here would double-fire).
+    useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
 
     // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: fires ONLY on excluded_sources changes; other cfg fields flow through handleCfgChange
     useEffect(() => {
         triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]);
@@ -141,7 +144,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 setUnits(finalUnits);
             }
         }
-    }, [targetPayout, preview?.total_odds, preview?.legs.length, cfg.target_odds, units]);
+    }, [targetPayout, preview?.total_odds, preview?.legs, preview?.legs.length, cfg.target_odds, units]);
 
     async function handleExclude(url: string) {
         await addExcluded(url);
@@ -155,7 +158,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         triggerPreview(mergedCfg);
     }
 
-    function loadProfile(name: string, data: any) {
+    function loadProfile(name: string, data: Profile) {
         const next: BuilderConfig = {
             target_odds: data.target_odds ?? 3,
             target_legs: data.target_legs ?? 3,
@@ -195,8 +198,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         if (!clean || clean === 'manual') {
             setStatus('Enter a profile name first.'); return;
         }
-        const { date_from, date_to, ...cfgWithoutDates } = cfg;
-        await saveProfile({ name: clean, ...cfgWithoutDates, units, target_payout: targetPayout, run_daily_count: runDaily });
+        // Profile accepts null dates (cycle-6 pin: runtime-only keys nulled on
+        // disk) — null them explicitly instead of destructuring them out.
+        await saveProfile({ name: clean, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout, run_daily_count: runDaily });
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
         setStatus(`✓ Profile '${clean}' saved`);
