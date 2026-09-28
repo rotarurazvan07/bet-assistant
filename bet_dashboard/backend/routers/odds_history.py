@@ -1,4 +1,6 @@
+"""Odds history API: snapshots and movements per match."""
 from __future__ import annotations
+
 
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
 from fastapi import APIRouter, HTTPException, Request
@@ -9,6 +11,7 @@ router = APIRouter(prefix="/api/odds-history", tags=["odds-history"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 

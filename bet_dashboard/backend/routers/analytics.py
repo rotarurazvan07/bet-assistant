@@ -1,4 +1,6 @@
+"""Analytics API: aggregated stats and chart datasets."""
 from __future__ import annotations
+
 
 # Import analytics utilities
 from core.analytics_utils import (
@@ -16,10 +18,12 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
 def _get_status_value(status) -> str:
+    """Extract a status field from a row dict with a default."""
     if hasattr(status, "value"):
         return status.value
     return str(status)
@@ -29,6 +33,7 @@ def _get_status_value(status) -> str:
 
 
 def _drawdown_data(history: list[dict]) -> list[dict]:
+    """Build drawdown series rows from history."""
     if not history:
         return []
     peak = 0.0
@@ -53,6 +58,7 @@ def _drawdown_data(history: list[dict]) -> list[dict]:
 
 def _market_breakdown(slips) -> list[dict]:
     # data: market -> { "market": str, "unique_legs": set, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0 }
+    """Aggregate market hit/miss counts into breakdown rows."""
     data: dict[str, dict] = {}
 
     # Track unique legs to count them only once for win/loss but aggregate profit
@@ -118,6 +124,7 @@ def _market_breakdown(slips) -> list[dict]:
 
 
 def _league_breakdown(slips) -> list[dict]:
+    """Aggregate league hit/miss counts into breakdown rows."""
     data: dict[str, dict] = {}
     processed_legs = set()
 
@@ -420,6 +427,7 @@ def _source_breakdown(slips) -> list[dict]:
 
 
 def _pnl_by_market(slips) -> list[dict]:
+    """Aggregate net P&L per market into rows."""
     data: dict[str, dict] = {}
     processed_legs = set()
 
@@ -462,6 +470,7 @@ def _pnl_by_market(slips) -> list[dict]:
 
 
 def _profile_scatter(slips) -> list[dict]:
+    """Build profile scatter points (odds vs profit)."""
     profiles: dict[str, dict] = {}
     for slip in slips:
         status_str = _get_status_value(slip.slip_status)
@@ -500,6 +509,7 @@ def get_analytics(
     date_from: str | None = None,
     date_to: str | None = None,
 ):
+    """Return the full analytics payload for the given filters."""
     logic = _get(request).logic
 
     if profiles is None:
@@ -540,6 +550,7 @@ def get_analytics(
 
 def _correlation_matrix(slips) -> dict:
     # Matrix of (League, Market) stats
+    """Build league/market correlation matrices for analytics."""
     data = {}
     leagues = set()
     markets = set()

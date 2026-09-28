@@ -1,4 +1,6 @@
+"""JSON serialization helpers for the backend."""
 import math
+
 from typing import Any
 
 

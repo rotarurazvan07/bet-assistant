@@ -155,6 +155,7 @@ def _get_status_value(status) -> str:
 def calculate_daily_summary(
     slips, profile: str | list[str] | None = None, date_from: str | None = None, date_to: str | None = None
 ) -> list[dict[str, Any]]:
+    """Aggregate settled-slip history into daily P&L rows."""
     from bet_framework.core.type_defs import Outcome
 
     settled_slips = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
@@ -216,6 +217,7 @@ def calculate_daily_summary(
 
 
 def calculate_market_accuracy(slips) -> list[dict[str, Any]]:
+    """Compute per-market hit-rate accuracy from settled legs."""
     market_stats: dict[str, dict[str, Any]] = {}
     processed_legs = set()
 
@@ -254,6 +256,7 @@ def calculate_market_accuracy(slips) -> list[dict[str, Any]]:
 
 
 def calculate_correlation_data(slips) -> list[dict[str, Any]]:
+    """Build source/market correlation datasets for analytics."""
     data = []
     for s in slips:
         slip_status = _get_status_value(s.slip_status)

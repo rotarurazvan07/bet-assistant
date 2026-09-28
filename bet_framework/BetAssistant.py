@@ -253,6 +253,7 @@ class BetAssistant(BaseStorageManager):
         self._df = pd.DataFrame()
 
     def _create_tables(self) -> None:
+        """Create slips and legs tables if missing."""
         with self.db_lock:
             self.conn.executescript("""
                 CREATE TABLE IF NOT EXISTS slips (
@@ -298,9 +299,11 @@ class BetAssistant(BaseStorageManager):
         self.flush_and_close()
 
     def __enter__(self) -> BetAssistant:
+        """Open the DB connection (context-manager support)."""
         return self
 
     def __exit__(self, *_: Any) -> None:
+        """Close the DB connection on context exit."""
         self.close()
 
     # ── Data loading ──────────────────────────────────────────────────────────
@@ -596,6 +599,7 @@ class BetAssistant(BaseStorageManager):
         return self._rows_to_slips(rows)
 
     def delete_slip(self, slip_id: int) -> None:
+        """Delete a slip and its legs by id."""
         with self.db_lock:
             self.conn.execute("DELETE FROM legs  WHERE slip_id = ?", (slip_id,))
             self.conn.execute("DELETE FROM slips WHERE slip_id = ?", (slip_id,))
@@ -787,6 +791,7 @@ class BetAssistant(BaseStorageManager):
         return None
 
     def validate_slips(self) -> ValidationReport:  # noqa: C901 - pre-existing complexity on main; refactor out of testing-cycle scope
+        """Scrape result pages, settle legs, and update slip statuses."""
         self.reopen_if_changed()
 
         pending = self.fetch_rows(
@@ -877,6 +882,7 @@ class BetAssistant(BaseStorageManager):
         # TODO - this wont work unless datetimes are fixed first!
         # now       = pd.Timestamp.now()
         # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
+        """Collect candidate legs passing config filters from matches."""
         date_from = pd.to_datetime(cfg.date_from) if cfg.date_from else None
         date_to = (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1)) if cfg.date_to else None
         excluded = set(cfg.excluded_urls or [])
@@ -1003,6 +1009,7 @@ class BetAssistant(BaseStorageManager):
 
     @staticmethod
     def _select_legs(candidates: list[CandidateLeg], cfg: BetSlipConfig) -> list[CandidateLeg]:
+        """Pick legs for a slip from candidates using the scoring config."""
         stop_threshold = resolve_stop_threshold(cfg)
         max_legs = resolve_max_legs(cfg)
         min_legs = max(1, int(cfg.target_legs * cfg.min_legs_fill_ratio))

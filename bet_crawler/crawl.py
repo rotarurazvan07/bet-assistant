@@ -51,6 +51,7 @@ class CrawlerFactory:
         runner_sets: dict[str, list[str]],
         runtime_settings: CrawlerRuntimeSettings,
     ) -> None:
+        """Store the crawler registry and config lookup."""
         self.crawler_keys = crawler_keys
         self.runner_sets = self._normalise_runner_sets(runner_sets)
         self.runtime_settings = runtime_settings
@@ -159,6 +160,7 @@ def load_profile(profile_path: str) -> tuple[str, dict[str, Any]]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the 5-mode CLI parser (prepare-scrape|scrape|merge|generate-slips|validate-slips)."""
     p = argparse.ArgumentParser(
         description="Bet Assistant CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,

@@ -253,3 +253,11 @@ bet_dashboard/frontend/.playwright-cache/
 
 # Vitest coverage artifacts
 bet_dashboard/frontend/coverage/
+
+# CI dry-run artifacts (per-suite junit/coverage XMLs)
+coverage-framework.xml
+coverage-backend.xml
+coverage-crawler.xml
+test-results-framework.xml
+test-results-backend.xml
+test-results-crawler.xml

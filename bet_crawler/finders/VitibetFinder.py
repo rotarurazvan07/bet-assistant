@@ -1,4 +1,6 @@
+"""Match finder for vitibet.com predictions."""
 import re
+
 from datetime import datetime
 
 from bs4 import BeautifulSoup, Tag
@@ -52,10 +54,13 @@ TOP_LEAGUES = {
 
 
 class VitibetFinder(BaseMatchFinder):
+    """Scrapes vitibet.com daily prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for vitibet (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return vitibet listing URLs."""
         if self.top_leagues_only:
             return list(TOP_LEAGUES.keys())
         else:
@@ -76,6 +81,7 @@ class VitibetFinder(BaseMatchFinder):
             return league_urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all vitibet URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -84,6 +90,7 @@ class VitibetFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one vitibet page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
 

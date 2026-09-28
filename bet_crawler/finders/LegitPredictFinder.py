@@ -1,4 +1,6 @@
+"""Match finder for legitpredict.com predictions."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -17,10 +19,13 @@ MAX_CONCURRENCY = 1
 
 
 class LegitPredictFinder(BaseMatchFinder):
+    """Scrapes legitpredict.com daily prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return legitpredict listing URLs."""
         urls = [
             f"{LEGITPREDICT_URL}{(datetime.now() + timedelta(days=i)).strftime('%d-%m-%Y')}"
             for i in range(self.num_days_ahead + 1)
@@ -29,6 +34,7 @@ class LegitPredictFinder(BaseMatchFinder):
         return urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all legitpredict URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -37,6 +43,7 @@ class LegitPredictFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one legitpredict page and emit matches via callback."""
         try:
             if "OOPS! NO GAME HERE" in html:
                 logger.info(f"No games found for {url}")

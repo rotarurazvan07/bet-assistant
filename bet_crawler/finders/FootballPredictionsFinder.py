@@ -1,4 +1,6 @@
+"""Match finder for footballpredictions daily tips."""
 from scrape_kit import ScrapeMode, get_logger, scrape
+
 
 logger = get_logger(__name__)
 
@@ -40,13 +42,17 @@ TOP_LEAGUES = {
 
 
 class FootballPredictionsFinder(BaseMatchFinder):
+    """Scrapes footballpredictions prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return footballpredictions listing URLs."""
         return list(TOP_LEAGUES.keys())
 
     def get_matches(self, urls) -> None:
+        """Scrape all footballpredictions URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -55,6 +61,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one footballpredictions page and emit matches via callback."""
         soup = BeautifulSoup(html, "html.parser")
         # Select all rows in the table body that contain match data (skip header)
         all_anchors = soup.select("table.table-tips tbody tr:has(td)")  # tr elements with <td> (data rows)

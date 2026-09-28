@@ -1,4 +1,6 @@
+"""Match finder for soccervista.com league pages."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 import datetime
@@ -51,10 +53,13 @@ TOP_LEAGUES = {
 
 
 class SoccerVistaFinder_per_league(BaseMatchFinder):
+    """Scrapes soccervista league prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return soccervista league listing URLs."""
         if self.top_leagues_only:
             return list(TOP_LEAGUES.keys())
         else:
@@ -88,6 +93,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
             return league_urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all soccervista league URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -96,6 +102,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one soccervista league page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
             container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)

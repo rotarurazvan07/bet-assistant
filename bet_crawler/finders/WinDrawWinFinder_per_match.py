@@ -1,4 +1,6 @@
+"""Match finder for windrawwin.com per-match pages."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -18,10 +20,13 @@ MAX_CONCURRENCY = 1
 
 
 class WinDrawWinFinder_per_match(BaseMatchFinder):
+    """Scrapes windrawwin per-match prediction pages."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return windrawwin match listing URLs."""
         page = fetch(WINDRAWWIN_URL, stealthy_headers=True)
         soup = BeautifulSoup(page, "html.parser")
 
@@ -47,6 +52,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         return matches_urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all windrawwin match URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -55,6 +61,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one windrawwin match page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
             if "Voting Is Now Closed" in html:

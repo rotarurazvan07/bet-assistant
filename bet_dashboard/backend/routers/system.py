@@ -1,4 +1,6 @@
+"""System API: pull, status, health and WS events."""
 from __future__ import annotations
+
 
 import logging
 
@@ -11,11 +13,13 @@ router = APIRouter(tags=["system"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
 @router.post("/api/pull")
 def pull_db(request: Request):
+    """Trigger an upstream DB pull and return the result envelope."""
     app = _get(request)
     try:
         msg = app.pull_and_broadcast()
@@ -33,6 +37,7 @@ def pull_db(request: Request):
 
 @router.get("/api/status")
 def get_status(request: Request):
+    """Return last-pull time and loaded match count."""
     app = _get(request)
     df = app.logic.match_df
     return {
@@ -59,6 +64,7 @@ def get_sources_config(request: Request):
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Stream live updates (matches/slips/services) over WS."""
     await ws_manager.connect(websocket)
     try:
         while True:

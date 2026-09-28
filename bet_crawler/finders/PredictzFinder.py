@@ -1,4 +1,6 @@
+"""Match finder for predictz.com predictions."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -52,10 +54,13 @@ TOP_LEAGUES = {
 
 
 class PredictzFinder(BaseMatchFinder):
+    """Scrapes predictz.com daily prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for predictz (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return predictz fixture URLs from league optgroups."""
         if self.top_leagues_only:
             return list(TOP_LEAGUES.keys())
         else:
@@ -69,6 +74,7 @@ class PredictzFinder(BaseMatchFinder):
             return league_urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all predictz URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -77,6 +83,7 @@ class PredictzFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one predictz league page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
 

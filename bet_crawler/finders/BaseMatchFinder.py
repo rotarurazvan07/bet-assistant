@@ -1,3 +1,5 @@
+"""Base class and shared pipeline for all match finders."""
+
 import re
 from abc import abstractmethod
 from collections.abc import Callable
@@ -10,6 +12,8 @@ logger = get_logger(__name__)
 
 
 class BaseMatchFinder:
+    """Abstract base for source finders: URLs -> parse -> add_match pipeline."""
+
     @staticmethod
     def _detect_local_timezone() -> str:
         """Detect the local timezone as an IANA timezone string."""
@@ -49,6 +53,7 @@ class BaseMatchFinder:
         local_timezone: str,
         skip_patterns: tuple[tuple[str, str], ...] | list[tuple[str, str]],
     ) -> None:
+        """Store runtime settings; subclasses add source wiring."""
         super().__init__()
         self.add_match_callback = add_match_callback
         self.contributes_odds = contributes_odds
@@ -75,6 +80,7 @@ class BaseMatchFinder:
     # ─────────────────────────── Datetime normalisation ───────────────────────
 
     def normalise_datetime(self, dt: datetime) -> datetime:
+        """Convert a naive source-zone datetime to the configured local timezone."""
         if self.TIMEZONE is None:
             return dt
 

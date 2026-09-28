@@ -1,4 +1,6 @@
+"""Match finder for eaglepredict.com predictions."""
 from scrape_kit import fetch, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -17,13 +19,17 @@ MAX_CONCURRENCY = 1
 
 
 class EaglePredictFinder(BaseMatchFinder):
+    """Scrapes eaglepredict.com daily prediction pages."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for eaglepredict (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return eaglepredict fixture-page URLs for configured leagues."""
         return [EAGLEPREDICT_URL]
 
     def get_matches(self, urls=None) -> None:
+        """Scrape all eaglepredict URLs and emit matches via callback."""
         page = fetch(EAGLEPREDICT_URL, stealthy_headers=False)
         self._parse_page(None, page)
 

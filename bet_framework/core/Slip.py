@@ -53,6 +53,7 @@ class CandidateLeg:
     predictions: list[dict[str, Any]] = field(default_factory=list)  # Per-source predictions for this leg
 
     def __post_init__(self) -> None:
+        """Validate and clamp candidate-leg fields after construction."""
         import math
 
         # Clean league
@@ -129,6 +130,7 @@ class BetLeg:
     final_score: str | None = None  # Final match score (e.g., "2:1") for settled legs
 
     def __post_init__(self) -> None:
+        """Validate and clamp leg fields after construction."""
         import math
 
         # Clean league
@@ -161,6 +163,7 @@ class BetSlip:
     slip_status: Outcome = Outcome.PENDING
 
     def __post_init__(self) -> None:
+        """Validate and clamp slip fields after construction."""
         import math
 
         if isinstance(self.total_odds, float) and (math.isnan(self.total_odds) or math.isinf(self.total_odds)):
@@ -255,6 +258,7 @@ class BetSlipConfig:
     odds_movement_strength_min: float | None = None  # 0.05–0.20, None = auto (0.05)
 
     def __post_init__(self) -> None:
+        """Validate and clamp builder-config fields after construction."""
         self.target_odds = max(1.10, min(1000.0, self.target_odds))
         self.target_legs = max(1, min(100, self.target_legs))
         self.consensus_floor = max(0.0, min(100.0, self.consensus_floor))

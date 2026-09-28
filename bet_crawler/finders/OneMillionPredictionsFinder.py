@@ -1,4 +1,6 @@
+"""Match finder for onemillionpredictions.com tips."""
 from datetime import datetime
+
 
 from bs4 import BeautifulSoup
 from scrape_kit import get_logger
@@ -36,10 +38,13 @@ TOP_LEAGUES = {
 
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
+    """Scrapes onemillionpredictions.com daily prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return onemillionpredictions listing URLs."""
         if self.top_leagues_only:
             return list(TOP_LEAGUES.keys())
         else:
@@ -51,6 +56,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
             return links
 
     def get_matches(self, urls) -> None:
+        """Scrape all onemillionpredictions URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -59,6 +65,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one onemillionpredictions page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
             if self.top_leagues_only:

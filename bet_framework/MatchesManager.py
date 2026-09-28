@@ -1,4 +1,6 @@
+"""Buffered SQLite match store with fuzzy dedup and odds history."""
 from __future__ import annotations
+
 
 import json
 from datetime import datetime
@@ -20,6 +22,7 @@ logger = get_logger(__name__)
 
 
 class NearMiss(NamedTuple):
+    """A near-duplicate match pair rejected by the similarity gate."""
     home_a: str
     away_a: str
     home_b: str
@@ -30,6 +33,7 @@ class NearMiss(NamedTuple):
 
 
 class OddsValidationIssue(NamedTuple):
+    """An odds sanity problem detected during validation."""
     home: str
     away: str
     market: str
@@ -103,6 +107,7 @@ class MatchesManager(BufferedStorageManager):
     """
 
     def __init__(self, db_path: str, similarity_config: dict | None = None) -> None:
+        """Open/create the DB and set similarity thresholds."""
         if similarity_config:
             self.similarity_engine: SimilarityEngine | None = SimilarityEngine(similarity_config)
         else:
@@ -113,6 +118,7 @@ class MatchesManager(BufferedStorageManager):
     # ── Schema ────────────────────────────────────────────────────────────────
 
     def _create_tables(self) -> None:
+        """Create matches and related tables if missing."""
         with self.db_lock:
             self.conn.execute("""
                 CREATE TABLE IF NOT EXISTS matches (
@@ -141,6 +147,7 @@ class MatchesManager(BufferedStorageManager):
     # ── Similarity search inside the buffer ───────────────────────────────────
 
     def _find(self, home: str, away: str, dt: datetime) -> tuple[dict | None, int | None]:
+        """Find a stored match by home/away names using fuzzy matching."""
         buf = self.ensure_buffer()
         if buf.empty:
             return None, None
@@ -182,6 +189,7 @@ class MatchesManager(BufferedStorageManager):
     # ── Public API ────────────────────────────────────────────────────────────
 
     def fetch_matches(self) -> pd.DataFrame:
+        """Return filtered, paginated matches as dicts."""
         self.reopen_if_changed()
         buf = self.ensure_buffer()
         if buf.empty:
@@ -322,6 +330,7 @@ class MatchesManager(BufferedStorageManager):
         return False
 
     def _update_odds(self, match: Match, found: dict, idx: int) -> bool:
+        """Append an odds snapshot to a match's history."""
         cur = self.deserialize_json(found.get("odds")) or {}
         raw_patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
         if not raw_patch:
@@ -354,9 +363,11 @@ class MatchesManager(BufferedStorageManager):
         return True
 
     def reset_matches_db(self) -> None:
+        """Drop and recreate the matches DB."""
         self.clear_database("matches")  # clears buffer + dirty flag (inherited)
 
     def merge_databases(self, chunks_dir: str) -> None:
+        """Merge chunk DBs into the store with fuzzy dedup."""
         self.ensure_buffer()
         logger.info(f"Merging chunks from {chunks_dir}")
 

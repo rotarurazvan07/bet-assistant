@@ -38,12 +38,14 @@ from routers import analytics, builder, matches, odds_history, profiles, service
 async def lifespan(app: FastAPI):
     # Hand the running event loop to ws_manager so TickerService daemon threads
     # can call broadcast_sync() safely via run_coroutine_threadsafe.
+    """Manage AppLogic startup and ticker-daemon lifecycle."""
     ws_manager.set_loop(asyncio.get_event_loop())
     yield
     # TickerService threads are daemons — they die with the process automatically.
 
 
 def create_app() -> FastAPI:
+    """Build and configure the FastAPI application."""
     matches_db = os.getenv("MATCHES_DB_PATH", "bet_dashboard/workspace/data/matches.db")
     slips_db = os.getenv("SLIPS_DB_PATH", "bet_dashboard/workspace/data/slips.db")
     config_dir = os.getenv("CONFIG_PATH", "bet_dashboard/workspace/config")

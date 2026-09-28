@@ -1,4 +1,6 @@
+"""Profile loading and merging helpers."""
 from typing import Any
+
 
 
 def get_profile_params(request: Any):

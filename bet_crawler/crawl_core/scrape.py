@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 
 
 def scrape(db_path: str, urls_str: str, crawler_factory, similarity_config: dict | None = None) -> None:
+    """Scrape chunk URLs per domain with per-finder instances and write chunk SQLite DBs."""
     if os.path.isfile(urls_str):
         with open(urls_str) as f:
             urls = [u.strip() for u in f.read().split(",") if u.strip()]
@@ -30,6 +31,7 @@ def scrape(db_path: str, urls_str: str, crawler_factory, similarity_config: dict
     matches_manager.reset_matches_db()
 
     def _on_match(match) -> None:
+        """Persist one scraped match into the chunk DB via the manager."""
         matches_manager.add_match(match)
 
     for i, (domain_key, group_urls) in enumerate(groups.items()):

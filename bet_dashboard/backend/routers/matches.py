@@ -1,4 +1,6 @@
+"""Matches API: filtered, paginated match listing."""
 from __future__ import annotations
+
 
 import math
 
@@ -9,16 +11,19 @@ router = APIRouter(prefix="/api/matches", tags=["matches"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
 def _clean(v):
+    """Sanitize a row dict for JSON output."""
     if isinstance(v, float) and math.isnan(v):
         return None
     return v
 
 
 def _row_to_dict(row: dict) -> dict:
+    """Convert a match row into a response dict."""
     out = {}
     for k, v in row.items():
         if hasattr(v, "isoformat"):

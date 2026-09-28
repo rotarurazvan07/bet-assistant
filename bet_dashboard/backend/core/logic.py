@@ -1,4 +1,6 @@
+"""AppLogic: unified business logic plus ticker daemons."""
 from __future__ import annotations
+
 
 import math
 import os
@@ -53,6 +55,7 @@ class AppLogic:
         slips_db_path: str,
         config_path: str,
     ) -> None:
+        """Load config, open the logic DBs, and wire the WS manager."""
         self._matches_db_path = matches_db_path
         self._slips_db_path = slips_db_path
         self._config_path = config_path
@@ -184,6 +187,7 @@ class AppLogic:
             return True  # On error, try to download anyway
 
     def _do_pull(self) -> None:
+        """Ticker daemon: poll the upstream DB release and hot-swap on change."""
         try:
             print("[Puller] Change detected, downloading...")
             self.pull_matches_db(self._matches_db_path)
@@ -223,6 +227,7 @@ class AppLogic:
         return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
 
     def _do_generate(self) -> None:
+        """Ticker daemon: generate slips for active profiles at the scheduled hour."""
         try:
             profiles = self._get_active_profiles()
             if profiles:
@@ -235,6 +240,7 @@ class AppLogic:
             print(f"[Generator] ERROR: {exc}")
 
     def _do_verify(self) -> None:
+        """Ticker daemon: poll live scores and settle active slips."""
         try:
             result = self.validate_slips()
             live_data = {
@@ -251,15 +257,19 @@ class AppLogic:
     # ── Manual excluded URLs (server-lifetime) ────────────────────────────────
 
     def add_excluded(self, url: str) -> None:
+        """Add a match URL to the manual exclusions table."""
         self._manual_excluded.add(url)
 
     def remove_excluded(self, url: str) -> None:
+        """Remove a match URL from manual exclusions."""
         self._manual_excluded.discard(url)
 
     def clear_excluded(self) -> None:
+        """Clear all manual exclusions."""
         self._manual_excluded.clear()
 
     def get_manual_excluded(self) -> list[str]:
+        """Return manually excluded matches with reasons."""
         return sorted(self._manual_excluded)
 
     def _combined_excluded(self) -> list[str]:
@@ -289,20 +299,24 @@ class AppLogic:
 
     @property
     def services(self) -> dict[str, TickerService]:
+        """Return service info for puller, generator and verifier."""
         return self._services
 
     @property
     def settings(self) -> SettingsManager:
+        """Return scheduler settings (hour/minute) from config."""
         return self._settings
 
     @property
     def config_path(self) -> str:
+        """Expose the resolved config directory path."""
         return self._config_path
 
     # ── League helpers ───────────────────────────────────────────────────────··[...]
 
     def get_leagues(self) -> list[str]:
         # 1. Get leagues from the core framework definitions
+        """Return distinct leagues present in the matches DB."""
         framework_leagues = [
             getattr(leagues, name)
             for name in dir(leagues)
@@ -321,6 +335,7 @@ class AppLogic:
     # ── Match data ─────────────────────────────────────────────────────────[...]
 
     def refresh_data(self, excluded_sources: list[str] | None = None) -> pd.DataFrame:
+        """Reload matches and odds snapshots from the DBs into cache."""
         raw_df = self._matches_manager.fetch_matches()
         self._assistant.load_matches(raw_df, excluded_sources=excluded_sources)
         return self._assistant._df.copy()
@@ -413,6 +428,7 @@ class AppLogic:
     def build_preview(self, cfg: BetSlipConfig) -> list[CandidateLeg]:
         # Only use manual exclusions for preview - pending slip matches should show with warning
         # Reload matches with config's excluded_sources for complete isolation
+        """Run the slip builder for a config and return candidate legs."""
         if cfg.excluded_sources is not None:
             self.refresh_data(excluded_sources=cfg.excluded_sources)
         elif hasattr(cfg, "excluded_sources"):
@@ -516,6 +532,7 @@ class AppLogic:
         return urls
 
     def delete_slip(self, slip_id: int) -> None:
+        """Delete a slip by id from the slips DB."""
         self._assistant.delete_slip(slip_id)
 
     def get_excluded_urls(self) -> list[str]:
@@ -528,6 +545,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> dict[str, Any]:
+        """Return aggregate slip statistics for the current filters."""
         slips = self.get_slips(profile, date_from, date_to)
         settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
         won = [s for s in settled if _get_status_value(s.slip_status) == "Won"]
@@ -629,6 +647,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Return daily P&L summary rows for analytics."""
         from core.analytics_utils import calculate_daily_summary
 
         slips = self.get_slips(profile or "all", date_from, date_to)
@@ -640,6 +659,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Return per-market accuracy breakdown for analytics."""
         from core.analytics_utils import calculate_market_accuracy
 
         slips = self.get_slips(profile or "all", date_from, date_to)
@@ -651,6 +671,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Return source/market correlation data for analytics."""
         from core.analytics_utils import calculate_correlation_data
 
         slips = self.get_slips(profile or "all", date_from, date_to)
@@ -664,6 +685,7 @@ class AppLogic:
     # ── Slips (with broadcast) ────────────────────────────────────────────────
 
     def validate_and_broadcast(self) -> Any:
+        """Validate pending slips and broadcast live updates over WS."""
         result = self.validate_slips()
         live_data = {
             item.match_name: {
@@ -676,6 +698,7 @@ class AppLogic:
         return result
 
     def generate_and_broadcast(self) -> dict:
+        """Generate slips for active profiles and broadcast over WS."""
         profiles = self._get_active_profiles()
         result: dict = {}
         if profiles:
@@ -687,15 +710,18 @@ class AppLogic:
         return result
 
     def save_slip_and_broadcast(self, profile: str, legs: list, units: float) -> int:
+        """Persist a manual slip and broadcast the update over WS."""
         slip_id = self.save_slip(profile, legs, units)
         self._broadcast_slips_updated()
         return slip_id
 
     def delete_slip_and_broadcast(self, slip_id: int) -> None:
+        """Delete a slip and broadcast the update over WS."""
         self.delete_slip(slip_id)
         self._broadcast_slips_updated()
 
     def pull_and_broadcast(self) -> str:
+        """Pull the upstream DB and broadcast refreshed matches over WS."""
         msg = self.pull_matches_db(self._matches_db_path)
         self._broadcast_matches_updated()
         return msg
@@ -703,6 +729,7 @@ class AppLogic:
     # ── Services ─────────────────────────────────────────────────────────··[...]
 
     def toggle_service(self, name: str) -> bool:
+        """Enable or disable a named service and persist the setting."""
         svc = self._services.get(name)
         if not svc:
             return False
@@ -726,6 +753,7 @@ class AppLogic:
         return new_state
 
     def save_service_settings(self, generate_hour: int, generate_minute: int = 0) -> None:
+        """Persist scheduler hour/minute settings to config."""
         cfg = self._settings.get("services") or {}
         cfg["generate_hour"] = generate_hour
         cfg["generate_minute"] = generate_minute
