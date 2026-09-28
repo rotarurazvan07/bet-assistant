@@ -1,4 +1,7 @@
-def get_profile_params(request):
+from typing import Any
+
+
+def get_profile_params(request: Any):
     """
     Extract profile parameters from request, handling both 'profiles' and 'profiles[]' parameter names.
 
@@ -20,7 +23,7 @@ def get_profile_params(request):
     return None
 
 
-def handle_profile_params(profiles_param):
+def handle_profile_params(profiles_param: Any):
     """
     Handle profile parameters consistently for both 'profiles' and 'profiles[]' parameter names.
 

@@ -61,5 +61,5 @@ def coerce_datetime_str(dt: Any) -> str | None:
     if dt is None:
         return None
     if hasattr(dt, "isoformat"):
-        return dt.isoformat()
+        return str(dt.isoformat())
     return str(dt)

@@ -588,10 +588,7 @@ class MatchesManager(BufferedStorageManager):
             if first_val is None or current_val is None:
                 result[market] = {"direction": None, "change_pct": 0.0, "significant": False}
                 continue
-            if first_val == 0:
-                change_pct = 0.0
-            else:
-                change_pct = round(((current_val - first_val) / abs(first_val)) * 100, 2)
+            change_pct = 0.0 if first_val == 0 else round(((current_val - first_val) / abs(first_val)) * 100, 2)
             abs_change = abs(current_val - first_val)
             if current_val > first_val:
                 direction = "up"
@@ -600,9 +597,10 @@ class MatchesManager(BufferedStorageManager):
             else:
                 direction = "stable"
             significant = False
-            if has_enough_history and direction != "stable":
-                if abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10:
-                    significant = True
+            if has_enough_history and direction != "stable" and (
+                abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10
+            ):
+                significant = True
             result[market] = {"direction": direction, "change_pct": change_pct, "significant": significant}
         return result
 

@@ -14,7 +14,7 @@ class Score:
         self.away = float(self.away) if self.away is not None else None
 
 
-def ensure_decimal_odds(odds_value) -> float:
+def ensure_decimal_odds(odds_value) -> float | None:
     """
     Detects if odds are American or Decimal and returns Decimal (European).
     Handles strings, integers, and floats.
@@ -60,24 +60,27 @@ def ensure_decimal_odds(odds_value) -> float:
 
 @dataclass
 class Odds:
-    home: None = None
-    draw: None = None
-    away: None = None
-    over_05: None = None
-    under_05: None = None
-    over_15: None = None
-    under_15: None = None
-    over_25: None = None
-    under_25: None = None
-    over_35: None = None
-    under_35: None = None
-    over_45: None = None
-    under_45: None = None
-    btts_y: None = None
-    btts_n: None = None
-    dc_1x: None = None
-    dc_12: None = None
-    dc_x2: None = None
+    # Optional decimal odds per market — None when the source doesn't
+    # provide it (was mis-annotated as literal None type; ensure_decimal_odds
+    # returns float | None and __post_init__ stores it back).
+    home: float | None = None
+    draw: float | None = None
+    away: float | None = None
+    over_05: float | None = None
+    under_05: float | None = None
+    over_15: float | None = None
+    under_15: float | None = None
+    over_25: float | None = None
+    under_25: float | None = None
+    over_35: float | None = None
+    under_35: float | None = None
+    over_45: float | None = None
+    under_45: float | None = None
+    btts_y: float | None = None
+    btts_n: float | None = None
+    dc_1x: float | None = None
+    dc_12: float | None = None
+    dc_x2: float | None = None
 
     def __post_init__(self) -> None:
         self.home = ensure_decimal_odds(self.home)
@@ -106,7 +109,9 @@ class Match:
         home_team: str,
         away_team: str,
         datetime: datetime,
-        predictions: list[Score] | Score,
+        # Runtime callers pass None / a single Score / a list — the branch
+        # below normalizes all three (widened type kills the dead-check error).
+        predictions: list[Score] | Score | None,
         odds: Odds,
         result_url: str | None = None,
         league: str | None = None,

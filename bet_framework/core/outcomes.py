@@ -39,7 +39,7 @@ def determine_outcome(home: int, away: int, market: str, market_type: str) -> Ou
     home        : Home team goals.
     away        : Away team goals.
     market      : Display label for the leg (e.g. '1', 'X', '2', 'Over 2.5', 'Over 1.5', 'Over 0.5', 'Over 3.5', 'Over 4.5').
-    market_type : One of MarketType.RESULT, MarketType.BTTS, MarketType.OVER_UNDER_25, MarketType.OVER_UNDER_15, MarketType.OVER_UNDER_05, MarketType.OVER_UNDER_35, MarketType.OVER_UNDER_45.
+    market_type : One of the MarketType members (RESULT, BTTS, OVER_UNDER_05..45, DOUBLE_CHANCE).
 
     Returns
     -------
@@ -56,7 +56,14 @@ def determine_outcome(home: int, away: int, market: str, market_type: str) -> Ou
         MarketType.DOUBLE_CHANCE: _handle_double_chance_market,
     }
 
-    handler = handlers.get(market_type)
+    # market_type arrives as str (DB rows / API payloads); coerce to the
+    # enum so the typed handler map keys match (and unknowns fall to PENDING).
+    try:
+        mt = MarketType(market_type)
+    except ValueError:
+        return Outcome.PENDING
+
+    handler = handlers.get(mt)
     if handler:
         return handler(home, away, market)
 

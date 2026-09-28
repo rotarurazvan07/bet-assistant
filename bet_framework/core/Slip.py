@@ -50,7 +50,7 @@ class CandidateLeg:
     tier: int = 1  # UI only: 1=balanced, 2=drift
     score: float = 0.0  # UI only: quality score
     quality: float = 0.0  # UI only: quality component
-    predictions: list[dict] = field(default_factory=list)  # Per-source predictions for this leg
+    predictions: list[dict[str, Any]] = field(default_factory=list)  # Per-source predictions for this leg
 
     def __post_init__(self) -> None:
         import math
@@ -125,7 +125,7 @@ class BetLeg:
     status: Outcome
     result_url: str
     league: str | None = None
-    predictions: list[dict] = field(default_factory=list)  # Per-source predictions for this leg
+    predictions: list[dict[str, Any]] = field(default_factory=list)  # Per-source predictions for this leg
     final_score: str | None = None  # Final match score (e.g., "2:1") for settled legs
 
     def __post_init__(self) -> None:

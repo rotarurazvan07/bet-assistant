@@ -216,7 +216,7 @@ def calculate_daily_summary(
 
 
 def calculate_market_accuracy(slips) -> list[dict[str, Any]]:
-    market_stats = {}
+    market_stats: dict[str, dict[str, Any]] = {}
     processed_legs = set()
 
     for slip in slips:
@@ -297,17 +297,14 @@ def calculate_streak_metrics(slips) -> dict:
         return {"current_streak": 0, "longest_win_streak": 0, "longest_loss_streak": 0}
 
     # Group slips by date and calculate daily P&L
-    daily_pnl = {}
+    daily_pnl: dict[str, float] = {}
     for slip in settled_slips:
         # Extract date part from date_generated (ISO string)
         date_str = slip.date_generated.split("T")[0] if "T" in slip.date_generated else slip.date_generated
         date = datetime.strptime(date_str, "%Y-%m-%d")
 
         # Calculate slip profit/loss
-        if _get_status_value(slip.slip_status) == "Won":
-            profit = (slip.total_odds - 1) * slip.units
-        else:  # Lost
-            profit = -slip.units
+        profit = (slip.total_odds - 1) * slip.units if _get_status_value(slip.slip_status) == "Won" else -slip.units
 
         daily_pnl[date] = daily_pnl.get(date, 0) + profit
 

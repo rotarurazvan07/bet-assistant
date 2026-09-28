@@ -26,7 +26,7 @@ def to_pct(n: int, total: int) -> float:
     return round((n / total) * 100, 1) if total else 0.0
 
 
-def calc_consensus(scores: list) -> dict[str, dict[str, float]]:
+def calc_consensus(scores: list[dict]) -> dict[str, dict[str, float]]:
     """
     Derive result / over-under / BTTS consensus percentages from a list of
     historical predicted score dicts.
