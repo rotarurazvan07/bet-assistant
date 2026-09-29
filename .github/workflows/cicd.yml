@@ -348,6 +348,12 @@ jobs:
             SEMGREP_FINDINGS="0"
           fi
           echo "semgrep_findings=${SEMGREP_FINDINGS}" >> "$GITHUB_OUTPUT"
+          # BLOCKING (gate-hardening): semgrep sits at 0 findings — locked so
+          # security pattern findings can never re-enter silently.
+          if [ "${SEMGREP_FINDINGS:-0}" -gt 0 ] 2>/dev/null; then
+            echo "BLOCKING: semgrep found $SEMGREP_FINDINGS finding(s) — fix before merge."
+            exit 1
+          fi
 
       - name: mypy — static type checking
         id: mypy
@@ -366,6 +372,16 @@ jobs:
           MYPY_ERRORS=$(echo "$MYPY_ERRORS" | tr -d '[:space:]')
           echo "mypy_errors=${MYPY_ERRORS:-0}" >> "$GITHUB_OUTPUT"
           echo "Found ${MYPY_ERRORS:-0} type error(s)."
+          # RATCHET GATE (gate-hardening): blocks only NEW type debt. The
+          # baseline (github/mypy-baseline, currently 165 = finder-module
+          # annotation debt) ratchets DOWN as debt is paid — lower the file
+          # whenever the count drops; never raise it.
+          MYPY_BASELINE=$(cat .github/mypy-baseline | tr -d '[:space:]')
+          echo "Baseline: $MYPY_BASELINE — ratchet, lower it as debt is paid."
+          if [ "${MYPY_ERRORS:-0}" -gt "${MYPY_BASELINE:-0}" ] 2>/dev/null; then
+            echo "BLOCKING: mypy count $MYPY_ERRORS exceeds baseline $MYPY_BASELINE — fix the new errors (then optionally lower the baseline)."
+            exit 1
+          fi
 
       - name: bandit — security SAST
         id: bandit
@@ -379,6 +395,12 @@ jobs:
           BANDIT_ISSUES=$(echo "$BANDIT_ISSUES" | tr -d '[:space:]')
           echo "bandit_issues=${BANDIT_ISSUES:-0}" >> "$GITHUB_OUTPUT"
           echo "Found ${BANDIT_ISSUES:-0} security issue(s)."
+          # BLOCKING (gate-hardening): bandit sits at 0 — locked so security
+          # findings can never re-enter silently.
+          if [ "${BANDIT_ISSUES:-0}" -gt 0 ] 2>/dev/null; then
+            echo "BLOCKING: bandit found $BANDIT_ISSUES security issue(s) — fix before merge."
+            exit 1
+          fi
 
       - name: pip-audit — dependency CVE scan
         id: pip_audit
@@ -446,16 +468,22 @@ jobs:
       - name: interrogate — docstring coverage
         id: interrogate
         run: |
-          # Run interrogate on each directory in SRC_DIR
+          # THRESHOLD GATE (gate-hardening): production-only, floor at 97%.
+          # Current production coverage is 98.9-99.2% — the floor guards
+          # against silent regression, one missing docstring stays legal.
           for dir in $SRC_DIR; do
             echo "Checking docstring coverage for $dir..."
-            interrogate "$dir"             -v --fail-under=0 2>&1 | tee -a interrogate-output.txt || true
+            interrogate "$dir" --exclude "*/tests/*" --fail-under=97 2>&1 | tee -a interrogate-output.txt
           done
-          # \d+% on "74.0%" matched only "0%" (last digit run) — match floats
-          INTERROGATE_PCT=$(grep -oP '\d+(?:\.\d+)?%' interrogate-output.txt | tail -1 | tr -d '%' || echo "0")
+          # grep -c double-count trap; float-aware regex
+          INTERROGATE_PCT=$(grep -oP '\d+(?:\.\d+)?%' interrogate-output.txt | tail -1 | tr -d '%') || true
           INTERROGATE_PCT=$(echo "$INTERROGATE_PCT" | tr -d '[:space:]')
           echo "interrogate_pct=${INTERROGATE_PCT:-0}" >> "$GITHUB_OUTPUT"
           echo "Docstring coverage: ${INTERROGATE_PCT:-0}%"
+          if [ ! -s interrogate-output.txt ]; then
+            echo "BLOCKING: interrogate produced no output — gate cannot be verified."
+            exit 1
+          fi
 
       - name: Write audit summary
         if: always()
@@ -480,7 +508,7 @@ jobs:
               if len(items) > MAX:
                   print(f"- … and {len(items) - MAX} more (see job log)")
 
-          print("## 🔍 Audit findings (advisory — does not gate the run)")
+          print("## 🔍 Audit findings (bandit · semgrep · mypy-ratchet · docstrings ≥97% are BLOCKING; radon · vulture · pip-audit stay advisory)")
 
           # mypy — file:line: error
           errors = []
@@ -608,23 +636,11 @@ jobs:
         run: npm run typecheck 2>&1 | tee typecheck-output.txt
 
       - name: Lint
-        # Advisory: `eslint .` carries 21 pre-existing src/ errors (documented
-        # cycle 9; none in test files). Pay down the debt, then drop the
-        # exit-code guard below to make lint blocking.
-        # eslint exits 1 BY CONTRACT when it finds problems — continue-on-error
-        # still rendered a red X annotation on every run. Instead we swallow
-        # exactly that expected code (findings + report written) so the step
-        # stays green; a genuine tool crash (any other exit code, or exit 1
-        # with NO report file) still fails the step loudly.
+        # BLOCKING (gate-hardening): the 21-error src/ debt was paid in the
+        # wave-2 batch (95b0b7b) and eslint now exits 0 clean — the advisory
+        # exit-code guard is removed. New lint errors block the PR.
         working-directory: bet_dashboard/frontend
-        run: |
-          npx eslint . --format json --output-file eslint-report.json && rc=0 || rc=$?
-          if [ "$rc" -eq 0 ] || { [ "$rc" -eq 1 ] && [ -f eslint-report.json ]; }; then
-            echo "eslint exit code: $rc (advisory — findings listed in the run summary)"
-          else
-            echo "eslint crashed (exit $rc, no report written) — failing loudly"
-            exit "$rc"
-          fi
+        run: npx eslint . --format json --output-file eslint-report.json
 
       - name: Unit tests (vitest)
         # Standing vitest config (threads pool + isolate:false +
@@ -859,9 +875,9 @@ jobs:
             echo "| Tests (3 Python suites) | ${{ needs.test.result }} |"
             echo "| Frontend (typecheck · lint · vitest) | ${{ needs.frontend-tests.result }} |"
             echo "| E2E (docker stack · playwright) | ${{ needs.e2e-tests.result }} |"
-            echo "| Audit (advisory) | ${{ needs.audit.result }} |"
+            echo "| Audit (blocking: bandit · semgrep · mypy ratchet · docstrings ≥97%) | ${{ needs.audit.result }} |"
             echo ""
-            echo "### Audit key metrics (advisory — details in the Audit summary section)"
+            echo "### Audit key metrics (blocking gates enforced — details in the Audit summary section)"
             echo ""
             echo "- mypy errors: **${{ needs.audit.outputs.mypy_errors }}**"
             echo "- bandit issues: **${{ needs.audit.outputs.bandit_issues }}**"
@@ -887,6 +903,9 @@ jobs:
               'test':           ('${{ needs.test.result }}', ('success',)),
               'frontend-tests': ('${{ needs.frontend-tests.result }}', ('success',)),
               'e2e-tests':      ('${{ needs.e2e-tests.result }}', ('success',)),
+              # audit carries BLOCKING checks now (bandit/semgrep at zero,
+              # mypy ratchet vs baseline, interrogate 97% floor)
+              'audit':          ('${{ needs.audit.result }}', ('success',)),
           }
           failures = [n for n, (r, ok) in required.items() if r not in ok]
           if failures:
