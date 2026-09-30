@@ -1,0 +1,104 @@
+name: Security Watchdog
+
+# Gate-hardening (pip-audit lane): dependency CVEs should never block feature
+# PRs (a Tuesday CVE in a lib is unrelated to the PR's changes) — but patching
+# them must never be optional either. This weekly required workflow scans and
+# FILES AN ISSUE with full details on any new vulnerable package, assigned to
+# the repo owner. Issue-driven = visible, owned, trackable.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  pip-audit:
+    name: "pip-audit (weekly CVE watchdog)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install dependencies + pip-audit
+        run: |
+          pip install -r bet_dashboard/backend/requirements.txt
+          pip install -r setup/requirements-scrape.txt
+          pip install pip-audit
+
+      - name: Audit dependencies
+        id: audit
+        run: |
+          set +e
+          pip-audit --format json --output pip-audit-report.json
+          AUDIT_RC=$?
+          set -e
+
+          VULNS=$(python3 -c "
+          import json
+          try:
+              with open('pip-audit-report.json') as f:
+                  data = json.load(f)
+              if isinstance(data, dict):
+                  data = data.get('dependencies', [])
+              vulns = [d for d in data if d.get('vulns')]
+              print(len(vulns))
+          except Exception:
+              print('0')
+          " 2>/dev/null)
+          echo "vulns=$VULNS" >> "$GITHUB_OUTPUT"
+
+          if [ "$VULNS" -gt 0 ]; then
+            echo "Vulnerable packages found: $VULNS"
+            exit 1
+          fi
+          echo "No vulnerable dependencies."
+
+      - name: File issue on vulnerabilities
+        if: failure() && steps.audit.conclusion == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('pip-audit-report.json', 'utf8'))
+            const deps = (report.dependencies ?? report).filter(d => d.vulns?.length);
+
+            let body = '## 🚨 Vulnerable dependencies detected by the weekly Security Watchdog\n\n';
+            body += '| Package | Installed | CVE / Advisory | Fix versions |\n|---|---|---|---|\n';
+            for (const dep of deps) {
+              for (const v of dep.vulns) {
+                const id = v.id ?? v.cve ?? '?';
+                const fixes = (v.fix_versions ?? []).join(', ') || 'none available';
+                const url = v.url ?? v.references ?? '';
+                body += `| **${dep.name}** | ${dep.version} | [${id}](${url}) | ${fixes} |\n`;
+              }
+            }
+            body += '\n---\n*Filed automatically by the `Security Watchdog` weekly workflow (`.github/workflows/security-watchdog.yml`). PRs are never blocked by dependency CVEs; this issue IS the tracking mechanism — patch, then link the fixing PR here and close.*\n';
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 Security: ${deps.length} vulnerable dependenc${deps.length === 1 ? 'y' : 'ies'} detected (${new Date().toISOString().slice(0, 10)})`,
+              body,
+              labels: ['security', 'dependencies'],
+              assignees: [context.repo.owner],
+            });
+
+      - name: Write run summary
+        if: always()
+        run: |
+          {
+            echo "## 🛡️ Security Watchdog — pip-audit"
+            echo ""
+            echo "Result: ${{ steps.audit.conclusion }}"
+            echo ""
+            echo "Runs Mondays 06:00 UTC. PRs are never blocked by dependency CVEs; new findings open a tracked security issue assigned to the owner."
+          } >> "$GITHUB_STEP_SUMMARY"

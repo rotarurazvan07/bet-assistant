@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { useSocket } from './hooks/useSocket';
 import { fetchStatus } from './api/data';
@@ -19,12 +19,11 @@ export default function App() {
     // Live data from WebSocket validation
     const [liveData, setLiveData] = useState<Record<string, { score: string; minute: string }>>({});
 
-    // One-time status load
-    const statusLoaded = useRef(false);
-    if (!statusLoaded.current) {
-        statusLoaded.current = true;
+    // One-time status load — empty-deps effect runs exactly once on mount
+    // (replaces the render-time ref write flagged by react-hooks/refs)
+    useEffect(() => {
         fetchStatus().then((s: { last_pull: string }) => setLastPull(s.last_pull)).catch(() => { });
-    }
+    }, []);
 
     // WebSocket: targeted refetch on named events only
     useSocket({

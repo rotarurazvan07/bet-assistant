@@ -1,4 +1,6 @@
+"""WebSocket connection manager with thread-safe broadcast."""
 from __future__ import annotations
+
 
 import asyncio
 import json
@@ -16,6 +18,7 @@ class ConnectionManager:
     """
 
     def __init__(self) -> None:
+        """Initialize the active-connections set."""
         self._connections: list[WebSocket] = []
         self._loop: asyncio.AbstractEventLoop | None = None
 
@@ -24,10 +27,12 @@ class ConnectionManager:
         self._loop = loop
 
     async def connect(self, ws: WebSocket) -> None:
+        """Accept and register a WebSocket connection."""
         await ws.accept()
         self._connections.append(ws)
 
     def disconnect(self, ws: WebSocket) -> None:
+        """Remove a WebSocket connection from the active set."""
         if ws in self._connections:
             self._connections.remove(ws)
 

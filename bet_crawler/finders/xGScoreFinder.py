@@ -1,4 +1,6 @@
+"""Match finder for xgscore.pw (browser-rendered predictions)."""
 import re
+
 
 from scrape_kit import browser, get_logger
 
@@ -21,7 +23,9 @@ MAX_CONCURRENCY = 1
 
 
 class xGScoreFinder(BaseMatchFinder):
+    """Scrapes xgscore predictions via script-driven browser sessions."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for xgscore (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
@@ -69,6 +73,7 @@ class xGScoreFinder(BaseMatchFinder):
             return matches_urls
 
     def get_matches(self, urls=None) -> None:
+        """Execute browser scripts to load xgscore data and emit matches."""
         scrape(
             urls,
             self._parse_page,
@@ -77,6 +82,7 @@ class xGScoreFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one xgscore payload and emit matches via callback."""
         soup = BeautifulSoup(html, "html.parser")
         try:
             home_team = soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()

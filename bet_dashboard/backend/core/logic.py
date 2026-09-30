@@ -1,4 +1,6 @@
+"""AppLogic: unified business logic plus ticker daemons."""
 from __future__ import annotations
+
 
 import math
 import os
@@ -26,8 +28,41 @@ from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
 
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
+from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core import leagues
 from bet_framework.MatchesManager import MatchesManager
+
+
+def _units_std(settled, n_settled: int, avg_units: float) -> float:
+    """Sample standard deviation of stakes (0.0 when fewer than two slips)."""
+    if n_settled <= 1:
+        return 0.0
+    return round((sum((s.units - avg_units) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2)
+
+
+def _daily_pnl_and_sharpe(settled) -> tuple[dict[str, float], float | None]:
+    """Aggregate daily P&L and the annualised Sharpe ratio over those days."""
+    daily_pnl: dict[str, float] = {}
+    for s in settled:
+        day = s.date_generated[:10]
+        pnl = (s.total_odds - 1) * s.units if _get_status_value(s.slip_status) == "Won" else -s.units
+        daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
+
+    sharpe_ratio: float | None = None
+    if len(daily_pnl) >= 3:
+        vals = list(daily_pnl.values())
+        _m = sum(vals) / len(vals)
+        _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
+        sharpe_ratio = round((_m / _std * (252**0.5)) if _std > 0 else 0.0, 2)
+    return daily_pnl, sharpe_ratio
+
+
+def _partition_slips(slips):
+    """Split slips into (settled, won, pending) buckets by status."""
+    settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
+    won = [s for s in settled if _get_status_value(s.slip_status) == "Won"]
+    pending = [s for s in slips if _get_status_value(s.slip_status) == "Pending"]
+    return settled, won, pending
 
 
 class AppLogic:
@@ -52,6 +87,7 @@ class AppLogic:
         slips_db_path: str,
         config_path: str,
     ) -> None:
+        """Load config, open the logic DBs, and wire the WS manager."""
         self._matches_db_path = matches_db_path
         self._slips_db_path = slips_db_path
         self._config_path = config_path
@@ -183,6 +219,7 @@ class AppLogic:
             return True  # On error, try to download anyway
 
     def _do_pull(self) -> None:
+        """Ticker daemon: poll the upstream DB release and hot-swap on change."""
         try:
             print("[Puller] Change detected, downloading...")
             self.pull_matches_db(self._matches_db_path)
@@ -222,6 +259,7 @@ class AppLogic:
         return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
 
     def _do_generate(self) -> None:
+        """Ticker daemon: generate slips for active profiles at the scheduled hour."""
         try:
             profiles = self._get_active_profiles()
             if profiles:
@@ -234,6 +272,7 @@ class AppLogic:
             print(f"[Generator] ERROR: {exc}")
 
     def _do_verify(self) -> None:
+        """Ticker daemon: poll live scores and settle active slips."""
         try:
             result = self.validate_slips()
             live_data = {
@@ -250,15 +289,19 @@ class AppLogic:
     # ── Manual excluded URLs (server-lifetime) ────────────────────────────────
 
     def add_excluded(self, url: str) -> None:
+        """Add a match URL to the manual exclusions table."""
         self._manual_excluded.add(url)
 
     def remove_excluded(self, url: str) -> None:
+        """Remove a match URL from manual exclusions."""
         self._manual_excluded.discard(url)
 
     def clear_excluded(self) -> None:
+        """Clear all manual exclusions."""
         self._manual_excluded.clear()
 
     def get_manual_excluded(self) -> list[str]:
+        """Return manually excluded matches with reasons."""
         return sorted(self._manual_excluded)
 
     def _combined_excluded(self) -> list[str]:
@@ -288,20 +331,24 @@ class AppLogic:
 
     @property
     def services(self) -> dict[str, TickerService]:
+        """Return service info for puller, generator and verifier."""
         return self._services
 
     @property
     def settings(self) -> SettingsManager:
+        """Return scheduler settings (hour/minute) from config."""
         return self._settings
 
     @property
     def config_path(self) -> str:
+        """Expose the resolved config directory path."""
         return self._config_path
 
     # ── League helpers ───────────────────────────────────────────────────────··[...]
 
     def get_leagues(self) -> list[str]:
         # 1. Get leagues from the core framework definitions
+        """Return distinct leagues present in the matches DB."""
         framework_leagues = [
             getattr(leagues, name)
             for name in dir(leagues)
@@ -320,6 +367,7 @@ class AppLogic:
     # ── Match data ─────────────────────────────────────────────────────────[...]
 
     def refresh_data(self, excluded_sources: list[str] | None = None) -> pd.DataFrame:
+        """Reload matches and odds snapshots from the DBs into cache."""
         raw_df = self._matches_manager.fetch_matches()
         self._assistant.load_matches(raw_df, excluded_sources=excluded_sources)
         return self._assistant._df.copy()
@@ -362,7 +410,7 @@ class AppLogic:
             urllib.request.urlretrieve(url, temp_path)  # nosec B310 - URL is hardcoded HTTPS to GitHub
         except urllib.error.URLError as e:
             os.unlink(temp_path)
-            raise RuntimeError(f"Failed to download DB from Release: {e}")
+            raise RuntimeError(f"Failed to download DB from Release: {e}") from e
 
         # Get config values for history preservation
         scraper_cfg = self._settings.get("scraper_config") or {}
@@ -412,6 +460,7 @@ class AppLogic:
     def build_preview(self, cfg: BetSlipConfig) -> list[CandidateLeg]:
         # Only use manual exclusions for preview - pending slip matches should show with warning
         # Reload matches with config's excluded_sources for complete isolation
+        """Run the slip builder for a config and return candidate legs."""
         if cfg.excluded_sources is not None:
             self.refresh_data(excluded_sources=cfg.excluded_sources)
         elif hasattr(cfg, "excluded_sources"):
@@ -506,13 +555,16 @@ class AppLogic:
         slips = self.get_slips()
         urls = set()
         for slip in slips:
-            if slip.slip_status == "Pending":
+            # Issue #59 spec: pending/live slip legs. A slip whose leg is Live
+            # derives slip_status "Live" and must still report its leg URLs.
+            if slip.slip_status in ("Pending", "Live"):
                 for leg in slip.legs:
                     if leg.status in ("Pending", "Live"):
                         urls.add(leg.result_url)
         return urls
 
     def delete_slip(self, slip_id: int) -> None:
+        """Delete a slip by id from the slips DB."""
         self._assistant.delete_slip(slip_id)
 
     def get_excluded_urls(self) -> list[str]:
@@ -525,10 +577,9 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> dict[str, Any]:
+        """Return aggregate slip statistics for the current filters."""
         slips = self.get_slips(profile, date_from, date_to)
-        settled = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
-        won = [s for s in settled if _get_status_value(s.slip_status) == "Won"]
-        pending = [s for s in slips if _get_status_value(s.slip_status) == "Pending"]
+        settled, won, pending = _partition_slips(slips)
 
         n_settled = len(settled)
         n_won = len(won)
@@ -548,24 +599,10 @@ class AppLogic:
 
         # ── Staking consistency ──────────────────────────────────────────────
         avg_units = round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
-        units_std = 0.0
-        if n_settled > 1:
-            _mean = avg_units
-            units_std = round((sum((s.units - _mean) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2)
+        units_std = _units_std(settled, n_settled, avg_units)
 
         # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
-        daily_pnl: dict[str, float] = {}
-        for s in settled:
-            day = s.date_generated[:10]
-            pnl = (s.total_odds - 1) * s.units if _get_status_value(s.slip_status) == "Won" else -s.units
-            daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
-
-        sharpe_ratio: float | None = None
-        if len(daily_pnl) >= 3:
-            vals = list(daily_pnl.values())
-            _m = sum(vals) / len(vals)
-            _std = (sum((v - _m) ** 2 for v in vals) / len(vals)) ** 0.5
-            sharpe_ratio = round((_m / _std * (252**0.5)) if _std > 0 else 0.0, 2)
+        daily_pnl, sharpe_ratio = _daily_pnl_and_sharpe(settled)
 
         # Best and worst day P&L
         best_day_pnl = max(daily_pnl.values()) if daily_pnl else None
@@ -575,18 +612,12 @@ class AppLogic:
         edge_analysis = get_rolling_edge_trend(settled)
 
         # ── New advanced metrics ───────────────────────────────────────────────
-        # Calculate biggest win/loss
         biggest_win_loss = calculate_biggest_win_loss(settled)
         biggest_win_units = biggest_win_loss["biggest_win_units"]
         biggest_loss_units = biggest_win_loss["biggest_loss_units"]
 
-        # Calculate streak metrics
+        # Calculate streak metrics + profit factor
         streak_metrics = calculate_streak_metrics(slips)  # Pass all slips, not just settled ones
-        current_streak = streak_metrics["current_streak"]
-        longest_win_streak = streak_metrics["longest_win_streak"]
-        longest_loss_streak = streak_metrics["longest_loss_streak"]
-
-        # Calculate profit factor
         profit_factor = calculate_profit_factor(settled)
 
         return {
@@ -612,9 +643,9 @@ class AppLogic:
             "biggest_loss_units": biggest_loss_units,
             "best_day_pnl": round(best_day_pnl, 2) if best_day_pnl is not None else None,
             "worst_day_pnl": round(worst_day_pnl, 2) if worst_day_pnl is not None else None,
-            "current_streak": current_streak,
-            "longest_win_streak": longest_win_streak,
-            "longest_loss_streak": longest_loss_streak,
+            "current_streak": streak_metrics["current_streak"],
+            "longest_win_streak": streak_metrics["longest_win_streak"],
+            "longest_loss_streak": streak_metrics["longest_loss_streak"],
             "profit_factor": profit_factor,
         }
 
@@ -626,6 +657,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Return daily P&L summary rows for analytics."""
         from core.analytics_utils import calculate_daily_summary
 
         slips = self.get_slips(profile or "all", date_from, date_to)
@@ -637,6 +669,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Return per-market accuracy breakdown for analytics."""
         from core.analytics_utils import calculate_market_accuracy
 
         slips = self.get_slips(profile or "all", date_from, date_to)
@@ -648,6 +681,7 @@ class AppLogic:
         date_from: str | None = None,
         date_to: str | None = None,
     ) -> list[dict[str, Any]]:
+        """Return source/market correlation data for analytics."""
         from core.analytics_utils import calculate_correlation_data
 
         slips = self.get_slips(profile or "all", date_from, date_to)
@@ -661,6 +695,7 @@ class AppLogic:
     # ── Slips (with broadcast) ────────────────────────────────────────────────
 
     def validate_and_broadcast(self) -> Any:
+        """Validate pending slips and broadcast live updates over WS."""
         result = self.validate_slips()
         live_data = {
             item.match_name: {
@@ -673,6 +708,7 @@ class AppLogic:
         return result
 
     def generate_and_broadcast(self) -> dict:
+        """Generate slips for active profiles and broadcast over WS."""
         profiles = self._get_active_profiles()
         result: dict = {}
         if profiles:
@@ -684,15 +720,18 @@ class AppLogic:
         return result
 
     def save_slip_and_broadcast(self, profile: str, legs: list, units: float) -> int:
+        """Persist a manual slip and broadcast the update over WS."""
         slip_id = self.save_slip(profile, legs, units)
         self._broadcast_slips_updated()
         return slip_id
 
     def delete_slip_and_broadcast(self, slip_id: int) -> None:
+        """Delete a slip and broadcast the update over WS."""
         self.delete_slip(slip_id)
         self._broadcast_slips_updated()
 
     def pull_and_broadcast(self) -> str:
+        """Pull the upstream DB and broadcast refreshed matches over WS."""
         msg = self.pull_matches_db(self._matches_db_path)
         self._broadcast_matches_updated()
         return msg
@@ -700,6 +739,7 @@ class AppLogic:
     # ── Services ─────────────────────────────────────────────────────────··[...]
 
     def toggle_service(self, name: str) -> bool:
+        """Enable or disable a named service and persist the setting."""
         svc = self._services.get(name)
         if not svc:
             return False
@@ -723,6 +763,7 @@ class AppLogic:
         return new_state
 
     def save_service_settings(self, generate_hour: int, generate_minute: int = 0) -> None:
+        """Persist scheduler hour/minute settings to config."""
         cfg = self._settings.get("services") or {}
         cfg["generate_hour"] = generate_hour
         cfg["generate_minute"] = generate_minute

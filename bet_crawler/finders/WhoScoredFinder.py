@@ -1,4 +1,6 @@
+"""Match finder for whoscored.com (UTC timestamps, browser pages)."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -18,7 +20,9 @@ MAX_CONCURRENCY = 3
 
 
 class WhoScoredFinder(BaseMatchFinder):
+    """Scrapes whoscored fixture pages via browser sessions."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for whoscored (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     # TIMEZONE = "UTC"  # WhoScored provides UTC timestamps
@@ -35,6 +39,7 @@ class WhoScoredFinder(BaseMatchFinder):
         return urls
 
     def get_matches(self, urls) -> None:
+        """Fetch whoscored fixture URLs and parse them via scrape."""
         scrape(
             urls,
             self._parse_page,
@@ -44,6 +49,7 @@ class WhoScoredFinder(BaseMatchFinder):
 
     def _parse_page(self, url, html) -> None:
         # 1. Look for the embedded JSON config that WhoScored now uses
+        """Parse one whoscored page (UTC datetimes) and emit matches."""
         import json
 
         try:

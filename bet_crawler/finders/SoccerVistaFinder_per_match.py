@@ -1,4 +1,6 @@
+"""Match finder for soccervista.com per-match pages."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -20,7 +22,9 @@ MAX_CONCURRENCY = 5
 
 
 class SoccerVistaFinder_per_match(BaseMatchFinder):
+    """Scrapes soccervista match pages via browser sessions."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for soccervista (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
@@ -61,7 +65,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                         if url:
                             matches_url.append(url)
                             # matches_url.append(SOCCERVISTA_URL + url)
-                except Exception as e:
+                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                     logger.debug(f"Failed to parse JSON-LD script: {e}")
                     continue
 
@@ -69,6 +73,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
         return matches_url
 
     def get_matches(self, urls) -> None:
+        """Open soccervista match pages via browser and emit matches."""
         scrape(
             urls,
             self._parse_page,
@@ -77,6 +82,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one soccervista match page and emit via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
 
@@ -104,6 +110,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             logger.error(f"Error parsing {url}: {e}")
 
     def _extract_match_metadata(self, soup):
+        """Extract teams and kickoff datetime from a match anchor."""
         home_team = None
         away_team = None
         match_datetime = None
@@ -137,6 +144,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
         return home_team, away_team, match_datetime
 
     def _extract_predictions(self, soup):
+        """Extract source score predictions from the page."""
         script_text = " ".join(script.string for script in soup.find_all("script") if script.string)
         script_text = script_text.replace("\\u0022", '"')
 
@@ -157,6 +165,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             return None
 
     def _extract_odds(self, soup):
+        """Extract 1X2 odds from the page; None legs when absent."""
         market_map = {
             "odds-link-1": "home",
             "odds-link-X": "draw",
@@ -184,7 +193,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     value = element.get_text(strip=True)
                     if value and value != "-":
                         extracted_data[attr_name] = value
-            except Exception as e:
+            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                 logger.error(f"Error extracting {attr_name} for class {class_name}: {e}")
                 continue
         valid_field_names = {f.name for f in fields(Odds)}

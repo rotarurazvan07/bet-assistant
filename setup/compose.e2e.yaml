@@ -1,0 +1,46 @@
+# E2E-only stack for the CI e2e-tests job.
+#
+# ISOLATION CONTRACT (user-mandated):
+# - Backend + frontend ONLY — no self-hosted github-runner, no watchtower,
+#   no secrets, no host binds. A simple backend/frontend checker.
+# - The image is built LOCALLY on the Actions machine from the PR checkout
+#   (setup/Dockerfile) and NEVER pulled from / pushed to ghcr.io. The only
+#   path to the registry is deploy.yml on main. The e2e-tests job tears the
+#   whole stack down (compose down -v --rmi all) when done — nothing surfaces.
+# - restart: "no" — a crash must FAIL the job, not restart-loop past the
+#   health budget.
+# - /app/workspace is a NAMED volume, never ./workspace: every run starts
+#   from the image's pristine boot state (start-dashboard.sh copies /app/config
+#   into the workspace and AppLogic auto-creates empty DBs on boot — verified
+#   against setup/Dockerfile + start-dashboard.sh + nginx.conf).
+name: bet-assistant-e2e
+
+services:
+  bet-assistant:
+    # Local-only tag. `docker compose build` creates it from the PR code;
+    # `docker compose down --rmi all` removes it. No registry anywhere.
+    image: bet-assistant-e2e:local
+    build:
+      context: ..
+      dockerfile: setup/Dockerfile
+    container_name: bet-assistant-e2e
+    restart: "no"
+    environment:
+      - MATCHES_DB_PATH=/app/workspace/data/matches.db
+      - SLIPS_DB_PATH=/app/workspace/data/slips.db
+      - CONFIG_PATH=/app/workspace/config
+      - PYTHONPATH=/app
+      - TZ=Europe/Bucharest
+    volumes:
+      - e2e-workspace:/app/workspace
+    ports:
+      - "3002:80"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost/api/status')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  e2e-workspace: {}

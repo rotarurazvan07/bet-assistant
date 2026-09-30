@@ -1,4 +1,6 @@
+"""Smart-builder API: preview, exclusions and leagues."""
 from __future__ import annotations
+
 
 import math
 
@@ -12,10 +14,12 @@ router = APIRouter(prefix="/api/builder", tags=["builder"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
 def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
+    """Convert a request payload into a BuilderConfig."""
     return BetSlipConfig(
         target_odds=body.target_odds,
         target_legs=body.target_legs,
@@ -47,6 +51,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
 
 @router.post("/preview")
 def preview(request: Request, body: BetSlipConfigIn):
+    """Run the builder preview for a config and return candidate legs."""
     app = _get(request)
     cfg = _to_config(body)
     legs = app.build_preview(cfg)
@@ -90,6 +95,7 @@ def preview(request: Request, body: BetSlipConfigIn):
 
 @router.get("/excluded")
 def get_excluded(request: Request):
+    """Return manually excluded matches with reasons."""
     return {"excluded": _get(request).get_manual_excluded()}
 
 
@@ -133,23 +139,27 @@ def get_excluded_details(request: Request):
 
 @router.post("/excluded")
 def add_excluded(request: Request, body: ExcludeUrlIn):
+    """Add a match URL to manual exclusions."""
     _get(request).add_excluded(body.url)
     return {"excluded": _get(request).get_manual_excluded()}
 
 
 @router.post("/excluded/remove")
 def remove_excluded(request: Request, body: ExcludeUrlIn):
+    """Remove a match URL from manual exclusions."""
     _get(request).remove_excluded(body.url)
     return {"excluded": _get(request).get_manual_excluded()}
 
 
 @router.delete("/excluded")
 def clear_excluded(request: Request):
+    """Clear all manual exclusions."""
     _get(request).clear_excluded()
     return {"excluded": []}
 
 
 @router.get("/leagues")
 def get_leagues(request: Request):
+    """Return distinct leagues available to the builder."""
     app = _get(request)
     return app.get_leagues()

@@ -25,7 +25,7 @@ export function useSocket(handlers: Handlers) {
     const handlersRef = useRef(handlers);
     useEffect(() => { handlersRef.current = handlers; });
 
-    const connect = useCallback(() => {
+    const connect = useCallback(function connect() {
         if (!mountedRef.current) return;
 
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';

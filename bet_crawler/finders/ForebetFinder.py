@@ -1,4 +1,6 @@
+"""Match finder for forebet.com predictions."""
 from scrape_kit import ScrapeMode, get_logger, scrape
+
 
 logger = get_logger(__name__)
 
@@ -223,15 +225,19 @@ ALL_LINKS = [
 
 
 class ForebetFinder(BaseMatchFinder):
+    """Scrapes forebet prediction pages; skips ongoing matches."""
     TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for forebet (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return top-league or all forebet links based on config."""
         return list(TOP_LEAGUES.keys()) if self.top_leagues_only else ALL_LINKS
 
     def get_matches(self, urls) -> None:
+        """Scrape all forebet URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -240,6 +246,7 @@ class ForebetFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one forebet league page and emit matches via callback."""
         league = TOP_LEAGUES.get(url)
         soup = BeautifulSoup(html, "html.parser")
         all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")

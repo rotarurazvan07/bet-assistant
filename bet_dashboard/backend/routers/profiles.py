@@ -1,4 +1,6 @@
+"""Profiles API: list, save and delete builder profiles."""
 from __future__ import annotations
+
 
 from core.config_helpers import _config_to_yaml_dict
 from core.schemas import ProfileIn
@@ -10,11 +12,13 @@ router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
 @router.get("")
 def list_profiles(request: Request):
+    """Return all saved builder profiles."""
     app = _get(request)
     profiles = app.settings.get("profiles") or {}
     return {"profiles": profiles}
@@ -22,6 +26,7 @@ def list_profiles(request: Request):
 
 @router.post("")
 def save_profile(request: Request, body: ProfileIn):
+    """Persist a named builder profile."""
     app = _get(request)
     name = "".join(c for c in body.name if c.isalnum() or c in ("_", "-")).lower()
     if not name:
@@ -64,5 +69,6 @@ def save_profile(request: Request, body: ProfileIn):
 
 @router.delete("/{name}")
 def delete_profile(request: Request, name: str):
+    """Delete a named builder profile."""
     _get(request).settings.delete(name, subpath="profiles")
     return {"deleted": name}

@@ -1,0 +1,14 @@
+# Ruff configuration.
+# CI (cicd.yml) invokes ruff with explicit CLI flags:
+#   ruff check --select E,F,B,C,SIM,PERF --ignore UP --fix --unsafe-fixes --line-length 127
+# CLI flags override select/line-length defaults; per-file-ignores below remain active.
+
+[lint.per-file-ignores]
+# Finder-test HTML fixtures keep their source HTML on single lines for readability
+# (issue #69 cycle: splitting the inline HTML degraded reviewability, and noqa
+# comments are impossible inside string literals). E501 stays enforced everywhere else.
+"bet_crawler/tests/fixtures/generate_fixtures.py" = ["E501"]
+"bet_crawler/tests/test_predictz.py" = ["E501"]
+"bet_crawler/tests/test_scorepredictor.py" = ["E501"]
+"bet_crawler/tests/test_vitibet.py" = ["E501"]
+"bet_crawler/tests/test_onemillionpredictions.py" = ["E501"]

@@ -1,17 +1,25 @@
+"""System API: pull, status, health and WS events."""
 from __future__ import annotations
+
+
+import logging
 
 from core.ws import ws_manager
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["system"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
 @router.post("/api/pull")
 def pull_db(request: Request):
+    """Trigger an upstream DB pull and return the result envelope."""
     app = _get(request)
     try:
         msg = app.pull_and_broadcast()
@@ -20,12 +28,16 @@ def pull_db(request: Request):
             "message": msg,
             "timestamp": app.logic.last_pull_timestamp,
         }
-    except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+    except Exception:
+        # Server-side trace only: never leak str(exc) to the client (code
+        # scanning: py/stack-trace-exposure). Same envelope keys as before.
+        logger.exception("pull_db failed")
+        return {"status": "error", "message": "Database pull failed — see server logs"}
 
 
 @router.get("/api/status")
 def get_status(request: Request):
+    """Return last-pull time and loaded match count."""
     app = _get(request)
     df = app.logic.match_df
     return {
@@ -52,6 +64,7 @@ def get_sources_config(request: Request):
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
+    """Stream live updates (matches/slips/services) over WS."""
     await ws_manager.connect(websocket)
     try:
         while True:

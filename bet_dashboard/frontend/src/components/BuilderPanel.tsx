@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import { BaseCard } from './ui/BaseCard';
 import { BaseDataRow } from './ui/BaseDataRow';
 import { TooltipIcon } from './ui';
@@ -125,7 +126,7 @@ function SliderWithTicks({ min, max, step, value, onChange, showCenter = false, 
                     background: disabled ? 'var(--bg-raised)' : background,
                     '--thumb-color': disabled ? 'var(--text-secondary)' : thumbColor,
                     '--thumb-glow': disabled ? 'none' : thumbGlow
-                } as any}
+                } as CSSProperties}
                 onChange={e => onChange(+e.target.value)} />
         </div>
     );

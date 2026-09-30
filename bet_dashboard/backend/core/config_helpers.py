@@ -1,4 +1,6 @@
+"""Helpers for reading and converting scraper/profile config files."""
 from dataclasses import asdict
+
 from dataclasses import fields as dc_fields
 
 from scrape_kit import SettingsManager
@@ -21,6 +23,7 @@ def _config_to_yaml_dict(
     target_payout: float | None = None,
     run_daily_count: int = 0,
 ) -> dict:
+    """Convert a config object to a plain dict for YAML serialization."""
     d = asdict(cfg)
     for k in _RUNTIME_ONLY:
         d[k] = None

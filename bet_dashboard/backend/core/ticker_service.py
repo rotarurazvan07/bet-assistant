@@ -1,4 +1,6 @@
+"""Ticker daemons driving pull, generate and verify services."""
 import threading
+
 from collections.abc import Callable
 
 # Default polling interval (1 minute)
@@ -6,6 +8,7 @@ DEFAULT_POLLING_INTERVAL = 60
 
 
 def _daemon(fn, name: str) -> threading.Thread:
+    """Run a ticker loop in a background thread until stopped."""
     t = threading.Thread(target=fn, name=name, daemon=True)
     t.start()
     return t
@@ -29,6 +32,7 @@ class TickerService:
         interval: int = DEFAULT_POLLING_INTERVAL,
         predicate: Callable[[], bool] | None = None,
     ) -> None:
+        """Store name, interval, enabled flag and the target callable."""
         self.name = name
         self.on_tick = on_tick
         self.interval = interval
@@ -50,10 +54,12 @@ class TickerService:
         self._wake_event.set()
 
     def set_enabled(self, enabled: bool) -> None:
+        """Enable or disable the ticker loop (thread-safe flag)."""
         self.enabled = enabled
         self._wake_event.set()
 
     def _run(self) -> None:
+        """Loop: sleep the interval, call the target, until disabled."""
         while True:
             if not self.enabled:
                 self._wake_event.wait()
@@ -91,4 +97,5 @@ class TickerService:
                 self._force_run = False
 
     def is_alive(self) -> bool:
+        """Return whether the ticker thread is running."""
         return self._thread.is_alive()

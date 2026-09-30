@@ -1,4 +1,6 @@
+"""Match finder for scorepredictor.net predictions."""
 from datetime import datetime, timedelta
+
 
 from bs4 import BeautifulSoup
 from scrape_kit import get_logger
@@ -46,10 +48,13 @@ TOP_LEAGUES = {
 
 
 class ScorePredictorFinder(BaseMatchFinder):
+    """Scrapes scorepredictor.net daily prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return scorepredictor listing URLs."""
         if self.top_leagues_only:
             return list(TOP_LEAGUES.keys())
         else:
@@ -66,6 +71,7 @@ class ScorePredictorFinder(BaseMatchFinder):
             return league_urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all scorepredictor URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -74,6 +80,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one scorepredictor page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
 

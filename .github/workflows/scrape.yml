@@ -5,6 +5,11 @@ on:
     - cron: '0 */1 * * *'
   workflow_dispatch:
 
+# Least-privilege defaults (code-scanning: actions/missing-workflow-permissions
+# on every job). Reads for all jobs; the release job overrides with write.
+permissions:
+  contents: read
+
 env:
   SCRAPE_KIT_LOG_LEVEL: INFO
   LOCAL_RUNNER: "self-hosted, linux, bet-runner"
@@ -269,6 +274,10 @@ jobs:
     needs: merge
     runs-on: ubuntu-22.04
     if: github.ref == 'refs/heads/main'
+    # Release creation (softprops/action-gh-release + GITHUB_TOKEN) needs
+    # write; everything else in this workflow stays at the read default.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 

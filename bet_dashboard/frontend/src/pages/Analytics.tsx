@@ -1017,15 +1017,17 @@ function SourceMarketCorrelationMatrix({ data, sourceBreakdown }: { data: Source
 
 // ── Custom weekend X-axis tick ─────────────────────────────────────────────────
 
-function WeekendTick({ x, y, payload }: any) {
-    const date = new Date(payload.value);
+function WeekendTick({ x = 0, y = 0, payload, fontSize = 10 }: {
+    x?: number; y?: number; payload?: { value: string }; fontSize?: number;
+}) {
+    const date = new Date(payload?.value ?? '');
     const isWeekend = date.getDay() === 0 || date.getDay() === 6;
     return (
         <text x={x} y={y + 12} textAnchor="middle"
             style={{ fontWeight: isWeekend ? 'bold' : 'normal',
                 fill: isWeekend ? 'var(--accent)' : 'var(--text-secondary)',
-                fontSize: 10 }}>
-            {payload.value}
+                fontSize }}>
+            {payload?.value}
         </text>
     );
 }
@@ -1064,14 +1066,15 @@ export default function Analytics({ filters, refreshKey }: Props) {
     }, [updateHeights, data]);
 
     const load = useCallback(async () => {
+        void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
         setLoading(true);
         try {
-            const params: Record<string, unknown> = {
+            const params: Parameters<typeof fetchAnalytics>[0] = {
                 date_from: filters.dateFrom || undefined,
                 date_to: filters.dateTo || undefined,
             };
             if (selectedProfiles.length > 0) params.profiles = selectedProfiles;
-            const d = await fetchAnalytics(params as any);
+            const d = await fetchAnalytics(params);
             setData(d);
         } catch {
             setData({
@@ -1154,7 +1157,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
             <h1 className="font-display font-bold text-xl mb-5"
                 style={{ color: 'var(--text-bright)' }}>Analytics</h1>
             <ProfileSelector profiles={[]} selectedProfiles={selectedProfiles}
-                onChange={setSelectedProfiles} profileData={null} />
+                onChange={setSelectedProfiles} />
             <div className="card text-center py-16 mt-5">
                 <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
                     No analytics data yet. Generate and settle some slips first.
@@ -1178,7 +1181,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
                     profiles={data.profiles}
                     selectedProfiles={selectedProfiles}
                     onChange={setSelectedProfiles}
-                    profileData={data}
                 />
             </div>
 

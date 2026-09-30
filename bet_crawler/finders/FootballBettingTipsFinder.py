@@ -1,4 +1,6 @@
+"""Match finder for footballbettingtips daily tips."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 import re
@@ -17,10 +19,13 @@ MAX_CONCURRENCY = 1
 
 
 class FootballBettingTipsFinder(BaseMatchFinder):
+    """Scrapes footballbettingtips prediction listings."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return footballbettingtips listing URLs."""
         today = datetime.now()
         urls = [
             f"https://www.footballbettingtips.org/tips/{today.strftime('%Y-%m-%d')}.html",
@@ -30,6 +35,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         return urls
 
     def get_matches(self, urls) -> None:
+        """Scrape all footballbettingtips URLs and emit matches via callback."""
         scrape(
             urls,
             self._parse_page,
@@ -38,6 +44,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         )
 
     def _parse_page(self, url, html) -> None:
+        """Parse one footballbettingtips page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
             match_datetime = datetime.strptime(soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y").replace(

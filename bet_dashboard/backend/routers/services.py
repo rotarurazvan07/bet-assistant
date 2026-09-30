@@ -1,4 +1,6 @@
+"""Services API: status, settings and toggles."""
 from __future__ import annotations
+
 
 from datetime import datetime, timedelta
 
@@ -15,6 +17,7 @@ _DESCRIPTIONS = {
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
@@ -45,6 +48,7 @@ def _next_run_interval(interval_seconds: int | None) -> str | None:
 
 @router.get("")
 def get_services(request: Request):
+    """Return service info plus scheduler settings."""
     app = _get(request)
     svc_cfg = app.settings.get("services") or {}
     runtime_cfg = app.settings.get("runtime_state") or {}
@@ -89,6 +93,7 @@ def get_services(request: Request):
 
 @router.post("/settings")
 def save_settings(request: Request, body: ServicesSettingsIn):
+    """Persist scheduler hour/minute settings."""
     _get(request).save_service_settings(body.generate_hour, body.generate_minute)
     return {
         "generate_hour": body.generate_hour,
@@ -98,5 +103,6 @@ def save_settings(request: Request, body: ServicesSettingsIn):
 
 @router.post("/{name}/toggle")
 def toggle_service(request: Request, name: str):
+    """Toggle a named service and return its new state."""
     new_state = _get(request).toggle_service(name)
     return {"name": name, "enabled": new_state}

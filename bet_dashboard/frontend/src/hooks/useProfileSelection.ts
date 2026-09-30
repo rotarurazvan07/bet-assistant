@@ -24,7 +24,7 @@ export function useProfileSelection({ page }: UseProfileSelectionProps) {
         if (parsed.profiles && Array.isArray(parsed.profiles)) {
           return parsed.profiles;
         }
-      } catch (e) {
+      } catch {
         // Invalid localStorage, use default
       }
     }

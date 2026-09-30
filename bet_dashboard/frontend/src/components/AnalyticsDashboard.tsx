@@ -115,8 +115,16 @@ function GaugeChart({ riskScore }: { riskScore: number }) {
 
 // ── Custom Radar Label ────────────────────────────────────────────────────────
 
-function renderPolarAngleLabel(props: any) {
-    const { payload, x, y, cx, cy } = props;
+function renderPolarAngleLabel(props: {
+    payload: { value: string }; x: number | string; y: number | string; cx?: number; cy?: number;
+}) {
+    // recharts supplies x/y as string|number — coerce once for the
+    // quadrant math below (runtime always receives numerics here).
+    const { payload } = props;
+    const x = Number(props.x);
+    const y = Number(props.y);
+    const cx = props.cx ?? 0;
+    const cy = props.cy ?? 0;
 
     // Determine position relative to center
     const isTop = y < cy - 30;

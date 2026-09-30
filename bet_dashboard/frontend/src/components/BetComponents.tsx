@@ -1,4 +1,4 @@
-import type { CandidateLeg, BetSlip, LiveData } from '../types';
+import type { CandidateLeg, BetSlip, LiveData, BetLeg} from '../types';
 import { useEffect, useMemo } from 'react';
 import { BaseBadge } from './ui/BaseBadge';
 import { formatBetDate } from '../utils/betUtils';
@@ -224,7 +224,9 @@ export function BetPreview({ legs, pendingUrls, onExclude, minStrength }: Previe
 // ── BetLegRow (Unified Leg Component) ──────────────────────────────────────────
 
 interface BetLegRowProps {
-    leg: CandidateLeg | any; // Accept BetLeg or CandidateLeg
+    // Legs render from settled-slip rows: BetLeg carries every field the
+    // row reads (datetime, status, market, odds, league, result_url).
+    leg: BetLeg;
     liveData?: LiveData;
     slipStatus: string;
 }
@@ -491,8 +493,9 @@ interface SlipDetailModalProps {
 }
 
 export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModalProps) {
-    if (!slip) return null;
-
+    // Hooks must run unconditionally — effect sits ABOVE the null guard
+    // (eslint react-hooks/rules-of-hooks: the old `if (!slip) return null`
+    // above made this useEffect conditional).
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -500,6 +503,8 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
         window.addEventListener('keydown', handleEscape);
         return () => window.removeEventListener('keydown', handleEscape);
     }, [onClose]);
+
+    if (!slip) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

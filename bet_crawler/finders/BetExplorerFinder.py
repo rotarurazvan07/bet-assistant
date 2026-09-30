@@ -1,4 +1,6 @@
+"""Match finder for betexplorer.com odds pages."""
 import time
+
 
 from scrape_kit import browser, fetch, get_logger
 
@@ -293,6 +295,7 @@ class BetExplorerFinder(BaseMatchFinder):
     # TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for betexplorer (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
         self._add_match_lock = threading.Lock()
 
@@ -480,6 +483,7 @@ class BetExplorerFinder(BaseMatchFinder):
         logger.info("[%s] Batch complete", thread_name)
 
     def get_matches(self, urls) -> None:
+        """Open browser tabs per match URL and scrape odds across tab clicks."""
         if not urls:
             return
 

@@ -1,4 +1,6 @@
+"""Match finder for betclan.com daily tips."""
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -27,6 +29,7 @@ class BetClanFinder(BaseMatchFinder):
     """Finder for BetClan football predictions."""
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for betclan (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):

@@ -1,4 +1,6 @@
+"""Match finder for eaglepredict.com predictions."""
 from scrape_kit import fetch, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -17,13 +19,17 @@ MAX_CONCURRENCY = 1
 
 
 class EaglePredictFinder(BaseMatchFinder):
+    """Scrapes eaglepredict.com daily prediction pages."""
     def __init__(self, add_match_callback, **runtime_settings) -> None:
+        """Wire the finder contract for eaglepredict (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
 
     def get_matches_urls(self):
+        """Return eaglepredict fixture-page URLs for configured leagues."""
         return [EAGLEPREDICT_URL]
 
     def get_matches(self, urls=None) -> None:
+        """Scrape all eaglepredict URLs and emit matches via callback."""
         page = fetch(EAGLEPREDICT_URL, stealthy_headers=False)
         self._parse_page(None, page)
 
@@ -56,32 +62,32 @@ class EaglePredictFinder(BaseMatchFinder):
             if not score_match:
                 continue
 
-            # Find container with team images
-            container = self._find_match_container(node)
-            if not container:
-                continue
+            self._emit_scored_match(node, score_match, current_date, seen)
 
-            # Extract teams
-            teams = self._extract_teams(container)
-            if len(teams) < 2:
-                continue
+    def _emit_scored_match(self, node, score_match, current_date, seen) -> None:
+        """Resolve one scored node to a match and emit it (skips on any gap)."""
+        container = self._find_match_container(node)
+        if not container:
+            return
 
-            home, away = teams
+        teams = self._extract_teams(container)
+        if len(teams) < 2:
+            return
 
-            # Extract time
-            local_time = self._extract_time(container)
-            if not (current_date and local_time):
-                continue
+        home, away = teams
 
-            dt = self._build_datetime(current_date, local_time)
+        local_time = self._extract_time(container)
+        if not (current_date and local_time):
+            return
 
-            key = (home.lower(), away.lower(), dt)
-            if key in seen:
-                continue
-            seen.add(key)
+        dt = self._build_datetime(current_date, local_time)
 
-            # Create and add match
-            self._create_and_add_match(home, away, dt, score_match)
+        key = (home.lower(), away.lower(), dt)
+        if key in seen:
+            return
+        seen.add(key)
+
+        self._create_and_add_match(home, away, dt, score_match)
 
     def _get_month_mapping(self) -> dict[str, int]:
         """Return mapping of month abbreviations to numbers."""

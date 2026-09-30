@@ -1,4 +1,6 @@
+"""Slips API: add, list, delete, validate and generate."""
 from __future__ import annotations
+
 
 from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
@@ -14,6 +16,7 @@ router = APIRouter(prefix="/api/slips", tags=["slips"])
 
 
 def _get(request: Request):
+    """Dependency: yield the shared AppLogic instance."""
     return request.app.state.app_logic
 
 
@@ -91,6 +94,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
 
 
 def _leg_to_dict(leg) -> dict:
+    """Convert a BetLeg into a response dict."""
     return {
         "match_name": leg.match_name,
         "datetime": leg.datetime.isoformat()
@@ -110,6 +114,7 @@ def _leg_to_dict(leg) -> dict:
 
 def _slip_to_dict(slip) -> dict:
     # Handle slip_status as enum or string
+    """Convert a BetSlip (with legs) into a response dict."""
     status_val = slip.slip_status
     status_val = status_val.value if hasattr(status_val, "value") else str(status_val)
 
@@ -124,7 +129,41 @@ def _slip_to_dict(slip) -> dict:
     }
 
 
+def _parse_odds(d: dict) -> float:
+    """Validate odds is a positive number."""
+    try:
+        odds_val = float(d["odds"])
+        if odds_val <= 0:
+            raise ValueError("odds must be positive")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid odds: {d['odds']}") from e
+    return odds_val
+
+
+def _parse_consensus(d: dict) -> float:
+    """Validate consensus is a percentage in [0, 100]."""
+    try:
+        consensus_val = float(d["consensus"])
+        if consensus_val < 0 or consensus_val > 100:
+            raise ValueError("consensus must be between 0 and 100")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid consensus: {d['consensus']}") from e
+    return consensus_val
+
+
+def _parse_sources(d: dict) -> int:
+    """Validate sources is a non-negative integer."""
+    try:
+        sources_val = int(d["sources"])
+        if sources_val < 0:
+            raise ValueError("sources must be non-negative")
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid sources: {d['sources']}") from e
+    return sources_val
+
+
 def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
+    """Convert a request leg dict into a CandidateLeg."""
     market_str = d.get("market")
     mtype_str = d.get("market_type")
 
@@ -149,29 +188,9 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         if field not in d or d[field] is None:
             raise ValueError(f"{field} is required")
 
-    # Validate odds is positive
-    try:
-        odds_val = float(d["odds"])
-        if odds_val <= 0:
-            raise ValueError("odds must be positive")
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"Invalid odds: {d['odds']}") from e
-
-    # Validate consensus is a valid percentage
-    try:
-        consensus_val = float(d["consensus"])
-        if consensus_val < 0 or consensus_val > 100:
-            raise ValueError("consensus must be between 0 and 100")
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"Invalid consensus: {d['consensus']}") from e
-
-    # Validate sources is a non-negative integer
-    try:
-        sources_val = int(d["sources"])
-        if sources_val < 0:
-            raise ValueError("sources must be non-negative")
-    except (TypeError, ValueError) as e:
-        raise ValueError(f"Invalid sources: {d['sources']}") from e
+    odds_val = _parse_odds(d)
+    consensus_val = _parse_consensus(d)
+    sources_val = _parse_sources(d)
 
     return CandidateLeg(
         match_name=d["match_name"],
@@ -193,6 +212,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
 
 @router.post("")
 def add_slip(request: Request, body: SlipIn):
+    """Persist a manually-built slip and return its id."""
     app = _get(request)
     logic = app.logic
 
@@ -205,8 +225,13 @@ def add_slip(request: Request, body: SlipIn):
 
             raise HTTPException(status_code=400, detail=result["error"])
 
-    # Convert to CandidateLeg objects
-    legs = [_dict_to_candidate_leg(leg.dict()) for leg in body.legs]
+    # Convert to CandidateLeg objects (invalid odds/consensus/sources/market_type → 400, not 500)
+    try:
+        legs = [_dict_to_candidate_leg(leg.dict()) for leg in body.legs]
+    except ValueError as exc:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Default profile to "manual" if not provided (already defaulted in schema)
     profile = body.profile or "manual"
@@ -224,6 +249,7 @@ def get_slips(
     hide_settled: str | None = None,
     live_only: str | None = None,
 ):
+    """Return filtered slips with stats and profiles."""
     app = _get(request)
     logic = app.logic
 
@@ -258,7 +284,7 @@ def get_slips(
     if hide_settled_bool:
         slips = [s for s in slips if status_str(s.slip_status) not in ("Won", "Lost")]
     if live_only_bool:
-        slips = [s for s in slips if any(status_str(leg.status) in ("Live") for leg in s.legs)]
+        slips = [s for s in slips if any(status_str(leg.status) == "Live" for leg in s.legs)]
 
     stats = logic.stats(prof, date_from or None, date_to or None)
 
@@ -296,12 +322,14 @@ def validate_manual(request: Request, legs: list[ManualLegIn]):
 
 @router.delete("/{slip_id}")
 def delete_slip(request: Request, slip_id: int):
+    """Delete a slip by id."""
     _get(request).delete_slip_and_broadcast(slip_id)
     return {"deleted": slip_id}
 
 
 @router.post("/validate")
 def validate_slips(request: Request):
+    """Validate pending slips; return checked/settled/live counts."""
     result = _get(request).validate_and_broadcast()
     live = [
         {
@@ -322,6 +350,7 @@ def validate_slips(request: Request):
 
 @router.post("/generate")
 def generate_slips(request: Request):
+    """Generate slips for active profiles and return counts."""
     result = _get(request).generate_and_broadcast()
     total = sum(len(v) for v in result.values())
     return {
