@@ -58,7 +58,7 @@ def make_chunk_db(path, matches):
 class StubCrawler:
     """Stub finder: returns canned URLs and emits matches via callback."""
 
-    def __init__(self, urls, matches=None, raise_on_get=False, raise_on_urls=False):
+    def __init__(self, urls, matches=None, raise_on_get: bool = False, raise_on_urls: bool = False) -> None:
         self.urls = list(urls)
         self.matches = matches or []
         self.raise_on_get = raise_on_get
@@ -87,7 +87,7 @@ class StubCrawler:
 class StubFactory:
     """Factory stub mirroring CrawlerFactory's public surface for stage tests."""
 
-    def __init__(self, runner_crawlers, url_to_crawler=None):
+    def __init__(self, runner_crawlers, url_to_crawler=None) -> None:
         # runner_crawlers: {runner: [StubCrawler|class, ...]}
         # url_to_crawler: {domain_core_name: StubCrawler|class, ...}
         # NOTE: keyed by domain core (e.g. 'alpha' for alpha.com/www.alpha.com),
@@ -134,16 +134,16 @@ def runner_sets_config():
     }
 
 
-def make_result_html_ft(score="2:1"):
+def make_result_html_ft(score="2:1") -> str:
     """Result page HTML that parses as finished (FT) with a score."""
     return f'<html><body><div id="status-container">FT</div><div id="livescore-container">{score}</div></body></html>'
 
 
-def make_result_html_live(minute="63'", score="1:0"):
+def make_result_html_live(minute="63'", score="1:0") -> str:
     """Result page HTML that parses as LIVE at minute with a score."""
     return f"<html><body><div id=\"status-container\">{minute}</div><div id='livescore-container'>{score}</div></body></html>"
 
 
-def make_result_html_pending():
+def make_result_html_pending() -> str:
     """Result page HTML with no status markers -> parses as PENDING."""
     return "<html><body><p>Upcoming fixtures and odds preview.</p></body></html>"

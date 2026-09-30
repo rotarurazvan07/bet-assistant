@@ -17,7 +17,7 @@ from bet_framework.MatchesManager import MatchesManager
 from .conftest import make_match
 
 
-def _seed_matches_db(db_path, matches):
+def _seed_matches_db(db_path, matches) -> None:
     mm = MatchesManager(db_path, similarity_config=None)
     for m in matches:
         mm.add_match(m)
@@ -61,7 +61,7 @@ PROFILE = {
 
 
 class TestGenerateSlipsP0:
-    def test_empty_profile_data_raises_system_exit(self, tmp_path):
+    def test_empty_profile_data_raises_system_exit(self, tmp_path) -> None:
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
@@ -69,7 +69,7 @@ class TestGenerateSlipsP0:
             generate_slips(matches_db, slips_db, "ghost", {})
         assert exc.value.code == 1
 
-    def test_slip_saved_with_units(self, tmp_path):
+    def test_slip_saved_with_units(self, tmp_path) -> None:
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
@@ -81,7 +81,7 @@ class TestGenerateSlipsP0:
         assert rows[0]["units"] == 2.5
         assert abs(rows[0]["total_odds"] - 1.9) < 1e-9
 
-    def test_units_defaults_to_1_when_missing(self, tmp_path):
+    def test_units_defaults_to_1_when_missing(self, tmp_path) -> None:
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
@@ -89,14 +89,14 @@ class TestGenerateSlipsP0:
         rows = _slips_rows(slips_db)
         assert rows[0]["units"] == 1.0
 
-    def test_no_matches_db_yields_no_slip(self, tmp_path):
+    def test_no_matches_db_yields_no_slip(self, tmp_path) -> None:
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [])
         slips_db = str(tmp_path / "slips.db")
         generate_slips(matches_db, slips_db, "plain", dict(PROFILE))
         assert _slips_rows(slips_db) == []
 
-    def test_no_eligible_matches_yields_no_slip(self, tmp_path):
+    def test_no_eligible_matches_yields_no_slip(self, tmp_path) -> None:
         """Matches present but consensus floor unreachable → build returns no legs."""
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [_consensus_match()])

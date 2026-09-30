@@ -1,6 +1,6 @@
 """Match finder for vitibet.com predictions."""
-import re
 
+import re
 from datetime import datetime
 
 from bs4 import BeautifulSoup, Tag
@@ -55,6 +55,7 @@ TOP_LEAGUES = {
 
 class VitibetFinder(BaseMatchFinder):
     """Scrapes vitibet.com daily prediction listings."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for vitibet (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)

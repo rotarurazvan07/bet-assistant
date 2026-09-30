@@ -1,6 +1,4 @@
 """Slips API: add, list, delete, validate and generate."""
-from __future__ import annotations
-
 
 from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
@@ -82,7 +80,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
         odds_val = float(odds)
         if odds_val <= 0:
             raise ValueError()
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return {"valid": False, "error": f"Invalid odds: {odds}"}
 
     # 4 — optional URL format

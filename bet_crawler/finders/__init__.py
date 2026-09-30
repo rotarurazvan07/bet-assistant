@@ -1,6 +1,6 @@
 """Finder registry mapping crawler keys to finder classes."""
-from .BaseMatchFinder import BaseMatchFinder
 
+from .BaseMatchFinder import BaseMatchFinder
 from .BetClanFinder import BetClanFinder
 from .BetExplorerFinder import BetExplorerFinder
 from .EaglePredictFinder import EaglePredictFinder

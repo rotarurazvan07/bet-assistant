@@ -1,6 +1,4 @@
 """Odds history API: snapshots and movements per match."""
-from __future__ import annotations
-
 
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
 from fastapi import APIRouter, HTTPException, Request

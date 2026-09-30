@@ -5,6 +5,7 @@ test_whoscored.py
 import importlib
 
 from bet_crawler.finders.WhoScoredFinder import WHOSCORED_NAME, WhoScoredFinder
+
 from .finder_test_helpers import fake_browser, make_finder, relax_date_window
 
 ws = importlib.import_module("bet_crawler.finders.WhoScoredFinder")
@@ -26,13 +27,13 @@ matchHeaderJson: JSON.parse('{"HomeTeamName": "Arsenal", "AwayTeamName": "Chelse
 
 
 class TestWhoScored:
-    def test_discovery_via_browser_extracts_match_links(self, monkeypatch):
+    def test_discovery_via_browser_extracts_match_links(self, monkeypatch) -> None:
         fake_browser(monkeypatch, ws, {ws.WHOSCORED_URL + "previews": WS_PREVIEW})
         finder, _ = _finder()
         urls = finder.get_matches_urls()
         assert urls == [ws.WHOSCORED_URL + "/matches/1"]
 
-    def test_parse_page_extracts_embedded_json_and_prediction(self):
+    def test_parse_page_extracts_embedded_json_and_prediction(self) -> None:
         finder, collector = _finder()
         finder._parse_page("https://www.whoscored.com/matches/1", WS_MATCH)
         assert len(collector) == 1
@@ -43,12 +44,12 @@ class TestWhoScored:
         assert m.predictions[0].home == 2
         assert m.predictions[0].away == 1
 
-    def test_missing_match_header_json_short_circuits(self, caplog):
+    def test_missing_match_header_json_short_circuits(self, caplog) -> None:
         finder, collector = _finder()
         finder._parse_page("u", "<html><body><p>no json here</p></body></html>")
         assert len(collector) == 0
 
-    def test_broken_page_no_crash(self):
+    def test_broken_page_no_crash(self) -> None:
         finder, collector = _finder()
         finder._parse_page("u", "garbage not html")
         assert len(collector) == 0

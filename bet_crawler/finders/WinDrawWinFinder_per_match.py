@@ -1,6 +1,6 @@
 """Match finder for windrawwin.com per-match pages."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,6 +21,7 @@ MAX_CONCURRENCY = 1
 
 class WinDrawWinFinder_per_match(BaseMatchFinder):
     """Scrapes windrawwin per-match prediction pages."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
@@ -112,7 +113,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                         for i, attr in enumerate(attr_names):
                             try:
                                 odds_data[attr] = float(links[i].get_text(strip=True))
-                            except (ValueError, TypeError):  # noqa: PERF203 - intentional per-item fault isolation: one malformed odds cell must not kill the parse
+                            except ValueError, TypeError:  # noqa: PERF203 - intentional per-item fault isolation: one malformed odds cell must not kill the parse
                                 logger.error(f"Could not parse odds for {attr} in {url}")
                                 continue
 

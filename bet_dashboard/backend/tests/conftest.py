@@ -12,8 +12,6 @@ Architecture decision:
   access fails loudly; ``.logic`` delegates to the real-pandas fake.
 """
 
-from __future__ import annotations
-
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -30,7 +28,6 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
         sys.path.insert(0, _p)
 
 from core.logic import AppLogic  # noqa: E402
-
 
 # ── Factories (data-factories pattern: overrides → complete object) ──────────
 
@@ -87,7 +84,7 @@ def make_match_row(**overrides) -> dict:
     return row
 
 
-def make_matches_df(rows=None, empty=False) -> pd.DataFrame:
+def make_matches_df(rows=None, empty: bool = False) -> pd.DataFrame:
     if empty:
         return pd.DataFrame()
     return pd.DataFrame(rows if rows is not None else [make_match_row()])
@@ -190,9 +187,7 @@ class FakeDashboardLogic:
         self._settings = {
             "services": {"generate_hour": 8, "generate_minute": 30, "toggles": {}},
             "runtime_state": {"last_time_generated": "2030-01-01T08:30:00"},
-            "scraper_config": {
-                "RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]}
-            },
+            "scraper_config": {"RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]}},
         }
         self.calls: list[str] = []
 
@@ -259,7 +254,6 @@ def make_test_client(logic=None, app_mock=None):
     """Build a TestClient with all 8 routers and a spec-mocked AppLogic."""
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-
     from routers import analytics, builder, matches, odds_history, profiles, services, slips, system
 
     mock = app_mock if app_mock is not None else MagicMock(spec=AppLogic)

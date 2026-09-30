@@ -1,6 +1,6 @@
 """Match finder for predictz.com predictions."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
@@ -55,6 +55,7 @@ TOP_LEAGUES = {
 
 class PredictzFinder(BaseMatchFinder):
     """Scrapes predictz.com daily prediction listings."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for predictz (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
@@ -121,7 +122,7 @@ class PredictzFinder(BaseMatchFinder):
                             draw=entry.find_all(class_="odds")[1].get_text(),
                             away=entry.find_all(class_="odds")[2].get_text(),
                         )
-                    except (AttributeError, IndexError):
+                    except AttributeError, IndexError:
                         odds = None
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None

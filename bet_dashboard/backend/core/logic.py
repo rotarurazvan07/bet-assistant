@@ -1,6 +1,4 @@
 """AppLogic: unified business logic plus ticker daemons."""
-from __future__ import annotations
-
 
 import math
 import os
@@ -28,8 +26,8 @@ from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
 
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
-from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core import leagues
+from bet_framework.core.Slip import CandidateLeg
 from bet_framework.MatchesManager import MatchesManager
 
 
@@ -193,7 +191,7 @@ class AppLogic:
                     # Already ran today — sync in-memory guard and skip
                     self._last_generator_run = today_key
                     return False
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         self._last_generator_run = today_key

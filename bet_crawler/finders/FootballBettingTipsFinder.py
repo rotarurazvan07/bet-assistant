@@ -1,6 +1,6 @@
 """Match finder for footballbettingtips daily tips."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 import re
@@ -20,6 +20,7 @@ MAX_CONCURRENCY = 1
 
 class FootballBettingTipsFinder(BaseMatchFinder):
     """Scrapes footballbettingtips prediction listings."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)

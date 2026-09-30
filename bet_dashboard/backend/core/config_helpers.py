@@ -1,6 +1,6 @@
 """Helpers for reading and converting scraper/profile config files."""
-from dataclasses import asdict
 
+from dataclasses import asdict
 from dataclasses import fields as dc_fields
 
 from scrape_kit import SettingsManager

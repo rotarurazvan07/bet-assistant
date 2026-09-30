@@ -1,12 +1,13 @@
 """Core match dataclasses: Score, Odds, Match."""
-from dataclasses import asdict, dataclass
 
+from dataclasses import asdict, dataclass
 from datetime import datetime
 
 
 @dataclass
 class Score:
     """One source's predicted score for a match."""
+
     source: str
     home: float
     away: float
@@ -58,7 +59,7 @@ def ensure_decimal_odds(odds_value) -> float | None:
             # Already decimal odds
             return round(val, 2)
 
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 
@@ -68,6 +69,7 @@ class Odds:
     # provide it (was mis-annotated as literal None type; ensure_decimal_odds
     # returns float | None and __post_init__ stores it back).
     """1X2 odds for a match (any leg may be None)."""
+
     home: float | None = None
     draw: float | None = None
     away: float | None = None
@@ -111,6 +113,7 @@ class Odds:
 
 class Match:
     """One match with predictions, odds and provenance."""
+
     def __init__(
         self,
         home_team: str,

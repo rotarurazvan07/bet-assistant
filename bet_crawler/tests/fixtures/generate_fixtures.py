@@ -25,7 +25,7 @@ ANCHOR_TOMORROW = datetime(2026, 9, 25).date()  # 2026-09-25 (TODAY+1 when gener
 TOMORROW = ANCHOR_TOMORROW
 
 
-def w(key, name, html):
+def w(key, name, html) -> None:
     d = FIXTURES / key
     d.mkdir(parents=True, exist_ok=True)
     (d / name).write_text(html, encoding="utf-8")
@@ -342,7 +342,7 @@ ODDSPORTAL_LEAGUE = f"""<html><body>
 </body></html>"""
 
 
-def _oddsportal_page(tab):
+def _oddsportal_page(tab) -> str:
     if tab == "base":
         return """<html><body>
 <div data-testid="game-host"><a>Arsenal</a></div>
@@ -400,7 +400,7 @@ BETEXPLORER_LEAGUE = f"""<html><body>
 </body></html>"""
 
 
-def _betexplorer_page(tab):
+def _betexplorer_page(tab) -> str:
     if tab == "base":
         return """<html><body>
 <ul class="list-details">
