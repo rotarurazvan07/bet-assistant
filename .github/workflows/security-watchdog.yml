@@ -96,9 +96,9 @@ jobs:
         if: always()
         run: |
           {
-            echo "## 🛡️ Security Watchdog — pip-audit"
+            echo "## Security Watchdog — pip-audit"
             echo ""
             echo "Result: ${{ steps.audit.conclusion }}"
             echo ""
-            echo "Runs Mondays 06:00 UTC. PRs are never blocked by dependency CVEs; new findings open a tracked security issue assigned to the owner."
+            echo "Schedule: Mondays 06:00 UTC. New findings open a security issue assigned to the repo owner."
           } >> "$GITHUB_STEP_SUMMARY"

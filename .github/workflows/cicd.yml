@@ -108,18 +108,18 @@ jobs:
         if: always()
         run: |
           {
-            echo "## 🔧 Auto-fix"
+            echo "## Auto-fix"
             echo ""
             if [ "${{ github.event_name }}" != "push" ]; then
-              echo "Skipped — runs on pushes only (PR runs skip to avoid clobbering the review branch)."
+              echo "Status: skipped (push-only job)"
             elif [ -f autofix-diffstat.txt ]; then
-              echo "Committed and pushed fixes:"
+              echo "Status: fixes committed and pushed."
               echo ""
               echo '```'
               cat autofix-diffstat.txt
               echo '```'
             else
-              echo "✅ Working tree clean — nothing to fix."
+              echo "Status: no changes required."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -238,7 +238,7 @@ jobs:
               except Exception:
                   return None
 
-          print("## 🧪 Python Tests (3.14) — 3 suites, coverage gates enforced")
+          print("## Python Tests (3.14) — 3 suites, coverage-gated")
           print()
           print("| Suite | Passed | Failed | Errors | Skipped | Total | Coverage | Gate |")
           print("|---|---|---|---|---|---|---|---|")
@@ -246,18 +246,18 @@ jobs:
           for name, junit, cov, gate in SUITES:
               stats, fails = parse_junit(junit)
               if stats is None:
-                  print(f"| {name} | ⚠️ no results — suite crashed before junit was written | | | | | — | ≥{gate}% |")
+                  print(f"| {name} | no results (crashed before junit write) | | | | | — | ≥{gate}% |")
               else:
                   p, fe, er, sk, to = stats
                   c = cov_pct(cov)
                   c_str = f"{c}%" if c is not None else "—"
-                  ok = "✅" if (c is not None and c >= gate) else "❌"
+                  ok = "pass" if (c is not None and c >= gate) else "fail"
                   print(f"| {name} | {p} | {fe} | {er} | {sk} | {to} | {c_str} | {ok} ≥{gate}% |")
               all_fails.append((name, fails))
 
           if any(f for _, f in all_fails):
               print()
-              print("### ❌ Failing tests (file :: test — first failure line)")
+              print("### Failing tests")
               for name, fails in all_fails:
                   if not fails:
                       continue
@@ -501,14 +501,14 @@ jobs:
 
           def show_list(items):
               if not items:
-                  print("✅ No findings.")
+                  print("No findings.")
                   return
               for it in items[:MAX]:
                   print(f"- {it}")
               if len(items) > MAX:
                   print(f"- … and {len(items) - MAX} more (see job log)")
 
-          print("## 🔍 Audit findings (bandit · semgrep · mypy-ratchet · docstrings ≥97% are BLOCKING; radon · vulture · pip-audit stay advisory)")
+          print("## Audit findings (blocking: bandit, semgrep, mypy ratchet, docstrings ≥97% | advisory: radon, vulture, pip-audit)")
 
           # mypy — file:line: error
           errors = []
@@ -519,7 +519,7 @@ jobs:
                   m = rx.match(line.strip())
                   if m:
                       errors.append(f"`{m.group(1)}:{m.group(2)}` — {m.group(3)}")
-          section(f"🧩 Types (mypy, strict) — {len(errors)} error(s)")
+          section(f"Types (mypy) — {len(errors)} error(s)")
           show_list(errors)
 
           # bandit — file:line [SEVERITY] test_id: text
@@ -536,7 +536,7 @@ jobs:
                   issues = ["(failed to parse bandit-report.json)"]
           else:
               issues = ["(no bandit report)"]
-          section(f"🛡️ Security (bandit) — {len(issues)} issue(s)")
+          section(f"Security (bandit) — {len(issues)} issue(s)")
           show_list(issues)
 
           # semgrep — file:line rule: message
@@ -552,7 +552,7 @@ jobs:
                       )
               except Exception:
                   findings = ["(failed to parse semgrep-report.json)"]
-          section(f"🔎 Semgrep — {len(findings)} finding(s)")
+          section(f"Semgrep — {len(findings)} finding(s)")
           show_list(findings)
 
           # pip-audit — package@version: vuln ids (fix versions)
@@ -572,7 +572,7 @@ jobs:
                       vulns.append(f"**{dep.get('name', '?')}@{dep.get('version', '?')}** — {ids} (fix: {fixes})")
               except Exception:
                   vulns = ["(failed to parse pip-audit-report.json)"]
-          section(f"📦 Dependencies (pip-audit) — {len(vulns)} vulnerable package(s)")
+          section(f"Dependencies (pip-audit) — {len(vulns)} vulnerable package(s)")
           show_list(vulns)
 
           # radon — hot functions rank C+
@@ -587,7 +587,7 @@ jobs:
                               hot.append(f"`{fname}:{fn.get('lineno', '?')}` — {fn.get('name', '?')}() rank {fn['rank']} (complexity {fn.get('complexity', '?')})")
               except Exception:
                   hot = ["(failed to parse radon-cc-report.json)"]
-          section(f"📈 Complexity (radon, rank ≥C) — {len(hot)} hot function(s)")
+          section(f"Complexity (radon, rank ≥ C) — {len(hot)} hot function(s)")
           show_list(hot)
 
           # vulture — raw file:line entries
@@ -595,7 +595,7 @@ jobs:
           p = Path("vulture-report.txt")
           if p.exists():
               dead = [l.strip() for l in p.read_text(errors="ignore").splitlines() if l.strip()]
-          section(f"🧟 Dead code (vulture, conf ≥80%) — {len(dead)} candidate(s)")
+          section(f"Dead code (vulture, conf ≥80%) — {len(dead)} candidate(s)")
           show_list(dead)
 
           # interrogate — coverage summary lines
@@ -603,7 +603,7 @@ jobs:
           lines = []
           if p.exists():
               lines = [l.strip() for l in p.read_text(errors="ignore").splitlines() if "Coverage:" in l]
-          section("📝 Docstrings (interrogate) — per-directory coverage")
+          section("Docstrings (interrogate) — per-directory coverage")
           if lines:
               for l in lines:
                   print(f"- `{l}`")
@@ -663,7 +663,7 @@ jobs:
 
           MAX = 60
 
-          print("## 🖥️ Frontend — typecheck · lint · vitest")
+          print("## Frontend — typecheck, lint, vitest")
 
           # typecheck
           p = Path("typecheck-output.txt")
@@ -671,9 +671,9 @@ jobs:
           if p.exists():
               ts_errors = [l.strip() for l in p.read_text(errors="ignore").splitlines() if "error TS" in l]
           print()
-          print(f"### 🧩 Typecheck (tsc -b) — {len(ts_errors)} error(s)")
+          print(f"### Typecheck (tsc -b) — {len(ts_errors)} error(s)")
           if not ts_errors:
-              print("✅ Clean.")
+              print("Clean.")
           else:
               for l in ts_errors[:MAX]:
                   print(f"- {l}")
@@ -687,15 +687,15 @@ jobs:
               try:
                   for f in json.loads(p.read_text(errors="ignore")):
                       for m in f.get("messages", []):
-                          sev = "❌" if m.get("severity") == 2 else "⚠️"
+                          sev = "error" if m.get("severity") == 2 else "warning"
                           fp = f.get("filePath", "?").replace(str(Path.cwd()) + "/", "")
                           problems.append(f"{sev} `{fp}:{m.get('line', '?')}` — {m.get('ruleId', '?')} — {m.get('message', '')[:150]}")
               except Exception:
                   problems = ["(failed to parse eslint-report.json)"]
           print()
-          print(f"### 🧹 Lint (eslint) — {len(problems)} problem(s) — advisory until src/ debt is paid down")
+          print(f"### Lint (eslint, blocking) — {len(problems)} problem(s)")
           if not problems:
-              print("✅ Clean.")
+              print("Clean.")
           else:
               for l in problems[:MAX]:
                   print(f"- {l}")
@@ -713,7 +713,7 @@ jobs:
               root = None
           print()
           if root is None:
-              print("### ⚠️ Vitest — no junit results (crashed before write?)")
+              print("### Vitest — no junit results (crashed before write)")
           else:
               agg = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
               fails = []
@@ -730,7 +730,7 @@ jobs:
                       first = msg.strip().splitlines()[0] if msg.strip() else "(no message)"
                       fails.append((tc.get("classname", "?"), tc.get("name", "?"), first[:200]))
               passed = agg["tests"] - agg["failures"] - agg["errors"] - agg["skipped"]
-              print(f"### 🧪 Vitest — {passed} passed, {agg['failures'] + agg['errors']} failed, {agg['skipped']} skipped (total {agg['tests']})")
+              print(f"### Vitest — {passed} passed, {agg['failures'] + agg['errors']} failed, {agg['skipped']} skipped (total {agg['tests']})")
               if fails:
                   print()
                   print("**Failing tests:**")
@@ -801,14 +801,14 @@ jobs:
         working-directory: bet_dashboard/frontend
         run: |
           {
-            echo "## 🌐 E2E — docker stack (backend + frontend, PR code, locally built)"
+            echo "## E2E — docker stack (backend + frontend, locally built from PR code)"
             echo ""
-            echo "Stack: built locally from this PR's checkout (setup/compose.e2e.yaml) — no registry pull/push; ghcr.io is only ever touched by deploy.yml on main. Torn down at job end (down -v --rmi all)."
+            echo "Image: setup/compose.e2e.yaml, built locally from the PR checkout; no registry pull/push; stack torn down at job end."
             echo ""
             if curl -sf -o /dev/null http://localhost:3002/api/status; then
-              echo "Stack health: ✅ healthy — nginx + backend answering /api/status on :3002"
+              echo "Stack health: pass (/api/status answering on :3002)"
             else
-              echo "Stack health: ❌ not answering — see the job log above"
+              echo "Stack health: fail (endpoint not answering; see job log)"
             fi
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
@@ -818,12 +818,12 @@ jobs:
 
           p = Path("test-results/e2e-junit.xml")
           if not p.exists():
-              print("### ⚠️ Playwright — no junit results (tests never ran: build, health, or browser install failed — see job log)")
+              print("### Playwright — no junit results (build, health, or browser install failed; see job log)")
           else:
               try:
                   root = ET.parse(p).getroot()
               except Exception:
-                  print("### ⚠️ Playwright — failed to parse e2e-junit.xml")
+                  print("### Playwright — failed to parse e2e-junit.xml")
                   root = None
               if root is not None:
                   agg = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
@@ -841,7 +841,7 @@ jobs:
                           first = msg.strip().splitlines()[0] if msg.strip() else "(no message)"
                           fails.append((tc.get("classname", "?"), tc.get("name", "?"), first[:200]))
                   passed = agg["tests"] - agg["failures"] - agg["errors"] - agg["skipped"]
-                  print(f"### 🧪 Playwright — {passed} passed, {agg['failures'] + agg['errors']} failed, {agg['skipped']} skipped (total {agg['tests']}) across chromium + firefox + webkit")
+                  print(f"### Playwright — {passed} passed, {agg['failures'] + agg['errors']} failed, {agg['skipped']} skipped (total {agg['tests']}) across chromium, firefox, webkit")
                   if fails:
                       print()
                       print("**Failing tests:**")
@@ -865,7 +865,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "# 🚦 CI Verdict — run #${{ github.run_number }}"
+            echo "# CI Verdict — run #${{ github.run_number }}"
             echo ""
             echo "${{ github.event_name }} on \`${{ github.ref_name }}\` — commit \`${{ github.sha }}\`"
             echo ""
@@ -877,7 +877,7 @@ jobs:
             echo "| E2E (docker stack · playwright) | ${{ needs.e2e-tests.result }} |"
             echo "| Audit (blocking: bandit · semgrep · mypy ratchet · docstrings ≥97%) | ${{ needs.audit.result }} |"
             echo ""
-            echo "### Audit key metrics (blocking gates enforced — details in the Audit summary section)"
+            echo "### Audit metrics"
             echo ""
             echo "- mypy errors: **${{ needs.audit.outputs.mypy_errors }}**"
             echo "- bandit issues: **${{ needs.audit.outputs.bandit_issues }}**"
@@ -887,7 +887,7 @@ jobs:
             echo "- vulture dead-code candidates: **${{ needs.audit.outputs.vulture_dead }}**"
             echo "- docstring coverage: **${{ needs.audit.outputs.interrogate_pct }}%**"
             echo ""
-            echo "Per-suite test results, failing tests, and audit findings with file:line"
+            echo "Details: per-suite results, failing tests, audit findings (file:line)"
             echo "are in the corresponding job summaries above on this page."
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
