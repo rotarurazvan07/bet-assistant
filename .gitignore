@@ -261,3 +261,6 @@ coverage-crawler.xml
 test-results-framework.xml
 test-results-backend.xml
 test-results-crawler.xml
+
+# auto-fix job artifact (never commit — was accidentally in 3d7b924)
+autofix-diffstat.txt

@@ -64,10 +64,12 @@ jobs:
           # Process all source and test directories
           autoflake --in-place --recursive             --remove-all-unused-imports --remove-unused-variables             --exclude .venv,__pycache__             $SRC_DIR $TEST_DIR
 
-      - name: pyupgrade — modernise syntax to Python 3.14+
+      - name: pyupgrade — modernise syntax to Python 3.11+
         run: |
-          # CI is 3.14-only (D-F); target the interpreter we actually run
-          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py314-plus || true
+          # Floor = 3.11 (setup/Dockerfile runtime), NOT the 3.14 CI runner:
+          # --py314-plus emitted PEP 758 (`except A, B:`) which parsed fine
+          # on CI but crashed the E2E docker stack at import (3d7b924).
+          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py311-plus || true
 
       - name: autotyping — infer trivial return type annotations
         run: |
@@ -82,7 +84,8 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
+          # Floor 3.11 for the same reason as pyupgrade (docker runtime).
+          ruff format --line-length 127 --target-version py311             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
@@ -97,9 +100,14 @@ jobs:
           if git diff --quiet; then
             echo "Nothing to fix — working tree is clean."
           else
+            # Hard gate: never push code the docker runtime (3.11) cannot
+            # parse. This is what let PEP 758 syntax reach main in 3d7b924.
+            python scripts/check_syntax_floor.py
             git diff --stat > autofix-diffstat.txt
             git add -A
-            git commit -m "chore: auto-fix (types · lint · perf) [skip ci]"
+            # No [skip ci]: the auto-fix push MUST run the full pipeline —
+            # [skip ci] is how 3d7b924 landed without any validation.
+            git commit -m "chore: auto-fix (types · lint · perf)"
             git push
             echo "Fixes committed and pushed."
           fi
@@ -172,6 +180,12 @@ jobs:
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
           fi
+
+      - name: Syntax floor gate (docker runtime is 3.11)
+        # CI parses 3.14 but the E2E docker runtime is python:3.11-slim —
+        # 3.14-only syntax (PEP 758 `except A, B:`) passes every CI job and
+        # crashes the stack at import. Gate on the oldest runtime we ship.
+        run: python scripts/check_syntax_floor.py
 
       - name: Run tests — framework suite (root tests/)
         # D-A: per-suite invocations. A combined 'pytest tests/ bet_crawler/tests
@@ -776,19 +790,35 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
 
       - name: Build local E2E image (from PR code — never pushed, never pulled)
-        run: docker compose -f setup/compose.e2e.yaml build
-
-      - name: Start E2E stack (backend + frontend only)
-        run: docker compose -f setup/compose.e2e.yaml up -d
-
-      - name: Wait for health (nginx + backend answering /api/status on :3002)
+        # Retry once: auth.docker.io returned transient 500s on 2026-09-30
+        # (PR #84's red run was ONLY this — registry metadata fetch failed).
         run: |
-          timeout 180 bash -c '
-            until curl -sf -o /dev/null http://localhost:3002/api/status; do
-              echo "waiting for stack..."
-              sleep 5
-            done
-          '
+          docker compose -f setup/compose.e2e.yaml build \
+            || (echo 'build failed — retrying once after 30s' && sleep 30 \
+                && docker compose -f setup/compose.e2e.yaml build)
+
+      - name: Start E2E stack + wait for health (native compose --wait)
+        # `--wait` blocks until the container reports healthy (compose.e2e.yaml
+        # healthcheck = /api/status via nginx). With restart: "no" a crashed
+        # container fails the step immediately with a clear error instead of
+        # curl-blindly polling 180s (the old wait loop could not tell "booting"
+        # from "uvicorn died at import" — that is exactly how the PEP 758
+        # breakage presented as a mystery 180s hang).
+        run: docker compose -f setup/compose.e2e.yaml up -d --wait --wait-timeout 180
+
+      - name: Dump stack diagnostics (on failure)
+        # The missing evidence step: every prior red E2E run died WITHOUT
+        # container logs in the job output, leaving the failure undiagnosable.
+        if: failure()
+        run: |
+          echo '── docker compose logs ──'
+          docker compose -f setup/compose.e2e.yaml logs --no-color || true
+          echo '── container state / health ──'
+          docker inspect bet-assistant-e2e \
+            --format 'State={{.State.Status}} ExitCode={{.State.ExitCode}} Health={{if .State.Health}}{{.State.Health.Status}}{{else}}n/a{{end}}' \
+            || true
+          echo '── direct curl attempt ──'
+          curl -sv http://localhost:3002/api/status 2>&1 | head -20 || true
 
       - name: Run playwright tests (external stack)
         working-directory: bet_dashboard/frontend
