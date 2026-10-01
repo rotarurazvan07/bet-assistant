@@ -1,5 +1,4 @@
 """League name constants and mappings."""
-
 CHAMPIONS_LEAGUE = "Champions League"
 
 EUROPA_LEAGUE = "Europa League"

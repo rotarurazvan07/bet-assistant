@@ -20,6 +20,8 @@ Public surface
   score_pick(opt, ideal_odds, max_sources, cfg)  → (int, float, float)
 """
 
+from __future__ import annotations
+
 import math
 from typing import TYPE_CHECKING
 

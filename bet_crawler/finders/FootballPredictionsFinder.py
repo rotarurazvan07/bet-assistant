@@ -1,6 +1,6 @@
 """Match finder for footballpredictions daily tips."""
-
 from scrape_kit import ScrapeMode, get_logger, scrape
+
 
 logger = get_logger(__name__)
 
@@ -43,7 +43,6 @@ TOP_LEAGUES = {
 
 class FootballPredictionsFinder(BaseMatchFinder):
     """Scrapes footballpredictions prediction listings."""
-
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)

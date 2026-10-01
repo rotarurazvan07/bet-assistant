@@ -1,6 +1,6 @@
 """Match finder for onemillionpredictions.com tips."""
-
 from datetime import datetime
+
 
 from bs4 import BeautifulSoup
 from scrape_kit import get_logger
@@ -39,7 +39,6 @@ TOP_LEAGUES = {
 
 class OneMillionPredictionsFinder(BaseMatchFinder):
     """Scrapes onemillionpredictions.com daily prediction listings."""
-
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)

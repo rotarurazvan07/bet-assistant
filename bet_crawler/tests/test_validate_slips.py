@@ -13,6 +13,7 @@ import pytest
 
 import bet_crawler.crawl_core.validate_slips as vs_mod
 from bet_crawler.crawl_core.validate_slips import validate_slips
+
 from bet_framework.core.Slip import LegOutcomeInfo, ValidationReport
 from bet_framework.core.type_defs import MarketLabel
 
@@ -47,13 +48,13 @@ def run_stage(monkeypatch, report):
 
 
 class TestValidateSlipsP0:
-    def test_delegates_to_bet_assistant_and_closes(self, monkeypatch) -> None:
+    def test_delegates_to_bet_assistant_and_closes(self, monkeypatch):
         inst, fake_cls = run_stage(monkeypatch, make_report())
         fake_cls.assert_called_once_with("slips.db")
         inst.validate_slips.assert_called_once_with()
         inst.close.assert_called_once()
 
-    def test_summary_log_reports_counts(self, monkeypatch, caplog) -> None:
+    def test_summary_log_reports_counts(self, monkeypatch, caplog):
         report = make_report(
             settled=[make_leg()],
             live=[make_leg(outcome="Live")],
@@ -69,7 +70,7 @@ class TestValidateSlipsP0:
         assert "Live 1" in summary[0]
         assert "Errors 2" in summary[0]
 
-    def test_live_items_logged_with_score_and_minute(self, monkeypatch, caplog) -> None:
+    def test_live_items_logged_with_score_and_minute(self, monkeypatch, caplog):
         leg = make_leg(
             outcome="Live",
             name="Live FC vs Hot FC",
@@ -83,7 +84,7 @@ class TestValidateSlipsP0:
         assert "Live FC vs Hot FC" in live_lines[0]
         assert "1:0" in live_lines[0]
 
-    def test_won_and_lost_settled_lines_logged(self, monkeypatch, caplog) -> None:
+    def test_won_and_lost_settled_lines_logged(self, monkeypatch, caplog):
         won = make_leg(outcome="Won", name="Win FC")
         lost = make_leg(outcome="Lost", name="Lose FC")
         with caplog.at_level("INFO", logger="bet_crawler.crawl_core.validate_slips"):
@@ -94,7 +95,7 @@ class TestValidateSlipsP0:
 
 
 class TestValidateSlipsP1:
-    def test_empty_report_logs_zero_counts(self, monkeypatch, caplog) -> None:
+    def test_empty_report_logs_zero_counts(self, monkeypatch, caplog):
         with caplog.at_level("INFO", logger="bet_crawler.crawl_core.validate_slips"):
             run_stage(monkeypatch, make_report(settled=[], live=[], errors=0, checked=0))
         summary = [r.getMessage() for r in caplog.records if "Checked" in r.getMessage()]
@@ -103,7 +104,7 @@ class TestValidateSlipsP1:
         assert "Settled 0" in summary[0]
         assert "Live 0" in summary[0]
 
-    def test_validate_error_propagates_to_caller(self, monkeypatch) -> None:
+    def test_validate_error_propagates_to_caller(self, monkeypatch):
         """No silent swallow: a failing BetAssistant must raise to the CLI caller."""
         inst = MagicMock()
         inst.validate_slips.side_effect = RuntimeError("boom")

@@ -9,6 +9,9 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+
 from core.analytics_utils import (
     _get_status_value,
     calculate_biggest_win_loss,
@@ -22,8 +25,6 @@ from core.analytics_utils import (
     calculate_streak_metrics,
     get_rolling_edge_trend,
 )
-from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
 
 # ---------------------------------------------------------------------------
 # Slip fixtures (pure stand-ins, mirroring BetSlip attributes used by module)
@@ -116,18 +117,18 @@ SETTLED_STRAT = st.lists(
 ).map(lambda rows: [_to_slip(t) for t in rows])
 
 
-PENDING_STRAT = st.lists(st.tuples(st.just("Pending"), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=5).map(
-    lambda rows: [_to_slip(t) for t in rows]
-)
-NOISE_STRAT = st.lists(st.tuples(st.sampled_from(("Pending", "Live")), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=4).map(
-    lambda rows: [_to_slip(t) for t in rows]
-)
-WINS_ONLY_STRAT = st.lists(st.tuples(st.just("Won"), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=5).map(
-    lambda rows: [_to_slip(t) for t in rows]
-)
-LOSSES_ONLY_STRAT = st.lists(st.tuples(st.just("Lost"), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=5).map(
-    lambda rows: [_to_slip(t) for t in rows]
-)
+PENDING_STRAT = st.lists(
+    st.tuples(st.just("Pending"), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=5
+).map(lambda rows: [_to_slip(t) for t in rows])
+NOISE_STRAT = st.lists(
+    st.tuples(st.sampled_from(("Pending", "Live")), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=4
+).map(lambda rows: [_to_slip(t) for t in rows])
+WINS_ONLY_STRAT = st.lists(
+    st.tuples(st.just("Won"), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=5
+).map(lambda rows: [_to_slip(t) for t in rows])
+LOSSES_ONLY_STRAT = st.lists(
+    st.tuples(st.just("Lost"), ODDS_STRAT, UNITS_STRAT), min_size=1, max_size=5
+).map(lambda rows: [_to_slip(t) for t in rows])
 
 MARKETS = st.sampled_from(("Result", "Over/Under 2.5", "BTTS", "Double Chance 1X", "Unknown"))
 LEG_TRIPLES = st.tuples(STATUS_STRAT, MARKETS, st.text(min_size=1, max_size=8))
@@ -149,12 +150,12 @@ COMMON = settings(max_examples=30, deadline=None, suppress_health_check=[HealthC
 class TestGetStatusValue:
     @given(s=st.sampled_from(SLIP_STATUSES))
     @settings(max_examples=20, deadline=None)
-    def test_plain_string_passes_through(self, s) -> None:
+    def test_plain_string_passes_through(self, s):
         assert _get_status_value(s) == s
 
     @given(s=st.sampled_from(SLIP_STATUSES))
     @settings(max_examples=20, deadline=None)
-    def test_enum_member_value_extracted(self, s) -> None:
+    def test_enum_member_value_extracted(self, s):
         from enum import Enum
 
         class S(Enum):
@@ -171,7 +172,7 @@ class TestGetStatusValue:
 class TestOverallEdgeProperties:
     @given(slips=SLIPS_STRAT)
     @COMMON
-    def test_edge_is_finite_and_ranges_check_for_arbitrary_slips(self, slips) -> None:
+    def test_edge_is_finite_and_ranges_check_for_arbitrary_slips(self, slips):
         edge = calculate_overall_edge(slips)
         assert isinstance(edge, float)
         assert math.isfinite(edge)
@@ -180,7 +181,7 @@ class TestOverallEdgeProperties:
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_edge_equals_actual_minus_implied_win_rate(self, seq) -> None:
+    def test_edge_equals_actual_minus_implied_win_rate(self, seq):
         if not seq:
             assert calculate_overall_edge(seq) == 0.0
             return
@@ -192,10 +193,10 @@ class TestOverallEdgeProperties:
 
     @given(pending=PENDING_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_all_unsettled_slips_yield_zero_edge(self, pending) -> None:
+    def test_all_unsettled_slips_yield_zero_edge(self, pending):
         assert calculate_overall_edge(pending) == 0.0
 
-    def test_empty_slips_yield_zero_edge(self) -> None:
+    def test_empty_slips_yield_zero_edge(self):
         assert calculate_overall_edge([]) == 0.0
 
 
@@ -212,7 +213,7 @@ class TestKellyProperties:
         bankroll=st.floats(min_value=0.0, max_value=10000.0, allow_nan=False),
     )
     @COMMON
-    def test_suggested_units_bounded_by_zero_and_bankroll(self, n_won, n_settled, avg_odds, bankroll) -> None:
+    def test_suggested_units_bounded_by_zero_and_bankroll(self, n_won, n_settled, avg_odds, bankroll):
         n_won = min(n_won, n_settled)  # domain: cannot win more slips than settled
         units = calculate_kelly_recommendation(n_won, n_settled, avg_odds, bankroll)
         assert isinstance(units, float)
@@ -227,7 +228,7 @@ class TestKellyProperties:
         bankroll=st.floats(min_value=1.0, max_value=10000.0, allow_nan=False),
     )
     @COMMON
-    def test_zero_settled_yields_zero_units(self, n_won, avg_odds, bankroll) -> None:
+    def test_zero_settled_yields_zero_units(self, n_won, avg_odds, bankroll):
         assert calculate_kelly_recommendation(n_won, 0, avg_odds, bankroll) == 0.0
 
     @given(
@@ -236,7 +237,7 @@ class TestKellyProperties:
         bankroll=st.floats(min_value=1.0, max_value=1000.0, allow_nan=False),
     )
     @COMMON
-    def test_odds_at_or_below_one_yields_zero_units(self, n_won, n_settled, bankroll) -> None:
+    def test_odds_at_or_below_one_yields_zero_units(self, n_won, n_settled, bankroll):
         assert calculate_kelly_recommendation(n_won, n_settled, 1.0, bankroll) == 0.0
         assert calculate_kelly_recommendation(n_won, n_settled, 0.5, bankroll) == 0.0
 
@@ -248,7 +249,7 @@ class TestKellyProperties:
         bankroll=st.floats(min_value=1.0, max_value=1000.0, allow_nan=False),
     )
     @settings(max_examples=25, deadline=None)
-    def test_units_monotone_nondecreasing_in_wins(self, n_won1, extra_won, n_settled, avg_odds, bankroll) -> None:
+    def test_units_monotone_nondecreasing_in_wins(self, n_won1, extra_won, n_settled, avg_odds, bankroll):
         w1 = min(n_won1, n_settled)
         w2 = min(w1 + extra_won, n_settled)
         u1 = calculate_kelly_recommendation(w1, n_settled, avg_odds, bankroll)
@@ -262,7 +263,7 @@ class TestKellyProperties:
         bankroll=st.floats(min_value=1.0, max_value=1000.0, allow_nan=False),
     )
     @COMMON
-    def test_units_match_kelly_formula_rounded(self, n_won, n_settled, avg_odds, bankroll) -> None:
+    def test_units_match_kelly_formula_rounded(self, n_won, n_settled, avg_odds, bankroll):
         n_won = min(n_won, n_settled)
         p = n_won / n_settled
         b = avg_odds - 1.0
@@ -279,7 +280,7 @@ class TestKellyProperties:
 class TestRollingEdgeProperties:
     @given(slips=SLIPS_STRAT)
     @COMMON
-    def test_pending_only_or_empty_yield_empty_list(self, slips) -> None:
+    def test_pending_only_or_empty_yield_empty_list(self, slips):
         result = calculate_rolling_edge(slips, window_days=7)
         assert isinstance(result, list)
         if not any(_get_status_value(s.slip_status) in ("Won", "Lost") for s in slips):
@@ -293,7 +294,7 @@ class TestRollingEdgeProperties:
         )
     )
     @settings(max_examples=25, deadline=None)
-    def test_single_day_window_with_three_slips_emits_one_point(self, rows) -> None:
+    def test_single_day_window_with_three_slips_emits_one_point(self, rows):
         base = datetime(2026, 9, 20)
         slips = [
             SlipStub(
@@ -317,8 +318,11 @@ class TestRollingEdgeProperties:
 
     @given(window=st.integers(min_value=1, max_value=30))
     @settings(max_examples=20, deadline=None)
-    def test_output_points_carry_required_fields(self, window) -> None:
-        slips = [SlipStub(slip_status="Won", date_generated=f"2026-09-1{d}", total_odds=2.0, units=1.0) for d in range(5)]
+    def test_output_points_carry_required_fields(self, window):
+        slips = [
+            SlipStub(slip_status="Won", date_generated=f"2026-09-1{d}", total_odds=2.0, units=1.0)
+            for d in range(5)
+        ]
         result = calculate_rolling_edge(slips, window_days=window)
         for point in result:
             assert set(point.keys()) == {"date", "rolling_edge", "rolling_win_rate", "rolling_implied", "sample_size"}
@@ -378,12 +382,12 @@ def _ref_daily_summary(seq):
 class TestDailySummaryProperties:
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_matches_reference_accumulation_exactly(self, seq) -> None:
+    def test_matches_reference_accumulation_exactly(self, seq):
         assert calculate_daily_summary(seq) == _ref_daily_summary(seq)
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_rows_sorted_ascending_and_cumulative_monotone(self, seq) -> None:
+    def test_rows_sorted_ascending_and_cumulative_monotone(self, seq):
         rows = calculate_daily_summary(seq)
         dates = [r["date"] for r in rows]
         assert dates == sorted(dates)
@@ -397,7 +401,7 @@ class TestDailySummaryProperties:
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_net_profit_identity_won_odds_minus_units(self, seq) -> None:
+    def test_net_profit_identity_won_odds_minus_units(self, seq):
         rows = calculate_daily_summary(seq)
         by_day = {}
         for s in seq:
@@ -410,12 +414,12 @@ class TestDailySummaryProperties:
             expected = round(by_day[r["date"]], 2)
             assert abs(r["net_profit"] - expected) <= 0.02
 
-    def test_empty_slips_yield_empty_summary(self) -> None:
+    def test_empty_slips_yield_empty_summary(self):
         assert calculate_daily_summary([]) == []
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_profile_and_date_params_do_not_change_output(self, seq) -> None:
+    def test_profile_and_date_params_do_not_change_output(self, seq):
         """Documented latent trap: profile/date_from/date_to are accepted but ignored.
 
         AppLogic.daily_summary pre-filters via get_slips before delegating, so the
@@ -434,7 +438,7 @@ class TestDailySummaryProperties:
 class TestMarketAccuracyProperties:
     @given(slips=LEGGED_SLIPS_STRAT)
     @COMMON
-    def test_totals_equal_distinct_settled_fingerprints(self, slips) -> None:
+    def test_totals_equal_distinct_settled_fingerprints(self, slips):
         results = calculate_market_accuracy(slips)
         expected = {}
         seen = set()
@@ -460,14 +464,14 @@ class TestMarketAccuracyProperties:
 
     @given(slips=LEGGED_SLIPS_STRAT)
     @COMMON
-    def test_sorted_by_total_desc_and_finite(self, slips) -> None:
+    def test_sorted_by_total_desc_and_finite(self, slips):
         results = calculate_market_accuracy(slips)
         totals = [r["total"] for r in results]
         assert totals == sorted(totals, reverse=True)
         for r in results:
             assert all(math.isfinite(r[k]) for k in ("accuracy",))
 
-    def test_empty_slips_yield_empty_markets(self) -> None:
+    def test_empty_slips_yield_empty_markets(self):
         assert calculate_market_accuracy([]) == []
 
     @given(
@@ -475,7 +479,7 @@ class TestMarketAccuracyProperties:
         url=st.text(min_size=1, max_size=8),
     )
     @settings(max_examples=20, deadline=None)
-    def test_duplicate_fingerprint_counted_once(self, statuses, url) -> None:
+    def test_duplicate_fingerprint_counted_once(self, statuses, url):
         slip = SlipStub(
             slip_status="Won",
             legs=[LegStub(status=s, market="Result", result_url=url) for s in statuses],
@@ -500,7 +504,7 @@ class TestMarketAccuracyProperties:
 class TestCorrelationDataProperties:
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_profit_identity_per_settled_slip(self, seq) -> None:
+    def test_profit_identity_per_settled_slip(self, seq):
         rows = calculate_correlation_data(seq)
         assert len(rows) == len(seq)
         for slip, row in zip(seq, rows, strict=True):
@@ -516,10 +520,10 @@ class TestCorrelationDataProperties:
 
     @given(pending=PENDING_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_unsettled_slips_excluded(self, pending) -> None:
+    def test_unsettled_slips_excluded(self, pending):
         assert calculate_correlation_data(pending) == []
 
-    def test_empty_slips_yield_empty_rows(self) -> None:
+    def test_empty_slips_yield_empty_rows(self):
         assert calculate_correlation_data([]) == []
 
 
@@ -602,7 +606,7 @@ class TestStreakMetricsProperties:
         )
     )
     @settings(max_examples=30, deadline=None)
-    def test_matches_reference_walk_exactly(self, pairs) -> None:
+    def test_matches_reference_walk_exactly(self, pairs):
         seq = [_day_slip(d, p) for d, p in pairs]
         by_day = {}
         for d, p in pairs:
@@ -618,7 +622,7 @@ class TestStreakMetricsProperties:
         )
     )
     @settings(max_examples=30, deadline=None)
-    def test_streak_bounds_and_sign_invariants(self, pairs) -> None:
+    def test_streak_bounds_and_sign_invariants(self, pairs):
         seq = [_day_slip(d, p) for d, p in pairs]
         metrics = calculate_streak_metrics(seq)
         n_nonzero = len([p for _, p in pairs if p != 0])
@@ -632,7 +636,7 @@ class TestStreakMetricsProperties:
         elif metrics["current_streak"] < 0:
             assert metrics["longest_loss_streak"] >= abs(metrics["current_streak"])
 
-    def test_empty_slips_yield_zero_streaks(self) -> None:
+    def test_empty_slips_yield_zero_streaks(self):
         assert calculate_streak_metrics([]) == {
             "current_streak": 0,
             "longest_win_streak": 0,
@@ -641,14 +645,14 @@ class TestStreakMetricsProperties:
 
     @given(pending=PENDING_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_unsettled_only_slips_yield_zero_streaks(self, pending) -> None:
+    def test_unsettled_only_slips_yield_zero_streaks(self, pending):
         assert calculate_streak_metrics(pending) == {
             "current_streak": 0,
             "longest_win_streak": 0,
             "longest_loss_streak": 0,
         }
 
-    def test_breakeven_days_neither_count_nor_break_streaks(self) -> None:
+    def test_breakeven_days_neither_count_nor_break_streaks(self):
         # win day, break-even day, win day -> 2-day win streak; zero day skipped everywhere
         seq = [_day_slip(0, 2), _day_slip(1, 0), _day_slip(2, 1)]
         metrics = calculate_streak_metrics(seq)
@@ -656,7 +660,7 @@ class TestStreakMetricsProperties:
         assert metrics["longest_win_streak"] == 2
         assert metrics["longest_loss_streak"] == 0
 
-    def test_streak_breaks_at_sign_change(self) -> None:
+    def test_streak_breaks_at_sign_change(self):
         # offsets grow toward today: newest day (offset 2) is the loss after two wins
         seq = [_day_slip(0, 1), _day_slip(1, 2), _day_slip(2, -1)]
         metrics = calculate_streak_metrics(seq)
@@ -664,7 +668,7 @@ class TestStreakMetricsProperties:
         assert metrics["longest_win_streak"] == 2
         assert metrics["longest_loss_streak"] == 1
 
-    def test_all_breakeven_days_yield_zero_current_streak(self) -> None:
+    def test_all_breakeven_days_yield_zero_current_streak(self):
         seq = [_day_slip(0, 0), _day_slip(1, 0)]
         assert calculate_streak_metrics(seq) == {
             "current_streak": 0,
@@ -672,7 +676,7 @@ class TestStreakMetricsProperties:
             "longest_loss_streak": 0,
         }
 
-    def test_multi_slip_day_aggregates_pnl(self) -> None:
+    def test_multi_slip_day_aggregates_pnl(self):
         # two slips on one day: net +1 -> winning day; single losing day after
         day_win = (STREAK_BASE + timedelta(days=1)).strftime("%Y-%m-%d")
         day_loss = STREAK_BASE.strftime("%Y-%m-%d")
@@ -695,31 +699,31 @@ class TestStreakMetricsProperties:
 class TestProfitFactorProperties:
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_matches_reference_ratio_exactly(self, seq) -> None:
+    def test_matches_reference_ratio_exactly(self, seq):
         wins, losses = _split_profit([(s.slip_status, s.total_odds, s.units) for s in seq])
         expected = round(wins / losses, 2) if losses > 0 else 0.0
         assert calculate_profit_factor(seq) == expected
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_profit_factor_non_negative_and_finite(self, seq) -> None:
+    def test_profit_factor_non_negative_and_finite(self, seq):
         pf = calculate_profit_factor(seq)
         assert isinstance(pf, float)
         assert math.isfinite(pf)
         assert pf >= 0.0
 
-    def test_empty_slips_yield_zero_pf(self) -> None:
+    def test_empty_slips_yield_zero_pf(self):
         assert calculate_profit_factor([]) == 0.0
 
     @given(wins=WINS_ONLY_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_wins_without_losses_yield_zero_pf(self, wins) -> None:
+    def test_wins_without_losses_yield_zero_pf(self, wins):
         # documented semantics: 0.0 when no losses (not infinity)
         assert calculate_profit_factor(wins) == 0.0
 
     @given(losses=LOSSES_ONLY_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_losses_without_wins_yield_zero_pf(self, losses) -> None:
+    def test_losses_without_wins_yield_zero_pf(self, losses):
         assert calculate_profit_factor(losses) == 0.0
 
     @given(
@@ -727,7 +731,7 @@ class TestProfitFactorProperties:
         noise=NOISE_STRAT,
     )
     @settings(max_examples=20, deadline=None)
-    def test_unsettled_slips_do_not_affect_pf(self, settled, noise) -> None:
+    def test_unsettled_slips_do_not_affect_pf(self, settled, noise):
         assert calculate_profit_factor(settled + noise) == calculate_profit_factor(settled)
 
 
@@ -739,7 +743,7 @@ class TestProfitFactorProperties:
 class TestBiggestWinLossProperties:
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_matches_reference_extremes_exactly(self, seq) -> None:
+    def test_matches_reference_extremes_exactly(self, seq):
         win_profits = [s.total_odds * s.units - s.units for s in seq if s.slip_status == "Won"]
         loss_profits = [-s.units for s in seq if s.slip_status == "Lost"]
         result = calculate_biggest_win_loss(seq)
@@ -748,7 +752,7 @@ class TestBiggestWinLossProperties:
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_extremes_bound_every_slip_pnl(self, seq) -> None:
+    def test_extremes_bound_every_slip_pnl(self, seq):
         result = calculate_biggest_win_loss(seq)
         for s in seq:
             if s.slip_status == "Won":
@@ -756,19 +760,19 @@ class TestBiggestWinLossProperties:
             else:
                 assert result["biggest_loss_units"] <= round(-s.units, 2) + 0.01
 
-    def test_empty_slips_yield_none_extremes(self) -> None:
+    def test_empty_slips_yield_none_extremes(self):
         assert calculate_biggest_win_loss([]) == {"biggest_win_units": None, "biggest_loss_units": None}
 
     @given(wins=WINS_ONLY_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_wins_without_losses_yield_none_loss(self, wins) -> None:
+    def test_wins_without_losses_yield_none_loss(self, wins):
         result = calculate_biggest_win_loss(wins)
         assert result["biggest_win_units"] is not None
         assert result["biggest_loss_units"] is None
 
     @given(losses=LOSSES_ONLY_STRAT)
     @settings(max_examples=15, deadline=None)
-    def test_losses_without_wins_yield_none_win(self, losses) -> None:
+    def test_losses_without_wins_yield_none_win(self, losses):
         result = calculate_biggest_win_loss(losses)
         assert result["biggest_win_units"] is None
         assert result["biggest_loss_units"] is not None
@@ -778,12 +782,12 @@ class TestBiggestWinLossProperties:
         noise=NOISE_STRAT,
     )
     @settings(max_examples=20, deadline=None)
-    def test_unsettled_slips_do_not_affect_extremes(self, settled, noise) -> None:
+    def test_unsettled_slips_do_not_affect_extremes(self, settled, noise):
         assert calculate_biggest_win_loss(settled + noise) == calculate_biggest_win_loss(settled)
 
     @given(seq=SETTLED_STRAT)
     @COMMON
-    def test_consistent_with_correlation_data_profits(self, seq) -> None:
+    def test_consistent_with_correlation_data_profits(self, seq):
         rows = calculate_correlation_data(seq)
         result = calculate_biggest_win_loss(seq)
         win_profits = [r["profit"] for r in rows if r["status"] == "Won"]
@@ -829,7 +833,7 @@ class TestRollingEdgeTrendProperties:
         seed=st.integers(min_value=0, max_value=2**16 - 1),
     )
     @settings(max_examples=25, deadline=None)
-    def test_matches_reference_trend_exactly(self, week1_n, week2_n, seed) -> None:
+    def test_matches_reference_trend_exactly(self, week1_n, week2_n, seed):
         import random
 
         rng = random.Random(seed)
@@ -838,28 +842,28 @@ class TestRollingEdgeTrendProperties:
         seq = week1 + week2
         assert get_rolling_edge_trend(seq) == _ref_trend(seq)
 
-    def test_no_recent_slips_yield_neutral_zero(self) -> None:
+    def test_no_recent_slips_yield_neutral_zero(self):
         old_day = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
         old = SlipStub(slip_status="Won", date_generated=old_day, total_odds=2.0, units=1.0)
         assert get_rolling_edge_trend([old]) == {"trend": "neutral", "value": 0.0}
 
-    def test_empty_slips_yield_neutral_zero(self) -> None:
+    def test_empty_slips_yield_neutral_zero(self):
         assert get_rolling_edge_trend([]) == {"trend": "neutral", "value": 0.0}
 
-    def test_growing_trend_when_recent_week_improves(self) -> None:
+    def test_growing_trend_when_recent_week_improves(self):
         # week_1: all Lost @2.0 -> edge -50; week_2: all Won @2.0 -> edge +50
         seq = [_trend_slip(10, "Lost"), _trend_slip(12, "Lost"), _trend_slip(2, "Won"), _trend_slip(4, "Won")]
         result = get_rolling_edge_trend(seq)
         assert result["trend"] == "growing"
         assert result["value"] == 50.0
 
-    def test_declining_trend_when_recent_week_worsens(self) -> None:
+    def test_declining_trend_when_recent_week_worsens(self):
         seq = [_trend_slip(10, "Won"), _trend_slip(12, "Won"), _trend_slip(2, "Lost"), _trend_slip(4, "Lost")]
         result = get_rolling_edge_trend(seq)
         assert result["trend"] == "declining"
         assert result["value"] == -50.0
 
-    def test_stable_trend_when_edges_equal(self) -> None:
+    def test_stable_trend_when_edges_equal(self):
         seq = [_trend_slip(9, "Won"), _trend_slip(9, "Lost"), _trend_slip(2, "Won"), _trend_slip(2, "Lost")]
         result = get_rolling_edge_trend(seq)
         assert result["trend"] == "stable"

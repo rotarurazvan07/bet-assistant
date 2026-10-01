@@ -304,7 +304,9 @@ class TestAdjustedConsensus:
         sources=st.integers(min_value=0, max_value=200),
         k=st.floats(min_value=0.5, max_value=10.0),
     )
-    def test_property_shrinkage_never_amplifies_distance_from_fifty(self, raw, sources, k):
+    def test_property_shrinkage_never_amplifies_distance_from_fifty(
+        self, raw, sources, k
+    ):
         adjusted = adjusted_consensus(raw, sources, k)
         assert abs(adjusted - 50.0) <= abs(raw - 50.0) + 1e-9
         low, high = min(50.0, raw), max(50.0, raw)

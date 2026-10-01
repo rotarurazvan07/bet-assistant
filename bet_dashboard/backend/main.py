@@ -13,6 +13,8 @@ Or using Docker Compose (recommended):
     docker compose -f setup/compose.yaml up -d
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 import sys

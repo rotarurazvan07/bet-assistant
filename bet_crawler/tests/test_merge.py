@@ -36,7 +36,7 @@ SIM = _load_sim_config()
 
 
 class TestMergeP0:
-    def test_merges_two_chunk_dbs_into_final_db(self, tmp_path) -> None:
+    def test_merges_two_chunk_dbs_into_final_db(self, tmp_path):
         chunks = tmp_path / "chunks"
         chunks.mkdir()
         make_chunk_db(chunks / "actions-1.db", [make_match(home="Alpha FC", url="https://a.com/1")])
@@ -46,7 +46,7 @@ class TestMergeP0:
         df = _fetch(str(final), SIM)
         assert sorted(df["home_name"]) == ["Alpha FC", "Beta FC"]
 
-    def test_fuzzy_dedup_across_chunks_single_row_merged_sources(self, tmp_path) -> None:
+    def test_fuzzy_dedup_across_chunks_single_row_merged_sources(self, tmp_path):
         """Man Utd vs Manchester United (same away+datetime) → one row, 2 sources."""
         from bet_framework.core.Match import Score
 
@@ -64,7 +64,7 @@ class TestMergeP0:
         assert len(df) == 1
         assert {s["source"] for s in df.iloc[0]["scores"]} == {"srcA", "srcB"}
 
-    def test_odds_preserved_in_merged_output(self, tmp_path) -> None:
+    def test_odds_preserved_in_merged_output(self, tmp_path):
         from bet_framework.core.Match import Odds
 
         chunks = tmp_path / "chunks"
@@ -76,13 +76,13 @@ class TestMergeP0:
         df = _fetch(str(final), SIM)
         assert df.iloc[0]["odds"]["home"] == 1.9
 
-    def test_invalid_chunks_dir_raises_system_exit(self, tmp_path) -> None:
+    def test_invalid_chunks_dir_raises_system_exit(self, tmp_path):
         with pytest.raises(SystemExit) as exc:
             merge(str(tmp_path / "f.db"), str(tmp_path / "nope"), SIM, {}, {})
         assert exc.value.code == 1
         assert not (tmp_path / "f.db").exists() or True  # db may exist w/ empty tables
 
-    def test_empty_chunk_db_yields_empty_final(self, tmp_path) -> None:
+    def test_empty_chunk_db_yields_empty_final(self, tmp_path):
         """Chunk db with schema but zero rows must not break the merge."""
         chunks = tmp_path / "chunks"
         chunks.mkdir()
@@ -91,7 +91,7 @@ class TestMergeP0:
         merge(str(final), str(chunks), SIM, {}, {})
         assert len(_fetch(str(final), SIM)) == 0
 
-    def test_mixed_empty_and_populated_chunks(self, tmp_path) -> None:
+    def test_mixed_empty_and_populated_chunks(self, tmp_path):
         chunks = tmp_path / "chunks"
         chunks.mkdir()
         make_chunk_db(chunks / "actions-1.db", [])
@@ -103,7 +103,7 @@ class TestMergeP0:
 
 
 class TestMergeSummaryP1:
-    def test_missing_crawler_logs_warning(self, tmp_path, caplog) -> None:
+    def test_missing_crawler_logs_warning(self, tmp_path, caplog):
         """Configured crawler with zero matches appears as MISSING in summary."""
         chunks = tmp_path / "chunks"
         chunks.mkdir()
@@ -114,7 +114,7 @@ class TestMergeSummaryP1:
         missing = [r.getMessage() for r in caplog.records if "MISSING" in r.getMessage()]
         assert any("ghost: 0 matches (MISSING)" in m for m in missing)
 
-    def test_missing_runner_set_logs_error(self, tmp_path, caplog) -> None:
+    def test_missing_runner_set_logs_error(self, tmp_path, caplog):
         """Chunk file implies runner 'actions' but no actions crawler contributed."""
         chunks = tmp_path / "chunks"
         chunks.mkdir()
@@ -126,7 +126,7 @@ class TestMergeSummaryP1:
         errs = [r.getMessage() for r in caplog.records if "missing data" in r.getMessage()]
         assert any("actions" in e for e in errs)
 
-    def test_final_db_excluded_from_chunk_scan(self, tmp_path, caplog) -> None:
+    def test_final_db_excluded_from_chunk_scan(self, tmp_path, caplog):
         """The output db living inside chunks_dir must not be re-merged into itself."""
         chunks = tmp_path / "chunks"
         chunks.mkdir()
@@ -136,7 +136,7 @@ class TestMergeSummaryP1:
         df = _fetch(str(final), SIM)
         assert len(df) == 1  # merged once, not doubled by re-reading its own output
 
-    def test_scores_source_contributes_to_source_mapping(self, tmp_path, caplog) -> None:
+    def test_scores_source_contributes_to_source_mapping(self, tmp_path, caplog):
         """Predictions source names (no URL) still count toward runner-set validation."""
         from bet_framework.core.Match import Score
 
@@ -153,7 +153,7 @@ class TestMergeSummaryP1:
 
 
 class TestMergeP2:
-    def test_empty_chunks_dir_yields_empty_output(self, tmp_path, caplog) -> None:
+    def test_empty_chunks_dir_yields_empty_output(self, tmp_path, caplog):
         chunks = tmp_path / "chunks"
         chunks.mkdir()
         final = tmp_path / "final.db"

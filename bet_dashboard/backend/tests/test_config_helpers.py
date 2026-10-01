@@ -19,6 +19,8 @@ Isolation: every test uses tmp_path config dirs; the repo-level config/ tree
 is never touched (SettingsManager instances only ever see throwaway dirs).
 """
 
+from __future__ import annotations
+
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -31,14 +33,16 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from scrape_kit import SettingsManager  # noqa: E402
+
+from bet_framework.core.Slip import PROFILES, BetSlipConfig  # noqa: E402
+
 from core.config_helpers import (  # noqa: E402
     _config_to_yaml_dict,
     _yaml_to_config,
     ensure_default_profiles,
 )
-from scrape_kit import SettingsManager  # noqa: E402
 
-from bet_framework.core.Slip import PROFILES, BetSlipConfig  # noqa: E402
 
 BUILTIN_PROFILE_NAMES = {"low_risk", "medium_risk", "high_risk", "value_hunter"}
 
@@ -135,7 +139,7 @@ def make_full_profile_dict(**overrides) -> dict:
 class TestYamlToConfig:
     """[P1] _yaml_to_config: full-field YAML dict -> BetSlipConfig."""
 
-    def test_parses_every_betslipconfig_field(self) -> None:
+    def test_parses_every_betslipconfig_field(self):
         """[P1] All 21 persisted BetSlipConfig fields survive the YAML ->
         config path. date_from/date_to/excluded_urls are fed in by the factory
         but are runtime-only and dropped (verified separately below)."""
@@ -165,7 +169,7 @@ class TestYamlToConfig:
         assert cfg.odds_movement_weight == 0.15
         assert cfg.odds_movement_strength_min == 0.10
 
-    def test_ignores_runtime_only_keys(self) -> None:
+    def test_ignores_runtime_only_keys(self):
         """[P1] date_from/date_to/excluded_urls are dropped even though they
         are real BetSlipConfig fields -- _RUNTIME_ONLY explicitly excludes them."""
         cfg = _yaml_to_config(make_full_profile_dict())
@@ -173,7 +177,7 @@ class TestYamlToConfig:
         assert cfg.date_to is None
         assert cfg.excluded_urls is None
 
-    def test_ignores_metadata_and_unknown_keys(self) -> None:
+    def test_ignores_metadata_and_unknown_keys(self):
         """[P2] units/target_payout/run_daily_count are profile-file metadata,
         not BetSlipConfig fields; unknown keys are silently dropped (pydantic-
         style extra=ignore semantics keep hand-edited YAML files loadable)."""
@@ -184,12 +188,12 @@ class TestYamlToConfig:
         assert not hasattr(cfg, "run_daily_count")
         assert not hasattr(cfg, "totally_unknown_key")
 
-    def test_empty_dict_yields_defaults(self) -> None:
+    def test_empty_dict_yields_defaults(self):
         """[P1] Empty YAML profile (or all-runtime keys) -> pure defaults."""
         cfg = _yaml_to_config({})
         assert cfg == BetSlipConfig()
 
-    def test_partial_dict_overrides_only_given_fields(self) -> None:
+    def test_partial_dict_overrides_only_given_fields(self):
         """[P1] Sparse YAML dict: only provided fields differ from defaults."""
         cfg = _yaml_to_config({"target_odds": 4.5, "target_legs": 5})
         defaults = BetSlipConfig()
@@ -199,36 +203,36 @@ class TestYamlToConfig:
         assert cfg.min_odds == defaults.min_odds
         assert cfg.balance_decay == defaults.balance_decay
 
-    def test_excluded_sources_list_preserved(self) -> None:
+    def test_excluded_sources_list_preserved(self):
         """[P1] Issue #62: excluded_sources list must pass through intact."""
         sources = ["source_a", "source_b", "source_c"]
         cfg = _yaml_to_config({"excluded_sources": sources})
         assert cfg.excluded_sources == sources
         assert cfg.excluded_sources is sources or cfg.excluded_sources == sources
 
-    def test_excluded_sources_none_default(self) -> None:
+    def test_excluded_sources_none_default(self):
         """[P1] Absent excluded_sources stays None (no empty-list injection)."""
         assert _yaml_to_config({}).excluded_sources is None
 
-    def test_balance_decay_invalid_falls_back_to_gaussian(self) -> None:
+    def test_balance_decay_invalid_falls_back_to_gaussian(self):
         """[P0] Invalid balance_decay string is normalised to 'gaussian' --
         a bad profile file must never crash the slip builder at runtime."""
         cfg = _yaml_to_config({"balance_decay": "exponential"})
         assert cfg.balance_decay == "gaussian"
 
-    def test_balance_decay_valid_values_preserved(self) -> None:
+    def test_balance_decay_valid_values_preserved(self):
         """[P1] Both documented decay modes survive parsing unchanged."""
         assert _yaml_to_config({"balance_decay": "linear"}).balance_decay == "linear"
         assert _yaml_to_config({"balance_decay": "gaussian"}).balance_decay == "gaussian"
 
-    def test_optional_clamp_fields_none_survives(self) -> None:
+    def test_optional_clamp_fields_none_survives(self):
         """[P0] None optionals stay None -- construction must NOT fabricate
         values for fields the engine auto-derives later."""
         cfg = _yaml_to_config(dict.fromkeys(OPTIONAL_CLAMP_FIELDS))
         for field in OPTIONAL_CLAMP_FIELDS:
             assert getattr(cfg, field) is None, field
 
-    def test_clamping_applied_through_yaml_path(self) -> None:
+    def test_clamping_applied_through_yaml_path(self):
         """[P0] Values outside bounds are clamped by BetSlipConfig.__post_init__
         when constructed through _yaml_to_config (end-to-end YAML -> clamp)."""
         cfg = _yaml_to_config({"target_odds": 5000.0, "target_legs": 999, "min_odds": 0.2})
@@ -243,27 +247,27 @@ class TestConfigClamping:
     boundaries; coverage target >= 95% for config_helpers.py)."""
 
     @pytest.mark.parametrize("field,value,expected", CLAMP_CASES)
-    def test_clamp_boundary_matrix(self, field, value, expected) -> None:
+    def test_clamp_boundary_matrix(self, field, value, expected):
         """[P0] below-lo clamps to lo; lo and hi pass through; above-hi
         clamps to hi. Covers all 18 clamped fields x 4 boundary cases."""
         cfg = _yaml_to_config({field: value})
         assert getattr(cfg, field) == expected
 
-    def test_target_odds_spec_bounds(self) -> None:
+    def test_target_odds_spec_bounds(self):
         """[P0] Issue #62 explicit bounds: target_odds clamps into [1.1, 1000]."""
         assert _yaml_to_config({"target_odds": 0.5}).target_odds == pytest.approx(1.10)
         assert _yaml_to_config({"target_odds": 1.10}).target_odds == pytest.approx(1.10)
         assert _yaml_to_config({"target_odds": 1000.0}).target_odds == pytest.approx(1000.0)
         assert _yaml_to_config({"target_odds": 2000.0}).target_odds == pytest.approx(1000.0)
 
-    def test_target_legs_spec_bounds(self) -> None:
+    def test_target_legs_spec_bounds(self):
         """[P0] Issue #62 explicit bounds: target_legs clamps into [1, 100]."""
         assert _yaml_to_config({"target_legs": -3}).target_legs == 1
         assert _yaml_to_config({"target_legs": 1}).target_legs == 1
         assert _yaml_to_config({"target_legs": 100}).target_legs == 100
         assert _yaml_to_config({"target_legs": 101}).target_legs == 100
 
-    def test_extreme_out_of_range_pairs(self) -> None:
+    def test_extreme_out_of_range_pairs(self):
         """[P0] Simultaneous multi-field violation: each field clamps
         independently through one YAML dict."""
         cfg = _yaml_to_config(
@@ -302,7 +306,7 @@ class TestEnsureDefaultProfiles:
     """[P1] ensure_default_profiles: built-in profile seeding into a fresh
     config dir (tmp_path isolation mandatory -- config/ is never touched)."""
 
-    def test_seeds_all_builtin_profiles(self, tmp_path) -> None:
+    def test_seeds_all_builtin_profiles(self, tmp_path):
         """[P1] Fresh dir receives low/medium/high_risk PLUS value_hunter
         (spec names 3; implementation ships 4 -- actual behaviour pinned)."""
         config_dir = tmp_path / "cfg"
@@ -311,7 +315,7 @@ class TestEnsureDefaultProfiles:
         names = {p.stem for p in (config_dir / "profiles").glob("*.yaml")}
         assert names == BUILTIN_PROFILE_NAMES
 
-    def test_writes_into_profiles_subpath(self, tmp_path) -> None:
+    def test_writes_into_profiles_subpath(self, tmp_path):
         """[P1] Files land at <config>/profiles/<name>.yaml exactly as
         logic.py:62 expects (profiles_dir arg + subpath='profiles' write)."""
         config_dir = tmp_path / "cfg"
@@ -320,7 +324,7 @@ class TestEnsureDefaultProfiles:
         for name in BUILTIN_PROFILE_NAMES:
             assert (config_dir / "profiles" / f"{name}.yaml").is_file(), name
 
-    def test_seeded_files_match_builtin_configs(self, tmp_path) -> None:
+    def test_seeded_files_match_builtin_configs(self, tmp_path):
         """[P0] Each seeded YAML file parses back into the exact built-in
         BetSlipConfig (end-to-end: seed -> disk -> _yaml_to_config)."""
         import yaml
@@ -332,7 +336,7 @@ class TestEnsureDefaultProfiles:
             raw = yaml.safe_load((config_dir / "profiles" / f"{name}.yaml").read_text())
             assert asdict(_yaml_to_config(raw)) == asdict(builtin), name
 
-    def test_metadata_stamped_on_every_profile(self, tmp_path) -> None:
+    def test_metadata_stamped_on_every_profile(self, tmp_path):
         """[P1] Every seeded file carries units=1.0, target_payout=None,
         run_daily_count=0 -- run_daily_count=0 keeps built-ins INACTIVE by
         default (cycle-3 documented behaviour: the daily generator ignores
@@ -348,7 +352,7 @@ class TestEnsureDefaultProfiles:
             assert raw["target_payout"] is None, name
             assert raw["run_daily_count"] == 0, name
 
-    def test_runtime_only_keys_nulled_on_disk(self, tmp_path) -> None:
+    def test_runtime_only_keys_nulled_on_disk(self, tmp_path):
         """[P1] date_from/date_to/excluded_urls are stored as explicit None
         so profile files round-trip without dragging stale window state."""
         import yaml
@@ -361,7 +365,7 @@ class TestEnsureDefaultProfiles:
         assert raw["date_to"] is None
         assert raw["excluded_urls"] is None
 
-    def test_idempotent_when_profiles_exist(self, tmp_path) -> None:
+    def test_idempotent_when_profiles_exist(self, tmp_path):
         """[P1] Second run is a no-op: pre-existing profile yaml files
         short-circuit the glob check, user edits are never overwritten."""
         config_dir = tmp_path / "cfg"
@@ -372,7 +376,7 @@ class TestEnsureDefaultProfiles:
         ensure_default_profiles(str(config_dir / "profiles"), settings)
         assert "99.9" in target.read_text()
 
-    def test_seeds_when_dir_has_only_non_yaml_files(self, tmp_path) -> None:
+    def test_seeds_when_dir_has_only_non_yaml_files(self, tmp_path):
         """[P2] A dir holding only .txt files still counts as fresh:
         the guard is any(*.yaml), not a plain emptiness check."""
         config_dir = tmp_path / "cfg"
@@ -383,7 +387,7 @@ class TestEnsureDefaultProfiles:
         ensure_default_profiles(str(profiles_dir), settings)
         assert {p.stem for p in profiles_dir.glob("*.yaml")} == BUILTIN_PROFILE_NAMES
 
-    def test_creates_missing_parent_dirs(self, tmp_path) -> None:
+    def test_creates_missing_parent_dirs(self, tmp_path):
         """[P2] Fully absent config tree is created via mkdir(parents=True)
         -- first app start against an empty volume works."""
         config_dir = tmp_path / "deep" / "nested" / "cfg"
@@ -391,7 +395,7 @@ class TestEnsureDefaultProfiles:
         ensure_default_profiles(str(config_dir / "profiles"), settings)
         assert (config_dir / "profiles" / "high_risk.yaml").is_file()
 
-    def test_seeded_profiles_visible_via_settings_get(self, tmp_path) -> None:
+    def test_seeded_profiles_visible_via_settings_get(self, tmp_path):
         """[P1] SettingsManager DFS fallback surfaces seeded profiles by
         bare name -- the read path logic.py:741 relies on."""
         config_dir = tmp_path / "cfg"
@@ -405,7 +409,7 @@ class TestEnsureDefaultProfiles:
 class TestProfileRoundTrip:
     """[P1] Issue #62: profile YAML round-trip (save -> load -> verify)."""
 
-    def test_custom_config_round_trip(self, tmp_path) -> None:
+    def test_custom_config_round_trip(self, tmp_path):
         """[P0] _config_to_yaml_dict -> disk -> _yaml_to_config returns the
         original BetSlipConfig for every field (runtime-only keys excluded)."""
         original = BetSlipConfig(
@@ -438,7 +442,7 @@ class TestProfileRoundTrip:
         raw = settings.get("my_profile")
         assert asdict(_yaml_to_config(raw)) == asdict(original)
 
-    def test_all_builtin_profiles_round_trip(self, tmp_path) -> None:
+    def test_all_builtin_profiles_round_trip(self, tmp_path):
         """[P1] Every PROFILES entry survives the full disk round-trip."""
         config_dir = tmp_path / "cfg"
         settings = SettingsManager(str(config_dir))
@@ -448,7 +452,7 @@ class TestProfileRoundTrip:
             raw = settings.get(name)
             assert asdict(_yaml_to_config(raw)) == asdict(builtin), name
 
-    def test_round_trip_preserves_metadata(self, tmp_path) -> None:
+    def test_round_trip_preserves_metadata(self, tmp_path):
         """[P2] units/target_payout/run_daily_count ride along in the YAML
         dict and survive disk -- they are profile-file metadata consumed by
         logic.py:741, not BetSlipConfig fields."""
@@ -462,7 +466,7 @@ class TestProfileRoundTrip:
         assert raw["target_payout"] == 42.0
         assert raw["run_daily_count"] == 2
 
-    def test_round_trip_with_out_of_range_source(self, tmp_path) -> None:
+    def test_round_trip_with_out_of_range_source(self, tmp_path):
         """[P2] A hand-edited out-of-range YAML clamps on load -- saved disk
         state stays raw; the config object is always in-bounds."""
         config_dir = tmp_path / "cfg"
@@ -476,7 +480,7 @@ class TestProfileRoundTrip:
         assert cfg.target_odds == 1000.0
         assert cfg.target_legs == 1
 
-    def test_excluded_sources_survive_round_trip(self, tmp_path) -> None:
+    def test_excluded_sources_survive_round_trip(self, tmp_path):
         """[P1] Issue #62: excluded_sources list must survive a full
         save -> load cycle unchanged."""
         sources = ["soccer_vista", "vitibet", "legit_predict"]
@@ -487,7 +491,7 @@ class TestProfileRoundTrip:
         loaded = _yaml_to_config(settings.get("filtered"))
         assert loaded.excluded_sources == sources
 
-    def test_user_profile_coexists_with_builtins(self, tmp_path) -> None:
+    def test_user_profile_coexists_with_builtins(self, tmp_path):
         """[P1] First app start seeds built-ins, then a user-saved custom
         profile coexists on disk -- the ensure guard leaves it untouched on
         the next construction (the real logic.py startup sequence)."""
@@ -502,7 +506,7 @@ class TestProfileRoundTrip:
         assert asdict(_yaml_to_config(raw)) == asdict(BetSlipConfig(target_odds=12.0, target_legs=6))
         assert {p.stem for p in (config_dir / "profiles").glob("*.yaml")} == BUILTIN_PROFILE_NAMES | {"user_custom"}
 
-    def test_default_metadata_on_yaml_dict(self) -> None:
+    def test_default_metadata_on_yaml_dict(self):
         """[P2] _config_to_yaml_dict defaults: units=1.0, target_payout=None,
         run_daily_count=0, runtime-only keys nulled."""
         data = _config_to_yaml_dict(BetSlipConfig())
@@ -512,7 +516,7 @@ class TestProfileRoundTrip:
         for key in ("date_from", "date_to", "excluded_urls"):
             assert data[key] is None
 
-    def test_yaml_dict_contains_every_config_field(self) -> None:
+    def test_yaml_dict_contains_every_config_field(self):
         """[P0] asdict-based serialization must cover the full field set --
         guards against a field added to BetSlipConfig without making it
         into profile files (silent default on round-trip would follow)."""

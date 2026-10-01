@@ -27,7 +27,7 @@ def _read_urls(path):
 
 
 class TestPrepareScrapeP0:
-    def test_creates_chunk_files_with_runner_prefix_and_content(self, tmp_cwd, capsys) -> None:
+    def test_creates_chunk_files_with_runner_prefix_and_content(self, tmp_cwd, capsys):
         crawlers = [StubCrawler([f"https://a.com/{i}" for i in range(5)])]
         out = _run(tmp_cwd, crawlers, capsys=capsys)
         assert (tmp_cwd / "actions-1-urls.txt").is_file()
@@ -37,7 +37,7 @@ class TestPrepareScrapeP0:
         tasks = json.loads(out.strip())
         assert tasks == [{"db_path": "actions-1.db", "urls_file": "actions-1-urls.txt"}]
 
-    def test_per_runner_crawler_list(self, tmp_cwd, capsys) -> None:
+    def test_per_runner_crawler_list(self, tmp_cwd, capsys):
         """Only crawlers registered for the requested runner are used."""
         factory = StubFactory(
             {
@@ -51,7 +51,7 @@ class TestPrepareScrapeP0:
         assert used[0].get_matches_urls_calls == 1
         assert used[1].get_matches_urls_calls == 1
 
-    def test_chunk_math_splits_by_max_runners(self, tmp_cwd, capsys) -> None:
+    def test_chunk_math_splits_by_max_runners(self, tmp_cwd, capsys):
         urls = [f"https://a.com/{i}" for i in range(50)]
         out = _run(tmp_cwd, [StubCrawler(urls)], max_chunk_size={"actions": 2}, capsys=capsys)
         tasks = json.loads(out.strip())
@@ -60,18 +60,18 @@ class TestPrepareScrapeP0:
         assert sum(sizes) == 50
         assert all(s == 25 for s in sizes)
 
-    def test_chunk_size_floor_is_20(self, tmp_cwd, capsys) -> None:
+    def test_chunk_size_floor_is_20(self, tmp_cwd, capsys):
         """chunk_size = max(20, ceil(n/max_runners)) — small collections stay in one chunk."""
         out = _run(tmp_cwd, [StubCrawler(["https://a.com/1"] * 5)], max_chunk_size={"actions": 10}, capsys=capsys)
         tasks = json.loads(out.strip())
         assert len(tasks) == 1
 
-    def test_no_crawlers_exits_1(self, tmp_cwd) -> None:
+    def test_no_crawlers_exits_1(self, tmp_cwd):
         with pytest.raises(SystemExit) as exc:
             prepare_scrape("actions", StubFactory({"actions": []}), {"actions": 100})
         assert exc.value.code == 1
 
-    def test_stdout_tasks_json_matches_files(self, tmp_cwd, capsys) -> None:
+    def test_stdout_tasks_json_matches_files(self, tmp_cwd, capsys):
         crawlers = [StubCrawler([f"https://a.com/{i}" for i in range(60)])]
         out = _run(tmp_cwd, crawlers, max_chunk_size={"actions": 10}, capsys=capsys)
         tasks = json.loads(out.strip())
@@ -85,7 +85,7 @@ class TestPrepareScrapeP0:
 class FlakyCrawler:
     """Fails N times on get_matches_urls then returns payload."""
 
-    def __init__(self, fail_times, payload) -> None:
+    def __init__(self, fail_times, payload):
         self.fail_times = fail_times
         self.payload = payload
         self.calls = 0
@@ -106,7 +106,7 @@ class EmptyCrawler:
 
 
 class TestPrepareScrapeRetryP1:
-    def test_retry_then_success_after_two_failures(self, tmp_cwd, capsys, monkeypatch) -> None:
+    def test_retry_then_success_after_two_failures(self, tmp_cwd, capsys, monkeypatch):
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         flaky = FlakyCrawler(2, ["https://a.com/1"])
@@ -115,7 +115,7 @@ class TestPrepareScrapeRetryP1:
         assert sleeps == [2, 2]
         assert _read_urls(tmp_cwd / "actions-1-urls.txt") == ["https://a.com/1"]
 
-    def test_crawler_erroring_all_three_attempts_is_skipped(self, tmp_cwd, capsys, monkeypatch) -> None:
+    def test_crawler_erroring_all_three_attempts_is_skipped(self, tmp_cwd, capsys, monkeypatch):
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         ok = StubCrawler(["https://b.com/1"])
@@ -124,7 +124,7 @@ class TestPrepareScrapeRetryP1:
         assert dead.calls == 3
         assert _read_urls(tmp_cwd / "actions-1-urls.txt") == ["https://b.com/1"]
 
-    def test_empty_url_list_retries_all_three_attempts(self, tmp_cwd, capsys, monkeypatch) -> None:
+    def test_empty_url_list_retries_all_three_attempts(self, tmp_cwd, capsys, monkeypatch):
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         empty = EmptyCrawler()
@@ -132,7 +132,7 @@ class TestPrepareScrapeRetryP1:
         assert empty.calls == 3
         assert sleeps == [2, 2]
 
-    def test_shuffle_preserves_url_multiset(self, tmp_cwd, capsys) -> None:
+    def test_shuffle_preserves_url_multiset(self, tmp_cwd, capsys):
         urls = [f"https://a.com/{i}" for i in range(40)]
         _run(tmp_cwd, [StubCrawler(urls)], max_chunk_size={"actions": 4}, capsys=capsys)
         got = []
@@ -140,7 +140,7 @@ class TestPrepareScrapeRetryP1:
             got.extend(_read_urls(f))
         assert sorted(got) == sorted(urls)
 
-    def test_retry_loop_breaks_on_success_no_extra_sleep(self, tmp_cwd, capsys, monkeypatch) -> None:
+    def test_retry_loop_breaks_on_success_no_extra_sleep(self, tmp_cwd, capsys, monkeypatch):
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         flaky = FlakyCrawler(1, ["https://a.com/1", "https://a.com/2"])
@@ -150,7 +150,7 @@ class TestPrepareScrapeRetryP1:
 
 
 class TestPrepareScrapeP2:
-    def test_domain_logging_counts_unique_domains(self, tmp_cwd, capsys, caplog) -> None:
+    def test_domain_logging_counts_unique_domains(self, tmp_cwd, capsys, caplog):
         crawlers = [StubCrawler(["https://a.com/1", "https://b.org/2", "https://a.com/3"])]
         with caplog.at_level("INFO", logger="bet_crawler.crawl_core.prepare_scrape"):
             _run(tmp_cwd, crawlers, capsys=capsys)
@@ -162,7 +162,7 @@ class TestPrepareScrapeP2:
         # making the assertion STRONGER.
         assert msg[0] == "Collected 3 URLs across 2 domains: a.com, b.org"
 
-    def test_unknown_runner_defaults_chunk_size_1(self, tmp_cwd, capsys) -> None:
+    def test_unknown_runner_defaults_chunk_size_1(self, tmp_cwd, capsys):
         """max_chunk_size.get(runner, 1) → chunk_size = max(20, n)."""
         urls = [f"https://a.com/{i}" for i in range(45)]
         out = _run(tmp_cwd, [StubCrawler(urls)], runner="ghost", max_chunk_size={}, capsys=capsys)

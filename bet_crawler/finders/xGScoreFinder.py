@@ -1,6 +1,6 @@
 """Match finder for xgscore.pw (browser-rendered predictions)."""
-
 import re
+
 
 from scrape_kit import browser, get_logger
 
@@ -24,7 +24,6 @@ MAX_CONCURRENCY = 1
 
 class xGScoreFinder(BaseMatchFinder):
     """Scrapes xgscore predictions via script-driven browser sessions."""
-
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for xgscore (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
@@ -151,7 +150,7 @@ class xGScoreFinder(BaseMatchFinder):
             if match:
                 try:
                     found_data[field_name] = float(match.group(1))
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     continue
 
         return found_data

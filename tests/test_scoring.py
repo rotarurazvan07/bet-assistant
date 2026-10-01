@@ -133,8 +133,12 @@ class TestAdjustedConsensusFormula:
     def test_shrinkage_k_changes_score_pick_output(self):
         # Larger k pulls consensus toward 50, lowering the quality component.
         leg = make_leg(consensus=90.0, odds=1.5, sources=2)
-        cfg_low_k = make_cfg(quality_vs_balance=1.0, consensus_vs_sources=1.0, consensus_shrinkage_k=1.0)
-        cfg_high_k = make_cfg(quality_vs_balance=1.0, consensus_vs_sources=1.0, consensus_shrinkage_k=10.0)
+        cfg_low_k = make_cfg(
+            quality_vs_balance=1.0, consensus_vs_sources=1.0, consensus_shrinkage_k=1.0
+        )
+        cfg_high_k = make_cfg(
+            quality_vs_balance=1.0, consensus_vs_sources=1.0, consensus_shrinkage_k=10.0
+        )
         quality_low_k = score_pick(leg, 1.5, 10, cfg_low_k)[2]
         quality_high_k = score_pick(leg, 1.5, 10, cfg_high_k)[2]
         assert quality_low_k > quality_high_k
@@ -373,9 +377,9 @@ class TestScorePickPreadjusted:
         # _adjusted_consensus <= 0 -> compute from raw consensus.
         leg_zero = make_leg(consensus=80.0, _adjusted_consensus=0.0)
         leg_plain = make_leg(consensus=80.0)
-        assert score_pick(leg_zero, 1.5, 10, make_cfg(), use_preadjusted=True) == score_pick(
-            leg_plain, 1.5, 10, make_cfg(), use_preadjusted=True
-        )
+        assert score_pick(
+            leg_zero, 1.5, 10, make_cfg(), use_preadjusted=True
+        ) == score_pick(leg_plain, 1.5, 10, make_cfg(), use_preadjusted=True)
 
 
 class TestScorePickExcessPenalty:
@@ -406,7 +410,9 @@ class TestScorePickMovementIntegration:
     def test_confirm_movement_raises_final_score(self):
         cfg = make_cfg()
         plain = make_leg(odds=1.5)
-        moved = make_leg(odds=1.5, odds_movement_direction="down", odds_movement_strength=0.10)
+        moved = make_leg(
+            odds=1.5, odds_movement_direction="down", odds_movement_strength=0.10
+        )
         plain_result = score_pick(plain, 1.5, 10, cfg)
         moved_result = score_pick(moved, 1.5, 10, cfg)
         assert moved_result[1] > plain_result[1]
@@ -416,13 +422,17 @@ class TestScorePickMovementIntegration:
     def test_infirm_movement_lowers_final_score(self):
         cfg = make_cfg()
         plain = make_leg(odds=1.5)
-        moved = make_leg(odds=1.5, odds_movement_direction="up", odds_movement_strength=0.10)
+        moved = make_leg(
+            odds=1.5, odds_movement_direction="up", odds_movement_strength=0.10
+        )
         assert score_pick(moved, 1.5, 10, cfg)[1] < score_pick(plain, 1.5, 10, cfg)[1]
 
     def test_weak_movement_is_ignored(self):
         cfg = make_cfg()  # strength_min auto = 0.05
         plain = make_leg(odds=1.5)
-        weak = make_leg(odds=1.5, odds_movement_direction="down", odds_movement_strength=0.01)
+        weak = make_leg(
+            odds=1.5, odds_movement_direction="down", odds_movement_strength=0.01
+        )
         assert score_pick(weak, 1.5, 10, cfg)[1] == score_pick(plain, 1.5, 10, cfg)[1]
 
     def test_scores_rounded_to_six_decimals(self):
@@ -438,13 +448,17 @@ class TestScorePickWeights:
         cfg = make_cfg(quality_vs_balance=1.0)
         balanced = make_leg(odds=1.5)
         drifted = make_leg(odds=1.30)  # still within lower band -> tier 1
-        assert score_pick(balanced, 1.5, 10, cfg)[1] == pytest.approx(score_pick(drifted, 1.5, 10, cfg)[1], abs=1e-6)
+        assert score_pick(balanced, 1.5, 10, cfg)[1] == pytest.approx(
+            score_pick(drifted, 1.5, 10, cfg)[1], abs=1e-6
+        )
 
     def test_balance_only_config_ignores_quality(self):
         cfg = make_cfg(quality_vs_balance=0.0)
         strong = make_leg(consensus=95.0, sources=10)
         weak = make_leg(consensus=51.0, sources=1)
-        assert score_pick(strong, 1.5, 10, cfg)[1] == pytest.approx(score_pick(weak, 1.5, 10, cfg)[1], abs=1e-6)
+        assert score_pick(strong, 1.5, 10, cfg)[1] == pytest.approx(
+            score_pick(weak, 1.5, 10, cfg)[1], abs=1e-6
+        )
 
     def test_consensus_vs_sources_blend(self):
         # [P0] consensus_vs_sources=1.0 -> quality is pure consensus component.

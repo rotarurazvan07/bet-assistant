@@ -1,4 +1,6 @@
 """Smart-builder API: preview, exclusions and leagues."""
+from __future__ import annotations
+
 
 import math
 
