@@ -1,6 +1,6 @@
 """Match finder for predictz.com predictions."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
@@ -55,6 +55,7 @@ TOP_LEAGUES = {
 
 class PredictzFinder(BaseMatchFinder):
     """Scrapes predictz.com daily prediction listings."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for predictz (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)

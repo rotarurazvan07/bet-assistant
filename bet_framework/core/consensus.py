@@ -80,14 +80,24 @@ def _count_votes(scores: list[dict]):
 
     logger = get_logger(__name__)
     counts = {
-        "home_w": 0, "draw_w": 0, "away_w": 0,
-        "over_25": 0, "under_25": 0,
-        "over_15": 0, "under_15": 0,
-        "over_05": 0, "under_05": 0,
-        "over_35": 0, "under_35": 0,
-        "over_45": 0, "under_45": 0,
-        "btts_y": 0, "btts_n": 0,
-        "dc_1x": 0, "dc_12": 0, "dc_x2": 0,
+        "home_w": 0,
+        "draw_w": 0,
+        "away_w": 0,
+        "over_25": 0,
+        "under_25": 0,
+        "over_15": 0,
+        "under_15": 0,
+        "over_05": 0,
+        "under_05": 0,
+        "over_35": 0,
+        "under_35": 0,
+        "over_45": 0,
+        "under_45": 0,
+        "btts_y": 0,
+        "btts_n": 0,
+        "dc_1x": 0,
+        "dc_12": 0,
+        "dc_x2": 0,
     }
     try:
         for s in scores:
@@ -102,8 +112,11 @@ def _count_votes(scores: list[dict]):
                 counts["draw_w"] += 1
 
             for key, threshold in (
-                ("over_25", 2.5), ("over_15", 1.5), ("over_05", 0.5),
-                ("over_35", 3.5), ("over_45", 4.5),
+                ("over_25", 2.5),
+                ("over_15", 1.5),
+                ("over_05", 0.5),
+                ("over_35", 3.5),
+                ("over_45", 4.5),
             ):
                 if h + a > threshold:
                     counts[key] += 1

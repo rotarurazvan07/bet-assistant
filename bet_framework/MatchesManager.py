@@ -1,6 +1,6 @@
 """Buffered SQLite match store with fuzzy dedup and odds history."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 import json
 from datetime import datetime
@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 
 class NearMiss(NamedTuple):
     """A near-duplicate match pair rejected by the similarity gate."""
+
     home_a: str
     away_a: str
     home_b: str
@@ -34,6 +35,7 @@ class NearMiss(NamedTuple):
 
 class OddsValidationIssue(NamedTuple):
     """An odds sanity problem detected during validation."""
+
     home: str
     away: str
     market: str
@@ -212,14 +214,14 @@ class MatchesManager(BufferedStorageManager):
         """Build the public dict for one row; None (with a warning) when malformed."""
         try:
             return {
-            "home_name": row["home_team_name"],
-            "away_name": row["away_team_name"],
-            "datetime": datetime.fromisoformat(row["datetime"]),
-            "scores": self.deserialize_json(row["predictions_scores"]) or [],
-            "odds": self.deserialize_json(row["odds"]),
-            "result_url": row["result_url"],
-            "league": row["league"],
-        }
+                "home_name": row["home_team_name"],
+                "away_name": row["away_team_name"],
+                "datetime": datetime.fromisoformat(row["datetime"]),
+                "scores": self.deserialize_json(row["predictions_scores"]) or [],
+                "odds": self.deserialize_json(row["odds"]),
+                "result_url": row["result_url"],
+                "league": row["league"],
+            }
         except Exception as exc:
             logger.warning(f"skipping malformed row: {exc}")
             return None
@@ -619,8 +621,10 @@ class MatchesManager(BufferedStorageManager):
             else:
                 direction = "stable"
             significant = False
-            if has_enough_history and direction != "stable" and (
-                abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10
+            if (
+                has_enough_history
+                and direction != "stable"
+                and (abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10)
             ):
                 significant = True
             result[market] = {"direction": direction, "change_pct": change_pct, "significant": significant}
@@ -676,9 +680,7 @@ class MatchesManager(BufferedStorageManager):
 
         fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
         fresh_odds = (
-            fresh_manager.deserialize_json(fresh_odds_json)
-            if (fresh_odds_json and not pd.isna(fresh_odds_json))
-            else {}
+            fresh_manager.deserialize_json(fresh_odds_json) if (fresh_odds_json and not pd.isna(fresh_odds_json)) else {}
         )
         fresh_odds = fresh_odds or {}
 

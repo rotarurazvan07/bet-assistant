@@ -1,6 +1,6 @@
 """Slips API: add, list, delete, validate and generate."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn

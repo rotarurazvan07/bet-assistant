@@ -1,6 +1,6 @@
 """Matches API: filtered, paginated match listing."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 import math
 

@@ -1,6 +1,6 @@
 """Match finder for betexplorer.com odds pages."""
-import time
 
+import time
 
 from scrape_kit import browser, fetch, get_logger
 

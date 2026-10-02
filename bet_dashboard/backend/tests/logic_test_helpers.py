@@ -30,11 +30,10 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from bet_framework.core.Slip import CandidateLeg  # noqa: E402
-from bet_framework.core.type_defs import MarketLabel, MarketType  # noqa: E402
-
 from core.logic import AppLogic  # noqa: E402
 
+from bet_framework.core.Slip import CandidateLeg  # noqa: E402
+from bet_framework.core.type_defs import MarketLabel, MarketType  # noqa: E402
 
 # ── FakeTicker: thread-free test double for TickerService ────────────────────
 
@@ -44,7 +43,7 @@ class FakeTicker:
 
     instances: list[FakeTicker] = []
 
-    def __init__(self, name, on_tick, interval=60, predicate=None):
+    def __init__(self, name, on_tick, interval=60, predicate=None) -> None:
         self.name = name
         self.on_tick = on_tick
         self.interval = interval
@@ -53,10 +52,10 @@ class FakeTicker:
         self._force_run = False
         FakeTicker.instances.append(self)
 
-    def set_enabled(self, enabled):
+    def set_enabled(self, enabled) -> None:
         self.enabled = enabled
 
-    def update_config(self, interval=None, trigger_now=False):
+    def update_config(self, interval=None, trigger_now: bool = False) -> None:
         if interval is not None:
             self.interval = interval
 
@@ -108,7 +107,7 @@ def make_match_row_db(i=0, **overrides):
     return row
 
 
-def seed_matches_db(db_path, rows):
+def seed_matches_db(db_path, rows) -> None:
     """Insert raw rows into a matches SQLite DB before AppLogic construction."""
     conn = sqlite3.connect(db_path)
     conn.execute(
@@ -144,12 +143,12 @@ def seed_matches_db(db_path, rows):
 # ── Config scaffolding ───────────────────────────────────────────────────────
 
 
-def _write_yaml(path: Path, data):
+def _write_yaml(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
 
 
-def write_config(config_dir, services=None, runtime_state=None, profiles=None):
+def write_config(config_dir, services=None, runtime_state=None, profiles=None) -> None:
     """Write a throwaway config dir consumed by SettingsManager (DFS lookup)."""
     config_dir = Path(config_dir)
     default_services = {"generate_hour": 8, "generate_minute": 0, "toggles": {}}
@@ -255,11 +254,11 @@ def make_candidate(i=0, odds=1.9, **overrides):
 class FakeHTTPResponse:
     """Context-manager stand-in for urllib urlopen() responses."""
 
-    def __init__(self, headers=None):
+    def __init__(self, headers=None) -> None:
         self.headers = headers if headers is not None else {}
 
     def __enter__(self):
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> bool:
         return False

@@ -10,14 +10,13 @@ against tmp_path SQLite DBs — never workspace DBs.
 from __future__ import annotations
 
 from bet_framework.core import leagues as framework_leagues
-
 from tests.logic_test_helpers import build_app, make_match_row_db
 
 
 class TestAppLogicLeagueHelpers:
     """League merging between framework definitions and DB contents."""
 
-    def test_get_leagues_includes_framework_leagues(self, tmp_path, monkeypatch):
+    def test_get_leagues_includes_framework_leagues(self, tmp_path, monkeypatch) -> None:
         """[P0] Built-in framework leagues are always present in the merged list."""
         env = build_app(tmp_path, monkeypatch, rows=[])
         try:
@@ -29,7 +28,7 @@ class TestAppLogicLeagueHelpers:
             env.app._assistant.conn.close()
             env.app._matches_manager.close()
 
-    def test_get_leagues_merges_db_leagues_with_framework(self, tmp_path, monkeypatch):
+    def test_get_leagues_merges_db_leagues_with_framework(self, tmp_path, monkeypatch) -> None:
         """[P0] DB-only leagues are unioned with the framework set (deduped)."""
         row = make_match_row_db(league="Regional Test League")
         env = build_app(tmp_path, monkeypatch, rows=[row])
@@ -42,7 +41,7 @@ class TestAppLogicLeagueHelpers:
             env.app._assistant.conn.close()
             env.app._matches_manager.close()
 
-    def test_get_leagues_returns_sorted_list(self, tmp_path, monkeypatch):
+    def test_get_leagues_returns_sorted_list(self, tmp_path, monkeypatch) -> None:
         """[P1] The merged list is sorted for deterministic display."""
         env = build_app(tmp_path, monkeypatch, rows=[make_match_row_db(league="Zeta League")])
         try:
@@ -52,7 +51,7 @@ class TestAppLogicLeagueHelpers:
             env.app._assistant.conn.close()
             env.app._matches_manager.close()
 
-    def test_get_leagues_empty_db_returns_framework_only(self, tmp_path, monkeypatch):
+    def test_get_leagues_empty_db_returns_framework_only(self, tmp_path, monkeypatch) -> None:
         """[P1] With an empty matches DataFrame the framework set stands alone."""
         env = build_app(tmp_path, monkeypatch, rows=[])
         try:

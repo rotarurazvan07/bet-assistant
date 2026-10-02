@@ -33,11 +33,7 @@ def _clean_league(league) -> str | None:
     """Normalize the league label; NaN/None-like values become None."""
     import math
 
-    if (
-        league is None
-        or (isinstance(league, float) and math.isnan(league))
-        or str(league).lower() in ("nan", "none", "null")
-    ):
+    if league is None or (isinstance(league, float) and math.isnan(league)) or str(league).lower() in ("nan", "none", "null"):
         return None
     return str(league)
 

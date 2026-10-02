@@ -1,6 +1,6 @@
 """Match finder for soccervista.com league pages."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 import datetime
@@ -54,6 +54,7 @@ TOP_LEAGUES = {
 
 class SoccerVistaFinder_per_league(BaseMatchFinder):
     """Scrapes soccervista league prediction listings."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)

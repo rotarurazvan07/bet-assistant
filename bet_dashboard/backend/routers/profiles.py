@@ -1,6 +1,6 @@
 """Profiles API: list, save and delete builder profiles."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 from core.config_helpers import _config_to_yaml_dict
 from core.schemas import ProfileIn

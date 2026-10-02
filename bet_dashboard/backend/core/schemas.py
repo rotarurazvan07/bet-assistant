@@ -1,6 +1,6 @@
 """Pydantic request/response models for the API."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 from pydantic import BaseModel
 
@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 class BetSlipConfigIn(BaseModel):
     """Builder config payload for preview requests."""
+
     target_odds: float = 3.0
     target_legs: int = 3
     max_legs_overflow: int | None = None
@@ -38,11 +39,13 @@ class BetSlipConfigIn(BaseModel):
 
 class ExcludeUrlIn(BaseModel):
     """URL payload for exclusion endpoints."""
+
     url: str
 
 
 class CandidateLegOut(BaseModel):
     """Response model for one builder candidate leg."""
+
     match_name: str
     datetime: str | None = None
     market: str
@@ -61,6 +64,7 @@ class CandidateLegOut(BaseModel):
 
 class PreviewOut(BaseModel):
     """Response model for the builder preview result."""
+
     legs: list[CandidateLegOut]
     total_odds: float
     pending_urls: list[str]
@@ -71,6 +75,7 @@ class PreviewOut(BaseModel):
 
 class ProfileIn(BaseModel):
     """Payload for saving a named builder profile."""
+
     name: str
     target_odds: float = 3.0
     target_legs: int = 3
@@ -105,6 +110,7 @@ class ProfileIn(BaseModel):
 
 class ManualLegIn(BaseModel):
     """One manually-built leg in an add-slip payload."""
+
     match_name: str
     market: str
     market_type: str
@@ -119,6 +125,7 @@ class ManualLegIn(BaseModel):
 
 class SlipIn(BaseModel):
     """Payload for adding a slip (profile, legs, units)."""
+
     profile: str = "manual"
     legs: list[ManualLegIn]
     units: float = 1.0
@@ -126,6 +133,7 @@ class SlipIn(BaseModel):
 
 class BetLegOut(BaseModel):
     """Response model for one slip leg."""
+
     match_name: str
     datetime: str | None = None
     market: str
@@ -139,6 +147,7 @@ class BetLegOut(BaseModel):
 
 class BetSlipOut(BaseModel):
     """Response model for one slip with its legs."""
+
     slip_id: int
     date_generated: str
     profile: str
@@ -153,6 +162,7 @@ class BetSlipOut(BaseModel):
 
 class ServicesSettingsIn(BaseModel):
     """Payload for service scheduler settings."""
+
     generate_hour: int
     generate_minute: int = 0
 
@@ -162,12 +172,14 @@ class ServicesSettingsIn(BaseModel):
 
 class OddsSnapshotOut(BaseModel):
     """Response model for an odds snapshot."""
+
     timestamp: str  # ISO datetime when snapshot was captured
     odds: dict  # Full odds object {home, draw, away, over_25, under_25, ...}
 
 
 class OddsHistoryOut(BaseModel):
     """Response model for odds history rows."""
+
     match_id: int
     match_name: str
     datetime: str
@@ -177,6 +189,7 @@ class OddsHistoryOut(BaseModel):
 
 class OddsMovementSummary(BaseModel):
     """Per-market odds movement directions and strengths."""
+
     home: str | None = None  # "up", "down", "stable", or None
     draw: str | None = None
     away: str | None = None

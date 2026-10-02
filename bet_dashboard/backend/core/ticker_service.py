@@ -1,6 +1,6 @@
 """Ticker daemons driving pull, generate and verify services."""
-import threading
 
+import threading
 from collections.abc import Callable
 
 # Default polling interval (1 minute)
@@ -81,9 +81,8 @@ class TickerService:
                 continue
 
             # Check predicate (unless forced)
-            if self.predicate and not self._force_run:
-                if not self.predicate():
-                    continue
+            if self.predicate and not self._force_run and not self.predicate():
+                continue
 
             try:
                 # If we reached here, it's time to run!

@@ -15,9 +15,7 @@ import json
 import threading
 
 import pytest
-
 from core.ws import ConnectionManager
-
 
 # ── Fake WebSocket ────────────────────────────────────────────────────────────
 
@@ -56,24 +54,24 @@ def make_payload(event: str = "slips_updated", **extra) -> dict:
 
 
 class TestConnectDisconnect:
-    def test_connect_awaits_accept_and_registers(self, manager):
+    def test_connect_awaits_accept_and_registers(self, manager) -> None:
         ws = FakeWebSocket()
         asyncio.run(manager.connect(ws))
         assert ws.accepted is True
         assert manager._connections == [ws]
 
-    def test_disconnect_removes_registered_connection(self, manager):
+    def test_disconnect_removes_registered_connection(self, manager) -> None:
         ws = FakeWebSocket()
         manager._connections.append(ws)
         manager.disconnect(ws)
         assert ws not in manager._connections
 
-    def test_disconnect_unknown_connection_is_noop(self, manager):
+    def test_disconnect_unknown_connection_is_noop(self, manager) -> None:
         ws = FakeWebSocket()
         manager.disconnect(ws)
         assert manager._connections == []
 
-    def test_disconnect_twice_is_idempotent(self, manager):
+    def test_disconnect_twice_is_idempotent(self, manager) -> None:
         ws = FakeWebSocket()
         manager._connections.append(ws)
         manager.disconnect(ws)
@@ -85,7 +83,7 @@ class TestConnectDisconnect:
 
 
 class TestBroadcast:
-    def test_broadcast_delivers_json_to_all_clients(self, manager):
+    def test_broadcast_delivers_json_to_all_clients(self, manager) -> None:
         payload = make_payload("slips_updated", live_data={"n": 1})
         first, second = FakeWebSocket(), FakeWebSocket()
         manager._connections.extend([first, second])
@@ -93,7 +91,7 @@ class TestBroadcast:
         assert json.loads(first.sent[0]) == payload
         assert json.loads(second.sent[0]) == payload
 
-    def test_broadcast_prunes_dead_connection_and_keeps_survivors(self, manager):
+    def test_broadcast_prunes_dead_connection_and_keeps_survivors(self, manager) -> None:
         dead = FakeWebSocket(fail_on_send=True)
         live = FakeWebSocket()
         manager._connections.extend([dead, live])
@@ -102,7 +100,7 @@ class TestBroadcast:
         assert manager._connections == [live]
         assert len(live.sent) == 1
 
-    def test_broadcast_to_zero_clients_is_noop(self, manager):
+    def test_broadcast_to_zero_clients_is_noop(self, manager) -> None:
         asyncio.run(manager.broadcast(make_payload()))
         assert manager._connections == []
 
@@ -113,7 +111,7 @@ class TestBroadcast:
 class TestBroadcastSyncGuards:
     """[P0] broadcast_sync must be a silent no-op without a usable loop."""
 
-    def test_set_loop_stores_loop_reference(self, manager):
+    def test_set_loop_stores_loop_reference(self, manager) -> None:
         loop = asyncio.new_event_loop()
         try:
             manager.set_loop(loop)
@@ -121,11 +119,11 @@ class TestBroadcastSyncGuards:
         finally:
             loop.close()
 
-    def test_broadcast_sync_noop_when_loop_unset(self, manager):
+    def test_broadcast_sync_noop_when_loop_unset(self, manager) -> None:
         manager.broadcast_sync(make_payload())  # _loop is None — must not raise
         assert manager._connections == []
 
-    def test_broadcast_sync_noop_when_loop_closed(self, manager):
+    def test_broadcast_sync_noop_when_loop_closed(self, manager) -> None:
         loop = asyncio.new_event_loop()
         loop.close()
         manager.set_loop(loop)
@@ -143,7 +141,7 @@ class BackgroundLoop:
     set_event_loop needed (run_coroutine_threadsafe targets the loop directly).
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.loop = asyncio.new_event_loop()
         self._ready = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True, name="ws-test-loop")
@@ -170,7 +168,7 @@ def bg_loop():
 class TestBroadcastSyncRealPath:
     """[P0] Thread-safe broadcast: sync thread → run_coroutine_threadsafe → loop."""
 
-    def test_broadcast_sync_delivers_via_run_coroutine_threadsafe(self, manager, bg_loop):
+    def test_broadcast_sync_delivers_via_run_coroutine_threadsafe(self, manager, bg_loop) -> None:
         manager.set_loop(bg_loop.loop)
         ws = FakeWebSocket()
         manager._connections.append(ws)
@@ -180,7 +178,7 @@ class TestBroadcastSyncRealPath:
         assert received["event"] == "service_toggled"
         assert received["name"] == "puller"
 
-    def test_broadcast_sync_multiple_clients_all_receive(self, manager, bg_loop):
+    def test_broadcast_sync_multiple_clients_all_receive(self, manager, bg_loop) -> None:
         manager.set_loop(bg_loop.loop)
         first, second = FakeWebSocket(), FakeWebSocket()
         manager._connections.extend([first, second])

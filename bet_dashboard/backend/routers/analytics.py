@@ -1,6 +1,6 @@
 """Analytics API: aggregated stats and chart datasets."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 # Import analytics utilities
 from core.analytics_utils import (

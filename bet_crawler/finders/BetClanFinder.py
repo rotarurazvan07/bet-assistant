@@ -1,6 +1,6 @@
 """Match finder for betclan.com daily tips."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 

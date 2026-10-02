@@ -1,6 +1,6 @@
 """System API: pull, status, health and WS events."""
-from __future__ import annotations
 
+from __future__ import annotations
 
 import logging
 

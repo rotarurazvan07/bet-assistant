@@ -1,6 +1,6 @@
 """Match finder for oddsportal.com match pages."""
-import threading
 
+import threading
 import time
 
 from scrape_kit import browser, fetch, get_logger
@@ -265,6 +265,7 @@ ALL_LINKS = [
 
 class OddsPortalFinder(BaseMatchFinder):
     """Scrapes oddsportal matches with per-market odds tabs."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for oddsportal (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
@@ -412,9 +413,7 @@ class OddsPortalFinder(BaseMatchFinder):
         """Click a market tab and return its expanded odd-container cells."""
         assert session.click("li.odds-item", tab_label), "Click failed"
         soup = BeautifulSoup(session.page.content(), "html.parser")
-        return soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all(
-            "div", {"data-testid": "odd-container"}
-        )
+        return soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all("div", {"data-testid": "odd-container"})
 
     def _scrape_tab_1x2(self, session, thread_name: str):
         """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure)."""
@@ -470,8 +469,11 @@ class OddsPortalFinder(BaseMatchFinder):
             assert session.click("li.odds-item", "Over/Under"), "Click failed"
             soup = BeautifulSoup(session.page.content(), "html.parser")
             buckets = {
-                "+0.5": (0, 1), "+1.5": (2, 3), "+2.5": (4, 5),
-                "+3.5": (6, 7), "+4.5": (8, 9),
+                "+0.5": (0, 1),
+                "+1.5": (2, 3),
+                "+2.5": (4, 5),
+                "+3.5": (6, 7),
+                "+4.5": (8, 9),
             }
             for row in soup.find_all("div", {"data-testid": "over-under-collapsed-row"}):
                 name = row.find("div", {"data-testid": "over-under-collapsed-option-box"}).get_text(strip=True)

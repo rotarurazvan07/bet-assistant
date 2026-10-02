@@ -385,14 +385,24 @@ class BetAssistant(BaseStorageManager):
         return row_data
 
     _ODDS_KEY_MAP = {
-        "home": "home", "draw": "draw", "away": "away",
-        "over_15": "over_15", "under_15": "under_15",
-        "over_25": "over_25", "under_25": "under_25",
-        "btts_yes": "btts_y", "btts_no": "btts_n",
-        "over_05": "over_05", "under_05": "under_05",
-        "over_35": "over_35", "under_35": "under_35",
-        "over_45": "over_45", "under_45": "under_45",
-        "dc_1x": "dc_1x", "dc_12": "dc_12", "dc_x2": "dc_x2",
+        "home": "home",
+        "draw": "draw",
+        "away": "away",
+        "over_15": "over_15",
+        "under_15": "under_15",
+        "over_25": "over_25",
+        "under_25": "under_25",
+        "btts_yes": "btts_y",
+        "btts_no": "btts_n",
+        "over_05": "over_05",
+        "under_05": "under_05",
+        "over_35": "over_35",
+        "under_35": "under_35",
+        "over_45": "over_45",
+        "under_45": "under_45",
+        "dc_1x": "dc_1x",
+        "dc_12": "dc_12",
+        "dc_x2": "dc_x2",
     }
 
     def _flatten_odds(self, odds: dict) -> dict:
@@ -898,7 +908,9 @@ class BetAssistant(BaseStorageManager):
 
             for m_type, market_cols in MARKET_MAP.items():
                 for cons_col, odds_col, label in market_cols:
-                    leg = self._cell_to_candidate(row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores)
+                    leg = self._cell_to_candidate(
+                        row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores
+                    )
                     if leg is not None:
                         candidates.append(leg)
 
@@ -918,9 +930,7 @@ class BetAssistant(BaseStorageManager):
         league = row.get("league", None)
         if pd.isna(league):
             league = None
-        if cfg.included_leagues and (league is None or league not in cfg.included_leagues):
-            return False
-        return True
+        return not (cfg.included_leagues and (league is None or league not in cfg.included_leagues))
 
     def _cell_to_candidate(self, row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores):
         """Build a CandidateLeg from one market cell if it passes all gate filters."""

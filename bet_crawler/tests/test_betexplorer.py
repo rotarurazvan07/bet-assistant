@@ -10,6 +10,7 @@ import importlib
 import pytest
 
 from bet_crawler.finders.BetExplorerFinder import BETEXPLORER_NAME, BetExplorerFinder
+
 from .finder_test_helpers import fake_browser, load_fixture, make_finder, patch_fetch, relax_date_window
 
 be = importlib.import_module("bet_crawler.finders.BetExplorerFinder")
@@ -30,7 +31,7 @@ class _FrozenDatetime(dtmod.datetime):
 
 
 @pytest.fixture(autouse=True)
-def _freeze_discovery_clock(monkeypatch):
+def _freeze_discovery_clock(monkeypatch) -> None:
     monkeypatch.setattr(be, "datetime", _FrozenDatetime)
 
 
@@ -40,7 +41,7 @@ def _finder(**kw):
 
 
 class TestDiscovery:
-    def test_json_ld_discovery_filters_and_dedupes(self, monkeypatch):
+    def test_json_ld_discovery_filters_and_dedupes(self, monkeypatch) -> None:
         url = be.TOP_LEAGUES[0]
         patch_fetch(monkeypatch, be, {url: load_fixture("betexplorer", "league.html")})
         monkeypatch.setattr(be, "TOP_LEAGUES", [url])
@@ -49,7 +50,7 @@ class TestDiscovery:
         # in-window scheduled kept; out-window + postponed (dict status) excluded
         assert urls == ["https://www.betexplorer.com/match/in-window-1/"]
 
-    def test_fetch_error_continues_to_next_league(self, monkeypatch):
+    def test_fetch_error_continues_to_next_league(self, monkeypatch) -> None:
         def boom(url, **kw):
             raise RuntimeError("network down")
 
@@ -60,15 +61,15 @@ class TestDiscovery:
 
 
 class TestGetMatches:
-    def test_empty_urls_short_circuit(self):
+    def test_empty_urls_short_circuit(self) -> None:
         finder, collector = _finder()
         finder.get_matches([])
         assert len(collector) == 0
 
-    def test_single_concurrency_direct_batch(self, monkeypatch):
+    def test_single_concurrency_direct_batch(self, monkeypatch) -> None:
         seen = []
 
-        def fake_batch(self, urls):
+        def fake_batch(self, urls) -> None:
             seen.append(list(urls))
 
         monkeypatch.setattr(be, "MAX_CONCURRENCY", 1)
@@ -79,7 +80,7 @@ class TestGetMatches:
 
 
 class TestProcessUrlBatch:
-    def _session_map(self, monkeypatch, fetch_error=False):
+    def _session_map(self, monkeypatch, fetch_error: bool = False):
         base_html = load_fixture("betexplorer", "match_base.html")
         x2 = load_fixture("betexplorer", "match_1x2.html")
         btts = load_fixture("betexplorer", "match_btts.html")
@@ -106,7 +107,7 @@ class TestProcessUrlBatch:
         err = ("https://www.betexplorer.com/match/in-window-1/",) if fetch_error else ()
         return fake_browser(monkeypatch, be, content_map, fetch_error_urls=err)
 
-    def test_full_odds_flow_adds_match(self, monkeypatch):
+    def test_full_odds_flow_adds_match(self, monkeypatch) -> None:
         self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.betexplorer.com/match/in-window-1/"])
@@ -127,7 +128,7 @@ class TestProcessUrlBatch:
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
 
-    def test_retry_after_fetch_error(self, monkeypatch):
+    def test_retry_after_fetch_error(self, monkeypatch) -> None:
         session = self._session_map(monkeypatch, fetch_error=True)
         calls = {"n": 0}
         orig_fetch = session.fetch
@@ -144,14 +145,14 @@ class TestProcessUrlBatch:
         finder._process_url_batch(["https://www.betexplorer.com/match/in-window-1/"])
         assert len(collector) == 1
 
-    def test_missing_critical_selectors_skips_url(self, monkeypatch):
+    def test_missing_critical_selectors_skips_url(self, monkeypatch) -> None:
         content_map = {"https://www.betexplorer.com/match/empty/": "<html><body><p>nothing</p></body></html>"}
         fake_browser(monkeypatch, be, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.betexplorer.com/match/empty/"])
         assert len(collector) == 0
 
-    def test_broken_page_no_crash(self, monkeypatch):
+    def test_broken_page_no_crash(self, monkeypatch) -> None:
         content_map = {"https://www.betexplorer.com/match/broken/": load_fixture("betexplorer", "broken.html")}
         fake_browser(monkeypatch, be, content_map)
         finder, collector = _finder()
@@ -160,5 +161,5 @@ class TestProcessUrlBatch:
 
 
 class TestSourceName:
-    def test_name_constant(self):
+    def test_name_constant(self) -> None:
         assert BETEXPLORER_NAME == "betexplorer"

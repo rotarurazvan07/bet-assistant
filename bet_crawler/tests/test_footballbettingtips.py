@@ -3,9 +3,11 @@ test_footballbettingtips.py
 """
 
 import importlib
-
 from datetime import date, timedelta
-from bet_crawler.finders.FootballBettingTipsFinder import FOOTBALLBETTINGTIPS_NAME as NAME, FootballBettingTipsFinder
+
+from bet_crawler.finders.FootballBettingTipsFinder import FOOTBALLBETTINGTIPS_NAME as NAME
+from bet_crawler.finders.FootballBettingTipsFinder import FootballBettingTipsFinder
+
 from .finder_test_helpers import load_fixture, make_finder, relax_date_window
 
 fbt = importlib.import_module("bet_crawler.finders.FootballBettingTipsFinder")
@@ -17,7 +19,7 @@ def _finder(**kw):
 
 
 class TestFootballBettingTips:
-    def test_url_construction_uses_today_and_tomorrow(self):
+    def test_url_construction_uses_today_and_tomorrow(self) -> None:
         finder, _ = _finder()
         urls = finder.get_matches_urls()
         today = date.today()
@@ -25,7 +27,7 @@ class TestFootballBettingTips:
         assert f"https://www.footballbettingtips.org/tips/{(today + timedelta(days=1)).strftime('%Y-%m-%d')}.html" in urls
         assert len(urls) == 2
 
-    def test_parse_page_extracts_rows_with_odds(self):
+    def test_parse_page_extracts_rows_with_odds(self) -> None:
         finder, collector = _finder(contributes_odds=True)
         finder._parse_page("u", load_fixture("footballbettingtips", "page.html"))
         assert len(collector) == 2
@@ -39,20 +41,20 @@ class TestFootballBettingTips:
         assert m.odds.draw == 3.40
         assert m.odds.away == 3.75
 
-    def test_row_without_anchor_skipped(self):
+    def test_row_without_anchor_skipped(self) -> None:
         finder, collector = _finder()
         finder._parse_page("u", load_fixture("footballbettingtips", "page.html"))
         names = [m.home_team for m in collector.matches]
         assert "header-less row skipped" not in str(names)
 
-    def test_missing_odds_fall_back_to_none(self):
+    def test_missing_odds_fall_back_to_none(self) -> None:
         html = load_fixture("footballbettingtips", "page.html").replace('class="desktop"', 'class="laptop"')
         finder, collector = _finder(contributes_odds=True)
         finder._parse_page("u", html)
         assert len(collector) == 2
         assert all(m.odds is None for m in collector.matches)
 
-    def test_broken_page_no_crash(self):
+    def test_broken_page_no_crash(self) -> None:
         finder, collector = _finder()
         finder._parse_page("u", load_fixture("footballbettingtips", "broken.html"))
         assert len(collector) == 0

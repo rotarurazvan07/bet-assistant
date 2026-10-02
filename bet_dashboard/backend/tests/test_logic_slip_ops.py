@@ -16,7 +16,6 @@ from types import SimpleNamespace
 import pytest
 
 from bet_framework.core.Slip import BetSlipConfig, LegOutcomeInfo
-
 from tests.logic_test_helpers import (
     build_app,
     make_candidate,
@@ -54,7 +53,7 @@ class TestAppLogicSlipOperations:
 
     # ── build_slip ──────────────────────────────────────────────────────────
 
-    def test_build_slip_respects_excluded_sources_from_config(self, app_env):
+    def test_build_slip_respects_excluded_sources_from_config(self, app_env) -> None:
         """[P0] cfg.excluded_sources triggers a consensus-recalculating reload."""
         app = app_env.app
         cfg = _slip_cfg(excluded_sources=["windrawwin"])
@@ -66,7 +65,7 @@ class TestAppLogicSlipOperations:
         assert legs, "expected at least one leg from 3 viable matches"
         assert all(leg.consensus >= 50.0 for leg in legs)
 
-    def test_build_slip_with_none_excluded_sources_reloads_all(self, app_env):
+    def test_build_slip_with_none_excluded_sources_reloads_all(self, app_env) -> None:
         """[P1] excluded_sources=None is an explicit no-filter reload."""
         app = app_env.app
         # Force a filtered state first so the reload is observable.
@@ -75,7 +74,7 @@ class TestAppLogicSlipOperations:
         assert app.match_df.iloc[0]["sources"] == 4  # reload with [] restored all
         assert legs
 
-    def test_build_slip_passes_extra_excluded_urls(self, app_env):
+    def test_build_slip_passes_extra_excluded_urls(self, app_env) -> None:
         """[P1] extra_excluded_urls are skipped on top of config exclusions."""
         app = app_env.app
         urls = ["https://example.com/match/0", "https://example.com/match/1"]
@@ -83,7 +82,7 @@ class TestAppLogicSlipOperations:
         assert legs
         assert all(leg.result_url not in urls for leg in legs)
 
-    def test_build_slip_empty_df_returns_no_legs(self, tmp_path, monkeypatch):
+    def test_build_slip_empty_df_returns_no_legs(self, tmp_path, monkeypatch) -> None:
         """[P2] With no matches loaded the build is an empty list."""
         env = build_app(tmp_path, monkeypatch, rows=[])
         try:
@@ -94,7 +93,7 @@ class TestAppLogicSlipOperations:
 
     # ── build_preview ───────────────────────────────────────────────────────
 
-    def test_build_preview_uses_manual_exclusions_only(self, app_env):
+    def test_build_preview_uses_manual_exclusions_only(self, app_env) -> None:
         """[P0] Preview excludes only manual URLs, not pending-slip URLs."""
         app = app_env.app
         # Seed a pending slip whose leg URL should still appear in previews.
@@ -105,7 +104,7 @@ class TestAppLogicSlipOperations:
         assert "https://example.com/match/1" not in urls  # manual exclusion honored
         assert "https://example.com/match/0" in urls or "https://example.com/match/2" in urls
 
-    def test_build_preview_without_manual_exclusions_shows_pending(self, app_env):
+    def test_build_preview_without_manual_exclusions_shows_pending(self, app_env) -> None:
         """[P1] Without manual exclusions pending-slip matches still preview."""
         app = app_env.app
         seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0, legs=[make_leg_row()])
@@ -113,7 +112,7 @@ class TestAppLogicSlipOperations:
         urls = {leg.result_url for leg in legs}
         assert "https://example.com/match/0" in urls  # pending URL NOT hidden in preview
 
-    def test_build_preview_respects_cfg_excluded_sources(self, app_env):
+    def test_build_preview_respects_cfg_excluded_sources(self, app_env) -> None:
         """[P1] Preview also honors cfg.excluded_sources via the same reload path."""
         app = app_env.app
         app.build_preview(_slip_cfg(excluded_sources=["windrawwin"]))
@@ -121,7 +120,7 @@ class TestAppLogicSlipOperations:
 
     # ── save_slip ───────────────────────────────────────────────────────────
 
-    def test_save_slip_persists_profile_units_and_legs(self, app_env):
+    def test_save_slip_persists_profile_units_and_legs(self, app_env) -> None:
         """[P0] save_slip returns the new id and stores legs verbatim."""
         app = app_env.app
         leg = make_candidate(odds=1.9)
@@ -133,13 +132,14 @@ class TestAppLogicSlipOperations:
         assert slips[0].total_odds == 1.9
         assert slips[0].legs[0].match_name == leg.match_name
         assert slips[0].slip_status == "Pending"
+
     # ── generate_slips ──────────────────────────────────────────────────────
 
     def _active_profile_tuple(self, **overrides):
         cfg = _slip_cfg(**overrides)
         return cfg, 1.0, 1, None
 
-    def test_generate_slips_loops_profiles_and_count(self, app_env):
+    def test_generate_slips_loops_profiles_and_count(self, app_env) -> None:
         """[P0] Each profile generates run_daily_count slips; ids are collected."""
         app = app_env.app
         profiles = {"p1": (self._active_profile_tuple()[0], 1.0, 2, None)}
@@ -149,7 +149,7 @@ class TestAppLogicSlipOperations:
         assert len(slips) == 2
         assert all(s.slip_status == "Pending" for s in slips)
 
-    def test_generate_slips_auto_excludes_used_urls(self, app_env):
+    def test_generate_slips_auto_excludes_used_urls(self, app_env) -> None:
         """[P0] build_slip_auto_exclude never reuses a URL already in a slip."""
         app = app_env.app
         app.generate_slips({"p1": (self._active_profile_tuple()[0], 1.0, 3, None)})
@@ -158,7 +158,7 @@ class TestAppLogicSlipOperations:
         assert sorted(urls) == [f"https://example.com/match/{i}" for i in range(3)]
         assert len(urls) == len(set(urls))
 
-    def test_generate_slips_dynamic_units_from_target_payout(self, app_env):
+    def test_generate_slips_dynamic_units_from_target_payout(self, app_env) -> None:
         """[P0] target_payout recalculates units: payout / total_odds rounded to 1dp."""
         app = app_env.app
         results = app.generate_slips({"p": (self._active_profile_tuple()[0], 1.0, 1, 10.0)})
@@ -167,13 +167,13 @@ class TestAppLogicSlipOperations:
         assert slip.total_odds == 1.9
         assert slip.units == 5.3  # round(10 / 1.9, 1)
 
-    def test_generate_slips_zero_target_payout_keeps_units(self, app_env):
+    def test_generate_slips_zero_target_payout_keeps_units(self, app_env) -> None:
         """[P2] target_payout=0 is falsy → configured units are kept."""
         app = app_env.app
         app.generate_slips({"p": (self._active_profile_tuple()[0], 2.0, 1, 0)})
         assert app.get_slips("p")[0].units == 2.0
 
-    def test_generate_slips_no_viable_matches_returns_empty(self, app_env):
+    def test_generate_slips_no_viable_matches_returns_empty(self, app_env) -> None:
         """[P1] When no legs can be built the profile yields no slips."""
         app = app_env.app
         cfg = _slip_cfg(consensus_floor=99.9)
@@ -184,50 +184,68 @@ class TestAppLogicSlipOperations:
     # ── get_slips filters ───────────────────────────────────────────────────
 
     @staticmethod
-    def _seed_three_slips(app):
-        seed_slip(app, date_generated="2030-01-01T10:00:00", total_odds=2.0, units=1.0,
-                  legs=[make_leg_row(result_url="https://example.com/match/0")], profile="a")
-        seed_slip(app, date_generated="2030-01-02T10:00:00", total_odds=3.0, units=1.0,
-                  legs=[make_leg_row(result_url="https://example.com/match/1")], profile="b")
-        seed_slip(app, date_generated="2030-01-03T10:00:00", total_odds=4.0, units=1.0,
-                  legs=[make_leg_row(result_url="https://example.com/match/2")], profile="c")
+    def _seed_three_slips(app) -> None:
+        seed_slip(
+            app,
+            date_generated="2030-01-01T10:00:00",
+            total_odds=2.0,
+            units=1.0,
+            legs=[make_leg_row(result_url="https://example.com/match/0")],
+            profile="a",
+        )
+        seed_slip(
+            app,
+            date_generated="2030-01-02T10:00:00",
+            total_odds=3.0,
+            units=1.0,
+            legs=[make_leg_row(result_url="https://example.com/match/1")],
+            profile="b",
+        )
+        seed_slip(
+            app,
+            date_generated="2030-01-03T10:00:00",
+            total_odds=4.0,
+            units=1.0,
+            legs=[make_leg_row(result_url="https://example.com/match/2")],
+            profile="c",
+        )
 
-    def test_get_slips_profile_list_filter(self, app_env):
+    def test_get_slips_profile_list_filter(self, app_env) -> None:
         """[P0] A profile list returns only slips from those profiles."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips(["a", "b"])
         assert {s.profile for s in out} == {"a", "b"}
 
-    def test_get_slips_single_profile_filter(self, app_env):
+    def test_get_slips_single_profile_filter(self, app_env) -> None:
         """[P1] A single profile string filters to that profile."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips("c")
         assert [s.profile for s in out] == ["c"]
 
-    def test_get_slips_all_normalizes_to_none(self, app_env):
+    def test_get_slips_all_normalizes_to_none(self, app_env) -> None:
         """[P1] profile='all' is normalized to None → every slip returned."""
         self._seed_three_slips(app_env.app)
         assert len(app_env.app.get_slips("all")) == 3
 
-    def test_get_slips_date_from_filter(self, app_env):
+    def test_get_slips_date_from_filter(self, app_env) -> None:
         """[P1] date_from keeps slips generated on/after that date."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips(date_from="2030-01-02")
         assert {s.date_generated.split("T")[0] for s in out} == {"2030-01-02", "2030-01-03"}
 
-    def test_get_slips_date_to_filter(self, app_env):
+    def test_get_slips_date_to_filter(self, app_env) -> None:
         """[P1] date_to keeps slips generated on/before that date."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips(date_to="2030-01-02")
         assert {s.date_generated.split("T")[0] for s in out} == {"2030-01-01", "2030-01-02"}
 
-    def test_get_slips_date_window_filter(self, app_env):
+    def test_get_slips_date_window_filter(self, app_env) -> None:
         """[P1] A from/to window narrows to the enclosed day only."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips(date_from="2030-01-02", date_to="2030-01-02")
         assert [s.date_generated.split("T")[0] for s in out] == ["2030-01-02"]
 
-    def test_validate_slips_delegates_and_returns_report(self, app_env):
+    def test_validate_slips_delegates_and_returns_report(self, app_env) -> None:
         """[P1] validate_slips delegates to BetAssistant and returns its report."""
         report = app_env.app.validate_slips()
         assert report.checked == 0  # empty slips DB → nothing to validate
@@ -235,40 +253,39 @@ class TestAppLogicSlipOperations:
 
     # ── broadcast wrappers ──────────────────────────────────────────────────
 
-    def test_save_slip_and_broadcast_saves_and_broadcasts(self, app_env, broadcast_capture):
+    def test_save_slip_and_broadcast_saves_and_broadcasts(self, app_env, broadcast_capture) -> None:
         """[P0] save_slip_and_broadcast persists and fires slips_updated."""
         slip_id = app_env.app.save_slip_and_broadcast("manual", [make_candidate()], 1.0)
         assert slip_id == app_env.app.get_slips()[0].slip_id
         assert broadcast_capture[-1]["event"] == "slips_updated"
         assert "live_data" not in broadcast_capture[-1]
 
-    def test_delete_slip_and_broadcast_deletes_and_broadcasts(self, app_env, broadcast_capture):
+    def test_delete_slip_and_broadcast_deletes_and_broadcasts(self, app_env, broadcast_capture) -> None:
         """[P0] delete_slip_and_broadcast removes the slip and fires slips_updated."""
         app = app_env.app
-        slip_id = seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0,
-                            legs=[make_leg_row()])
+        slip_id = seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0, legs=[make_leg_row()])
         app.delete_slip_and_broadcast(slip_id)
         assert app.get_slips() == []
         assert broadcast_capture[-1]["event"] == "slips_updated"
 
-    def test_delete_slip_removes_slip_and_legs(self, app_env):
+    def test_delete_slip_removes_slip_and_legs(self, app_env) -> None:
         """[P1] Plain delete_slip drops both slip rows and leg rows."""
         app = app_env.app
-        slip_id = seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0,
-                            legs=[make_leg_row(),
-                                  make_leg_row(result_url="https://example.com/match/9")])
+        slip_id = seed_slip(
+            app,
+            date_generated="2030-01-01",
+            total_odds=1.9,
+            units=1.0,
+            legs=[make_leg_row(), make_leg_row(result_url="https://example.com/match/9")],
+        )
         app.delete_slip(slip_id)
         assert app.get_slips() == []
         rows = app._assistant.fetch_rows("SELECT COUNT(*) FROM legs")
         assert rows[0][0] == 0
 
-    def test_validate_and_broadcast_returns_report_and_live_data(
-        self, app_env, monkeypatch, broadcast_capture
-    ):
+    def test_validate_and_broadcast_returns_report_and_live_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P0] validate_and_broadcast returns the report and broadcasts live_data."""
-        report = SimpleNamespace(
-            live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")]
-        )
+        report = SimpleNamespace(live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")])
 
         def fake_validate():
             return report
@@ -280,9 +297,7 @@ class TestAppLogicSlipOperations:
         assert payload["event"] == "slips_updated"
         assert payload["live_data"] == {"M 1": {"score": "1:0", "minute": "23"}}
 
-    def test_validate_and_broadcast_no_live_legs_omits_live_data(
-        self, app_env, monkeypatch, broadcast_capture
-    ):
+    def test_validate_and_broadcast_no_live_legs_omits_live_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] An empty live list still broadcasts, but without a live_data key."""
 
         def fake_validate():
@@ -292,7 +307,7 @@ class TestAppLogicSlipOperations:
         app_env.app.validate_and_broadcast()
         assert "live_data" not in broadcast_capture[-1]
 
-    def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture):
+    def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
         """[P0] generate_and_broadcast runs active profiles and persists the timestamp."""
         profiles = {
             "p1": {
@@ -320,7 +335,7 @@ class TestAppLogicSlipOperations:
             app._assistant.conn.close()
             app._matches_manager.close()
 
-    def test_generate_and_broadcast_without_profiles_returns_empty(self, app_env, broadcast_capture):
+    def test_generate_and_broadcast_without_profiles_returns_empty(self, app_env, broadcast_capture) -> None:
         """[P1] No active profiles → empty dict, broadcast still fires."""
         assert app_env.app.generate_and_broadcast() == {}
         assert broadcast_capture[-1]["event"] == "slips_updated"
@@ -328,7 +343,7 @@ class TestAppLogicSlipOperations:
     # ── stats: all 25+ metrics ────────────────────────────────────────────
 
     @staticmethod
-    def _seed_stats_slips(app):
+    def _seed_stats_slips(app) -> None:
         """3 settled slips over 3 days + 1 pending slip.
 
         Won 1.0u @2.0 (D1), Lost 2.0u @3.0 (D2), Won 1.0u @4.0 (D3),
@@ -336,16 +351,40 @@ class TestAppLogicSlipOperations:
         now < 2030 all slips fall in the recent edge window, so the rolling
         trend is deterministic.
         """
-        seed_slip(app, date_generated="2030-01-01T10:00:00", total_odds=2.0, units=1.0,
-                  legs=[make_leg_row(status="Won")], profile="a")
-        seed_slip(app, date_generated="2030-01-02T10:00:00", total_odds=3.0, units=2.0,
-                  legs=[make_leg_row(status="Lost")], profile="a")
-        seed_slip(app, date_generated="2030-01-03T10:00:00", total_odds=4.0, units=1.0,
-                  legs=[make_leg_row(status="Won")], profile="b")
-        seed_slip(app, date_generated="2030-01-03T11:00:00", total_odds=5.0, units=1.0,
-                  legs=[make_leg_row(status="Pending")], profile="b")
+        seed_slip(
+            app,
+            date_generated="2030-01-01T10:00:00",
+            total_odds=2.0,
+            units=1.0,
+            legs=[make_leg_row(status="Won")],
+            profile="a",
+        )
+        seed_slip(
+            app,
+            date_generated="2030-01-02T10:00:00",
+            total_odds=3.0,
+            units=2.0,
+            legs=[make_leg_row(status="Lost")],
+            profile="a",
+        )
+        seed_slip(
+            app,
+            date_generated="2030-01-03T10:00:00",
+            total_odds=4.0,
+            units=1.0,
+            legs=[make_leg_row(status="Won")],
+            profile="b",
+        )
+        seed_slip(
+            app,
+            date_generated="2030-01-03T11:00:00",
+            total_odds=5.0,
+            units=1.0,
+            legs=[make_leg_row(status="Pending")],
+            profile="b",
+        )
 
-    def test_stats_computes_all_core_metrics(self, app_env):
+    def test_stats_computes_all_core_metrics(self, app_env) -> None:
         """[P0] stats() derives every metric from the seeded P&L history."""
         self._seed_stats_slips(app_env.app)
         st = app_env.app.stats()
@@ -384,7 +423,7 @@ class TestAppLogicSlipOperations:
         # Profit factor: gross wins (1.0 + 3.0) vs losses 2.0.
         assert st["profit_factor"] == 2.0
 
-    def test_stats_empty_history_returns_zeroed_metrics(self, app_env):
+    def test_stats_empty_history_returns_zeroed_metrics(self, app_env) -> None:
         """[P1] No slips → all rate/money metrics zero, optionals None."""
         st = app_env.app.stats()
         assert st["total_settled"] == 0
@@ -401,7 +440,7 @@ class TestAppLogicSlipOperations:
         assert st["profit_factor"] == 0.0
         assert st["current_streak"] == 0
 
-    def test_stats_respects_profile_and_date_filters(self, app_env):
+    def test_stats_respects_profile_and_date_filters(self, app_env) -> None:
         """[P1] stats() filters flow through get_slips (profile + window)."""
         self._seed_stats_slips(app_env.app)
         st = app_env.app.stats(profile="a", date_from="2030-01-01", date_to="2030-01-02")
@@ -411,7 +450,7 @@ class TestAppLogicSlipOperations:
 
     # ── Analytics delegation ───────────────────────────────────────────────
 
-    def test_daily_summary_delegates_to_analytics_utils(self, app_env, monkeypatch):
+    def test_daily_summary_delegates_to_analytics_utils(self, app_env, monkeypatch) -> None:
         """[P0] daily_summary passes retrieved slips + filters to analytics_utils."""
         import core.analytics_utils as au
 
@@ -429,7 +468,7 @@ class TestAppLogicSlipOperations:
         assert [s.profile for s in slips] == ["a"]
         assert (profile, date_from, date_to) == ("a", "2030-01-01", "2030-01-01")
 
-    def test_daily_summary_defaults_profile_to_all(self, app_env, monkeypatch):
+    def test_daily_summary_defaults_profile_to_all(self, app_env, monkeypatch) -> None:
         """[P2] A None profile is normalized to 'all' for retrieval only.
 
         The raw None still flows to analytics_utils as the profile arg;
@@ -451,7 +490,7 @@ class TestAppLogicSlipOperations:
         # ...while the original None is passed through to analytics_utils.
         assert seen[0][0] is None
 
-    def test_market_accuracy_delegates_to_analytics_utils(self, app_env, monkeypatch):
+    def test_market_accuracy_delegates_to_analytics_utils(self, app_env, monkeypatch) -> None:
         """[P0] market_accuracy passes the retrieved slips to analytics_utils."""
         import core.analytics_utils as au
 
@@ -467,7 +506,7 @@ class TestAppLogicSlipOperations:
         assert out == [{"market": "1", "accuracy": 60.0}]
         assert len(calls[0]) == 2
 
-    def test_correlation_data_filters_settled_then_delegates(self, app_env, monkeypatch):
+    def test_correlation_data_filters_settled_then_delegates(self, app_env, monkeypatch) -> None:
         """[P0] correlation_data settles-filters before delegating."""
         import core.analytics_utils as au
 

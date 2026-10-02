@@ -10,6 +10,7 @@ import importlib
 import pytest
 
 from bet_crawler.finders.OddsPortalFinder import ODDSPORTAL_NAME, OddsPortalFinder
+
 from .finder_test_helpers import fake_browser, load_fixture, make_finder, patch_fetch, relax_date_window
 
 op = importlib.import_module("bet_crawler.finders.OddsPortalFinder")
@@ -32,7 +33,7 @@ class _FrozenDatetime(dtmod.datetime):
 
 
 @pytest.fixture(autouse=True)
-def _freeze_discovery_clock(monkeypatch):
+def _freeze_discovery_clock(monkeypatch) -> None:
     monkeypatch.setattr(op, "datetime", _FrozenDatetime)
 
 
@@ -41,12 +42,12 @@ def _finder(**kw):
     return relax_date_window(finder), collector
 
 
-def _league_url(top_only=True):
+def _league_url(top_only: bool = True):
     return (op.TOP_LEAGUES if top_only else op.ALL_LINKS)[0]
 
 
 class TestDiscovery:
-    def test_json_ld_discovery_filters_window_status_and_dedupes(self, monkeypatch):
+    def test_json_ld_discovery_filters_window_status_and_dedupes(self, monkeypatch) -> None:
         url = _league_url()
         patch_fetch(monkeypatch, op, {url: load_fixture("oddsportal", "league.html")})
         monkeypatch.setattr(op, "TOP_LEAGUES", [url])
@@ -55,7 +56,7 @@ class TestDiscovery:
         # in-window scheduled x2 (deduped) + out-window + cancelled + no-date all excluded
         assert sorted(urls) == ["https://www.oddsportal.com/match/in-window-1/"]
 
-    def test_all_links_branch_when_not_top_only(self, monkeypatch):
+    def test_all_links_branch_when_not_top_only(self, monkeypatch) -> None:
         url = "https://www.oddsportal.com/football/world/world-cup-2026/"  # ALL_LINKS[0]
         patch_fetch(monkeypatch, op, {url: load_fixture("oddsportal", "league.html")})
         monkeypatch.setattr(op, "ALL_LINKS", [url])
@@ -63,7 +64,7 @@ class TestDiscovery:
         urls = finder.get_matches_urls()
         assert urls == ["https://www.oddsportal.com/match/in-window-1/"]
 
-    def test_fetch_error_on_one_league_continues(self, monkeypatch):
+    def test_fetch_error_on_one_league_continues(self, monkeypatch) -> None:
         def boom(url, **kw):
             raise RuntimeError("network down")
 
@@ -72,7 +73,7 @@ class TestDiscovery:
         finder, _ = _finder(top_leagues_only=True)
         assert finder.get_matches_urls() == []
 
-    def test_returns_set_deduplicated_across_leagues(self, monkeypatch):
+    def test_returns_set_deduplicated_across_leagues(self, monkeypatch) -> None:
         league = load_fixture("oddsportal", "league.html")
         monkeypatch.setattr(op, "TOP_LEAGUES", ["https://x/1/", "https://x/2/"])
         patch_fetch(monkeypatch, op, {"https://x/1/": league, "https://x/2/": league})
@@ -81,15 +82,15 @@ class TestDiscovery:
 
 
 class TestGetMatches:
-    def test_empty_urls_short_circuit(self):
+    def test_empty_urls_short_circuit(self) -> None:
         finder, collector = _finder()
         finder.get_matches([])
         assert len(collector) == 0
 
-    def test_single_concurrency_direct_batch(self, monkeypatch):
+    def test_single_concurrency_direct_batch(self, monkeypatch) -> None:
         seen_batches = []
 
-        def fake_batch(self, urls):
+        def fake_batch(self, urls) -> None:
             seen_batches.append(list(urls))
 
         monkeypatch.setattr(op, "MAX_CONCURRENCY", 1)
@@ -98,10 +99,10 @@ class TestGetMatches:
         finder.get_matches(["u1", "u2"])
         assert seen_batches == [["u1", "u2"]]
 
-    def test_chunking_splits_into_max_concurrency_chunks(self, monkeypatch):
+    def test_chunking_splits_into_max_concurrency_chunks(self, monkeypatch) -> None:
         captured = {}
 
-        def fake_batch(self, urls):
+        def fake_batch(self, urls) -> None:
             captured.setdefault("batches", []).append(list(urls))
 
         monkeypatch.setattr(op, "MAX_CONCURRENCY", 3)
@@ -138,7 +139,7 @@ class TestProcessUrlBatch:
         content_map = {"https://www.oddsportal.com/match/in-window-1/": content_for}
         return fake_browser(monkeypatch, op, content_map, **(extra or {}))
 
-    def test_full_odds_flow_adds_match_with_all_markets(self, monkeypatch):
+    def test_full_odds_flow_adds_match_with_all_markets(self, monkeypatch) -> None:
         self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/match/in-window-1/"])
@@ -163,7 +164,7 @@ class TestProcessUrlBatch:
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
 
-    def test_fetch_error_then_retry_recovers(self, monkeypatch):
+    def test_fetch_error_then_retry_recovers(self, monkeypatch) -> None:
         session = self._session_map(monkeypatch)
         # make retry succeed: fetch_error_urls only raise once
         calls = {"n": 0}
@@ -180,19 +181,19 @@ class TestProcessUrlBatch:
         finder._process_url_batch(["https://www.oddsportal.com/match/in-window-1/"])
         assert len(collector) == 1  # retry path succeeded
 
-    def test_broken_page_logged_no_match(self, monkeypatch):
+    def test_broken_page_logged_no_match(self, monkeypatch) -> None:
         content_map = {"https://www.oddsportal.com/match/broken-x/": load_fixture("oddsportal", "broken.html")}
         fake_browser(monkeypatch, op, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.oddsportal.com/match/broken-x/"])
         assert len(collector) == 0
 
-    def test_thread_safe_add_match(self, monkeypatch):
+    def test_thread_safe_add_match(self, monkeypatch) -> None:
         """_add_match_lock exists and guards concurrent adds (wiring pin)."""
         finder, _ = _finder()
         assert hasattr(finder, "_add_match_lock")
 
 
 class TestSourceName:
-    def test_name_constant(self):
+    def test_name_constant(self) -> None:
         assert ODDSPORTAL_NAME == "oddsportal"

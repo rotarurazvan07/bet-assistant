@@ -1,6 +1,6 @@
 """Match finder for windrawwin.com per-match pages."""
-from scrape_kit import get_logger
 
+from scrape_kit import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,6 +21,7 @@ MAX_CONCURRENCY = 1
 
 class WinDrawWinFinder_per_match(BaseMatchFinder):
     """Scrapes windrawwin per-match prediction pages."""
+
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
