@@ -6,12 +6,12 @@ scraper is patched to serve canned FT/LIVE/PENDING HTML per URL. Zero network.
 """
 
 import json
-import os
 from datetime import datetime
 from unittest.mock import patch
 
 import pytest
 import yaml
+import os
 
 from bet_crawler.crawl_core.generate_slips import generate_slips
 from bet_crawler.crawl_core.merge import merge
@@ -76,7 +76,7 @@ def _leg_statuses(slips_db):
 
 
 class TestFullPipelineP0:
-    def test_full_pipeline_happy_path_settles_won(self, tmp_cwd, capsys) -> None:
+    def test_full_pipeline_happy_path_settles_won(self, tmp_cwd, capsys):
         """prepare → scrape → merge → generate → validate with an FT result page."""
         match_a = _consensus_match("Pipeline FC", "United", "https://alpha.com/m/1", "a")
         match_b = _consensus_match("Jupiter FC", "Saturn", "https://beta.com/m/2", "b")
@@ -112,7 +112,7 @@ class TestFullPipelineP0:
         assert abs(slips[0].total_odds - 1.9) < 1e-9
 
         # 5. validate with mocked result pages (FT for every URL)
-        def fake_scrape(urls, callback, **kwargs) -> None:
+        def fake_scrape(urls, callback, **kwargs):
             for url in urls:
                 callback(url, make_result_html_ft("3:1"))
 
@@ -122,7 +122,7 @@ class TestFullPipelineP0:
         assert statuses == [("Won", statuses[0][1])]
         assert statuses[0][1] in ("https://alpha.com/m/1", "https://beta.com/m/2")
 
-    def test_ft_live_pending_mixed_results(self, tmp_path) -> None:
+    def test_ft_live_pending_mixed_results(self, tmp_path):
         """Three seeded legs: FT settles Won, LIVE stays Live, PENDING stays Pending."""
         slips_db = str(tmp_path / "slips.db")
         legs = [
@@ -167,7 +167,7 @@ class TestFullPipelineP0:
             "https://r.com/pend": make_result_html_pending(),
         }
 
-        def fake_scrape(urls, callback, **kwargs) -> None:
+        def fake_scrape(urls, callback, **kwargs):
             for url in urls:
                 callback(url, pages[url])
 
@@ -181,7 +181,7 @@ class TestFullPipelineP0:
 
 class TestRunnerSetIsolationP0:
     @pytest.mark.parametrize("runner", ["actions", "local", "test"])
-    def test_prepare_writes_only_own_runner_prefix(self, runner, tmp_cwd, capsys) -> None:
+    def test_prepare_writes_only_own_runner_prefix(self, runner, tmp_cwd, capsys):
         """Runner sets never mix: a run for X produces only X-prefixed chunk files."""
         mine = [f"https://{runner}src.com/m/{i}" for i in range(45)]
         other = [f"https://othersrc.com/m/{i}" for i in range(45)]
@@ -202,7 +202,7 @@ class TestRunnerSetIsolationP0:
                 got.extend(fh.read().split(","))
         assert sorted(got) == sorted(mine)
 
-    def test_two_runners_sequential_never_share_files(self, tmp_cwd, capsys) -> None:
+    def test_two_runners_sequential_never_share_files(self, tmp_cwd, capsys):
         """Running actions then local leaves both sets present and unmixed."""
         act_urls = [f"https://actsrc.com/m/{i}" for i in range(45)]
         loc_urls = [f"https://locsrc.com/m/{i}" for i in range(45)]
@@ -226,7 +226,7 @@ class TestRunnerSetIsolationP0:
             with open(tmp_cwd / f) as fh:
                 assert set(fh.read().split(",")) <= set(loc_urls)
 
-    def test_cross_runner_duplicate_merges_to_one_row(self, tmp_path) -> None:
+    def test_cross_runner_duplicate_merges_to_one_row(self, tmp_path):
         """Same fixture listed under two runner chunks dedups; both runner sets validate."""
         from bet_framework.core.Match import Score
 
@@ -256,7 +256,7 @@ class TestRunnerSetIsolationP0:
 
 
 class TestPipelineResilienceP1:
-    def test_empty_pipeline_produces_no_artifacts(self, tmp_cwd, capsys) -> None:
+    def test_empty_pipeline_produces_no_artifacts(self, tmp_cwd, capsys):
         """Zero URLs → no chunks; empty merge; no slip; validate reports nothing checked."""
         crawler = StubCrawler([])
         factory = StubFactory({"actions": [crawler]})
@@ -273,7 +273,7 @@ class TestPipelineResilienceP1:
         assert ba.get_slips() == []
         ba.close()
 
-        def fake_scrape(urls, callback, **kwargs) -> None:
+        def fake_scrape(urls, callback, **kwargs):
             assert urls == []
 
         with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):

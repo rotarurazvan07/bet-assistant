@@ -12,6 +12,8 @@ timeout, so every receive is wrapped in a watchdog executor with result(timeout)
 — a wedged receive fails loudly instead of hanging the suite.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import threading
@@ -20,10 +22,13 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
 import pytest
+
 from core.ws import ws_manager
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
 from routers import services, system
+
 
 # ── Watchdog receive: never block the suite on a wedged portal call ──────────
 
@@ -38,7 +43,6 @@ def receive_with_timeout(ws, seconds=3.0):
         return future.result(timeout=seconds)
     except TimeoutError:
         raise AssertionError("no WS message within %ss" % seconds) from None
-
 
 # ── App harness: lifespan binds portal loop to ws_manager (mirrors main.py) ──
 
@@ -76,7 +80,6 @@ def ws_client(clean_ws_manager):
     with TestClient(make_ws_app()) as client:
         yield client
 
-
 # ── Bounded wait helper (deadline poll on observable condition) ──────────────
 
 
@@ -101,16 +104,16 @@ EVENT_PAYLOADS = [
 
 
 class TestWsEndpointLifecycle:
-    def test_connect_registers_exit_deregisters(self, ws_client) -> None:
+    def test_connect_registers_exit_deregisters(self, ws_client):
         """[P1] Real /ws endpoint: connect adds to ws_manager, exit removes."""
         before = len(ws_manager._connections)
         with ws_client.websocket_connect("/ws"):
-            assert wait_for(condition=lambda: len(ws_manager._connections) == before + 1), (
+            assert wait_for(condition=lambda: len(ws_manager._connections) == before + 1), \
                 "connect did not register with ws_manager"
-            )
-        assert wait_for(condition=lambda: len(ws_manager._connections) == before), "exit did not deregister from ws_manager"
+        assert wait_for(condition=lambda: len(ws_manager._connections) == before), \
+            "exit did not deregister from ws_manager"
 
-    def test_ping_pong_keepalive_still_works_with_bound_loop(self, ws_client) -> None:
+    def test_ping_pong_keepalive_still_works_with_bound_loop(self, ws_client):
         """[P2] Keepalive protocol unaffected by loop binding (regression guard)."""
         with ws_client.websocket_connect("/ws") as ws:
             ws.send_text("ping")
@@ -126,7 +129,7 @@ class TestDaemonThreadBroadcastDelivery:
         EVENT_PAYLOADS,
         ids=[name for name, _ in EVENT_PAYLOADS],
     )
-    def test_daemon_thread_broadcast_delivers_event(self, ws_client, event_name, payload) -> None:
+    def test_daemon_thread_broadcast_delivers_event(self, ws_client, event_name, payload):
         """[P0] All three event types reach a connected client when broadcast
         from a daemon thread via broadcast_sync (run_coroutine_threadsafe)."""
         with ws_client.websocket_connect("/ws") as ws:
@@ -137,7 +140,7 @@ class TestDaemonThreadBroadcastDelivery:
             received = json.loads(receive_with_timeout(ws, seconds=5.0))
             assert received == payload
 
-    def test_multiple_clients_receive_same_broadcast(self, ws_client) -> None:
+    def test_multiple_clients_receive_same_broadcast(self, ws_client):
         """[P0] Two connected clients both receive one daemon-thread broadcast."""
         payload = {"event": "matches_updated", "timestamp": "2030-01-01T09:00"}
         with ws_client.websocket_connect("/ws") as first, ws_client.websocket_connect("/ws") as second:
@@ -148,12 +151,11 @@ class TestDaemonThreadBroadcastDelivery:
             assert json.loads(receive_with_timeout(first, seconds=5.0)) == payload
             assert json.loads(receive_with_timeout(second, seconds=5.0)) == payload
 
-
 # ── RealTicker daemon thread → broadcast_sync → real WS client ───────────────
 
 
 class TestRealTickerToWsPropagation:
-    def test_real_ticker_thread_broadcasts_reach_ws_client(self, ws_client) -> None:
+    def test_real_ticker_thread_broadcasts_reach_ws_client(self, ws_client):
         """[P0] Full push path with REAL moving parts: TickerService daemon
         thread (0.05s) → broadcast_sync → run_coroutine_threadsafe → portal
         loop → real WS client queue. Two consecutive heartbeats prove sustained
@@ -163,7 +165,7 @@ class TestRealTickerToWsPropagation:
         state = {"seq": 0}
         lock = threading.Lock()
 
-        def on_tick() -> None:
+        def on_tick():
             with lock:
                 state["seq"] += 1
                 seq = state["seq"]
@@ -186,7 +188,7 @@ class TestRealTickerToWsPropagation:
 
 
 class TestAppLogicToggleE2E:
-    def test_real_applogic_toggle_broadcasts_service_toggled(self, tmp_path, monkeypatch, clean_ws_manager) -> None:
+    def test_real_applogic_toggle_broadcasts_service_toggled(self, tmp_path, monkeypatch, clean_ws_manager):
         """[P0] End-to-end wiring: real AppLogic (real TickerServices, tmp DBs,
         throwaway config) + POST /api/services/puller/toggle → router →
         AppLogic.toggle_service → ws_manager.broadcast_sync → real WS client.

@@ -1,5 +1,7 @@
 """Tests for embedded odds history tracking functionality."""
 
+from __future__ import annotations
+
 import json
 import os
 import tempfile

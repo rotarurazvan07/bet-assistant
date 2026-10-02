@@ -26,10 +26,10 @@ def load_fixture(key, name):
 class MatchCollector:
     """Records matches passed to add_match_callback."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.matches = []
 
-    def __call__(self, match) -> None:
+    def __call__(self, match):
         self.matches.append(match)
 
     def __len__(self):
@@ -43,8 +43,8 @@ class MatchCollector:
 def make_finder(
     finder_cls,
     collector=None,
-    contributes_odds: bool = False,
-    top_leagues_only: bool = True,
+    contributes_odds=False,
+    top_leagues_only=True,
     num_days_ahead=1,
     local_timezone="Europe/Bucharest",
     skip_patterns=None,
@@ -69,14 +69,14 @@ def relax_date_window(finder):
     Date policy itself is pinned with dynamic dates in test_base_finder.py (D2).
     """
 
-    def always_valid(dt) -> bool:
+    def always_valid(dt):
         return True
 
     finder.validate_match_date = always_valid
     return finder
 
 
-def patch_fetch(monkeypatch, finder_module, responses) -> None:
+def patch_fetch(monkeypatch, finder_module, responses):
     """Patch module-level fetch(url, **kw). responses: {url: html} or callable."""
     if callable(responses):
         monkeypatch.setattr(finder_module, "fetch", responses)
@@ -90,10 +90,10 @@ def patch_fetch(monkeypatch, finder_module, responses) -> None:
     monkeypatch.setattr(finder_module, "fetch", fake_fetch)
 
 
-def patch_scrape(monkeypatch, finder_module, pages) -> None:
+def patch_scrape(monkeypatch, finder_module, pages):
     """Patch module-level scrape(urls, callback, **kw) feeding HTML per url."""
 
-    def fake_scrape(urls, callback, **kwargs) -> None:
+    def fake_scrape(urls, callback, **kwargs):
         for url in urls:
             if url in pages:
                 callback(url, pages[url])
@@ -114,7 +114,7 @@ class FakeBrowserSession:
     odds finders swap page content per click this way.
     """
 
-    def __init__(self, content_map, fetch_error_urls=()) -> None:
+    def __init__(self, content_map, fetch_error_urls=()):
         self.content_map = content_map
         self.fetch_error_urls = set(fetch_error_urls)
         self.fetched = []
@@ -129,11 +129,11 @@ class FakeBrowserSession:
         self._current_url = url
         return self
 
-    def click(self, selector, label=None) -> bool:
+    def click(self, selector, label=None):
         self.clicks.append(label if label is not None else selector)
         return True
 
-    def execute_script(self, script) -> bool:
+    def execute_script(self, script):
         return True
 
     @property

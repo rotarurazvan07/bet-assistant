@@ -58,7 +58,7 @@ def _mk(home="Arsenal", away="Chelsea", dt=None, preds=None, odds=None):
 
 
 class TestCtor:
-    def test_ctor_stores_all_runtime_settings(self) -> None:
+    def test_ctor_stores_all_runtime_settings(self):
         finder, collector = make_finder(
             _Finder, contributes_odds=True, top_leagues_only=False, num_days_ahead=3, local_timezone="Europe/London"
         )
@@ -70,12 +70,12 @@ class TestCtor:
         assert finder.skip_patterns == DEFAULT_SKIP_PATTERNS
         assert finder.TIMEZONE is None
 
-    def test_ctor_normalises_list_patterns_to_tuple(self) -> None:
+    def test_ctor_normalises_list_patterns_to_tuple(self):
         patterns = [("x", "y")]
         finder, _ = make_finder(_Finder, skip_patterns=patterns)
         assert isinstance(finder.skip_patterns, tuple)
 
-    def test_abstract_surface_semantics(self) -> None:
+    def test_abstract_surface_semantics(self):
         """BaseMatchFinder is NOT an ABCMeta class: @abstractmethod is decorative
         only — instantiation succeeds; the stubs raise NotImplementedError (pinned
         actual behaviour)."""
@@ -96,63 +96,63 @@ class TestCtor:
 
 
 class TestSkipPatterns:
-    def test_youth_u19_skipped(self) -> None:
+    def test_youth_u19_skipped(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(home="Arsenal U19")) is False
         assert len(collector) == 0
 
-    def test_women_team_skipped(self) -> None:
+    def test_women_team_skipped(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(home="Arsenal W")) is False
         assert len(collector) == 0
 
-    def test_reserve_roman_skipped(self) -> None:
+    def test_reserve_roman_skipped(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(away="Rangers II")) is False
         assert len(collector) == 0
 
-    def test_case_insensitive_match(self) -> None:
+    def test_case_insensitive_match(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(home="arsenal u19")) is False
 
-    def test_first_matching_reason_wins(self) -> None:
+    def test_first_matching_reason_wins(self):
         finder, _ = make_finder(_Finder)
         reason = finder.skip_match_by_patterns("Inter B", "Arsenal II")
         assert reason in {r for _, r in DEFAULT_SKIP_PATTERNS}
 
-    def test_explicit_patterns_override_instance(self) -> None:
+    def test_explicit_patterns_override_instance(self):
         finder, _ = make_finder(_Finder)
         assert finder.skip_match_by_patterns("Inter B", "X", [(r"\bB\b", "B team")]) == "B team"
         # instance patterns not passed -> no match under override list
         assert finder.skip_match_by_patterns("Inter U19", "X", [(r"\bB\b", "B team")]) is None
 
-    def test_clean_teams_not_skipped(self) -> None:
+    def test_clean_teams_not_skipped(self):
         finder, _ = make_finder(_Finder)
         assert finder.skip_match_by_patterns("Arsenal", "Chelsea") is None
 
 
 class TestDateWindow:
-    def test_today_match_kept(self) -> None:
+    def test_today_match_kept(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(dt=_now_local())) is True
         assert len(collector) == 1
 
-    def test_within_days_ahead_kept(self) -> None:
+    def test_within_days_ahead_kept(self):
         finder, collector = make_finder(_Finder, num_days_ahead=2)
         assert finder.add_match(_mk(dt=_now_local() + timedelta(days=2))) is True
         assert len(collector) == 1
 
-    def test_beyond_days_ahead_skipped(self) -> None:
+    def test_beyond_days_ahead_skipped(self):
         finder, collector = make_finder(_Finder, num_days_ahead=1)
         assert finder.add_match(_mk(dt=_now_local() + timedelta(days=2))) is False
         assert len(collector) == 0
 
-    def test_past_match_skipped(self) -> None:
+    def test_past_match_skipped(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(dt=_now_local() - timedelta(days=1))) is False
         assert len(collector) == 0
 
-    def test_validate_match_date_bounds(self) -> None:
+    def test_validate_match_date_bounds(self):
         finder, _ = make_finder(_Finder, num_days_ahead=3)
         now_local = datetime.now(ZoneInfo("Europe/Bucharest"))
         assert finder.validate_match_date(now_local) is True
@@ -162,29 +162,29 @@ class TestDateWindow:
 
 
 class TestAddMatchPipeline:
-    def test_odds_stripped_for_non_odds_finder(self) -> None:
+    def test_odds_stripped_for_non_odds_finder(self):
         finder, collector = make_finder(_Finder, contributes_odds=False)
         odds = Odds(home=2.1, draw=3.2, away=3.8)
         assert finder.add_match(_mk(dt=_now_local(), odds=odds)) is True
         assert collector.first.odds is None
 
-    def test_odds_kept_for_odds_finder(self) -> None:
+    def test_odds_kept_for_odds_finder(self):
         finder, collector = make_finder(_Finder, contributes_odds=True)
         odds = Odds(home=2.1)
         assert finder.add_match(_mk(dt=_now_local(), odds=odds)) is True
         assert collector.first.odds is not None
         assert collector.first.odds.home == 2.1
 
-    def test_force_bypasses_gates(self) -> None:
+    def test_force_bypasses_gates(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(home="Arsenal U19"), force=True) is True
         assert len(collector) == 1
 
-    def test_none_datetime_passes_date_gate(self) -> None:
+    def test_none_datetime_passes_date_gate(self):
         finder, collector = make_finder(_Finder)
         assert finder.add_match(_mk(dt=None)) is True
 
-    def test_callback_exception_returns_false(self) -> None:
+    def test_callback_exception_returns_false(self):
         def bad_callback(match):
             raise RuntimeError("boom")
 
@@ -198,7 +198,7 @@ class TestAddMatchPipeline:
         )
         assert finder.add_match(_mk(dt=_now_local())) is False
 
-    def test_match_passed_through_with_prediction_source(self) -> None:
+    def test_match_passed_through_with_prediction_source(self):
         finder, collector = make_finder(_Finder)
         finder.add_match(_mk(dt=_now_local()))
         assert collector.first.predictions[0].source == "test"
@@ -206,12 +206,12 @@ class TestAddMatchPipeline:
 
 
 class TestNormaliseDatetime:
-    def test_none_timezone_returns_dt_unchanged(self) -> None:
+    def test_none_timezone_returns_dt_unchanged(self):
         finder, _ = make_finder(_Finder)
         dt = datetime(2035, 6, 15, 19, 45)
         assert finder.normalise_datetime(dt) is dt
 
-    def test_source_tz_converted_to_local_tz(self) -> None:
+    def test_source_tz_converted_to_local_tz(self):
         finder, _ = make_finder(_TzFinder, local_timezone="Europe/Bucharest")
         dt = datetime(2035, 6, 15, 19, 45)  # naive Bangkok time
         result = finder.normalise_datetime(dt)
@@ -219,7 +219,7 @@ class TestNormaliseDatetime:
         assert result.hour == 15
         assert result.tzinfo is None
 
-    def test_aware_dt_converted(self) -> None:
+    def test_aware_dt_converted(self):
         finder, _ = make_finder(_TzFinder, local_timezone="Europe/Bucharest")
         dt = datetime(2035, 6, 15, 19, 45, tzinfo=ZoneInfo("Asia/Bangkok"))
         result = finder.normalise_datetime(dt)
@@ -227,6 +227,6 @@ class TestNormaliseDatetime:
 
 
 class TestDetectLocalTimezone:
-    def test_returns_string_when_tzlocal_available(self) -> None:
+    def test_returns_string_when_tzlocal_available(self):
         result = BaseMatchFinder._detect_local_timezone()
         assert result is None or isinstance(result, str)

@@ -6,10 +6,8 @@ League fixture uses TODAY+1 dates (closest-year search, decision D5).
 
 import importlib
 
-from bet_crawler.finders.SoccerVistaFinder_per_league import SOCCERVISTA_NAME as NAME_PL
-from bet_crawler.finders.SoccerVistaFinder_per_league import SoccerVistaFinder_per_league
+from bet_crawler.finders.SoccerVistaFinder_per_league import SOCCERVISTA_NAME as NAME_PL, SoccerVistaFinder_per_league
 from bet_crawler.finders.SoccerVistaFinder_per_match import SoccerVistaFinder_per_match
-
 from .finder_test_helpers import load_fixture, make_finder, relax_date_window
 
 sv_pl = importlib.import_module("bet_crawler.finders.SoccerVistaFinder_per_league")
@@ -22,11 +20,11 @@ def _finder(cls, **kw):
 
 
 class TestSoccerVistaPerLeague:
-    def test_top_leagues_static_urls(self) -> None:
+    def test_top_leagues_static_urls(self):
         finder, _ = _finder(SoccerVistaFinder_per_league, top_leagues_only=True)
         assert finder.get_matches_urls() == list(sv_pl.TOP_LEAGUES.keys())
 
-    def test_league_page_parses_rows_with_result_url(self) -> None:
+    def test_league_page_parses_rows_with_result_url(self):
         finder, collector = _finder(SoccerVistaFinder_per_league)
         url = next(iter(sv_pl.TOP_LEAGUES))
         finder._parse_page(url, load_fixture("soccervista", "league.html"))
@@ -39,7 +37,7 @@ class TestSoccerVistaPerLeague:
         assert m.result_url == "https://www.soccervista.com/match/arsenal-chelsea/"
         assert m.league is not None
 
-    def test_ongoing_match_row_skipped(self) -> None:
+    def test_ongoing_match_row_skipped(self):
         """Row whose date-cell is empty (ongoing) is skipped via date-parse failure."""
         html = load_fixture("soccervista", "league.html").replace(
             "</td><td><span>x</span><span>Arsenal", "</td><td></td><td><span>x</span><span>Arsenal", 1
@@ -49,14 +47,14 @@ class TestSoccerVistaPerLeague:
         finder._parse_page(url, html)
         assert len(collector) == 0
 
-    def test_broken_page_no_crash(self) -> None:
+    def test_broken_page_no_crash(self):
         finder, collector = _finder(SoccerVistaFinder_per_league)
         finder._parse_page("u", load_fixture("soccervista", "league_broken.html"))
         assert len(collector) == 0
 
 
 class TestSoccerVistaPerMatch:
-    def test_match_page_parses_metadata_prediction_odds(self) -> None:
+    def test_match_page_parses_metadata_prediction_odds(self):
         finder, collector = _finder(SoccerVistaFinder_per_match, contributes_odds=True)
         url = "https://www.soccervista.com/match/arsenal-chelsea/"
         finder._parse_page(url, load_fixture("soccervista", "match.html"))
@@ -73,18 +71,18 @@ class TestSoccerVistaPerMatch:
         assert m.odds.btts_y == 1.85
         assert m.result_url == url
 
-    def test_missing_prediction_raises_no_match(self) -> None:
+    def test_missing_prediction_raises_no_match(self):
         html = load_fixture("soccervista", "match.html").replace("correctScorePrediction", "nothingHere")
         finder, collector = _finder(SoccerVistaFinder_per_match)
         finder._parse_page("u", html)
         assert len(collector) == 0
 
-    def test_broken_match_page_no_crash(self) -> None:
+    def test_broken_match_page_no_crash(self):
         finder, collector = _finder(SoccerVistaFinder_per_match)
         finder._parse_page("u", load_fixture("soccervista", "match_broken.html"))
         assert len(collector) == 0
 
-    def test_reserve_team_skipped(self) -> None:
+    def test_reserve_team_skipped(self):
         html = load_fixture("soccervista", "match.html").replace('"name": "Arsenal"', '"name": "Arsenal II"')
         finder, collector = _finder(SoccerVistaFinder_per_match)
         finder._parse_page("u", html)

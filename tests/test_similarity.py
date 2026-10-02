@@ -112,7 +112,9 @@ def make_chunk_db(path, matches):
     """
     )
     for m in matches:
-        preds_json = json.dumps([s.__dict__ for s in m.predictions]) if m.predictions else None
+        preds_json = (
+            json.dumps([s.__dict__ for s in m.predictions]) if m.predictions else None
+        )
         conn.execute(
             "INSERT INTO matches (home_team_name, away_team_name, datetime, predictions_scores, odds, result_url, league)"
             " VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -372,27 +374,35 @@ class TestFindNearMisses:
     def test_home_score_exactly_30_enters_window_check(self, mm_stub):
         # sc_h = 30 (>= 30 gate), sc_a = 50 -> combined 40 -> recorded (>= 40).
         mm_stub.add_match(make_match("RowHome", "RowAway"))
-        mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 30.0) if b == "QueryHome" else (False, 50.0))
+        mm_stub.similarity_engine = StubEngine(
+            lambda a, b: (False, 30.0) if b == "QueryHome" else (False, 50.0)
+        )
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)
         assert len(mm_stub._near_misses) == 1
         assert mm_stub._near_misses[0].score == pytest.approx(40.0)
 
     def test_combined_below_40_not_recorded(self, mm_stub):
         mm_stub.add_match(make_match("RowHome", "RowAway"))
-        mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 30.0) if b == "QueryHome" else (False, 49.0))
+        mm_stub.similarity_engine = StubEngine(
+            lambda a, b: (False, 30.0) if b == "QueryHome" else (False, 49.0)
+        )
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)  # combined 39.5
         assert mm_stub._near_misses == []
 
     def test_combined_exactly_65_not_recorded(self, mm_stub):
         # Window is [40, 65): the upper bound is exclusive.
         mm_stub.add_match(make_match("RowHome", "RowAway"))
-        mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 50.0) if b == "QueryHome" else (False, 80.0))
+        mm_stub.similarity_engine = StubEngine(
+            lambda a, b: (False, 50.0) if b == "QueryHome" else (False, 80.0)
+        )
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)  # combined 65.0
         assert mm_stub._near_misses == []
 
     def test_combined_just_below_65_recorded(self, mm_stub):
         mm_stub.add_match(make_match("RowHome", "RowAway"))
-        mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 50.0) if b == "QueryHome" else (False, 79.8))
+        mm_stub.similarity_engine = StubEngine(
+            lambda a, b: (False, 50.0) if b == "QueryHome" else (False, 79.8)
+        )
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)  # combined 64.9
         assert len(mm_stub._near_misses) == 1
 
@@ -484,8 +494,12 @@ class TestFindSelection:
 
 class TestDedupScenarios:
     def test_add_match_merges_fuzzy_variants(self, mm_real):
-        mm_real.add_match(make_match("Manchester United", "Chelsea", preds=[Score("src_a", 2, 1)]))
-        mm_real.add_match(make_match("Man Utd", "Chelsea", preds=[Score("src_b", 1, 0)]))
+        mm_real.add_match(
+            make_match("Manchester United", "Chelsea", preds=[Score("src_a", 2, 1)])
+        )
+        mm_real.add_match(
+            make_match("Man Utd", "Chelsea", preds=[Score("src_b", 1, 0)])
+        )
         buf = mm_real.ensure_buffer()
         assert len(buf) == 1  # merged into a single row
         preds = json.loads(buf.iloc[0]["predictions_scores"])
@@ -527,8 +541,12 @@ class TestDedupScenarios:
         # Manchester City chunk must NOT fold into a Manchester United row.
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
-        make_chunk_db(chunk_dir / "chunk1.db", [make_match("Manchester United", "Chelsea")])
-        make_chunk_db(chunk_dir / "chunk2.db", [make_match("Manchester City", "Chelsea")])
+        make_chunk_db(
+            chunk_dir / "chunk1.db", [make_match("Manchester United", "Chelsea")]
+        )
+        make_chunk_db(
+            chunk_dir / "chunk2.db", [make_match("Manchester City", "Chelsea")]
+        )
         mm_real.merge_databases(str(chunk_dir))
         buf = mm_real.ensure_buffer()
         assert len(buf) == 2

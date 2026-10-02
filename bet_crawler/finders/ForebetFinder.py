@@ -1,6 +1,6 @@
 """Match finder for forebet.com predictions."""
-
 from scrape_kit import ScrapeMode, get_logger, scrape
+
 
 logger = get_logger(__name__)
 
@@ -226,7 +226,6 @@ ALL_LINKS = [
 
 class ForebetFinder(BaseMatchFinder):
     """Scrapes forebet prediction pages; skips ongoing matches."""
-
     TIMEZONE = BaseMatchFinder._detect_local_timezone()
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:

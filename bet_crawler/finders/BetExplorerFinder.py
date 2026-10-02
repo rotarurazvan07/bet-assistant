@@ -1,6 +1,6 @@
 """Match finder for betexplorer.com odds pages."""
-
 import time
+
 
 from scrape_kit import browser, fetch, get_logger
 
@@ -341,7 +341,7 @@ class BetExplorerFinder(BaseMatchFinder):
                                             links.append(match_url)
                                     except Exception:
                                         continue
-                    except json.JSONDecodeError, TypeError:
+                    except (json.JSONDecodeError, TypeError):
                         continue
 
                 links = list(dict.fromkeys(links))

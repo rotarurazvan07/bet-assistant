@@ -1,6 +1,6 @@
 """Match finder for soccervista.com per-match pages."""
-
 from scrape_kit import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,6 @@ MAX_CONCURRENCY = 5
 
 class SoccerVistaFinder_per_match(BaseMatchFinder):
     """Scrapes soccervista match pages via browser sessions."""
-
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for soccervista (see BaseMatchFinder)."""
         super().__init__(add_match_callback, **runtime_settings)
@@ -139,7 +138,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     )
 
                     break
-            except json.JSONDecodeError, TypeError:
+            except (json.JSONDecodeError, TypeError):
                 continue
 
         return home_team, away_team, match_datetime
