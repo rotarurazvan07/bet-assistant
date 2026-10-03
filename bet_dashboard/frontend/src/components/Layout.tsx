@@ -1,14 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { pullDb } from '../api/data';
 
-const LINKS = [
-    { to: '/', label: 'Betting Tips' },
-    { to: '/builder', label: 'Smart Builder' },
-    { to: '/slips', label: 'Slips' },
-    { to: '/analytics', label: 'Analytics' },
-    { to: '/services', label: 'Services' },
-    { to: '/odds-alert', label: 'Odds Alert' },
+// AC-01/AC-02 (issue #36): workflow-grouped nav — Core → Insights → System;
+// routes unchanged, labels renamed to action verbs.
+const NAV_GROUPS = [
+    {
+        id: 'core',
+        caption: 'Core',
+        links: [
+            { to: '/', label: 'Discover' },
+            { to: '/builder', label: 'Build' },
+            { to: '/slips', label: 'Track' },
+        ],
+    },
+    {
+        id: 'insights',
+        caption: 'Insights',
+        links: [{ to: '/analytics', label: 'Analytics' }],
+    },
+    {
+        id: 'system',
+        caption: 'System',
+        links: [
+            { to: '/services', label: 'Services' },
+            { to: '/odds-alert', label: 'Odds Alert' },
+        ],
+    },
 ];
 
 export interface GlobalFilters {
@@ -102,17 +120,37 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         </span>
                     </div>
 
-                    {/* Nav */}
-                    <nav className="flex items-center gap-6 flex-1">
-                        {LINKS.map(({ to, label }) => (
-                            <NavLink
-                                key={to} to={to} end={to === '/'}
-                                className={({ isActive }) =>
-                                    `nav-link relative py-3.5 ${isActive ? 'active' : ''}`
-                                }
-                            >
-                                {label}
-                            </NavLink>
+                    {/* Nav — workflow groups (issue #36): Core → Insights → System.
+                        Anchors stay flat in DOM order inside each group so keyboard
+                        Tab order equals visual order (AC-04). */}
+                    <nav className="flex items-center gap-5 flex-1" aria-label="Primary">
+                        {NAV_GROUPS.map((group, groupIndex) => (
+                            <Fragment key={group.id}>
+                                {groupIndex > 0 && (
+                                    <span className="nav-separator" aria-hidden="true" />
+                                )}
+                                <div className="nav-group flex flex-col justify-center">
+                                    {/* AC-03: micro-caption above group (SM-approved) */}
+                                    <span
+                                        className="nav-caption"
+                                        aria-hidden="true"
+                                    >
+                                        {group.caption}
+                                    </span>
+                                    <div className="flex items-center">
+                                        {group.links.map(({ to, label }) => (
+                                            <NavLink
+                                                key={to} to={to} end={to === '/'}
+                                                className={({ isActive }) =>
+                                                    `nav-link relative py-2.5 ${isActive ? 'active' : ''}`
+                                                }
+                                            >
+                                                {label}
+                                            </NavLink>
+                                        ))}
+                                    </div>
+                                </div>
+                            </Fragment>
                         ))}
                     </nav>
 

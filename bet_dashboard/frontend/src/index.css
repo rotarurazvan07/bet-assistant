@@ -54,6 +54,18 @@
     background: var(--accent);
   }
 
+  /* Nav group separator (issue #36 AC-03): subtle vertical divider between groups */
+  .nav-separator {
+    @apply w-px self-stretch my-2;
+    background: var(--border);
+  }
+
+  /* Nav group micro-caption (issue #36 AC-03, SM-approved): tiny label above group */
+  .nav-caption {
+    @apply text-[8px] leading-none font-mono tracking-widest uppercase py-0.5;
+    color: var(--text-muted);
+  }
+
   /* Card surface */
   .card {
     background: var(--bg-card);
