@@ -37,7 +37,8 @@
   /* Nav */
   .nav-link {
     @apply text-[11px] font-sans font-medium tracking-widest uppercase transition-colors duration-150;
-    color: var(--text-muted);
+    /* Issue #36 AC-08: muted fails 4.5:1 on --bg-surface; muted-strong passes */
+    color: var(--text-muted-strong);
   }
 
   .nav-link:hover {
@@ -63,7 +64,7 @@
   /* Nav group micro-caption (issue #36 AC-03, SM-approved): tiny label above group */
   .nav-caption {
     @apply text-[8px] leading-none font-mono tracking-widest uppercase py-0.5;
-    color: var(--text-muted);
+    color: var(--text-muted-strong);
   }
 
   /* Card surface */
@@ -140,17 +141,22 @@
 
   .btn-primary {
     @apply btn;
-    background: var(--accent);
+    /* Issue #36 AC-08: #fff on --accent is 3.84:1 (fails AA); on --accent-dark it is 5.17:1 */
+    background: var(--accent-dark);
     color: #fff;
     box-shadow: 0 2px 8px var(--accent-glow);
   }
 
   .btn-primary:hover {
-    background: var(--accent-dark);
+    /* base is now accent-dark; darken via filter to preserve darker-on-hover affordance */
+    filter: brightness(.9);
   }
 
   .btn-primary:disabled {
-    opacity: .4;
+    /* Issue #36 AC-08: opacity-dimming can never pass contrast; use token dim state */
+    background: var(--bg-raised);
+    color: var(--text-muted-strong);
+    box-shadow: none;
     cursor: not-allowed;
   }
 
