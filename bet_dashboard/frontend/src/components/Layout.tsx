@@ -129,7 +129,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                 {groupIndex > 0 && (
                                     <span className="nav-separator" aria-hidden="true" />
                                 )}
-                                <div className="nav-group flex flex-col justify-center">
+                                <div className="flex flex-col justify-center" role="group" aria-label={group.caption}>
                                     {/* AC-03: micro-caption above group (SM-approved) */}
                                     <span
                                         className="nav-caption"
@@ -137,7 +137,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                     >
                                         {group.caption}
                                     </span>
-                                    <div className="flex items-center">
+                                    <div className="flex items-center gap-3">
                                         {group.links.map(({ to, label }) => (
                                             <NavLink
                                                 key={to} to={to} end={to === '/'}

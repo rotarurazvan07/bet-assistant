@@ -147,7 +147,7 @@
     box-shadow: 0 2px 8px var(--accent-glow);
   }
 
-  .btn-primary:hover {
+  .btn-primary:hover:not(:disabled) {
     /* base is now accent-dark; darken via filter to preserve darker-on-hover affordance */
     filter: brightness(.9);
   }

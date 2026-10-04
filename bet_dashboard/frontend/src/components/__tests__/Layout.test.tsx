@@ -72,6 +72,13 @@ describe('Layout', () => {
         expect(nav!.querySelectorAll('.nav-separator')).toHaveLength(2);
     });
 
+    it('labels each nav group for assistive tech (issue #36 polish)', () => {
+        renderLayout();
+        for (const caption of ['Core', 'Insights', 'System']) {
+            expect(screen.getByRole('group', { name: caption })).toBeInTheDocument();
+        }
+    });
+
     it('preserves route hrefs unchanged (AC-01: routes untouched)', () => {
         renderLayout();
         const nav = document.querySelector('nav');
