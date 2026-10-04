@@ -137,7 +137,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                     >
                                         {group.caption}
                                     </span>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-6">
                                         {group.links.map(({ to, label }) => (
                                             <NavLink
                                                 key={to} to={to} end={to === '/'}

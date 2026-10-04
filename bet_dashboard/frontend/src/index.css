@@ -36,7 +36,7 @@
 
   /* Nav */
   .nav-link {
-    @apply text-[11px] font-sans font-medium tracking-widest uppercase transition-colors duration-150;
+    @apply text-[11px] font-sans font-medium tracking-widest uppercase px-1.5 transition-colors duration-150;
     /* Issue #36 AC-08: muted fails 4.5:1 on --bg-surface; muted-strong passes */
     color: var(--text-muted-strong);
   }
