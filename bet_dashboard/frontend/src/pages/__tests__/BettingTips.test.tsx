@@ -66,25 +66,71 @@ describe('BettingTips page', () => {
         expect(screen.getByText(/Pull Update/)).toBeInTheDocument();
     });
 
+    async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+        await user.click(screen.getByRole('button', { name: /filters/i }));
+        await screen.findByPlaceholderText('Filter by team...');
+    }
+
     it('search input sends the search param on next fetch', async () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal');
+        await openFilters(user);
         const search = screen.getByPlaceholderText('Filter by team...');
         await user.type(search, 'Ars');
         await waitFor(() => expect(lastUrl).toContain('search=Ars'));
     });
 
     it('min consensus slider sends min_consensus param', async () => {
+        const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal');
-        // label is not associated with the control (div, not <label for>) —
-        // query the consensus range directly: min=0 max=100 step=5
+        await openFilters(user);
         const ranges = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
         const consSlider = ranges.find((r) => r.min === '0' && r.max === '100');
         expect(consSlider).toBeDefined();
         fireEvent.change(consSlider as HTMLInputElement, { target: { value: '50' } });
         await waitFor(() => expect(lastUrl).toContain('min_consensus=50'));
+    });
+
+    it('hides filter controls until Filters is opened', async () => {
+        renderPage();
+        await screen.findByText('Arsenal');
+        expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Filter by team...')).not.toBeInTheDocument();
+        expect(screen.queryByText('Min Consensus')).not.toBeInTheDocument();
+    });
+
+    it('Advanced toggle reveals sources and sort controls', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await openFilters(user);
+        expect(screen.queryByText('Select All')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /advanced/i }));
+        expect(screen.getByText('Select All')).toBeInTheDocument();
+        expect(screen.getByText('Sort')).toBeInTheDocument();
+    });
+
+    it('Reset to defaults clears search and consensus', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await openFilters(user);
+        await user.type(screen.getByPlaceholderText('Filter by team...'), 'Ars');
+        await waitFor(() => expect(lastUrl).toContain('search=Ars'));
+        await user.click(screen.getByRole('button', { name: /reset to defaults/i }));
+        expect((screen.getByPlaceholderText('Filter by team...') as HTMLInputElement).value).toBe('');
+    });
+
+    it('Escape closes the drawer', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await openFilters(user);
+        expect(screen.getByPlaceholderText('Filter by team...')).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        await waitFor(() => expect(screen.queryByPlaceholderText('Filter by team...')).not.toBeInTheDocument());
     });
 
     it('sorting: clicking a header toggles direction', async () => {

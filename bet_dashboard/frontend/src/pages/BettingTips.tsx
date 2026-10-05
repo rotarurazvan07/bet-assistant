@@ -11,8 +11,7 @@ import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
 import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS } from '../config/marketConfig';
-import { Popover, Checkbox, FormControlLabel, Button, Box, Typography, Divider } from '@mui/material';
-import { Settings as SettingsIcon } from '@mui/icons-material';
+import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, SwipeableDrawer, useMediaQuery } from '@mui/material';
 
 // Derive columns from centralized config (fixed columns only - market columns filtered dynamically)
 const ALL_COLS = getTableColumns();
@@ -133,8 +132,11 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             return saved ? new Set(JSON.parse(saved)) : new Set<string>();
         } catch { return new Set<string>(); }
     });
-    const [sourcesPopoverOpen, setSourcesPopoverOpen] = useState<HTMLElement | null>(null);
     const [sourcesLoading, setSourcesLoading] = useState(true);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
+    const filtersBtnRef = useRef<HTMLButtonElement>(null);
+    const isMobile = useMediaQuery('(max-width:767.95px)');
 
     // Fetch sources config on mount
     useEffect(() => {
@@ -218,6 +220,22 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     function handleSort(key: string) {
         if (key === sortBy) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
         else { setSortBy(key); setSortDir('asc'); }
+    }
+
+    function resetDiscoverFilters() {
+        setSearch('');
+        setMinConsensus(null);
+        setMinOdds(null);
+        setOnlySignificantMovement(false);
+        setSortBy('datetime');
+        setSortDir('asc');
+        setExcludedSources(new Set());
+        setVisibleColumns(new Set(ALL_MARKETS));
+    }
+
+    function closeFilters() {
+        setFiltersOpen(false);
+        queueMicrotask(() => filtersBtnRef.current?.focus());
     }
 
     function handlePageChange(p: number) {
@@ -353,191 +371,209 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                         {data.total.toLocaleString()} matches · page {page} of {data.total_pages}
                                     </span>
                                 )}
-                                <ColumnVisibilityPopover columns={MARKET_COLUMNS} visibleKeys={visibleColumns} onToggle={toggleColumn} />
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            {/* Sources Filter Cog Wheel */}
-                            <div>
-                                <Popover
-                                    open={sourcesPopoverOpen !== null}
-                                    anchorEl={sourcesPopoverOpen}
-                                    onClose={() => setSourcesPopoverOpen(null)}
-                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                                    slotProps={{
-                                        paper: {
-                                            sx: {
-                                                maxHeight: 400,
-                                                maxWidth: 300,
-                                                background: 'var(--bg-card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: 'var(--radius-lg)',
-                                            }
-                                        }
-                                    }}
+                        <Button
+                            ref={filtersBtnRef}
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setFiltersOpen(open => !open)}
+                            aria-expanded={filtersOpen}
+                            aria-controls="discover-filters-drawer"
+                        >
+                            Filters
+                        </Button>
+                    </div>
+
+                    {(() => {
+                        const drawerBody = (
+                            <Box
+                                id="discover-filters-drawer"
+                                role="document"
+                                sx={{ p: 2, width: isMobile ? '100%' : 360, maxHeight: isMobile ? '85vh' : '100%', overflow: 'auto' }}
+                            >
+                                <Typography id="discover-filters-title" variant="h6" sx={{ color: 'var(--text-bright)', mb: 2 }}>
+                                    Filters
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Filter by team..."
+                                        className="field w-full"
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                    />
+                                    <div>
+                                        <label style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                            Min Consensus
+                                            <TooltipIcon text="Minimum agreement percentage required from sources. Only matches with consensus at or above this threshold will be shown." align="right" />
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                step={5}
+                                                value={minConsensus ?? 0}
+                                                onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
+                                                className="w-32"
+                                                aria-label="Min Consensus"
+                                            />
+                                            <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                                {minConsensus !== null ? `${minConsensus}%` : 'Any'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                            Min Odds
+                                            <TooltipIcon text="Minimum odds required. A market cell must have both the min consensus AND min odds to count. If any cell passes both filters, the row is shown." align="right" />
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <input
+                                                type="range"
+                                                min={1.0}
+                                                max={5.0}
+                                                step={0.1}
+                                                value={minOdds ?? 1.0}
+                                                onChange={e => setMinOdds(Number(e.target.value) <= 1.0 ? null : Number(e.target.value))}
+                                                className="w-32"
+                                                aria-label="Min Odds"
+                                            />
+                                            <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                                {minOdds !== null ? minOdds.toFixed(1) : 'Any'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </Box>
+                                <Button
+                                    type="button"
+                                    onClick={() => setAdvancedOpen(v => !v)}
+                                    aria-expanded={advancedOpen}
+                                    sx={{ mt: 2, color: 'var(--text-secondary)', textTransform: 'none' }}
                                 >
-                                    <Box sx={{ p: 2, minWidth: 280 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'var(--text-bright)' }}>
-                                                Sources Filter
-                                            </Typography>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set())} disabled={excludedSources.size === 0 || sourcesLoading}>
-                                                    Select All
-                                                </Button>
-                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set(allSources))} disabled={excludedSources.size === allSources.length || sourcesLoading}>
-                                                    Deselect All
-                                                </Button>
+                                    {advancedOpen ? '▾' : '▸'} Advanced
+                                </Button>
+                                {advancedOpen && (
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                                        <div className="flex items-center gap-2">
+                                            <label style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                                Sig. Movement
+                                                <TooltipIcon text="Show only matches with significant odds movement (≥5% change). Chained with min consensus and min odds filters." align="right" />
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setOnlySignificantMovement(v => !v)}
+                                                aria-pressed={onlySignificantMovement}
+                                                className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
+                                                style={{
+                                                    background: onlySignificantMovement
+                                                        ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%)'
+                                                        : 'var(--bg-raised)',
+                                                    border: `1px solid ${onlySignificantMovement ? 'var(--accent)' : 'var(--border)'}`,
+                                                }}
+                                            >
+                                                <span
+                                                    className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
+                                                    style={{ left: onlySignificantMovement ? 'calc(100% - 18px)' : '2px' }}
+                                                />
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <Typography variant="subtitle2" sx={{ color: 'var(--text-bright)', mb: 1 }}>Sources</Typography>
+                                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set())} disabled={excludedSources.size === 0 || sourcesLoading}>Select All</Button>
+                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set(allSources))} disabled={excludedSources.size === allSources.length || sourcesLoading}>Deselect All</Button>
                                             </Box>
-                                        </Box>
-                                        <Divider sx={{ mb: 1, borderColor: 'var(--border)' }} />
-                                        {sourcesLoading ? (
-                                            <Typography variant="body2" sx={{ color: 'var(--text-secondary)', textAlign: 'center', py: 2 }}>
-                                                Loading sources...
-                                            </Typography>
-                                        ) : (
-                                            <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
-                                                {allSources.map(source => (
-                                                       <FormControlLabel
-                                                           key={source}
-                                                           control={
-                                                               <Checkbox
-                                                                   checked={!excludedSources.has(source)}
-                                                                   onChange={(event) => {
-                                                                       const checked = event.target.checked; // true = checked = include source
-                                                                       setExcludedSources(prev => {
-                                                                           const next = new Set(prev);
-                                                                           if (checked) {
-                                                                               next.delete(source); // include = remove from excluded
-                                                                           } else {
-                                                                               next.add(source); // exclude = add to excluded
-                                                                           }
-                                                                           return next;
-                                                                       });
-                                                                   }}
-                                                                   color="primary"
-                                                                   disabled={sourcesLoading}
-                                                               />
-                                                           }
-                                                           label={
-                                                               <Typography variant="body2" sx={{
-                                                                   color: excludedSources.has(source) ? 'var(--text-secondary)' : 'var(--text-primary)',
-                                                                   textDecoration: excludedSources.has(source) ? 'line-through' : 'none'
-                                                               }}>
-                                                                   {source}
-                                                               </Typography>
-                                                           }
-                                                           labelPlacement="end"
-                                                       />
-                                                   ))}
-                                            </Box>
-                                        )}
-                                        <Divider sx={{ my: 1.5, borderColor: 'var(--border)' }} />
-                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                            <Button size="small" onClick={() => setSourcesPopoverOpen(null)}>
-                                                Done
-                                            </Button>
-                                        </Box>
+                                            {sourcesLoading ? (
+                                                <Typography variant="body2" sx={{ color: 'var(--text-secondary)' }}>Loading sources...</Typography>
+                                            ) : (
+                                                <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                                                    {allSources.map(source => (
+                                                        <FormControlLabel
+                                                            key={source}
+                                                            control={
+                                                                <Checkbox
+                                                                    checked={!excludedSources.has(source)}
+                                                                    onChange={(event) => {
+                                                                        const checked = event.target.checked;
+                                                                        setExcludedSources(prev => {
+                                                                            const next = new Set(prev);
+                                                                            if (checked) next.delete(source);
+                                                                            else next.add(source);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                    color="primary"
+                                                                    disabled={sourcesLoading}
+                                                                />
+                                                            }
+                                                            label={
+                                                                <Typography variant="body2" sx={{
+                                                                    color: excludedSources.has(source) ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                                                    textDecoration: excludedSources.has(source) ? 'line-through' : 'none',
+                                                                }}>
+                                                                    {source}
+                                                                </Typography>
+                                                            }
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <Typography variant="subtitle2" sx={{ color: 'var(--text-bright)', mb: 1 }}>Columns</Typography>
+                                            <ColumnVisibilityPopover columns={MARKET_COLUMNS} visibleKeys={visibleColumns} onToggle={toggleColumn} />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Sort</label>
+                                            <select className="field" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                                                {ALL_COLS.map(col => (
+                                                    <option key={col.key} value={col.key}>{col.label}</option>
+                                                ))}
+                                            </select>
+                                            <select className="field" value={sortDir} onChange={e => setSortDir(e.target.value as 'asc' | 'desc')}>
+                                                <option value="asc">Asc</option>
+                                                <option value="desc">Desc</option>
+                                            </select>
+                                        </div>
                                     </Box>
-                                </Popover>
+                                )}
+                                <Divider sx={{ my: 2, borderColor: 'var(--border)' }} />
                                 <Button
                                     variant="outlined"
-                                    size="small"
-                                    startIcon={<SettingsIcon fontSize="small" />}
-                                    onClick={e => setSourcesPopoverOpen(e.currentTarget)}
-                                    disabled={sourcesLoading || allSources.length === 0}
-                                    sx={{
-                                        borderColor: excludedSources.size > 0 ? 'var(--accent)' : 'var(--border)',
-                                        color: excludedSources.size > 0 ? 'var(--accent)' : 'var(--text-primary)',
-                                        '&:hover': {
-                                            borderColor: 'var(--accent)',
-                                            backgroundColor: 'rgba(124, 58, 237, 0.08)',
-                                        }
-                                    }}
-                                    aria-label="Filter sources"
+                                    onClick={resetDiscoverFilters}
+                                    sx={{ color: 'var(--text-secondary)', borderColor: 'var(--border-strong)' }}
                                 >
-                                    Sources {excludedSources.size > 0 && `(${allSources.length - excludedSources.size}/${allSources.length})`}
+                                    Reset to defaults
                                 </Button>
-                            </div>
-                            {/* Search */}
-                            <div>
-                                <input
-                                    type="text"
-                                    placeholder="Filter by team..."
-                                    className="field w-52"
-                                    value={search}
-                                    onChange={e => setSearch(e.target.value)}
-                                />
-                            </div>
-                            {/* Consensus */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                    Min Consensus
-                                    <TooltipIcon text="Minimum agreement percentage required from sources. Only matches with consensus at or above this threshold will be shown." align="right" />
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={100}
-                                        step={5}
-                                        value={minConsensus ?? 0}
-                                        onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
-                                        className="w-32"
-                                    />
-                                    <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
-                                        {minConsensus !== null ? `${minConsensus}%` : 'Any'}
-                                    </span>
-                                </div>
-                            </div>
-                            {/* Min Odds */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                    Min Odds
-                                    <TooltipIcon text="Minimum odds required. A market cell must have both the min consensus AND min odds to count. If any cell passes both filters, the row is shown." align="right" />
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="range"
-                                        min={1.0}
-                                        max={5.0}
-                                        step={0.1}
-                                        value={minOdds ?? 1.0}
-                                        onChange={e => setMinOdds(Number(e.target.value) <= 1.0 ? null : Number(e.target.value))}
-                                        className="w-32"
-                                    />
-                                    <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
-                                        {minOdds !== null ? minOdds.toFixed(1) : 'Any'}
-                                    </span>
-                                </div>
-                            </div>
-                            {/* Significant Movement Toggle */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                    Sig. Movement
-                                    <TooltipIcon text="Show only matches with significant odds movement (≥5% change). Chained with min consensus and min odds filters." align="right" />
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setOnlySignificantMovement(v => !v)}
-                                    className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
-                                    style={{
-                                        background: onlySignificantMovement
-                                            ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%)'
-                                            : 'var(--bg-raised)',
-                                        border: `1px solid ${onlySignificantMovement ? 'var(--accent)' : 'var(--border)'}`,
-                                    }}
-                                >
-                                    <span
-                                        className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
-                                        style={{ left: onlySignificantMovement ? 'calc(100% - 18px)' : '2px' }}
-                                    />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                            </Box>
+                        );
+                        const paperSx = { background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+                        return isMobile ? (
+                            <SwipeableDrawer
+                                anchor="bottom"
+                                open={filtersOpen}
+                                onOpen={() => setFiltersOpen(true)}
+                                onClose={closeFilters}
+                                aria-labelledby="discover-filters-title"
+                                slotProps={{ paper: { sx: paperSx } }}
+                            >
+                                {drawerBody}
+                            </SwipeableDrawer>
+                        ) : (
+                            <Drawer
+                                anchor="right"
+                                open={filtersOpen}
+                                onClose={closeFilters}
+                                aria-labelledby="discover-filters-title"
+                                slotProps={{ paper: { sx: paperSx } }}
+                            >
+                                {drawerBody}
+                            </Drawer>
+                        );
+                    })()}
 
                     {/* Table container */}
                     <div style={{
