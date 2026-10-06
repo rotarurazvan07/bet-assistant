@@ -12,7 +12,7 @@ test('Filters drawer opens Basic, Advanced toggle, Escape closes', async ({ page
     await page.goto('/');
     await page.getByRole('button', { name: /^filters$/i }).click();
     await expect(page.getByPlaceholder('Filter by team...')).toBeVisible();
-    await expect(page.getByText('Min Consensus')).toBeVisible();
+    await expect(page.getByRole('slider', { name: 'Min Consensus' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Sources' })).toHaveCount(0);
     await page.getByRole('button', { name: /advanced/i }).click();
     await expect(page.getByRole('heading', { name: 'Sources' })).toBeVisible();
