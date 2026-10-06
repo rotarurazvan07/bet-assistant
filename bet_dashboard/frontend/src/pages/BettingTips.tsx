@@ -6,7 +6,6 @@ import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} f
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
-import ColumnVisibilityPopover from '../components/ColumnVisibilityPopover';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
@@ -524,7 +523,25 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                         </div>
                                         <div>
                                             <Typography variant="subtitle2" sx={{ color: 'var(--text-bright)', mb: 1 }}>Columns</Typography>
-                                            <ColumnVisibilityPopover columns={MARKET_COLUMNS} visibleKeys={visibleColumns} onToggle={toggleColumn} />
+                                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                                <Button size="small" variant="outlined" onClick={() => setVisibleColumns(new Set(MARKET_COLUMNS.map(c => c.market)))} disabled={visibleColumns.size === MARKET_COLUMNS.length}>Select All</Button>
+                                                <Button size="small" variant="outlined" onClick={() => setVisibleColumns(new Set())} disabled={visibleColumns.size === 0}>Deselect All</Button>
+                                            </Box>
+                                            <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                                                {MARKET_COLUMNS.map(col => (
+                                                    <FormControlLabel
+                                                        key={col.market}
+                                                        control={
+                                                            <Checkbox
+                                                                checked={visibleColumns.has(col.market)}
+                                                                onChange={() => toggleColumn(col.market)}
+                                                                color="primary"
+                                                            />
+                                                        }
+                                                        label={<Typography variant="body2" sx={{ color: 'var(--text-primary)' }}>{col.label}</Typography>}
+                                                    />
+                                                ))}
+                                            </Box>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <label style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Sort</label>

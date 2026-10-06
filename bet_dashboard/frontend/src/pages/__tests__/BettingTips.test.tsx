@@ -108,7 +108,8 @@ describe('BettingTips page', () => {
         await openFilters(user);
         expect(screen.queryByText('Select All')).not.toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: /advanced/i }));
-        expect(screen.getByText('Select All')).toBeInTheDocument();
+        expect(screen.getAllByText('Select All')).toHaveLength(2);
+        expect(screen.getByText('Columns')).toBeInTheDocument();
         expect(screen.getByText('Sort')).toBeInTheDocument();
     });
 
