@@ -11,14 +11,23 @@ interface Props {
     onSubmit: (units: number) => void;
     isMinimized: boolean;
     onToggleMinimize: () => void;
+    pulseToken?: number; // AC-04: incrementing nonce, not legs.length
 }
 
 // AC-08 (#39): last mobile sheet snap — '50' | '90'. Missing/invalid -> '50'.
 const SNAP_KEY = 'slip-sheet-snap';
 
-export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMinimized, onToggleMinimize }: Props) {
+export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMinimized, onToggleMinimize, pulseToken = 0 }: Props) {
     // AC-01: same mobile query as the #37 Filters drawer.
     const isMobile = useMediaQuery('(max-width:767.95px)');
+    // AC-04: restart animation via alternating class; clear on animationend (no effect).
+    const [seenPulse, setSeenPulse] = useState(0);
+    const [pulseClass, setPulseClass] = useState('');
+    if (pulseToken !== seenPulse) {
+        setSeenPulse(pulseToken);
+        setPulseClass(pulseToken ? (pulseToken % 2 ? ' slip-chrome-pulse-a' : ' slip-chrome-pulse-b') : '');
+    }
+    const onPulseEnd = () => setPulseClass('');
     const [snap, setSnap] = useState<'50' | '90'>(() => {
         try { return localStorage.getItem(SNAP_KEY) === '90' ? '90' : '50'; } catch { return '50'; }
     });
@@ -51,7 +60,8 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
         return createPortal(
             <button
                 type="button"
-                className="floating-slip-minimized"
+                className={`floating-slip-minimized${pulseClass}`}
+                onAnimationEnd={onPulseEnd}
                 onClick={onToggleMinimize}
                 aria-label={`Open slip builder, ${legs.length} leg${legs.length !== 1 ? 's' : ''}`}
             >
@@ -73,7 +83,8 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
 
     const panel = (
         <div
-            className="floating-slip-panel"
+            className={`floating-slip-panel${pulseClass}`}
+            onAnimationEnd={onPulseEnd}
             data-slip-panel
             role="dialog"
             aria-modal={false}

@@ -10,7 +10,7 @@ import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
 import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS } from '../config/marketConfig';
-import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, SwipeableDrawer, useMediaQuery } from '@mui/material';
+import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, SwipeableDrawer, useMediaQuery, Snackbar, Alert } from '@mui/material';
 
 // Derive columns from centralized config (fixed columns only - market columns filtered dynamically)
 const ALL_COLS = getTableColumns();
@@ -138,6 +138,11 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     // AC-07 (#39): last market cell that interacted with the slip builder.
     const lastSlipTriggerRef = useRef<HTMLElement | null>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
+    // AC-01/AC-03/AC-04: ephemeral add-leg feedback. No persistence.
+    const [pulsingKey, setPulsingKey] = useState<string | null>(null);
+    const [legAddNonce, setLegAddNonce] = useState(0);
+    const [toast, setToast] = useState<string | null>(null);
+    const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Fetch sources config on mount
     useEffect(() => {
@@ -264,6 +269,37 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     }
 
     // Popup handlers
+    function flyClone(source: HTMLElement) {
+        // AC-06: skip motion when the user asked for less of it.
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const target = document.querySelector('[data-slip-panel]') ?? document.querySelector('.floating-slip-minimized');
+        if (!target) return;
+        const from = source.getBoundingClientRect();
+        const to = target.getBoundingClientRect();
+        const clone = source.cloneNode(true) as HTMLElement;
+        clone.classList.add('leg-fly-clone');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.style.position = 'fixed';
+        clone.style.left = `${from.left}px`;
+        clone.style.top = `${from.top}px`;
+        clone.style.width = `${from.width}px`;
+        clone.style.height = `${from.height}px`;
+        clone.style.margin = '0';
+        clone.style.zIndex = '1500';
+        clone.style.pointerEvents = 'none';
+        clone.style.transition = 'transform 240ms ease, opacity 240ms ease';
+        document.body.appendChild(clone);
+        const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+        const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+        requestAnimationFrame(() => {
+            clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.2)`;
+            clone.style.opacity = '0';
+        });
+        const cleanup = () => { clone.remove(); };
+        clone.addEventListener('transitionend', cleanup, { once: true });
+        window.setTimeout(cleanup, 300);
+    }
+
     function handleCellClick(leg: CandidateLeg, element?: HTMLElement) {
         // AC-07 (#39): remember the trigger so minimize can restore focus.
         if (element) lastSlipTriggerRef.current = element;
@@ -281,17 +317,20 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             alert('Cannot add leg: Missing result URL for validation');
             return;
         }
-        setPendingLegs(prev => {
-            // Check if this leg (by result_url + market) already exists
-            const exists = prev.some(l => l.result_url === leg.result_url && l.market === leg.market);
-            if (exists) {
-                // Remove it (toggle off)
-                return prev.filter(l => !(l.result_url === leg.result_url && l.market === leg.market));
-            } else {
-                // Add it
-                return [...prev, leg];
-            }
-        });
+        // AC-08: compute exists before setPendingLegs; feedback only on append.
+        const exists = pendingLegs.some(l => l.result_url === leg.result_url && l.market === leg.market);
+        if (exists) {
+            setPendingLegs(prev => prev.filter(l => !(l.result_url === leg.result_url && l.market === leg.market)));
+            return;
+        }
+        setPendingLegs(prev => [...prev, leg]);
+        const key = `${leg.result_url}|${leg.market}`;
+        setPulsingKey(key);
+        if (pulseTimer.current) clearTimeout(pulseTimer.current);
+        pulseTimer.current = setTimeout(() => setPulsingKey(null), 300);
+        setLegAddNonce(n => n + 1);
+        setToast(`Added ${leg.market} @${leg.odds.toFixed(2)} to slip`);
+        if (element) flyClone(element);
     }
 
     function handleRemoveLeg(index: number) {
@@ -693,6 +732,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                                         match={m}
                                                         index={(page - 1) * PAGE_SIZE + i + 1}
                                                         onCellClick={handleCellClick}
+                                                        pulsingKey={pulsingKey}
                                                         activeMarkets={activeMarkets}
                                                         inSlipMarkets={inSlipMarkets}
                                                         movement={m.match_id != null ? movements[m.match_id] : undefined}
@@ -723,7 +763,28 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 onSubmit={handleAddSlip}
                 isMinimized={isSlipMinimized}
                 onToggleMinimize={handleToggleSlip}
+                pulseToken={legAddNonce}
             />
+        <Snackbar
+            open={toast != null}
+            autoHideDuration={2000}
+            onClose={() => setToast(null)}
+            anchorOrigin={{ vertical: isMobile ? 'top' : 'bottom', horizontal: 'center' }}
+        >
+            <Alert
+                severity="success"
+                variant="outlined"
+                onClose={() => setToast(null)}
+                sx={{
+                    color: 'var(--text-secondary)',
+                    backgroundColor: 'var(--win-bg)',
+                    borderColor: 'var(--win-border)',
+                    '& .MuiAlert-icon': { color: 'var(--win)' },
+                }}
+            >
+                {toast}
+            </Alert>
+        </Snackbar>
         </>
     );
 }

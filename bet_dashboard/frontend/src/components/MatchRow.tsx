@@ -37,9 +37,10 @@ interface CellProps {
     isActive?: boolean;
     isInSlip?: boolean;
     movement?: OddsMovementDirection;
+    pulsing?: boolean; // AC-01
 }
 
-function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement }: CellProps) {
+function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement, pulsing = false }: CellProps) {
     const c = consCell(pct, odds);
     if (!c) return <td className="px-3 py-3 text-center">
         <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>—</span>
@@ -52,7 +53,7 @@ function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement
     return (
         <td className="px-3 py-3 text-center" style={{ minWidth: 64 }}>
             <div
-                className="rounded px-2 py-1 inline-flex flex-col items-center gap-1 leading-none cursor-pointer transition-opacity hover:opacity-80"
+                className={`rounded px-2 py-1 inline-flex flex-col items-center gap-1 leading-none cursor-pointer transition-opacity hover:opacity-80${pulsing ? ' market-cell-pulse' : ''}`}
                 style={{
                     background: bgColor,
                     border: borderColor
@@ -84,9 +85,10 @@ interface Props {
     inSlipMarkets?: Set<string>;
     movement?: OddsMovementSummary;
     visibleColumns?: Set<string>;
+    pulsingKey?: string | null;
 }
 
-export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement, visibleColumns }: Props) {
+export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement, visibleColumns, pulsingKey }: Props) {
     const dt = match.datetime
         ? new Date(match.datetime).toLocaleString('en-GB', {
             day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
@@ -199,6 +201,7 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
                 odds={odds}
                 isActive={activeMarkets.has(col.market)}
                 isInSlip={inSlipMarkets.has(col.market)}
+                pulsing={pulsingKey === `${match.result_url}|${col.market}`}
                 movement={cellMovement}
                 onClick={onCellClick ? (event: React.MouseEvent<HTMLElement>) => {
                     const leg = buildLeg(col.market, col.marketType, consensus, odds);

@@ -163,6 +163,70 @@ describe('BettingTips page', () => {
         await waitFor(() => expect(screen.getByText('0 legs selected')).toBeInTheDocument());
     });
 
+    it('add shows toast Added 1 @1.90 to slip', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Added 1 @1.90 to slip');
+    });
+
+    it('toggle-off does not show the add toast', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        const cell = screen.getByRole('button', { name: /Select 75% at @1\.90/ });
+        await user.click(cell);
+        await screen.findByRole('alert');
+        await user.click(screen.getByRole('button', { name: /close/i }));
+        await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+        await user.click(cell);
+        await waitFor(() => expect(screen.getByText('0 legs selected')).toBeInTheDocument());
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('missing result_url still alerts and does not toast', async () => {
+        const user = userEvent.setup();
+        server.use(
+            http.get('/api/matches', () => HttpResponse.json(makeMatchesPage({
+                matches: [makeMatch({ result_url: '' })],
+            }))),
+        );
+        renderPage();
+        await screen.findByText('Arsenal');
+        await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+        // buildLeg never reaches handleCellClick (alert there is unchanged).
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText('1 leg selected')).not.toBeInTheDocument();
+    });
+
+    it('reduced-motion still toasts without a fly clone', async () => {
+        const orig = window.matchMedia;
+        Object.defineProperty(window, 'matchMedia', {
+            writable: true,
+            value: (query: string) => ({
+                matches: query.includes('prefers-reduced-motion'),
+                media: query,
+                onchange: null,
+                addListener() { /* noop */ },
+                removeListener() { /* noop */ },
+                addEventListener() { /* noop */ },
+                removeEventListener() { /* noop */ },
+                dispatchEvent() { return false; },
+            }),
+        });
+        try {
+            const user = userEvent.setup();
+            renderPage();
+            await screen.findByText('Arsenal');
+            await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+            expect(await screen.findByRole('alert')).toHaveTextContent('Added 1 @1.90 to slip');
+            expect(document.querySelector('.leg-fly-clone')).toBeNull();
+        } finally {
+            Object.defineProperty(window, 'matchMedia', { writable: true, value: orig });
+        }
+    });
+
     it('pagination click fetches the next page', async () => {
         const user = userEvent.setup();
         renderPage();

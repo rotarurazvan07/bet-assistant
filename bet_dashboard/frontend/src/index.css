@@ -396,6 +396,34 @@
 }
 .floating-slip-minimized:hover { opacity: .9; }
 
+/* AC-01/AC-04/AC-05 (#38): add-leg pulse + fly clone. 240ms, skip if reduced-motion. */
+@keyframes market-cell-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+  40% { transform: scale(1.06); box-shadow: 0 0 0 3px var(--accent-glow); border-color: var(--border-accent); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; }
+}
+.market-cell-pulse {
+  animation: market-cell-pulse 240ms ease;
+}
+@keyframes slip-chrome-pulse {
+  0%, 100% { box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.4)); }
+  40% { box-shadow: 0 0 0 3px var(--accent-glow), var(--shadow-md, 0 4px 12px rgba(0,0,0,.4)); }
+}
+.slip-chrome-pulse,
+.slip-chrome-pulse-a,
+.slip-chrome-pulse-b {
+  animation: slip-chrome-pulse 240ms ease;
+}
+.leg-fly-clone {
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .market-cell-pulse,
+  .slip-chrome-pulse,
+  .slip-chrome-pulse-a,
+  .slip-chrome-pulse-b { animation: none; }
+}
+
 /* Sticky columns for horizontal scroll */
 .sticky-col {
   position: sticky;

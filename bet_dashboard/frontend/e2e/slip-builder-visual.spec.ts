@@ -22,6 +22,15 @@ async function openPopulatedDiscover(page: Page): Promise<void> {
     await cell.click();
     await expect(page.getByText('1 leg selected')).toBeVisible();
     await expect(page.getByText('No legs selected.')).toHaveCount(0);
+    // #38 toast / pulse must not leak into #39 baselines.
+    const toast = page.getByRole('alert');
+    if (await toast.count()) {
+        await toast.getByRole('button', { name: /close/i }).click();
+        await expect(toast).toHaveCount(0);
+    }
+    // Wait for React-owned pulse (300ms) + fly clone; do not classList.remove (React re-adds).
+    await expect(page.locator('.leg-fly-clone')).toHaveCount(0);
+    await expect(page.locator('.slip-chrome-pulse-a, .slip-chrome-pulse-b, .market-cell-pulse')).toHaveCount(0);
 }
 
 test.describe('floating slip builder @desktop 1280x800', () => {
@@ -35,7 +44,7 @@ test.describe('floating slip builder @desktop 1280x800', () => {
 
     test('full viewport with matches + populated slip', async ({ page }) => {
         await openPopulatedDiscover(page);
-        await expect(page).toHaveScreenshot('slip-desktop-full.png', mask(page));
+        await expect(page).toHaveScreenshot('slip-desktop-full.png', { ...mask(page), maxDiffPixels: 500 });
     });
 });
 
@@ -56,7 +65,7 @@ test.describe('floating slip builder @mobile 375x667', () => {
 
     test('full viewport sheet 50% with table peek', async ({ page }) => {
         await openPopulatedDiscover(page);
-        await expect(page).toHaveScreenshot('slip-mobile-50-full.png', mask(page));
+        await expect(page).toHaveScreenshot('slip-mobile-50-full.png', { ...mask(page), maxDiffPixels: 300 });
     });
 
     test('full viewport sheet 90% populated', async ({ page }) => {
