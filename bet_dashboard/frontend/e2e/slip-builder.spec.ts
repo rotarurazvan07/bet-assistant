@@ -1,14 +1,15 @@
 // Floating slip builder E2E + keyboard + axe (issue #39 AC-11).
-// Local dev has no backend: the match table is empty, so we exercise the
-// empty-slip chrome + keyboard no-op paths. Filters AxiosError noise like
-// #36/#37.
+// Local Vite: demo API paints matches; tests still use an empty slip so
+// Ctrl+Enter stays a no-op. AxiosError filter kept for CI/external stack.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { installDemoApi } from './fixtures/mock-api';
 
 test.beforeEach(async ({ page }) => {
     page.on('pageerror', (err) => {
         if (!String(err).includes('AxiosError')) throw err;
     });
+    if (!process.env.E2E_BASE_URL) await installDemoApi(page);
 });
 
 test('desktop: expanded floating panel is visible and keyboard-guarded', async ({ page }) => {
