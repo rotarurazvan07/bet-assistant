@@ -769,15 +769,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             open={toast != null}
             autoHideDuration={2000}
             onClose={() => setToast(null)}
-            anchorOrigin={{ vertical: isMobile ? 'top' : 'bottom', horizontal: 'center' }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         >
             <Alert
                 severity="success"
                 variant="outlined"
                 onClose={() => setToast(null)}
                 sx={{
-                    color: 'var(--text-secondary)',
-                    backgroundColor: 'var(--win-bg)',
+                    color: 'var(--text-muted-strong)',
+                    backgroundColor: 'color-mix(in srgb, var(--bg-card) 82%, var(--win) 18%)',
                     borderColor: 'var(--win-border)',
                     '& .MuiAlert-icon': { color: 'var(--win)' },
                 }}

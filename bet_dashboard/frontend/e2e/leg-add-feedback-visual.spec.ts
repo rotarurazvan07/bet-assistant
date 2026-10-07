@@ -34,7 +34,7 @@ test.describe('leg-add feedback @desktop 1280x800', () => {
 test.describe('leg-add feedback @mobile 375x667', () => {
     test.use({ viewport: { width: 375, height: 667 } });
 
-    test('top toast above sheet', async ({ page }) => {
+    test('bottom-center toast + sheet', async ({ page }) => {
         await addDemoHome(page);
         await expect(page).toHaveScreenshot('leg-add-mobile-toast.png', mask(page));
     });
