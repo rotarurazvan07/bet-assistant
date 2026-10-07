@@ -1,4 +1,5 @@
-// Local Playwright demo matches. Reuses Vitest factories — no second Match type.
+// Durable Playwright demo matches (committed, reuse + expand — not one-off).
+// Reuses Vitest factories — no second Match type.
 import { makeMatch, makeMatchesPage } from '../../src/test/factories';
 
 export const DEMO_MATCHES = [

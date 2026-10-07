@@ -1,4 +1,7 @@
-// page.route demo API for local Playwright (Vite, no backend). Not used when E2E_BASE_URL is set.
+// Campaign convention (WS-A, 2026-10-07): local Playwright visual/E2E MUST call
+// installDemoApi so UI review shots show matches/slips. Expand demo-data.ts as new
+// surfaces need data. Exception: explicit empty-state stories (#46).
+// Skip when E2E_BASE_URL is set (CI docker has a real stack).
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
 import { DEMO_MATCHES, DEMO_MATCHES_PAGE } from './demo-data';
