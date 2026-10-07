@@ -196,6 +196,19 @@ describe('BettingTips page', () => {
         });
     });
 
+    it('#39 AC-07: Escape minimizes and restores focus to the triggering cell', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        const cell = screen.getByRole('button', { name: /Select 75% at @1\.90/ });
+        await user.click(cell);
+        await waitFor(() => expect(screen.getByText('1 leg selected')).toBeInTheDocument());
+        await user.keyboard('{Escape}');
+        await waitFor(() => expect(screen.queryByText('1 leg selected')).not.toBeInTheDocument());
+        await waitFor(() => expect(localStorage.getItem('slip-minimized')).toBe('true'));
+        await waitFor(() => expect(cell).toHaveFocus());
+    });
+
     it('refreshKey change refetches matches + slip selections', async () => {
         let matchFetches = 0;
         server.use(

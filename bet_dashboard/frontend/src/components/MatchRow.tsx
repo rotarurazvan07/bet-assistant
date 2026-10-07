@@ -32,7 +32,8 @@ function consCell(pct: number, odds: number | null | undefined) {
 interface CellProps {
     pct: number;
     odds: number | null | undefined;
-    onClick?: () => void;
+    // #39 AC-07: the element is forwarded so the page can restore focus to it.
+    onClick?: (event: React.MouseEvent<HTMLElement>) => void;
     isActive?: boolean;
     isInSlip?: boolean;
     movement?: OddsMovementDirection;
@@ -78,7 +79,7 @@ function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement
 interface Props {
     match: Match;
     index: number;
-    onCellClick?: (leg: CandidateLeg) => void;
+    onCellClick?: (leg: CandidateLeg, element?: HTMLElement) => void;
     activeMarkets?: Set<string>;
     inSlipMarkets?: Set<string>;
     movement?: OddsMovementSummary;
@@ -199,9 +200,9 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
                 isActive={activeMarkets.has(col.market)}
                 isInSlip={inSlipMarkets.has(col.market)}
                 movement={cellMovement}
-                onClick={onCellClick ? () => {
+                onClick={onCellClick ? (event: React.MouseEvent<HTMLElement>) => {
                     const leg = buildLeg(col.market, col.marketType, consensus, odds);
-                    if (leg) onCellClick(leg);
+                    if (leg) onCellClick(leg, event.currentTarget);
                 } : undefined}
             />
         );

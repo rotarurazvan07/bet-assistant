@@ -135,6 +135,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
+    // AC-07 (#39): last market cell that interacted with the slip builder.
+    const lastSlipTriggerRef = useRef<HTMLElement | null>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
 
     // Fetch sources config on mount
@@ -237,13 +239,34 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         queueMicrotask(() => filtersBtnRef.current?.focus());
     }
 
+    // #39 AC-07: mirror closeFilters — on minimize, restore focus to the
+    // triggering market cell; fall back to the re-mounted minimized pill
+    // when the cell is gone (pagination/unmount).
+    function handleToggleSlip() {
+        const minimizing = !isSlipMinimized;
+        // AC-07 (#39): expanding from the pill records it so Esc can return there
+        // when no market cell was used.
+        if (!minimizing && !lastSlipTriggerRef.current) {
+            lastSlipTriggerRef.current = document.querySelector<HTMLElement>('.floating-slip-minimized');
+        }
+        setIsSlipMinimized(minimizing);
+        if (!minimizing) return;
+        queueMicrotask(() => {
+            const el = lastSlipTriggerRef.current;
+            if (el && el.isConnected) el.focus();
+            else document.querySelector<HTMLElement>('.floating-slip-minimized')?.focus();
+        });
+    }
+
     function handlePageChange(p: number) {
         setPage(p);
         topRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
 
     // Popup handlers
-    function handleCellClick(leg: CandidateLeg) {
+    function handleCellClick(leg: CandidateLeg, element?: HTMLElement) {
+        // AC-07 (#39): remember the trigger so minimize can restore focus.
+        if (element) lastSlipTriggerRef.current = element;
         // Validate leg before adding
         if (leg.odds == null || leg.odds <= 0) {
             console.warn('Invalid odds for leg:', leg);
@@ -699,7 +722,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 onRemoveLeg={handleRemoveLeg}
                 onSubmit={handleAddSlip}
                 isMinimized={isSlipMinimized}
-                onToggleMinimize={() => setIsSlipMinimized(v => !v)}
+                onToggleMinimize={handleToggleSlip}
             />
         </>
     );

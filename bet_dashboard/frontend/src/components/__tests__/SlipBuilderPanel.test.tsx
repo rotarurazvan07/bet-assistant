@@ -1,7 +1,6 @@
-// SlipBuilderPanel (issue #64 P1). ACTUAL (cycle-12 divergence): NO match
-// autocomplete, NO market select, NO URL validation — display + units
-// input + Add Slip only. totalOdds = product of valid odds; potentialWin =
-// totalOdds*units - units.
+// SlipBuilderPanel (issue #64 P1 + #39). ACTUAL: display + units input +
+// Add Slip only. #39 adds: isMobileSheet prop drops the L99 maxHeight trap,
+// heading id for aria-labelledby, Ctrl+Enter / Esc window listeners.
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -42,9 +41,6 @@ describe('SlipBuilderPanel', () => {
     });
 
     it('units input updates potentialWin', async () => {
-        // Controlled number input + Math.max clamping makes user-event's
-        // per-keystroke typing unreliable here (re-render resets cursor);
-        // fireEvent.change sets the full value deterministically.
         const { fireEvent } = await import('@testing-library/react');
         render(<SlipBuilderPanel legs={legs(2)} onRemoveLeg={() => {}} onSubmit={() => {}} />);
         const input = screen.getByRole('spinbutton');
@@ -76,5 +72,43 @@ describe('SlipBuilderPanel', () => {
         render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} onToggleMinimize={onToggleMinimize} />);
         await user.click(screen.getByTitle('Minimize'));
         expect(onToggleMinimize).toHaveBeenCalledTimes(1);
+    });
+});
+
+// ── issue #39 ────────────────────────────────────────────────────────────────
+describe('SlipBuilderPanel #39', () => {
+    it('AC-13: heading carries the id used by the dialog aria-labelledby', () => {
+        render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} />);
+        expect(screen.getByText('Slip Builder').id).toBe('slip-builder-title');
+    });
+
+    it('AC-04: Ctrl+Enter calls onSubmit with current units when legs exist', async () => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+        render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={onSubmit} />);
+        await user.keyboard('{Control>}{Enter}{/Control}');
+        expect(onSubmit).toHaveBeenCalledWith(1);
+    });
+
+    it('AC-04: Ctrl+Enter does nothing when there are no legs', async () => {
+        const user = userEvent.setup();
+        const onSubmit = vi.fn();
+        render(<SlipBuilderPanel legs={[]} onRemoveLeg={() => {}} onSubmit={onSubmit} />);
+        await user.keyboard('{Control>}{Enter}{/Control}');
+        expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it('AC-05: Escape calls onToggleMinimize when expanded', async () => {
+        const user = userEvent.setup();
+        const onToggleMinimize = vi.fn();
+        render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} onToggleMinimize={onToggleMinimize} />);
+        await user.keyboard('{Escape}');
+        expect(onToggleMinimize).toHaveBeenCalledTimes(1);
+    });
+
+    it('AC-03/AC-02: mobile sheet drops the calc(100vh - 380px) list maxHeight', () => {
+        const { container } = render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} isMobileSheet />);
+        const list = container.querySelector('.overflow-y-auto') as HTMLElement;
+        expect(list.style.maxHeight).toBe('');
     });
 });

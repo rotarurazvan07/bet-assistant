@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CandidateLeg } from '../types';
 import { BaseCard } from './ui/BaseCard';
 import { BaseBadge } from './ui/BaseBadge';
@@ -8,9 +8,12 @@ interface Props {
     onRemoveLeg: (index: number) => void;
     onSubmit: (units: number) => void;
     onToggleMinimize?: () => void;
+    // AC-02 (#39): inside the mobile bottom sheet the paper height constrains
+    // the list, so the desktop-only calc() maxHeight must be dropped.
+    isMobileSheet?: boolean;
 }
 
-export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggleMinimize }: Props) {
+export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggleMinimize, isMobileSheet = false }: Props) {
     const [units, setUnits] = useState(1);
 
     // Calculate total odds (multiply all valid odds)
@@ -29,6 +32,27 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
         onSubmit(units);
     };
 
+    // AC-04/AC-05 (#39): the panel owns `units`, so the keys live here.
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.ctrlKey && event.key === 'Enter') {
+                if (legs.length === 0) return; // AC-04: empty slip is a no-op, no alert
+                event.preventDefault();
+                onSubmit(units); // same path as the Add Slip button
+                return;
+            }
+            if (event.key === 'Escape') {
+                // AC-05: Filters wins when its MUI Modal is actually open.
+                // SwipeableDrawer keepMounted leaves a hidden .MuiModal-root on mobile.
+                const openModal = document.querySelector('.MuiModal-root:not([aria-hidden="true"])');
+                if (openModal) return;
+                onToggleMinimize?.();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    });
+
     return (
         <BaseCard
             className="h-full flex flex-col"
@@ -36,7 +60,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
             header={
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                        <h2 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
+                        <h2 id="slip-builder-title" className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
                             Slip Builder
                         </h2>
                         <p className="text-sm font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>
@@ -44,7 +68,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                         </p>
                     </div>
                     {onToggleMinimize && (
-                        <button onClick={onToggleMinimize} className="btn-icon" title="Minimize" style={{ fontSize: 14 }}>▼</button>
+                        <button onClick={onToggleMinimize} className="btn-icon" title="Minimize" style={{ fontSize: 14, color: 'var(--text-muted-strong)' }}>▼</button>
                     )}
                 </div>
             }
@@ -86,7 +110,8 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                         onClick={handleSubmit}
                         className="w-full px-4 py-3 rounded text-base font-mono uppercase tracking-wider transition-opacity hover:opacity-90"
                         style={{
-                            background: 'var(--accent)',
+                            // AC-13 (#39): --accent is 3.84:1; --accent-dark is 5.17:1 (#36 lesson).
+                            background: 'var(--accent-dark)',
                             color: 'var(--text-bright)',
                         }}
                     >
@@ -96,7 +121,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
             ) : null}
         >
             {/* Selections - scrollable */}
-            <div className="flex-1 overflow-y-auto px-1 -mx-1 space-y-2 min-h-0" style={{ maxHeight: 'calc(100vh - 380px)' }}>
+            <div className="flex-1 overflow-y-auto px-1 -mx-1 space-y-2 min-h-0" style={isMobileSheet ? undefined : { maxHeight: 'calc(100vh - 380px)' }}>
                 {legs.length === 0 ? (
                     <div className="h-full flex items-center justify-center p-8">
                         <div className="text-center">
@@ -141,8 +166,9 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                             </div>
 
                             <div className="flex items-center justify-between mb-2">
+                                {/* AC-13 (#39): --accent on accent-glow is 3.15:1; --text-accent is 4.61:1. */}
                                 <BaseBadge status="info">
-                                    <span style={{ color: 'var(--accent)' }}>{leg.market}</span> <span style={{ color: 'var(--accent)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
+                                    <span style={{ color: 'var(--text-accent)' }}>{leg.market}</span> <span style={{ color: 'var(--text-accent)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
                                 </BaseBadge>
                             </div>
 

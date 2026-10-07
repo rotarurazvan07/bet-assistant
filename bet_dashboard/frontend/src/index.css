@@ -328,16 +328,58 @@
 
 /* Floating Slip Builder */
 .floating-slip-panel {
-  position: fixed;
-  bottom: 16px;
-  right: 24px;
-  z-index: 50;
-  width: 360px;
-  max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,.4));
+  /* AC-09 (#39): height transition for expand/minimize + 50/90 snap. */
+  transition: height .2s ease;
+}
+
+/* AC-01 (#39): on the mobile sheet paper, do not apply the desktop card geometry. */
+@media (max-width: 767.95px) {
+  .floating-slip-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    width: 100%;
+    max-height: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+}
+
+/* AC-03 (#39): desktop keeps the fixed bottom-right custom panel. */
+@media (min-width: 768px) {
+  .floating-slip-panel {
+    position: fixed;
+    bottom: 16px;
+    right: 24px;
+    z-index: 50;
+    width: 360px;
+    max-height: calc(100vh - 80px);
+  }
+}
+
+/* AC-02 (#39): mobile sheet drag handle — click toggles 50 <-> 90. */
+.slip-sheet-handle {
+  height: 24px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.slip-sheet-handle::before {
+  content: '';
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-strong);
 }
 .floating-slip-minimized {
   position: fixed;
