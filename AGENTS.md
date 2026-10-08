@@ -67,6 +67,7 @@ Local Playwright visual and E2E review of **any** UI change must show populated,
 - Commit fixtures and baselines. This is not one-off / scratch / local-only.
 - **Exception:** specs that exist to show empty states (Workstream A #46). Those must stay empty — do **not** call `installDemoApi`.
 - **Skip mocks when `E2E_BASE_URL` is set** (CI docker stack has a real backend).
+- **CI e2e stack is seeded:** `setup/seed_e2e.py` — run by the one-shot `e2e-seed` service in `setup/compose.e2e.yaml` — inserts the demo matches into the isolated e2e DB before the backend boots and parks the ticker daemons, so specs that skip mocks serve the same rows. It touches ONLY that throwaway compose volume, never `workspace/data/*.db`.
 - Pathname-only `page.route` matchers. Do not use `**/api/matches*` globs — they steal Vite `/src/api/*.ts` and blank the page.
 - Default `GET /api/slips` stays `{ slips: [], stats: null, profiles: [] }` unless the spec passes `{ slips: DEMO_SLIPS_PAGE }`. Do not change the default and break empty-slip / empty-state specs.
 - This does **not** seed `npm run dev` or `workspace/data/*.db`. Those stay pipeline outputs.

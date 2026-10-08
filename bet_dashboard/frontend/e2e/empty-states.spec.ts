@@ -1,14 +1,32 @@
 // Actionable empty states (issue #46 AC-10).
 // THIS STORY IS THE EXPLICIT DEMO-DATA EXCEPTION.
 // Do NOT call installDemoApi. Do NOT import DEMO_MATCHES.
-// Local Vite 502s already empty Discover/Track/Build via existing catch paths.
-// Analytics empty needs stats:null. Services empty needs generator.enabled:false.
+// Discover/Build are forced empty via the narrow beforeEach mocks below —
+// needed locally (Vite 502s) AND in CI, where the stack serves seeded demo
+// matches (setup/seed_e2e.py). Track stays genuinely empty in CI (fresh
+// slips.db). Analytics empty needs stats:null. Services empty needs
+// generator.enabled:false.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { suppressTour } from './fixtures/mock-api';
 
 test.beforeEach(async ({ page }) => {
     await suppressTour(page);
+    // Pathname-only matchers: globs like **/api/matches* steal Vite /src/api/*.ts.
+    await page.route((url) => url.pathname === '/api/matches', async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ total: 0, page: 1, page_size: 20, total_pages: 1, matches: [] }),
+        });
+    });
+    await page.route((url) => url.pathname === '/api/builder/preview', async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ total_odds: 1, pending_urls: [], legs: [] }),
+        });
+    });
     page.on('pageerror', (err) => {
         if (!String(err).includes('AxiosError')) throw err;
     });

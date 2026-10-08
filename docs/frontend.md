@@ -724,7 +724,7 @@ Rules:
 
 1. New or recaptured local visual/E2E specs call `installDemoApi(page)` (and pass `{ slips, profiles }` when that surface needs them).
 2. Expand `demo-data.ts` as new surfaces appear. Commit the fixtures.
-3. **Do not** mock when `E2E_BASE_URL` is set — CI uses the real docker stack.
+3. **Do not** mock when `E2E_BASE_URL` is set — CI uses the real docker stack, which `setup/seed_e2e.py` (one-shot `e2e-seed` service in `setup/compose.e2e.yaml`) pre-seeds with these same demo matches before the backend boots.
 4. **Do not** mock on specs whose job is an empty state.
 5. Use pathname matchers only (`/api/matches`, not `**/api/matches*`) or Vite module URLs get intercepted.
 6. Default `GET /api/slips` stays empty so empty-slip specs keep working.
