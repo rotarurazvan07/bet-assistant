@@ -3,6 +3,11 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { suppressTour } from './fixtures/mock-api';
+
+test.beforeEach(async ({ page }) => {
+    await suppressTour(page);
+});
 
 async function expectHeaderAxeClean(page: import('@playwright/test').Page) {
     const results = await new AxeBuilder({ page })

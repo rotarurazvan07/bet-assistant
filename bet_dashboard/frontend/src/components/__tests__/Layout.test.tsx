@@ -35,6 +35,8 @@ function renderLayout(route: string = '/', overrides: LayoutOverrides = {}) {
 
 beforeEach(() => {
     localStorage.clear();
+    // AC-09: existing header/nav assertions must not see first-visit tour.
+    localStorage.setItem('bet-assistant-tour-done', '1');
 });
 
 describe('Layout', () => {
@@ -176,5 +178,14 @@ describe('Layout', () => {
     it('shows lastPull text when provided', () => {
         renderLayout('/', { lastPull: 'Updated: 12:34' });
         expect(screen.getByText('Updated: 12:34')).toBeInTheDocument();
+    });
+
+    it('Restart Tour clears the done key and shows step 0', async () => {
+        const user = userEvent.setup();
+        renderLayout();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Restart Tour' }));
+        expect(localStorage.getItem('bet-assistant-tour-done')).toBeNull();
+        expect(screen.getByRole('dialog', { name: 'Find value bets' })).toBeInTheDocument();
     });
 });

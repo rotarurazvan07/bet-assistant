@@ -7,6 +7,8 @@ import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} f
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
+import { FirstSlipToast } from '../components/OnboardingTour';
+import { markFirstSlip } from '../components/tourStorage';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
@@ -143,6 +145,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     const [pulsingKey, setPulsingKey] = useState<string | null>(null);
     const [legAddNonce, setLegAddNonce] = useState(0);
     const [toast, setToast] = useState<string | null>(null);
+    const [milestoneOpen, setMilestoneOpen] = useState(false);
     const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Fetch sources config on mount
@@ -373,6 +376,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             }));
         try {
             await addSlip('manual', manualLegs, units);
+            // AC-06: first successful addSlip (Discover) — separate from #38 toast.
+            if (markFirstSlip()) setMilestoneOpen(true);
             setPendingLegs([]);
             // Refresh slip selections after adding
             try {
@@ -440,6 +445,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                             ref={filtersBtnRef}
                             variant="outlined"
                             size="small"
+                            data-tour="discover-filters"
                             onClick={() => setFiltersOpen(open => !open)}
                             aria-expanded={filtersOpen}
                             aria-controls="discover-filters-drawer"
@@ -788,6 +794,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 {toast}
             </Alert>
         </Snackbar>
+        <FirstSlipToast open={milestoneOpen} onClose={() => setMilestoneOpen(false)} />
         </>
     );
 }

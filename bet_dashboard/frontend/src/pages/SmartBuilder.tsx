@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
 import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
+import { FirstSlipToast } from '../components/OnboardingTour';
+import { markFirstSlip } from '../components/tourStorage';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import { TooltipIcon } from '../components/ui';
 import {
@@ -71,6 +73,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
     const [availableSources, setAvailableSources] = useState<string[]>([]);
     const [status, setStatus] = useState('');
+    const [milestoneOpen, setMilestoneOpen] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Persist state to localStorage
@@ -251,12 +254,15 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }));
 
         const id = await addSlip(activeName, manualLegs, units);
+        // AC-06: first successful addSlip (Build) counts as first slip.
+        if (markFirstSlip()) setMilestoneOpen(true);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
         triggerPreview(mergedCfg);
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }
 
     return (
+        <>
         <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 min-h-screen">
             {/* ── Left Sidebar — Responsive width ─────────────────────────────── */}
             <div className="w-full xl:w-[350px] 2xl:w-[400px] shrink-0">
@@ -324,7 +330,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                     <div className="flex items-center gap-3 flex-wrap">
                         <input className="field w-40" placeholder="profile name"
                             value={activeName} onChange={e => setActiveName(e.target.value)} />
-                        <button className="btn-primary" onClick={handleSaveProfile}>Save</button>
+                        <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
                         <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
 
                         {/* Units & Target Payout */}
@@ -374,6 +380,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
                 {/* Live Preview */}
                 <div className="rounded-xl p-5"
+                    data-tour="build-preview"
                     style={{
                         background: 'var(--bg-card)',
                         border: '1px solid var(--border)',
@@ -499,5 +506,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 )}
             </div>
         </div>
+        <FirstSlipToast open={milestoneOpen} onClose={() => setMilestoneOpen(false)} />
+        </>
     );
 }

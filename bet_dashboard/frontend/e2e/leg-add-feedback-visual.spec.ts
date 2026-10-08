@@ -1,11 +1,12 @@
 // Visual baselines (issue #38 AC-10). Chromium-only, local-only.
 // installDemoApi required. Do not screenshot mid-flight fly clone.
 import { test, expect, type Page } from '@playwright/test';
-import { installDemoApi } from './fixtures/mock-api';
+import { installDemoApi, suppressTour } from './fixtures/mock-api';
 
-test.beforeEach(async ({ browserName }) => {
+test.beforeEach(async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'visual baselines are chromium-only');
     test.skip(!!process.env.E2E_BASE_URL, 'visual baselines are local-only (CI stack fonts differ)');
+    await suppressTour(page);
 });
 
 const mask = (page: Page) => ({

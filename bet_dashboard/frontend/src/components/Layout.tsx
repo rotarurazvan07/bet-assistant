@@ -1,6 +1,8 @@
 import { useState, useEffect, Fragment } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { pullDb } from '../api/data';
+import OnboardingTour from './OnboardingTour';
+import { TOUR_DONE_KEY } from './tourStorage';
 
 // AC-01/AC-02 (issue #36): workflow-grouped nav — Core → Insights → System;
 // routes unchanged, labels renamed to action verbs.
@@ -68,6 +70,8 @@ function saveDates(dateFrom: string, dateTo: string) {
 
 export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated }: Props) {
     const location = useLocation();
+    const navigate = useNavigate();
+    const [tourEpoch, setTourEpoch] = useState(0);
     const [dateFrom, setDateFrom] = useState(() => getInitialDate('dateFrom'));
     const [dateTo, setDateTo] = useState(() => getInitialDate('dateTo'));
     const [pulling, setPulling] = useState(false);
@@ -165,6 +169,18 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         <button className="btn-ghost" onClick={handleRefresh}>
                             Refresh
                         </button>
+                        {/* AC-05: Restart Tour lives in the header — there is no Settings page. */}
+                        <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => {
+                                try { localStorage.removeItem(TOUR_DONE_KEY); } catch { /* ignore */ }
+                                navigate('/');
+                                setTourEpoch((n) => n + 1);
+                            }}
+                        >
+                            Restart Tour
+                        </button>
                         <button className="btn-primary" onClick={handlePull} disabled={pulling}>
                             {pulling ? 'Pulling…' : '↓ Pull Update'}
                         </button>
@@ -198,6 +214,8 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
                 {children({ dateFrom, dateTo })}
             </main>
+            {/* AC-07: mount tour here (Router + Restart). Do not edit App.tsx. */}
+            <OnboardingTour key={tourEpoch} />
         </div>
     );
 }

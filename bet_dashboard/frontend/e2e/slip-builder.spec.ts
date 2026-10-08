@@ -3,9 +3,10 @@
 // Ctrl+Enter stays a no-op. AxiosError filter kept for CI/external stack.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { installDemoApi } from './fixtures/mock-api';
+import { installDemoApi, suppressTour } from './fixtures/mock-api';
 
 test.beforeEach(async ({ page }) => {
+    await suppressTour(page);
     page.on('pageerror', (err) => {
         if (!String(err).includes('AxiosError')) throw err;
     });

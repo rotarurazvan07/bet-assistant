@@ -9,10 +9,12 @@
 //   dependent (loading/error states) and would flake baselines needlessly.
 
 import { test, expect } from '@playwright/test';
+import { suppressTour } from './fixtures/mock-api';
 
-test.beforeEach(async ({ browserName }) => {
+test.beforeEach(async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'visual baselines are chromium-only');
     test.skip(!!process.env.E2E_BASE_URL, 'visual baselines are local-only (CI stack fonts differ)');
+    await suppressTour(page);
 });
 
 // Desktop 1280x800 — mask the lastPull timestamp (backend-dependent text).

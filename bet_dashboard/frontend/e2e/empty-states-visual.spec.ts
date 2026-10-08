@@ -4,10 +4,12 @@
 // Chromium-only. Skip when E2E_BASE_URL (CI docker may have real data).
 // Mask header .font-mono (lastPull). Viewports 1280x800 + 375x667.
 import { test, expect, type Page } from '@playwright/test';
+import { suppressTour } from './fixtures/mock-api';
 
-test.beforeEach(async ({ browserName }) => {
+test.beforeEach(async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'visual baselines are chromium-only');
     test.skip(!!process.env.E2E_BASE_URL, 'visual baselines are local-only (CI stack may have real data)');
+    await suppressTour(page);
 });
 
 const mask = (page: Page) => ({

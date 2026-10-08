@@ -1,6 +1,11 @@
 // Discover filters drawer (issue #37 AC-09 / AC-11).
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { suppressTour } from './fixtures/mock-api';
+
+test.beforeEach(async ({ page }) => {
+    await suppressTour(page);
+});
 
 test('Discover shows Filters button and hides inline search', async ({ page }) => {
     await page.goto('/');

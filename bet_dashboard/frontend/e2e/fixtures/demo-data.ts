@@ -1,6 +1,6 @@
 // Durable Playwright demo matches (committed, reuse + expand — not one-off).
 // Reuses Vitest factories — no second Match type.
-import { makeMatch, makeMatchesPage } from '../../src/test/factories';
+import { makeMatch, makeMatchesPage, makeProfile, makeSlip, makeSlipsPage } from '../../src/test/factories';
 
 export const DEMO_MATCHES = [
     makeMatch({
@@ -49,3 +49,18 @@ export const DEMO_MATCHES_PAGE = makeMatchesPage({
     total_pages: 1,
     matches: DEMO_MATCHES,
 });
+
+export const DEMO_SLIPS = [
+    makeSlip({
+        slip_id: 1,
+        profile: 'low',
+        date_generated: '2026-10-07',
+    }),
+];
+
+export const DEMO_SLIPS_PAGE = makeSlipsPage({
+    slips: DEMO_SLIPS,
+    profiles: ['low'],
+});
+
+export const DEMO_PROFILES = { low: makeProfile() };

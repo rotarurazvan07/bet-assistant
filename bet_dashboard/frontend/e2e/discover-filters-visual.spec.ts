@@ -1,9 +1,11 @@
 // Visual baselines (issue #37 AC-10). Chromium-only, local-only.
 import { test, expect } from '@playwright/test';
+import { suppressTour } from './fixtures/mock-api';
 
-test.beforeEach(async ({ browserName }) => {
+test.beforeEach(async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'visual baselines are chromium-only');
     test.skip(!!process.env.E2E_BASE_URL, 'visual baselines are local-only (CI stack fonts differ)');
+    await suppressTour(page);
 });
 
 const mask = (page: import('@playwright/test').Page) => ({

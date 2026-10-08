@@ -2,6 +2,11 @@
 // Full-journey E2E tests come in later cycles; CI wiring in cycle 15.
 
 import { test, expect } from '@playwright/test';
+import { suppressTour } from './fixtures/mock-api';
+
+test.beforeEach(async ({ page }) => {
+    await suppressTour(page);
+});
 
 test('landing page renders the app root', async ({ page }) => {
     await page.goto('/');

@@ -195,6 +195,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             <div className="flex items-center gap-3 flex-wrap mb-5">
                 {/* Sort by dropdown */}
                 <select className="field w-56"
+                    data-tour="track-list"
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}>
                     <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
@@ -207,8 +208,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                     <option value="stake_asc">Sort: Stake (Low → High)</option>
                 </select>
 
-                <button className="btn-ghost" onClick={handleValidate}>✓ Validate Results</button>
-                <button className="btn-success" onClick={handleGenerate}>✦ Generate Slips</button>
+                <button className="btn-ghost" data-tour="track-validate" onClick={handleValidate}>✓ Validate Results</button>
+                <button className="btn-success" data-tour="track-generate" onClick={handleGenerate}>✦ Generate Slips</button>
 
                 <div className="flex items-center gap-3 ml-auto">
                     <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />

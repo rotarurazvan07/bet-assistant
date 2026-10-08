@@ -2,9 +2,10 @@
 // Local Vite: installDemoApi paints Arsenal 75% @1.90. Skip mocks on CI stack.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { installDemoApi } from './fixtures/mock-api';
+import { installDemoApi, suppressTour } from './fixtures/mock-api';
 
 test.beforeEach(async ({ page }) => {
+    await suppressTour(page);
     page.on('pageerror', (err) => {
         if (!String(err).includes('AxiosError')) throw err;
     });

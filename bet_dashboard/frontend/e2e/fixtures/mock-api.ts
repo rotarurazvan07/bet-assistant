@@ -4,13 +4,20 @@
 // Skip when E2E_BASE_URL is set (CI docker has a real stack).
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
+import type { SlipsPage, ProfilesMap } from '../../src/types';
 import { DEMO_MATCHES, DEMO_MATCHES_PAGE } from './demo-data';
 
 function apiPath(pathname: string, exact: string): boolean {
     return pathname === exact || pathname.startsWith(`${exact}/`);
 }
 
-export async function installDemoApi(page: Page): Promise<void> {
+export type DemoApiOpts = {
+    slips?: SlipsPage;
+    profiles?: ProfilesMap;
+};
+
+export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promise<void> {
+    const slipsGet = opts.slips ?? { slips: [], stats: null, profiles: [] };
     await page.route((url) => apiPath(url.pathname, '/api/matches'), async (route) => {
         await route.fulfill({
             status: 200,
@@ -27,10 +34,7 @@ export async function installDemoApi(page: Page): Promise<void> {
     });
     await page.route((url) => url.pathname === '/api/slips', async (route) => {
         const method = route.request().method();
-        const body =
-            method === 'GET'
-                ? { slips: [], stats: null, profiles: [] }
-                : { slip_id: 1 };
+        const body = method === 'GET' ? slipsGet : { slip_id: 1 };
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -53,5 +57,25 @@ export async function installDemoApi(page: Page): Promise<void> {
                 matches_loaded: DEMO_MATCHES.length,
             }),
         });
+    });
+    if (opts.profiles) {
+        await page.route((url) => url.pathname === '/api/profiles', async (route) => {
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ profiles: opts.profiles }),
+            });
+        });
+    }
+}
+
+/** AC-09: existing specs must not see first-visit tour. */
+export async function suppressTour(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+        try {
+            localStorage.setItem('bet-assistant-tour-done', '1');
+        } catch {
+            // ignore
+        }
     });
 }

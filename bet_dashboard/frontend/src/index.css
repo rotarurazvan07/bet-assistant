@@ -424,6 +424,15 @@
   .slip-chrome-pulse-b { animation: none; }
 }
 
+/* AC-01 / AC-07: tour spotlight is decorative; keep dialog, drop motion. */
+.tour-spotlight {
+  position: relative;
+  z-index: 1401;
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
 /* Sticky columns for horizontal scroll */
 .sticky-col {
   position: sticky;
