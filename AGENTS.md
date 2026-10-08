@@ -58,4 +58,17 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - Smart Builder "no matches": lower Consensus Floor (40-50%), lower Min Odds (1.01), check Excluded Matches, verify date filters
 - Docker containers restart: check `docker compose -f setup/compose.yaml logs` — common: port 3002/8000 conflict, `./workspace/` permissions
 
+## Frontend visual / E2E demo data (binding)
+
+Local Playwright visual and E2E review of **any** UI change must show populated, realistic data — empty tables and empty slips have no review value unless the story is explicitly an empty-state story.
+
+- Call `installDemoApi(page)` from `bet_dashboard/frontend/e2e/fixtures/mock-api.ts` in every new or recaptured local visual/E2E spec.
+- Expand `bet_dashboard/frontend/e2e/fixtures/demo-data.ts` when a new surface needs matches, slips, or profiles. Reuse existing Vitest factories (`makeMatch`, `makeSlip`, …). Do not invent a second type system.
+- Commit fixtures and baselines. This is not one-off / scratch / local-only.
+- **Exception:** specs that exist to show empty states (Workstream A #46). Those must stay empty — do **not** call `installDemoApi`.
+- **Skip mocks when `E2E_BASE_URL` is set** (CI docker stack has a real backend).
+- Pathname-only `page.route` matchers. Do not use `**/api/matches*` globs — they steal Vite `/src/api/*.ts` and blank the page.
+- Default `GET /api/slips` stays `{ slips: [], stats: null, profiles: [] }` unless the spec passes `{ slips: DEMO_SLIPS_PAGE }`. Do not change the default and break empty-slip / empty-state specs.
+- This does **not** seed `npm run dev` or `workspace/data/*.db`. Those stay pipeline outputs.
+
 <!-- /bmad:context -->

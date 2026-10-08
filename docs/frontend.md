@@ -707,9 +707,28 @@ npm test
 # Component tests
 npm test -- --testPathPattern=components
 
-# E2E tests (if configured)
-npx playwright test
+# E2E + visual (local Vite, no backend)
+npx playwright test --project=chromium
 ```
+
+### Local Playwright demo data (required for UI review)
+
+Local visual/E2E of **any** frontend change must present populated demo data so reviewers can see the UI with matches/slips, not empty chrome.
+
+| Piece | Path |
+|---|---|
+| Matches / slips / profiles | `e2e/fixtures/demo-data.ts` (reuses `src/test/factories.ts`) |
+| `page.route` helper | `e2e/fixtures/mock-api.ts` → `installDemoApi(page, opts?)` |
+
+Rules:
+
+1. New or recaptured local visual/E2E specs call `installDemoApi(page)` (and pass `{ slips, profiles }` when that surface needs them).
+2. Expand `demo-data.ts` as new surfaces appear. Commit the fixtures.
+3. **Do not** mock when `E2E_BASE_URL` is set — CI uses the real docker stack.
+4. **Do not** mock on specs whose job is an empty state.
+5. Use pathname matchers only (`/api/matches`, not `**/api/matches*`) or Vite module URLs get intercepted.
+6. Default `GET /api/slips` stays empty so empty-slip specs keep working.
+7. Does not seed `npm run dev` or `workspace/data/*.db`.
 
 ### Key Test Areas
 
