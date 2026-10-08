@@ -777,6 +777,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 onClose={() => setToast(null)}
                 sx={{
                     color: 'var(--text-muted-strong)',
+                    // AC-10/AC-11: .MuiAlert-message owns the toast text; root color does not reach it.
+                    '& .MuiAlert-message': { color: 'var(--text-secondary)' },
                     backgroundColor: 'color-mix(in srgb, var(--bg-card) 82%, var(--win) 18%)',
                     borderColor: 'var(--win-border)',
                     '& .MuiAlert-icon': { color: 'var(--win)' },

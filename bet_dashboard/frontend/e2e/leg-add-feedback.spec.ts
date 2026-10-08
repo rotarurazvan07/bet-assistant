@@ -47,7 +47,10 @@ test('toast and slip panel pass axe-core', async ({ page }) => {
     expect(emptyPanel.violations).toEqual([]);
     await expect(page.getByText('Arsenal')).toBeVisible();
     await page.getByRole('button', { name: /Select 75% at @1\.90/ }).first().click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    const alert = page.getByRole('alert');
+    await expect(alert).toBeVisible();
+    // MUI Grow transition (225ms) fades opacity 0->1. Wait for opacity: 1 so axe measures settled text contrast.
+    await expect(alert).toHaveCSS('opacity', '1');
     const toast = await new AxeBuilder({ page }).include('[role="alert"]').analyze();
     expect(toast.violations).toEqual([]);
 });
