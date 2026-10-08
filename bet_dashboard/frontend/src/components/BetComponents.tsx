@@ -88,15 +88,9 @@ function QualityIndicator({ score }: { score: number }) {
 }
 
 export function BetPreview({ legs, pendingUrls, onExclude, minStrength }: PreviewProps) {
+    // AC-03: empty preview is rendered by SmartBuilder via EmptyState. Keep a silent fallback.
     if (!legs.length) {
-        return (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <span className="text-3xl opacity-30">🎯</span>
-                <p className="text-[13px] font-sans" style={{ color: 'var(--text-secondary)' }}>
-                    No matches meet the current criteria.
-                </p>
-            </div>
-        );
+        return null;
     }
 
     const outOfBand = legs.filter(l => l.tier === 2).length;

@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import BettingTips from '../BettingTips';
@@ -35,14 +36,18 @@ beforeEach(() => {
 
 
 function renderPage(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
-    return render(<BettingTips filters={filters} refreshKey={refreshKey} />);
+    return render(
+        <MemoryRouter>
+            <BettingTips filters={filters} refreshKey={refreshKey} />
+        </MemoryRouter>,
+    );
 }
 
 
 describe('BettingTips page', () => {
     it('renders title + match count + the match row', async () => {
         renderPage();
-        expect(screen.getByText('Betting Tips')).toBeInTheDocument();
+        expect(screen.getByText('Discover')).toBeInTheDocument();
         await screen.findByText('Arsenal');
         expect(screen.getByText(/120 matches/)).toBeInTheDocument();
         expect(screen.getByText(/page 1 of 3/)).toBeInTheDocument();
@@ -62,8 +67,20 @@ describe('BettingTips page', () => {
             http.get('/api/matches', () => HttpResponse.json(makeMatchesPage({ total: 0, matches: [], total_pages: 1 }))),
         );
         renderPage();
-        await screen.findByText(/No matches available/);
-        expect(screen.getByText(/Pull Update/)).toBeInTheDocument();
+        await screen.findByText('No matches yet');
+        expect(screen.getByRole('button', { name: 'Pull Update Now' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Adjust Filters' })).toBeInTheDocument();
+    });
+
+    it('Adjust Filters CTA opens the filters drawer', async () => {
+        const user = userEvent.setup();
+        server.use(
+            http.get('/api/matches', () => HttpResponse.json(makeMatchesPage({ total: 0, matches: [], total_pages: 1 }))),
+        );
+        renderPage();
+        await screen.findByText('No matches yet');
+        await user.click(screen.getByRole('button', { name: 'Adjust Filters' }));
+        expect(await screen.findByRole('heading', { name: 'Filters' })).toBeInTheDocument();
     });
 
     async function openFilters(user: ReturnType<typeof userEvent.setup>) {
@@ -284,7 +301,11 @@ describe('BettingTips page', () => {
         const { rerender } = renderPage({ dateFrom: '', dateTo: '' }, 0);
         await screen.findByText('Arsenal');
         const before = matchFetches;
-        rerender(<BettingTips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />);
+        rerender(
+            <MemoryRouter>
+                <BettingTips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />
+            </MemoryRouter>,
+        );
         await waitFor(() => expect(matchFetches).toBeGreaterThan(before));
     });
 });

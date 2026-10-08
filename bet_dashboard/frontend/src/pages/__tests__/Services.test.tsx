@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Services from '../Services';
 import { server } from '../../test/handlers';
-import { makeServicesData } from '../../test/factories';
+import { makeServicesData, makeServiceInfo } from '../../test/factories';
 
 
 const DATA = makeServicesData();
@@ -101,6 +101,37 @@ describe('Services page', () => {
         // error state: data stays null → loading card persists; assert no crash markers
         await new Promise((r) => setTimeout(r, 50));
         expect(screen.queryByText('Scheduled Time')).not.toBeInTheDocument();
+    });
+
+    it('does not show EmptyState when generator is enabled', async () => {
+        render(<Services />);
+        await screen.findByText('Automation Services');
+        expect(screen.queryByText('Generate Slips is off')).not.toBeInTheDocument();
+        expect(screen.queryByText('Loading services…')).not.toBeInTheDocument();
+    });
+
+    it('shows EmptyState above the grid when generator is off', async () => {
+        const user = userEvent.setup();
+        let toggles = 0;
+        server.use(
+            http.get('/api/services', () => HttpResponse.json(makeServicesData({
+                services: {
+                    puller: makeServiceInfo({ name: 'puller' }),
+                    generator: makeServiceInfo({ name: 'generator', enabled: false }),
+                    verifier: makeServiceInfo({ name: 'verifier' }),
+                },
+            }))),
+            http.post('/api/services/:name/toggle', () => {
+                toggles += 1;
+                return HttpResponse.json({ name: 'generator', enabled: true });
+            }),
+        );
+        render(<Services />);
+        expect(await screen.findByText('Generate Slips is off')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Enable Generate Slips' })).toBeInTheDocument();
+        expect(screen.getAllByRole('button', { name: 'Save Settings' }).length).toBeGreaterThan(0);
+        await user.click(screen.getByRole('button', { name: 'Enable Generate Slips' }));
+        await waitFor(() => expect(toggles).toBe(1));
     });
 
     it('cards show per-service descriptions', async () => {

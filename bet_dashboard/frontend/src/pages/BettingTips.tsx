@@ -1,7 +1,8 @@
 import {useCallback,  useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
 import { getAllMovements } from '../api/oddsHistory';
-import { addSlip, fetchSlips, fetchSourcesConfig } from '../api/data';
+import { addSlip, fetchSlips, fetchSourcesConfig, pullDb } from '../api/data';
+import EmptyState, { DiscoverEmptyIcon } from '../components/EmptyState';
 import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
@@ -422,7 +423,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                 color: 'var(--text-bright)',
                                 fontSize: '1.75rem',
                                 fontWeight: 'bold'
-                            }}>Betting Tips</h2>
+                            }}>Discover</h2>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                                 {data && data.total != null && (
                                     <span style={{
@@ -661,15 +662,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         background: 'var(--bg-card)',
                         borderRadius: 'var(--radius-lg)'
                     }}>
+                        {/* AC-02: Discover empty when total === 0 (incl. fetch-error fallback) */}
                         {!loading && data && data.total === 0 && (
-                            <div className="card text-center py-16 fade-in">
-                                <p className="font-mono text-base" style={{ color: 'var(--text-secondary)' }}>
-                                    No matches available.
-                                </p>
-                                <p className="font-mono text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
-                                    Click "↓ Pull Update" to fetch new data from the server.
-                                </p>
-                            </div>
+                            <EmptyState
+                                icon={<DiscoverEmptyIcon />}
+                                title="No matches yet"
+                                steps={['Click ↓ Pull Update', 'Adjust filters', 'Add to Slip']}
+                                primary={{ label: 'Pull Update Now', onClick: async () => { await pullDb(); await load(); } }}
+                                secondary={{ label: 'Adjust Filters', onClick: () => setFiltersOpen(true) }}
+                            />
                         )}
 
                         {data && data.total > 0 && (

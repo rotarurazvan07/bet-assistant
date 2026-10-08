@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Analytics from '../Analytics';
@@ -41,7 +42,11 @@ beforeEach(() => {
 
 
 function renderPage(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
-    return render(<Analytics filters={filters} refreshKey={refreshKey} />);
+    return render(
+        <MemoryRouter>
+            <Analytics filters={filters} refreshKey={refreshKey} />
+        </MemoryRouter>,
+    );
 }
 
 
@@ -53,14 +58,14 @@ describe('Analytics page', () => {
         // both prove fetch→render wiring; charts can shift which mounts first
         await waitFor(() => {
             const sel = screen.queryByText('SELECT PROFILES');
-            const empty = screen.queryByText(/No analytics data yet/);
+            const empty = screen.queryByText(/No analytics yet/);
             expect(sel || empty).toBeTruthy();
         }, { timeout: 8000 });
     });
 
     it('fetches /api/analytics and renders stats sections', async () => {
         renderPage();
-        await waitFor(() => expect(screen.queryByText(/No analytics data yet/)).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByText(/No analytics yet/)).not.toBeInTheDocument());
         expect(lastUrl).toContain('/api/analytics');
     });
 
@@ -69,13 +74,17 @@ describe('Analytics page', () => {
             http.get('/api/analytics', () => HttpResponse.json(null)),
         );
         renderPage();
-        await screen.findByText(/No analytics data yet/);
+        await screen.findByText(/No analytics yet/);
+        expect(screen.getByRole('button', { name: 'Go to Track' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Go to Build' })).toBeInTheDocument();
     });
 
     it('fetch failure falls back to empty data (no crash, empty state)', async () => {
         server.use(http.get('/api/analytics', () => HttpResponse.error()));
         renderPage();
-        await screen.findByText(/No analytics data yet/);
+        // catch still sets zeroed stats — heading must stay; do not crash
+        await screen.findByText('Analytics');
+        expect(screen.queryByText('No analytics yet')).not.toBeInTheDocument();
     });
 
     it('profile chips render from data.profiles', async () => {
@@ -98,7 +107,11 @@ describe('Analytics page', () => {
         const { rerender } = renderPage();
         await screen.findByText('SELECT PROFILES');
         const before = calls;
-        rerender(<Analytics filters={{ dateFrom: '', dateTo: '' }} refreshKey={2} />);
+        rerender(
+            <MemoryRouter>
+                <Analytics filters={{ dateFrom: '', dateTo: '' }} refreshKey={2} />
+            </MemoryRouter>,
+        );
         await waitFor(() => expect(calls).toBeGreaterThan(before));
     });
 
