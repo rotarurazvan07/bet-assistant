@@ -27,6 +27,16 @@ test.beforeEach(async ({ page }) => {
             body: JSON.stringify({ total_odds: 1, pending_urls: [], legs: [] }),
         });
     });
+    // Exact pathname — do not steal /api/slips/generate (the Track test mocks that).
+    // Needed because chromium's onboarding-tour POSTs real slips into the shared CI DB
+    // before firefox/webkit reach this file.
+    await page.route((url) => url.pathname === '/api/slips', async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ slips: [], stats: null, profiles: [] }),
+        });
+    });
     page.on('pageerror', (err) => {
         if (!String(err).includes('AxiosError')) throw err;
     });
