@@ -13,8 +13,6 @@ Architecture decisions (documented per plan):
   payloads use the conftest ``broadcast_capture`` fixture.
 """
 
-from __future__ import annotations
-
 import json
 import sqlite3
 import sys

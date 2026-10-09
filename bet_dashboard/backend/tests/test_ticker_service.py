@@ -13,8 +13,6 @@ Issue #60's "toggle_service()" maps to set_enabled on TickerService itself
 (AppLogic.toggle_service is covered by the e2e integration suite).
 """
 
-from __future__ import annotations
-
 import threading
 import time
 from contextlib import suppress

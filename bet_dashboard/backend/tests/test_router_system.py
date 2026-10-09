@@ -4,8 +4,6 @@ Covers: POST /api/pull (ok + error paths), GET /api/status,
 GET /api/config/sources, and the /ws keepalive protocol.
 """
 
-from __future__ import annotations
-
 from conftest import FakeDashboardLogic
 
 BASE = "/api"

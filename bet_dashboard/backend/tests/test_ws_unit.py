@@ -8,8 +8,6 @@ All tests use a FRESH ConnectionManager instance. The module-level ws_manager
 singleton is exercised (and restored) by the integration suite instead.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import threading

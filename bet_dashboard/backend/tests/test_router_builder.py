@@ -4,8 +4,6 @@ Covers: POST /preview shape, excluded CRUD (/excluded, /details, /remove,
 clear), /leagues, and the _to_config mapping helper.
 """
 
-from __future__ import annotations
-
 from conftest import FakeDashboardLogic, make_candidate_leg, make_match_row, make_matches_df
 
 BASE = "/api/builder"

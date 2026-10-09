@@ -8,8 +8,6 @@ All AppLogic instances are REAL, built via logic_test_helpers.build_app()
 against tmp_path SQLite DBs — never workspace DBs.
 """
 
-from __future__ import annotations
-
 import pytest
 
 from tests.logic_test_helpers import (

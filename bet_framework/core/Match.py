@@ -59,7 +59,7 @@ def ensure_decimal_odds(odds_value) -> float | None:
             # Already decimal odds
             return round(val, 2)
 
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 

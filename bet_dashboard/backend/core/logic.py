@@ -1,7 +1,5 @@
 """AppLogic: unified business logic plus ticker daemons."""
 
-from __future__ import annotations
-
 import math
 import os
 import urllib.error
@@ -193,7 +191,7 @@ class AppLogic:
                     # Already ran today — sync in-memory guard and skip
                     self._last_generator_run = today_key
                     return False
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         self._last_generator_run = today_key
