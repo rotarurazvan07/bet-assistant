@@ -1,14 +1,34 @@
-import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState, useEffect, Fragment } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { pullDb } from '../api/data';
+import OnboardingTour from './OnboardingTour';
+import { TOUR_DONE_KEY } from './tourStorage';
 
-const LINKS = [
-    { to: '/', label: 'Betting Tips' },
-    { to: '/builder', label: 'Smart Builder' },
-    { to: '/slips', label: 'Slips' },
-    { to: '/analytics', label: 'Analytics' },
-    { to: '/services', label: 'Services' },
-    { to: '/odds-alert', label: 'Odds Alert' },
+// AC-01/AC-02 (issue #36): workflow-grouped nav — Core → Insights → System;
+// routes unchanged, labels renamed to action verbs.
+const NAV_GROUPS = [
+    {
+        id: 'core',
+        caption: 'Core',
+        links: [
+            { to: '/', label: 'Discover' },
+            { to: '/builder', label: 'Build' },
+            { to: '/slips', label: 'Track' },
+        ],
+    },
+    {
+        id: 'insights',
+        caption: 'Insights',
+        links: [{ to: '/analytics', label: 'Analytics' }],
+    },
+    {
+        id: 'system',
+        caption: 'System',
+        links: [
+            { to: '/services', label: 'Services' },
+            { to: '/odds-alert', label: 'Odds Alert' },
+        ],
+    },
 ];
 
 export interface GlobalFilters {
@@ -50,6 +70,8 @@ function saveDates(dateFrom: string, dateTo: string) {
 
 export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated }: Props) {
     const location = useLocation();
+    const navigate = useNavigate();
+    const [tourEpoch, setTourEpoch] = useState(0);
     const [dateFrom, setDateFrom] = useState(() => getInitialDate('dateFrom'));
     const [dateTo, setDateTo] = useState(() => getInitialDate('dateTo'));
     const [pulling, setPulling] = useState(false);
@@ -102,17 +124,37 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         </span>
                     </div>
 
-                    {/* Nav */}
-                    <nav className="flex items-center gap-6 flex-1">
-                        {LINKS.map(({ to, label }) => (
-                            <NavLink
-                                key={to} to={to} end={to === '/'}
-                                className={({ isActive }) =>
-                                    `nav-link relative py-3.5 ${isActive ? 'active' : ''}`
-                                }
-                            >
-                                {label}
-                            </NavLink>
+                    {/* Nav — workflow groups (issue #36): Core → Insights → System.
+                        Anchors stay flat in DOM order inside each group so keyboard
+                        Tab order equals visual order (AC-04). */}
+                    <nav className="flex items-center gap-5 flex-1" aria-label="Primary">
+                        {NAV_GROUPS.map((group, groupIndex) => (
+                            <Fragment key={group.id}>
+                                {groupIndex > 0 && (
+                                    <span className="nav-separator" aria-hidden="true" />
+                                )}
+                                <div className="flex flex-col justify-center" role="group" aria-label={group.caption}>
+                                    {/* AC-03: micro-caption above group (SM-approved) */}
+                                    <span
+                                        className="nav-caption"
+                                        aria-hidden="true"
+                                    >
+                                        {group.caption}
+                                    </span>
+                                    <div className="flex items-center gap-6">
+                                        {group.links.map(({ to, label }) => (
+                                            <NavLink
+                                                key={to} to={to} end={to === '/'}
+                                                className={({ isActive }) =>
+                                                    `nav-link relative py-2.5 ${isActive ? 'active' : ''}`
+                                                }
+                                            >
+                                                {label}
+                                            </NavLink>
+                                        ))}
+                                    </div>
+                                </div>
+                            </Fragment>
                         ))}
                     </nav>
 
@@ -126,6 +168,18 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         )}
                         <button className="btn-ghost" onClick={handleRefresh}>
                             Refresh
+                        </button>
+                        {/* AC-05: Restart Tour lives in the header — there is no Settings page. */}
+                        <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => {
+                                try { localStorage.removeItem(TOUR_DONE_KEY); } catch { /* ignore */ }
+                                navigate('/');
+                                setTourEpoch((n) => n + 1);
+                            }}
+                        >
+                            Restart Tour
                         </button>
                         <button className="btn-primary" onClick={handlePull} disabled={pulling}>
                             {pulling ? 'Pulling…' : '↓ Pull Update'}
@@ -160,6 +214,8 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
                 {children({ dateFrom, dateTo })}
             </main>
+            {/* AC-07: mount tour here (Router + Restart). Do not edit App.tsx. */}
+            <OnboardingTour key={tourEpoch} />
         </div>
     );
 }

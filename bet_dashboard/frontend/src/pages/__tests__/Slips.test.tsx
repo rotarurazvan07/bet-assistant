@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Slips from '../Slips';
@@ -33,14 +34,18 @@ beforeEach(() => {
 
 
 function renderPage(overrides: { refreshKey?: number; liveData?: LiveData } = {}) {
-    return render(<Slips filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} {...overrides} />);
+    return render(
+        <MemoryRouter>
+            <Slips filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} {...overrides} />
+        </MemoryRouter>,
+    );
 }
 
 
 describe('Slips page', () => {
     it('fetches slips and renders title + profile selector + stat cards', async () => {
         renderPage();
-        expect(screen.getByText('Slips')).toBeInTheDocument();
+        expect(screen.getByText('Track')).toBeInTheDocument();
         await screen.findByText('Arsenal vs Chelsea');
         const stats = PAGE.stats;
         expect(screen.getByText(`${stats.total_units_bet} U`)).toBeInTheDocument();
@@ -118,16 +123,15 @@ describe('Slips page', () => {
             http.get('/api/slips', () => HttpResponse.json(makeSlipsPage({ slips: [], profiles: [] }))),
         );
         renderPage();
-        await screen.findByText(/No slips available/, {}, { timeout: 3000 });
-        // hint mentions Generate Slips inside the empty-state card — the
-        // toolbar ALSO has a Generate button; match the full hint sentence
-        expect(screen.getByText(/to create betting slips from your profiles/)).toBeInTheDocument();
+        await screen.findByText('No slips yet', {}, { timeout: 3000 });
+        expect(screen.getByRole('button', { name: 'Generate Slips' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Go to Build' })).toBeInTheDocument();
     });
 
     it('fetch failure falls back to empty data (no crash)', async () => {
         server.use(http.get('/api/slips', () => HttpResponse.error()));
         renderPage();
-        await screen.findByText(/No slips available/, {}, { timeout: 3000 });
+        await screen.findByText('No slips yet', {}, { timeout: 3000 });
     });
 
     it('refreshKey increment refetches slips', async () => {
@@ -141,7 +145,11 @@ describe('Slips page', () => {
         const { rerender } = renderPage();
         await screen.findByText('Arsenal vs Chelsea');
         const before = fetches;
-        rerender(<Slips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />);
+        rerender(
+            <MemoryRouter>
+                <Slips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />
+            </MemoryRouter>,
+        );
         await waitFor(() => expect(fetches).toBeGreaterThan(before));
     });
 

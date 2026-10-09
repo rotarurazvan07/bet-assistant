@@ -13,9 +13,10 @@ import { makeCandidateLeg, makeSlip, makeBetLeg } from '../../test/factories';
 
 
 describe('BetPreview', () => {
-    it('empty state shows the divergence-pinned text (not "No legs generated")', () => {
-        render(<BetPreview legs={[]} pendingUrls={[]} onExclude={() => {}} totalOdds={0} />);
-        expect(screen.getByText('No matches meet the current criteria.')).toBeInTheDocument();
+    it('empty legs render nothing (SmartBuilder owns EmptyState)', () => {
+        const { container } = render(<BetPreview legs={[]} pendingUrls={[]} onExclude={() => {}} totalOdds={0} />);
+        expect(container).toBeEmptyDOMElement();
+        expect(screen.queryByText('No matches meet the current criteria.')).not.toBeInTheDocument();
         expect(screen.queryByText('No legs generated')).not.toBeInTheDocument();
     });
 

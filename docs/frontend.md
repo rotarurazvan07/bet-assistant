@@ -707,9 +707,35 @@ npm test
 # Component tests
 npm test -- --testPathPattern=components
 
-# E2E tests (if configured)
-npx playwright test
+# E2E + visual (local Vite, no backend)
+npx playwright test --project=chromium
 ```
+
+### Local + CI e2e demo data (required — grow both tracks)
+
+One mocked database, two delivery paths. Any new populated surface (matches, slips, profiles, odds-history, …) must land in **both** tracks in the same change.
+
+| Track | When | How |
+|---|---|---|
+| Local (Vite, no backend) | `E2E_BASE_URL` unset | `installDemoApi(page)` from `e2e/fixtures/mock-api.ts` |
+| CI e2e (docker stack) | `E2E_BASE_URL` set | `setup/seed_e2e.py` via compose `e2e-seed` — same rows in the isolated volume |
+
+| Piece | Path |
+|---|---|
+| Canonical rows | `e2e/fixtures/demo-data.ts` (reuses `src/test/factories.ts`) |
+| Local `page.route` | `e2e/fixtures/mock-api.ts` |
+| CI seed | `setup/seed_e2e.py` |
+
+Rules:
+
+1. Add the row/shape to `demo-data.ts` first.
+2. Teach `installDemoApi` to serve it (pathname matchers only — never `**/api/matches*` globs).
+3. Teach `seed_e2e.py` to insert the **same** rows (vote-math / schema as the real read path).
+4. Commit fixtures, seed, and baselines together. Do not land one track without the other.
+5. Skip `installDemoApi` when `E2E_BASE_URL` is set — CI already has the seeded stack.
+6. Empty-state specs stay empty — no mock, no seed rows for that surface.
+7. Default `GET /api/slips` stays empty unless the spec opts in (`{ slips: DEMO_SLIPS_PAGE }`).
+8. Does not seed `npm run dev` or `workspace/data/*.db`.
 
 ### Key Test Areas
 

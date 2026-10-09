@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchServices, saveServiceSettings, toggleService } from '../api/data';
+import EmptyState, { ServicesEmptyIcon } from '../components/EmptyState';
 import ServiceCard from '../components/ServiceCard';
 import { TooltipIcon } from '../components/ui';
 import type { ServicesData } from '../types';
@@ -154,6 +155,19 @@ export default function Services() {
                     Server time: {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </span>
             </div>
+
+            {/* AC-06: guidance only when generator exists and is off. Loader stays loader. */}
+            {data.services?.generator && !data.services.generator.enabled && (
+                <div className="mb-5">
+                    <EmptyState
+                        icon={<ServicesEmptyIcon />}
+                        title="Generate Slips is off"
+                        steps={['Enable Generate Slips service', 'Set schedule', 'Save']}
+                        primary={{ label: 'Enable Generate Slips', onClick: () => { void handleToggle('generator'); } }}
+                        secondary={{ label: 'Save Settings', onClick: () => { void handleSave(); } }}
+                    />
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 

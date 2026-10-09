@@ -1,18 +1,19 @@
 import {useCallback,  useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
 import { getAllMovements } from '../api/oddsHistory';
-import { addSlip, fetchSlips, fetchSourcesConfig } from '../api/data';
+import { addSlip, fetchSlips, fetchSourcesConfig, pullDb } from '../api/data';
+import EmptyState, { DiscoverEmptyIcon } from '../components/EmptyState';
 import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
-import ColumnVisibilityPopover from '../components/ColumnVisibilityPopover';
+import { FirstSlipToast } from '../components/OnboardingTour';
+import { markFirstSlip } from '../components/tourStorage';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
 import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS } from '../config/marketConfig';
-import { Popover, Checkbox, FormControlLabel, Button, Box, Typography, Divider } from '@mui/material';
-import { Settings as SettingsIcon } from '@mui/icons-material';
+import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, SwipeableDrawer, useMediaQuery, Snackbar, Alert } from '@mui/material';
 
 // Derive columns from centralized config (fixed columns only - market columns filtered dynamically)
 const ALL_COLS = getTableColumns();
@@ -133,8 +134,19 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             return saved ? new Set(JSON.parse(saved)) : new Set<string>();
         } catch { return new Set<string>(); }
     });
-    const [sourcesPopoverOpen, setSourcesPopoverOpen] = useState<HTMLElement | null>(null);
     const [sourcesLoading, setSourcesLoading] = useState(true);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [advancedOpen, setAdvancedOpen] = useState(false);
+    const filtersBtnRef = useRef<HTMLButtonElement>(null);
+    // AC-07 (#39): last market cell that interacted with the slip builder.
+    const lastSlipTriggerRef = useRef<HTMLElement | null>(null);
+    const isMobile = useMediaQuery('(max-width:767.95px)');
+    // AC-01/AC-03/AC-04: ephemeral add-leg feedback. No persistence.
+    const [pulsingKey, setPulsingKey] = useState<string | null>(null);
+    const [legAddNonce, setLegAddNonce] = useState(0);
+    const [toast, setToast] = useState<string | null>(null);
+    const [milestoneOpen, setMilestoneOpen] = useState(false);
+    const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Fetch sources config on mount
     useEffect(() => {
@@ -220,13 +232,81 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         else { setSortBy(key); setSortDir('asc'); }
     }
 
+    function resetDiscoverFilters() {
+        setSearch('');
+        setMinConsensus(null);
+        setMinOdds(null);
+        setOnlySignificantMovement(false);
+        setSortBy('datetime');
+        setSortDir('asc');
+        setExcludedSources(new Set());
+        setVisibleColumns(new Set(ALL_MARKETS));
+    }
+
+    function closeFilters() {
+        setFiltersOpen(false);
+        queueMicrotask(() => filtersBtnRef.current?.focus());
+    }
+
+    // #39 AC-07: mirror closeFilters — on minimize, restore focus to the
+    // triggering market cell; fall back to the re-mounted minimized pill
+    // when the cell is gone (pagination/unmount).
+    function handleToggleSlip() {
+        const minimizing = !isSlipMinimized;
+        // AC-07 (#39): expanding from the pill records it so Esc can return there
+        // when no market cell was used.
+        if (!minimizing && !lastSlipTriggerRef.current) {
+            lastSlipTriggerRef.current = document.querySelector<HTMLElement>('.floating-slip-minimized');
+        }
+        setIsSlipMinimized(minimizing);
+        if (!minimizing) return;
+        queueMicrotask(() => {
+            const el = lastSlipTriggerRef.current;
+            if (el && el.isConnected) el.focus();
+            else document.querySelector<HTMLElement>('.floating-slip-minimized')?.focus();
+        });
+    }
+
     function handlePageChange(p: number) {
         setPage(p);
         topRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
 
     // Popup handlers
-    function handleCellClick(leg: CandidateLeg) {
+    function flyClone(source: HTMLElement) {
+        // AC-06: skip motion when the user asked for less of it.
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const target = document.querySelector('[data-slip-panel]') ?? document.querySelector('.floating-slip-minimized');
+        if (!target) return;
+        const from = source.getBoundingClientRect();
+        const to = target.getBoundingClientRect();
+        const clone = source.cloneNode(true) as HTMLElement;
+        clone.classList.add('leg-fly-clone');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.style.position = 'fixed';
+        clone.style.left = `${from.left}px`;
+        clone.style.top = `${from.top}px`;
+        clone.style.width = `${from.width}px`;
+        clone.style.height = `${from.height}px`;
+        clone.style.margin = '0';
+        clone.style.zIndex = '1500';
+        clone.style.pointerEvents = 'none';
+        clone.style.transition = 'transform 240ms ease, opacity 240ms ease';
+        document.body.appendChild(clone);
+        const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+        const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+        requestAnimationFrame(() => {
+            clone.style.transform = `translate(${dx}px, ${dy}px) scale(0.2)`;
+            clone.style.opacity = '0';
+        });
+        const cleanup = () => { clone.remove(); };
+        clone.addEventListener('transitionend', cleanup, { once: true });
+        window.setTimeout(cleanup, 300);
+    }
+
+    function handleCellClick(leg: CandidateLeg, element?: HTMLElement) {
+        // AC-07 (#39): remember the trigger so minimize can restore focus.
+        if (element) lastSlipTriggerRef.current = element;
         // Validate leg before adding
         if (leg.odds == null || leg.odds <= 0) {
             console.warn('Invalid odds for leg:', leg);
@@ -241,17 +321,20 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             alert('Cannot add leg: Missing result URL for validation');
             return;
         }
-        setPendingLegs(prev => {
-            // Check if this leg (by result_url + market) already exists
-            const exists = prev.some(l => l.result_url === leg.result_url && l.market === leg.market);
-            if (exists) {
-                // Remove it (toggle off)
-                return prev.filter(l => !(l.result_url === leg.result_url && l.market === leg.market));
-            } else {
-                // Add it
-                return [...prev, leg];
-            }
-        });
+        // AC-08: compute exists before setPendingLegs; feedback only on append.
+        const exists = pendingLegs.some(l => l.result_url === leg.result_url && l.market === leg.market);
+        if (exists) {
+            setPendingLegs(prev => prev.filter(l => !(l.result_url === leg.result_url && l.market === leg.market)));
+            return;
+        }
+        setPendingLegs(prev => [...prev, leg]);
+        const key = `${leg.result_url}|${leg.market}`;
+        setPulsingKey(key);
+        if (pulseTimer.current) clearTimeout(pulseTimer.current);
+        pulseTimer.current = setTimeout(() => setPulsingKey(null), 300);
+        setLegAddNonce(n => n + 1);
+        setToast(`Added ${leg.market} @${leg.odds.toFixed(2)} to slip`);
+        if (element) flyClone(element);
     }
 
     function handleRemoveLeg(index: number) {
@@ -293,6 +376,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             }));
         try {
             await addSlip('manual', manualLegs, units);
+            // AC-06: first successful addSlip (Discover) — separate from #38 toast.
+            if (markFirstSlip()) setMilestoneOpen(true);
             setPendingLegs([]);
             // Refresh slip selections after adding
             try {
@@ -343,7 +428,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                 color: 'var(--text-bright)',
                                 fontSize: '1.75rem',
                                 fontWeight: 'bold'
-                            }}>Betting Tips</h2>
+                            }}>Discover</h2>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                                 {data && data.total != null && (
                                     <span style={{
@@ -353,191 +438,228 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                         {data.total.toLocaleString()} matches · page {page} of {data.total_pages}
                                     </span>
                                 )}
-                                <ColumnVisibilityPopover columns={MARKET_COLUMNS} visibleKeys={visibleColumns} onToggle={toggleColumn} />
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            {/* Sources Filter Cog Wheel */}
-                            <div>
-                                <Popover
-                                    open={sourcesPopoverOpen !== null}
-                                    anchorEl={sourcesPopoverOpen}
-                                    onClose={() => setSourcesPopoverOpen(null)}
-                                    anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-                                    transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-                                    slotProps={{
-                                        paper: {
-                                            sx: {
-                                                maxHeight: 400,
-                                                maxWidth: 300,
-                                                background: 'var(--bg-card)',
-                                                border: '1px solid var(--border)',
-                                                borderRadius: 'var(--radius-lg)',
-                                            }
-                                        }
-                                    }}
+                        <Button
+                            ref={filtersBtnRef}
+                            variant="outlined"
+                            size="small"
+                            data-tour="discover-filters"
+                            onClick={() => setFiltersOpen(open => !open)}
+                            aria-expanded={filtersOpen}
+                            aria-controls="discover-filters-drawer"
+                        >
+                            Filters
+                        </Button>
+                    </div>
+
+                    {(() => {
+                        const drawerBody = (
+                            <Box
+                                id="discover-filters-drawer"
+                                role="document"
+                                sx={{ p: 2, width: isMobile ? '100%' : 360, maxHeight: isMobile ? '85vh' : '100%', overflow: 'auto' }}
+                            >
+                                <Typography id="discover-filters-title" variant="h6" sx={{ color: 'var(--text-bright)', mb: 2 }}>
+                                    Filters
+                                </Typography>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Filter by team..."
+                                        className="field w-full"
+                                        value={search}
+                                        onChange={e => setSearch(e.target.value)}
+                                    />
+                                    <div>
+                                        <label style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                            Min Consensus
+                                            <TooltipIcon text="Minimum agreement percentage required from sources. Only matches with consensus at or above this threshold will be shown." align="right" />
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                step={5}
+                                                value={minConsensus ?? 0}
+                                                onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
+                                                className="w-32"
+                                                aria-label="Min Consensus"
+                                            />
+                                            <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                                {minConsensus !== null ? `${minConsensus}%` : 'Any'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                            Min Odds
+                                            <TooltipIcon text="Minimum odds required. A market cell must have both the min consensus AND min odds to count. If any cell passes both filters, the row is shown." align="right" />
+                                        </label>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <input
+                                                type="range"
+                                                min={1.0}
+                                                max={5.0}
+                                                step={0.1}
+                                                value={minOdds ?? 1.0}
+                                                onChange={e => setMinOdds(Number(e.target.value) <= 1.0 ? null : Number(e.target.value))}
+                                                className="w-32"
+                                                aria-label="Min Odds"
+                                            />
+                                            <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
+                                                {minOdds !== null ? minOdds.toFixed(1) : 'Any'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </Box>
+                                <Button
+                                    type="button"
+                                    onClick={() => setAdvancedOpen(v => !v)}
+                                    aria-expanded={advancedOpen}
+                                    sx={{ mt: 2, color: 'var(--text-secondary)', textTransform: 'none' }}
                                 >
-                                    <Box sx={{ p: 2, minWidth: 280 }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                                            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'var(--text-bright)' }}>
-                                                Sources Filter
-                                            </Typography>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set())} disabled={excludedSources.size === 0 || sourcesLoading}>
-                                                    Select All
-                                                </Button>
-                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set(allSources))} disabled={excludedSources.size === allSources.length || sourcesLoading}>
-                                                    Deselect All
-                                                </Button>
+                                    {advancedOpen ? '▾' : '▸'} Advanced
+                                </Button>
+                                {advancedOpen && (
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                                        <div className="flex items-center gap-2">
+                                            <label style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                                Sig. Movement
+                                                <TooltipIcon text="Show only matches with significant odds movement (≥5% change). Chained with min consensus and min odds filters." align="right" />
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setOnlySignificantMovement(v => !v)}
+                                                aria-pressed={onlySignificantMovement}
+                                                className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
+                                                style={{
+                                                    background: onlySignificantMovement
+                                                        ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%)'
+                                                        : 'var(--bg-raised)',
+                                                    border: `1px solid ${onlySignificantMovement ? 'var(--accent)' : 'var(--border)'}`,
+                                                }}
+                                            >
+                                                <span
+                                                    className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
+                                                    style={{ left: onlySignificantMovement ? 'calc(100% - 18px)' : '2px' }}
+                                                />
+                                            </button>
+                                        </div>
+                                        <div>
+                                            <Typography variant="subtitle2" sx={{ color: 'var(--text-bright)', mb: 1 }}>Sources</Typography>
+                                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set())} disabled={excludedSources.size === 0 || sourcesLoading}>Select All</Button>
+                                                <Button size="small" variant="outlined" onClick={() => setExcludedSources(new Set(allSources))} disabled={excludedSources.size === allSources.length || sourcesLoading}>Deselect All</Button>
                                             </Box>
-                                        </Box>
-                                        <Divider sx={{ mb: 1, borderColor: 'var(--border)' }} />
-                                        {sourcesLoading ? (
-                                            <Typography variant="body2" sx={{ color: 'var(--text-secondary)', textAlign: 'center', py: 2 }}>
-                                                Loading sources...
-                                            </Typography>
-                                        ) : (
-                                            <Box sx={{ maxHeight: 320, overflow: 'auto' }}>
-                                                {allSources.map(source => (
-                                                       <FormControlLabel
-                                                           key={source}
-                                                           control={
-                                                               <Checkbox
-                                                                   checked={!excludedSources.has(source)}
-                                                                   onChange={(event) => {
-                                                                       const checked = event.target.checked; // true = checked = include source
-                                                                       setExcludedSources(prev => {
-                                                                           const next = new Set(prev);
-                                                                           if (checked) {
-                                                                               next.delete(source); // include = remove from excluded
-                                                                           } else {
-                                                                               next.add(source); // exclude = add to excluded
-                                                                           }
-                                                                           return next;
-                                                                       });
-                                                                   }}
-                                                                   color="primary"
-                                                                   disabled={sourcesLoading}
-                                                               />
-                                                           }
-                                                           label={
-                                                               <Typography variant="body2" sx={{
-                                                                   color: excludedSources.has(source) ? 'var(--text-secondary)' : 'var(--text-primary)',
-                                                                   textDecoration: excludedSources.has(source) ? 'line-through' : 'none'
-                                                               }}>
-                                                                   {source}
-                                                               </Typography>
-                                                           }
-                                                           labelPlacement="end"
-                                                       />
-                                                   ))}
+                                            {sourcesLoading ? (
+                                                <Typography variant="body2" sx={{ color: 'var(--text-secondary)' }}>Loading sources...</Typography>
+                                            ) : (
+                                                <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                                                    {allSources.map(source => (
+                                                        <FormControlLabel
+                                                            key={source}
+                                                            control={
+                                                                <Checkbox
+                                                                    checked={!excludedSources.has(source)}
+                                                                    onChange={(event) => {
+                                                                        const checked = event.target.checked;
+                                                                        setExcludedSources(prev => {
+                                                                            const next = new Set(prev);
+                                                                            if (checked) next.delete(source);
+                                                                            else next.add(source);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                    color="primary"
+                                                                    disabled={sourcesLoading}
+                                                                />
+                                                            }
+                                                            label={
+                                                                <Typography variant="body2" sx={{
+                                                                    color: excludedSources.has(source) ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                                                    textDecoration: excludedSources.has(source) ? 'line-through' : 'none',
+                                                                }}>
+                                                                    {source}
+                                                                </Typography>
+                                                            }
+                                                        />
+                                                    ))}
+                                                </Box>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <Typography variant="subtitle2" sx={{ color: 'var(--text-bright)', mb: 1 }}>Columns</Typography>
+                                            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+                                                <Button size="small" variant="outlined" onClick={() => setVisibleColumns(new Set(MARKET_COLUMNS.map(c => c.market)))} disabled={visibleColumns.size === MARKET_COLUMNS.length}>Select All</Button>
+                                                <Button size="small" variant="outlined" onClick={() => setVisibleColumns(new Set())} disabled={visibleColumns.size === 0}>Deselect All</Button>
                                             </Box>
-                                        )}
-                                        <Divider sx={{ my: 1.5, borderColor: 'var(--border)' }} />
-                                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
-                                            <Button size="small" onClick={() => setSourcesPopoverOpen(null)}>
-                                                Done
-                                            </Button>
-                                        </Box>
+                                            <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                                                {MARKET_COLUMNS.map(col => (
+                                                    <FormControlLabel
+                                                        key={col.market}
+                                                        control={
+                                                            <Checkbox
+                                                                checked={visibleColumns.has(col.market)}
+                                                                onChange={() => toggleColumn(col.market)}
+                                                                color="primary"
+                                                            />
+                                                        }
+                                                        label={<Typography variant="body2" sx={{ color: 'var(--text-primary)' }}>{col.label}</Typography>}
+                                                    />
+                                                ))}
+                                            </Box>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Sort</label>
+                                            <select className="field" value={sortBy} onChange={e => setSortBy(e.target.value)}>
+                                                {ALL_COLS.map(col => (
+                                                    <option key={col.key} value={col.key}>{col.label}</option>
+                                                ))}
+                                            </select>
+                                            <select className="field" value={sortDir} onChange={e => setSortDir(e.target.value as 'asc' | 'desc')}>
+                                                <option value="asc">Asc</option>
+                                                <option value="desc">Desc</option>
+                                            </select>
+                                        </div>
                                     </Box>
-                                </Popover>
+                                )}
+                                <Divider sx={{ my: 2, borderColor: 'var(--border)' }} />
                                 <Button
                                     variant="outlined"
-                                    size="small"
-                                    startIcon={<SettingsIcon fontSize="small" />}
-                                    onClick={e => setSourcesPopoverOpen(e.currentTarget)}
-                                    disabled={sourcesLoading || allSources.length === 0}
-                                    sx={{
-                                        borderColor: excludedSources.size > 0 ? 'var(--accent)' : 'var(--border)',
-                                        color: excludedSources.size > 0 ? 'var(--accent)' : 'var(--text-primary)',
-                                        '&:hover': {
-                                            borderColor: 'var(--accent)',
-                                            backgroundColor: 'rgba(124, 58, 237, 0.08)',
-                                        }
-                                    }}
-                                    aria-label="Filter sources"
+                                    onClick={resetDiscoverFilters}
+                                    sx={{ color: 'var(--text-secondary)', borderColor: 'var(--border-strong)' }}
                                 >
-                                    Sources {excludedSources.size > 0 && `(${allSources.length - excludedSources.size}/${allSources.length})`}
+                                    Reset to defaults
                                 </Button>
-                            </div>
-                            {/* Search */}
-                            <div>
-                                <input
-                                    type="text"
-                                    placeholder="Filter by team..."
-                                    className="field w-52"
-                                    value={search}
-                                    onChange={e => setSearch(e.target.value)}
-                                />
-                            </div>
-                            {/* Consensus */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                    Min Consensus
-                                    <TooltipIcon text="Minimum agreement percentage required from sources. Only matches with consensus at or above this threshold will be shown." align="right" />
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="range"
-                                        min={0}
-                                        max={100}
-                                        step={5}
-                                        value={minConsensus ?? 0}
-                                        onChange={e => setMinConsensus(e.target.value === '0' ? null : Number(e.target.value))}
-                                        className="w-32"
-                                    />
-                                    <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
-                                        {minConsensus !== null ? `${minConsensus}%` : 'Any'}
-                                    </span>
-                                </div>
-                            </div>
-                            {/* Min Odds */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                    Min Odds
-                                    <TooltipIcon text="Minimum odds required. A market cell must have both the min consensus AND min odds to count. If any cell passes both filters, the row is shown." align="right" />
-                                </label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="range"
-                                        min={1.0}
-                                        max={5.0}
-                                        step={0.1}
-                                        value={minOdds ?? 1.0}
-                                        onChange={e => setMinOdds(Number(e.target.value) <= 1.0 ? null : Number(e.target.value))}
-                                        className="w-32"
-                                    />
-                                    <span className="text-sm font-mono font-bold" style={{ color: 'var(--text-bright)' }}>
-                                        {minOdds !== null ? minOdds.toFixed(1) : 'Any'}
-                                    </span>
-                                </div>
-                            </div>
-                            {/* Significant Movement Toggle */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <label style={{ fontSize: '16px', color: 'var(--text-primary)', fontWeight: '500' }}>
-                                    Sig. Movement
-                                    <TooltipIcon text="Show only matches with significant odds movement (≥5% change). Chained with min consensus and min odds filters." align="right" />
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setOnlySignificantMovement(v => !v)}
-                                    className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
-                                    style={{
-                                        background: onlySignificantMovement
-                                            ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%)'
-                                            : 'var(--bg-raised)',
-                                        border: `1px solid ${onlySignificantMovement ? 'var(--accent)' : 'var(--border)'}`,
-                                    }}
-                                >
-                                    <span
-                                        className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
-                                        style={{ left: onlySignificantMovement ? 'calc(100% - 18px)' : '2px' }}
-                                    />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                            </Box>
+                        );
+                        const paperSx = { background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+                        return isMobile ? (
+                            <SwipeableDrawer
+                                anchor="bottom"
+                                open={filtersOpen}
+                                onOpen={() => setFiltersOpen(true)}
+                                onClose={closeFilters}
+                                aria-labelledby="discover-filters-title"
+                                slotProps={{ paper: { sx: paperSx } }}
+                            >
+                                {drawerBody}
+                            </SwipeableDrawer>
+                        ) : (
+                            <Drawer
+                                anchor="right"
+                                open={filtersOpen}
+                                onClose={closeFilters}
+                                aria-labelledby="discover-filters-title"
+                                slotProps={{ paper: { sx: paperSx } }}
+                            >
+                                {drawerBody}
+                            </Drawer>
+                        );
+                    })()}
 
                     {/* Table container */}
                     <div style={{
@@ -546,15 +668,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         background: 'var(--bg-card)',
                         borderRadius: 'var(--radius-lg)'
                     }}>
+                        {/* AC-02: Discover empty when total === 0 (incl. fetch-error fallback) */}
                         {!loading && data && data.total === 0 && (
-                            <div className="card text-center py-16 fade-in">
-                                <p className="font-mono text-base" style={{ color: 'var(--text-secondary)' }}>
-                                    No matches available.
-                                </p>
-                                <p className="font-mono text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
-                                    Click "↓ Pull Update" to fetch new data from the server.
-                                </p>
-                            </div>
+                            <EmptyState
+                                icon={<DiscoverEmptyIcon />}
+                                title="No matches yet"
+                                steps={['Click ↓ Pull Update', 'Adjust filters', 'Add to Slip']}
+                                primary={{ label: 'Pull Update Now', onClick: async () => { await pullDb(); await load(); } }}
+                                secondary={{ label: 'Adjust Filters', onClick: () => setFiltersOpen(true) }}
+                            />
                         )}
 
                         {data && data.total > 0 && (
@@ -617,6 +739,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                                         match={m}
                                                         index={(page - 1) * PAGE_SIZE + i + 1}
                                                         onCellClick={handleCellClick}
+                                                        pulsingKey={pulsingKey}
                                                         activeMarkets={activeMarkets}
                                                         inSlipMarkets={inSlipMarkets}
                                                         movement={m.match_id != null ? movements[m.match_id] : undefined}
@@ -646,8 +769,32 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 onRemoveLeg={handleRemoveLeg}
                 onSubmit={handleAddSlip}
                 isMinimized={isSlipMinimized}
-                onToggleMinimize={() => setIsSlipMinimized(v => !v)}
+                onToggleMinimize={handleToggleSlip}
+                pulseToken={legAddNonce}
             />
+        <Snackbar
+            open={toast != null}
+            autoHideDuration={2000}
+            onClose={() => setToast(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+            <Alert
+                severity="success"
+                variant="outlined"
+                onClose={() => setToast(null)}
+                sx={{
+                    color: 'var(--text-muted-strong)',
+                    // AC-10/AC-11: .MuiAlert-message owns the toast text; root color does not reach it.
+                    '& .MuiAlert-message': { color: 'var(--text-secondary)' },
+                    backgroundColor: 'color-mix(in srgb, var(--bg-card) 82%, var(--win) 18%)',
+                    borderColor: 'var(--win-border)',
+                    '& .MuiAlert-icon': { color: 'var(--win)' },
+                }}
+            >
+                {toast}
+            </Alert>
+        </Snackbar>
+        <FirstSlipToast open={milestoneOpen} onClose={() => setMilestoneOpen(false)} />
         </>
     );
 }

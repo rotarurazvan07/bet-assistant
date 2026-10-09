@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import BettingTips from '../BettingTips';
@@ -35,14 +36,18 @@ beforeEach(() => {
 
 
 function renderPage(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
-    return render(<BettingTips filters={filters} refreshKey={refreshKey} />);
+    return render(
+        <MemoryRouter>
+            <BettingTips filters={filters} refreshKey={refreshKey} />
+        </MemoryRouter>,
+    );
 }
 
 
 describe('BettingTips page', () => {
     it('renders title + match count + the match row', async () => {
         renderPage();
-        expect(screen.getByText('Betting Tips')).toBeInTheDocument();
+        expect(screen.getByText('Discover')).toBeInTheDocument();
         await screen.findByText('Arsenal');
         expect(screen.getByText(/120 matches/)).toBeInTheDocument();
         expect(screen.getByText(/page 1 of 3/)).toBeInTheDocument();
@@ -62,29 +67,88 @@ describe('BettingTips page', () => {
             http.get('/api/matches', () => HttpResponse.json(makeMatchesPage({ total: 0, matches: [], total_pages: 1 }))),
         );
         renderPage();
-        await screen.findByText(/No matches available/);
-        expect(screen.getByText(/Pull Update/)).toBeInTheDocument();
+        await screen.findByText('No matches yet');
+        expect(screen.getByRole('button', { name: 'Pull Update Now' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Adjust Filters' })).toBeInTheDocument();
     });
+
+    it('Adjust Filters CTA opens the filters drawer', async () => {
+        const user = userEvent.setup();
+        server.use(
+            http.get('/api/matches', () => HttpResponse.json(makeMatchesPage({ total: 0, matches: [], total_pages: 1 }))),
+        );
+        renderPage();
+        await screen.findByText('No matches yet');
+        await user.click(screen.getByRole('button', { name: 'Adjust Filters' }));
+        expect(await screen.findByRole('heading', { name: 'Filters' })).toBeInTheDocument();
+    });
+
+    async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+        await user.click(screen.getByRole('button', { name: /filters/i }));
+        await screen.findByPlaceholderText('Filter by team...');
+    }
 
     it('search input sends the search param on next fetch', async () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal');
+        await openFilters(user);
         const search = screen.getByPlaceholderText('Filter by team...');
         await user.type(search, 'Ars');
         await waitFor(() => expect(lastUrl).toContain('search=Ars'));
     });
 
     it('min consensus slider sends min_consensus param', async () => {
+        const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal');
-        // label is not associated with the control (div, not <label for>) —
-        // query the consensus range directly: min=0 max=100 step=5
+        await openFilters(user);
         const ranges = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
         const consSlider = ranges.find((r) => r.min === '0' && r.max === '100');
         expect(consSlider).toBeDefined();
         fireEvent.change(consSlider as HTMLInputElement, { target: { value: '50' } });
         await waitFor(() => expect(lastUrl).toContain('min_consensus=50'));
+    });
+
+    it('hides filter controls until Filters is opened', async () => {
+        renderPage();
+        await screen.findByText('Arsenal');
+        expect(screen.getByRole('button', { name: /filters/i })).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Filter by team...')).not.toBeInTheDocument();
+        expect(screen.queryByText('Min Consensus')).not.toBeInTheDocument();
+    });
+
+    it('Advanced toggle reveals sources and sort controls', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await openFilters(user);
+        expect(screen.queryByText('Select All')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: /advanced/i }));
+        expect(screen.getAllByText('Select All')).toHaveLength(2);
+        expect(screen.getByText('Columns')).toBeInTheDocument();
+        expect(screen.getByText('Sort')).toBeInTheDocument();
+    });
+
+    it('Reset to defaults clears search and consensus', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await openFilters(user);
+        await user.type(screen.getByPlaceholderText('Filter by team...'), 'Ars');
+        await waitFor(() => expect(lastUrl).toContain('search=Ars'));
+        await user.click(screen.getByRole('button', { name: /reset to defaults/i }));
+        expect((screen.getByPlaceholderText('Filter by team...') as HTMLInputElement).value).toBe('');
+    });
+
+    it('Escape closes the drawer', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await openFilters(user);
+        expect(screen.getByPlaceholderText('Filter by team...')).toBeInTheDocument();
+        await user.keyboard('{Escape}');
+        await waitFor(() => expect(screen.queryByPlaceholderText('Filter by team...')).not.toBeInTheDocument());
     });
 
     it('sorting: clicking a header toggles direction', async () => {
@@ -114,6 +178,70 @@ describe('BettingTips page', () => {
         await waitFor(() => expect(screen.getByText('1 leg selected')).toBeInTheDocument());
         await user.click(cell);
         await waitFor(() => expect(screen.getByText('0 legs selected')).toBeInTheDocument());
+    });
+
+    it('add shows toast Added 1 @1.90 to slip', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Added 1 @1.90 to slip');
+    });
+
+    it('toggle-off does not show the add toast', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        const cell = screen.getByRole('button', { name: /Select 75% at @1\.90/ });
+        await user.click(cell);
+        await screen.findByRole('alert');
+        await user.click(screen.getByRole('button', { name: /close/i }));
+        await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+        await user.click(cell);
+        await waitFor(() => expect(screen.getByText('0 legs selected')).toBeInTheDocument());
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('missing result_url still alerts and does not toast', async () => {
+        const user = userEvent.setup();
+        server.use(
+            http.get('/api/matches', () => HttpResponse.json(makeMatchesPage({
+                matches: [makeMatch({ result_url: '' })],
+            }))),
+        );
+        renderPage();
+        await screen.findByText('Arsenal');
+        await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+        // buildLeg never reaches handleCellClick (alert there is unchanged).
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        expect(screen.queryByText('1 leg selected')).not.toBeInTheDocument();
+    });
+
+    it('reduced-motion still toasts without a fly clone', async () => {
+        const orig = window.matchMedia;
+        Object.defineProperty(window, 'matchMedia', {
+            writable: true,
+            value: (query: string) => ({
+                matches: query.includes('prefers-reduced-motion'),
+                media: query,
+                onchange: null,
+                addListener() { /* noop */ },
+                removeListener() { /* noop */ },
+                addEventListener() { /* noop */ },
+                removeEventListener() { /* noop */ },
+                dispatchEvent() { return false; },
+            }),
+        });
+        try {
+            const user = userEvent.setup();
+            renderPage();
+            await screen.findByText('Arsenal');
+            await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+            expect(await screen.findByRole('alert')).toHaveTextContent('Added 1 @1.90 to slip');
+            expect(document.querySelector('.leg-fly-clone')).toBeNull();
+        } finally {
+            Object.defineProperty(window, 'matchMedia', { writable: true, value: orig });
+        }
     });
 
     it('pagination click fetches the next page', async () => {
@@ -149,6 +277,19 @@ describe('BettingTips page', () => {
         });
     });
 
+    it('#39 AC-07: Escape minimizes and restores focus to the triggering cell', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        const cell = screen.getByRole('button', { name: /Select 75% at @1\.90/ });
+        await user.click(cell);
+        await waitFor(() => expect(screen.getByText('1 leg selected')).toBeInTheDocument());
+        await user.keyboard('{Escape}');
+        await waitFor(() => expect(screen.queryByText('1 leg selected')).not.toBeInTheDocument());
+        await waitFor(() => expect(localStorage.getItem('slip-minimized')).toBe('true'));
+        await waitFor(() => expect(cell).toHaveFocus());
+    });
+
     it('refreshKey change refetches matches + slip selections', async () => {
         let matchFetches = 0;
         server.use(
@@ -160,7 +301,11 @@ describe('BettingTips page', () => {
         const { rerender } = renderPage({ dateFrom: '', dateTo: '' }, 0);
         await screen.findByText('Arsenal');
         const before = matchFetches;
-        rerender(<BettingTips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />);
+        rerender(
+            <MemoryRouter>
+                <BettingTips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />
+            </MemoryRouter>,
+        );
         await waitFor(() => expect(matchFetches).toBeGreaterThan(before));
     });
 });

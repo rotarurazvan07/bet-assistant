@@ -57,6 +57,7 @@ COPY bet_dashboard/backend/core/ ./bet_dashboard/backend/core/
 
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 COPY setup/nginx.conf /etc/nginx/sites-available/default
+COPY setup/seed_e2e.py /app/seed_e2e.py
 COPY setup/start-dashboard.sh /usr/local/bin/start-dashboard.sh
 
 RUN chmod +x /usr/local/bin/start-dashboard.sh

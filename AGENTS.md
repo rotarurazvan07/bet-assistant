@@ -58,4 +58,27 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - Smart Builder "no matches": lower Consensus Floor (40-50%), lower Min Odds (1.01), check Excluded Matches, verify date filters
 - Docker containers restart: check `docker compose -f setup/compose.yaml logs` — common: port 3002/8000 conflict, `./workspace/` permissions
 
+## Frontend visual / E2E demo data (binding)
+
+Any frontend test that needs **populated** data must grow **both tracks together** and commit both. Local mocks and the CI e2e DB are one mocked database, two delivery paths — not two independent fixtures.
+
+| Track | When | How |
+|---|---|---|
+| **Local** (Vite, no backend) | `E2E_BASE_URL` unset | `installDemoApi(page)` from `bet_dashboard/frontend/e2e/fixtures/mock-api.ts` |
+| **CI e2e** (docker stack) | `E2E_BASE_URL` set | `setup/seed_e2e.py` via compose `e2e-seed` one-shot — same rows in the isolated volume |
+
+**When you add a new surface** (slips, profiles, odds-history, …):
+
+1. Add the row/shape to `bet_dashboard/frontend/e2e/fixtures/demo-data.ts` (reuse Vitest factories — no second type system).
+2. Teach `installDemoApi` to serve it (pathname-only `page.route` — never `**/api/matches*` globs).
+3. Teach `setup/seed_e2e.py` to insert the **same** rows into the CI e2e DB (vote-math / schema as the real read path). Keep default `GET /api/slips` empty unless the spec opts in.
+4. Commit fixtures, seed, and baselines in the **same change**. Do not land one track without the other.
+
+**Exceptions / never:**
+
+- Empty-state specs (#46) stay empty — no `installDemoApi`, no seed rows for that surface.
+- Skip `installDemoApi` when `E2E_BASE_URL` is set (CI already has the seeded stack).
+- Do **not** seed `npm run dev` or `workspace/data/*.db` (pipeline outputs).
+- `e2e-seed` touches only the throwaway compose volume.
+
 <!-- /bmad:context -->

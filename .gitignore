@@ -264,3 +264,9 @@ test-results-crawler.xml
 
 # auto-fix job artifact (never commit — was accidentally in 3d7b924)
 autofix-diffstat.txt
+
+# Local agent workspace — never commit (public repo)
+.a0proj/
+.serena/
+graphify-out/
+.neuralmind/

@@ -3,7 +3,9 @@ import {
     ResponsiveContainer, Line, BarChart, Bar, AreaChart, Area,
     XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine, ComposedChart, Cell,
 } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import { fetchAnalytics } from '../api/data';
+import EmptyState, { AnalyticsEmptyIcon } from '../components/EmptyState';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
@@ -1037,6 +1039,7 @@ function WeekendTick({ x = 0, y = 0, payload, fontSize = 10 }: {
 interface Props { filters: GlobalFilters; refreshKey: number }
 
 export default function Analytics({ filters, refreshKey }: Props) {
+    const navigate = useNavigate();
     const [data, setData] = useState<AnalyticsData | null>(null);
     const { selectedProfiles, setSelectedProfiles } = useProfileSelection({
         page: 'analytics',
@@ -1152,16 +1155,21 @@ export default function Analytics({ filters, refreshKey }: Props) {
         return [Math.min(...vals, 0), Math.max(...vals, 0)];
     }, [rollingEdgeData]);
 
+    // AC-05: Analytics empty when stats missing (null payload). Fetch-error catch still sets zeroed stats.
     if (!data?.stats) return (
         <div>
             <h1 className="font-display font-bold text-xl mb-5"
                 style={{ color: 'var(--text-bright)' }}>Analytics</h1>
             <ProfileSelector profiles={[]} selectedProfiles={selectedProfiles}
                 onChange={setSelectedProfiles} />
-            <div className="card text-center py-16 mt-5">
-                <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    No analytics data yet. Generate and settle some slips first.
-                </p>
+            <div className="mt-5">
+                <EmptyState
+                    icon={<AnalyticsEmptyIcon />}
+                    title="No analytics yet"
+                    steps={['Generate slips in Track', 'Wait for settlement', 'Return here']}
+                    primary={{ label: 'Go to Track', onClick: () => navigate('/slips') }}
+                    secondary={{ label: 'Go to Build', onClick: () => navigate('/builder') }}
+                />
             </div>
         </div>
     );

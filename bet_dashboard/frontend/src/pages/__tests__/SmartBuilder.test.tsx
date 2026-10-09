@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import SmartBuilder from '../SmartBuilder';
@@ -43,8 +44,16 @@ beforeEach(() => {
 });
 
 
+function renderBuilder(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+    return render(
+        <MemoryRouter>
+            <SmartBuilder filters={filters} refreshKey={refreshKey} />
+        </MemoryRouter>,
+    );
+}
+
 async function renderAndHydrate() {
-    render(<SmartBuilder filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} />);
+    renderBuilder();
     // real timers: the 350ms debounce resolves inside waitFor's polling window
     await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
 }
@@ -54,6 +63,7 @@ describe('SmartBuilder page', () => {
     it('mounts and fires the debounced preview after 350ms', async () => {
         await renderAndHydrate();
         expect(screen.getByText('Live Preview — updates with every config change')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Build' })).toBeInTheDocument();
     });
 
     it('renders profile sidebar + builder panel + preview grid', async () => {
@@ -132,8 +142,9 @@ describe('SmartBuilder page', () => {
                 return HttpResponse.json({ legs: [], total_odds: 1, pending_urls: [] });
             }),
         );
-        render(<SmartBuilder filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} />);
+        renderBuilder();
         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
+        expect(screen.getByText('No preview yet')).toBeInTheDocument();
         await user.click(screen.getByText('+ Add to Slips'));
         expect(screen.getByText('No legs in preview.')).toBeInTheDocument();
     });
@@ -179,10 +190,14 @@ describe('SmartBuilder page', () => {
     });
 
     it('refreshKey increment triggers a fresh preview', async () => {
-        const initial = render(<SmartBuilder filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} />);
+        const initial = renderBuilder();
         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
         const before = previewCalls;
-        initial.rerender(<SmartBuilder filters={{ dateFrom: '2026-09-25', dateTo: '' }} refreshKey={1} />);
+        initial.rerender(
+            <MemoryRouter>
+                <SmartBuilder filters={{ dateFrom: '2026-09-25', dateTo: '' }} refreshKey={1} />
+            </MemoryRouter>,
+        );
         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
         await waitFor(() => expect(lastPreviewBody).toContain('2026-09-25'), { timeout: 3000 });
     });

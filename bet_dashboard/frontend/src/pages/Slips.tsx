@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchSlips, deleteSlip, validateSlips, generateSlips } from '../api/data';
+import EmptyState, { TrackEmptyIcon } from '../components/EmptyState';
 import { SlipCard, SlipDetailModal } from '../components/BetComponents';
 import { StatCard, Toggle } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
@@ -14,6 +16,7 @@ interface Props { filters: GlobalFilters; refreshKey: number; liveData?: LiveDat
 type SortOption = 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc' | 'odds_desc' | 'odds_asc' | 'stake_desc' | 'stake_asc';
 
 export default function Slips({ filters, refreshKey, liveData: externalLiveData }: Props) {
+    const navigate = useNavigate();
     const [data, setData] = useState<SlipsPage | null>(null);
 
     // Initialize selectedProfiles from shared storage (persists across Slips/Analytics)
@@ -172,7 +175,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
                 <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
-                    Slips
+                    Track
                 </h1>
                 {status && (
                     <span className="text-[11px] font-mono" style={{ color: 'var(--accent)' }}>{status}</span>
@@ -192,6 +195,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             <div className="flex items-center gap-3 flex-wrap mb-5">
                 {/* Sort by dropdown */}
                 <select className="field w-56"
+                    data-tour="track-list"
                     value={sortBy}
                     onChange={e => setSortBy(e.target.value as SortOption)}>
                     <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
@@ -204,8 +208,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                     <option value="stake_asc">Sort: Stake (Low → High)</option>
                 </select>
 
-                <button className="btn-ghost" onClick={handleValidate}>✓ Validate Results</button>
-                <button className="btn-success" onClick={handleGenerate}>✦ Generate Slips</button>
+                <button className="btn-ghost" data-tour="track-validate" onClick={handleValidate}>✓ Validate Results</button>
+                <button className="btn-success" data-tour="track-generate" onClick={handleGenerate}>✦ Generate Slips</button>
 
                 <div className="flex items-center gap-3 ml-auto">
                     <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />
@@ -214,15 +218,15 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             </div>
 
             {/* Empty state */}
+            {/* AC-04: Track empty when no slips (incl. fetch-error fallback) */}
             {!loading && data && (!data.slips || data.slips.length === 0) && (
-                <div className="card text-center py-16 fade-in">
-                    <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
-                        No slips available.
-                    </p>
-                    <p className="font-mono text-xs mt-2" style={{ color: 'var(--text-secondary)' }}>
-                        Click "✦ Generate Slips" to create betting slips from your profiles.
-                    </p>
-                </div>
+                <EmptyState
+                    icon={<TrackEmptyIcon />}
+                    title="No slips yet"
+                    steps={['Go to Build', 'Generate Slips', 'Validate']}
+                    primary={{ label: 'Generate Slips', onClick: () => { void handleGenerate(); } }}
+                    secondary={{ label: 'Go to Build', onClick: () => navigate('/builder') }}
+                />
             )}
 
             {/* Stats row */}

@@ -2,6 +2,8 @@
 // bar + NavLink×6; Time Horizon pickers on 4 routes only; persisted
 // localStorage 'bet-assistant-time-horizon'; Pull → pullDb() →
 // onMatchesUpdated only when status==='ok'. Needs MemoryRouter wrapper.
+// Issue #36: nav grouped Core/Insights/System — captions above groups,
+// separators between groups, flat DOM anchor order = keyboard order.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -33,18 +35,71 @@ function renderLayout(route: string = '/', overrides: LayoutOverrides = {}) {
 
 beforeEach(() => {
     localStorage.clear();
+    // AC-09: existing header/nav assertions must not see first-visit tour.
+    localStorage.setItem('bet-assistant-tour-done', '1');
 });
 
 describe('Layout', () => {
-    it('renders brand and all 6 nav links (divergence: no sidebar)', () => {
+    it('renders brand and all 6 renamed nav links (divergence: no sidebar)', () => {
         renderLayout();
         const brand = screen.getByText((content, element) => {
             return element !== null && content.includes('Bet') && element.className.includes('font-display');
         });
         expect(brand).toBeInTheDocument();
-        for (const label of ['Betting Tips', 'Smart Builder', 'Slips', 'Analytics', 'Services', 'Odds Alert']) {
+        // AC-02: renamed labels render
+        for (const label of ['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert']) {
             expect(screen.getByText(label)).toBeInTheDocument();
         }
+    });
+
+    it('renders group micro-captions Core, Insights, System (issue #36, SM-approved)', () => {
+        renderLayout();
+        // AC-03: micro-captions above each group
+        for (const caption of ['Core', 'Insights', 'System']) {
+            expect(screen.getByText(caption)).toBeInTheDocument();
+        }
+    });
+
+    it('renders nav anchors in grouped DOM order: Core → Insights → System (AC-01, AC-04)', () => {
+        renderLayout();
+        const nav = document.querySelector('nav');
+        expect(nav).not.toBeNull();
+        const anchors = Array.from(nav!.querySelectorAll('a')).map(a => a.textContent);
+        expect(anchors).toEqual(['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert']);
+    });
+
+    it('renders group separators between the three groups (AC-03)', () => {
+        renderLayout();
+        const nav = document.querySelector('nav');
+        expect(nav!.querySelectorAll('.nav-separator')).toHaveLength(2);
+    });
+
+    it('labels each nav group for assistive tech (issue #36 polish)', () => {
+        renderLayout();
+        for (const caption of ['Core', 'Insights', 'System']) {
+            expect(screen.getByRole('group', { name: caption })).toBeInTheDocument();
+        }
+    });
+
+    it('preserves route hrefs unchanged (AC-01: routes untouched)', () => {
+        renderLayout();
+        const nav = document.querySelector('nav');
+        const hrefs = Array.from(nav!.querySelectorAll('a')).map(a => a.getAttribute('href'));
+        expect(hrefs).toEqual(['/', '/builder', '/slips', '/analytics', '/services', '/odds-alert']);
+    });
+
+    it('keyboard Tab order follows visual group order (AC-04)', async () => {
+        const user = userEvent.setup();
+        renderLayout();
+        const nav = document.querySelector('nav');
+        const anchors = Array.from(nav!.querySelectorAll('a')) as HTMLAnchorElement[];
+        anchors[0].focus();
+        const seen: string[] = [document.activeElement!.textContent!];
+        for (let i = 1; i < anchors.length; i++) {
+            await user.tab();
+            seen.push(document.activeElement!.textContent!);
+        }
+        expect(seen).toEqual(['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert']);
     });
 
     it('renders children via render prop with empty filters initially', () => {
@@ -123,5 +178,14 @@ describe('Layout', () => {
     it('shows lastPull text when provided', () => {
         renderLayout('/', { lastPull: 'Updated: 12:34' });
         expect(screen.getByText('Updated: 12:34')).toBeInTheDocument();
+    });
+
+    it('Restart Tour clears the done key and shows step 0', async () => {
+        const user = userEvent.setup();
+        renderLayout();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Restart Tour' }));
+        expect(localStorage.getItem('bet-assistant-tour-done')).toBeNull();
+        expect(screen.getByRole('dialog', { name: 'Find value bets' })).toBeInTheDocument();
     });
 });

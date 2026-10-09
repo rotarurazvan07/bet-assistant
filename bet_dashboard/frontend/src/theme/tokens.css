@@ -25,6 +25,10 @@
   --text-muted: #6a738f;
   --text-accent: #6B9FFF;
   --text-bright: #E8EEFF;
+  /* Issue #36 AC-08 (axe color-contrast): --text-muted (#6a738f) fails 4.5:1 on
+     --bg-surface (3.94:1). muted-strong ≈5.6:1 for small header text (nav links,
+     micro-captions). muted stays for large/decorative text. */
+  --text-muted-strong: #8a93ab;
 
   /* ── Brand / Accent ───────────────────────────────────────────────────── */
   --accent: #3D7BFF;
