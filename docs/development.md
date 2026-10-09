@@ -10,7 +10,7 @@ This guide covers setting up a local development environment for all parts of Be
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Python | 3.11+ | Backend, crawler, framework |
+| Python | 3.14 | Backend, crawler, framework |
 | Node.js | 22+ | Frontend build tooling |
 | Docker | 24+ | Containerized services |
 | Git | 2.40+ | Version control |
@@ -491,21 +491,10 @@ python -m pytest tests/ --cov=bet_framework --cov=bet_dashboard.backend --cov=be
 
 ## Code Quality
 
-### Pre-commit Hooks
-
-```bash
-# Install
-pip install pre-commit
-pre-commit install
-
-# Run manually
-pre-commit run --all-files
-```
-
 ### CI Pipeline (`.github/workflows/cicd.yml`)
 
 1. **Auto-fix**: autoflake, pyupgrade, autotyping, isort, ruff
-2. **Test**: pytest on Python 3.10/3.11/3.12
+2. **Test**: pytest on Python 3.14
 3. **Audit**: mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate
 4. **Gate**: Consolidated report
 

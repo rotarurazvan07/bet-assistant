@@ -5,7 +5,7 @@
 Bet Assistant's infrastructure is built on **Docker** for containerization, **GitHub Actions** for CI/CD, and **self-hosted runners** for scraping workloads. The stack is designed to run on a single host (Raspberry Pi, VPS) or scale to Kubernetes.
 
 **Components**:
-- Docker multi-stage builds (Node 22 + Python 3.11)
+- Docker multi-stage builds (Node 22 + Python 3.14)
 - Docker Compose orchestration (3 services)
 - GitHub Actions (3 workflows: scrape, deploy, CI)
 - Watchtower for automatic container updates
@@ -31,7 +31,7 @@ graph TD
     end
 
     subgraph "Stage 2: Python Dependencies"
-        PD[FROM python:3.11-slim
+        PD[FROM python:3.14-slim
         ENV PIP_NO_CACHE_DIR=1
         RUN apt-get update && apt-get install -y gcc git
         COPY requirements.txt .
@@ -40,7 +40,7 @@ graph TD
     end
 
     subgraph "Stage 3: Runtime"
-        RT[FROM python:3.11-slim
+        RT[FROM python:3.14-slim
         WORKDIR /app
         COPY --from=PD /install /usr/local
         RUN scrapling install
@@ -331,7 +331,7 @@ graph TD
     isort, ruff format/lint
     Commit fixes if any]
     TE[test
-    Python 3.10, 3.11, 3.12
+    Python 3.14
     pytest with coverage
     Upload reports]
     AU[audit
@@ -359,7 +359,7 @@ graph TD
 | Stage | Tools | Purpose |
 |-------|-------|---------|
 | **Auto-fix** | autoflake, pyupgrade, autotyping, isort, ruff | Automatic code formatting & modernization |
-| **Test** | pytest, pytest-cov, pytest-xdist | Unit/integration tests on Python 3.10/3.11/3.12 |
+| **Test** | pytest, pytest-cov, pytest-xdist | Unit/integration tests on Python 3.14 |
 | **Audit** | mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate | Security, types, complexity, docs |
 | **Gate** | Consolidated report | Block merge on failures, annotate PR |
 

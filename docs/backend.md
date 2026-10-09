@@ -5,7 +5,7 @@
 The Bet Assistant backend is a **FastAPI** application providing REST API endpoints, WebSocket real-time updates, and background daemon services for automated betting slip management.
 
 **Tech Stack**:
-- Python 3.11+
+- Python 3.14
 - FastAPI 0.111+
 - Uvicorn (ASGI server)
 - WebSockets (native + custom ConnectionManager)
@@ -803,8 +803,8 @@ python -m pytest tests/ --cov=. --cov-report=html
 Multi-stage build:
 ```dockerfile
 # Stage 1: Frontend builder (Node 22)
-# Stage 2: Python deps (Python 3.11)
-# Stage 3: Runtime (Python 3.11 + nginx)
+# Stage 2: Python deps (Python 3.14)
+# Stage 3: Runtime (Python 3.14 + nginx)
 ```
 
 ### Environment Variables

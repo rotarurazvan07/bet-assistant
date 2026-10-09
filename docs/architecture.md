@@ -7,7 +7,7 @@ Bet Assistant is a **monorepo** containing four distinct but integrated parts:
 | Part | Technology | Purpose |
 |------|------------|---------|
 | **Frontend** | React 19 + TypeScript + Vite | Premium betting dashboard UI |
-| **Backend** | Python 3.11 + FastAPI | REST API + WebSocket real-time server |
+| **Backend** | Python 3.14 + FastAPI | REST API + WebSocket real-time server |
 | **Crawler** | Python + scrape-kit | ETL pipeline for match data aggregation |
 | **Infrastructure** | Docker + GitHub Actions | Container orchestration + CI/CD |
 
@@ -650,14 +650,14 @@ graph TD
     end
 
     subgraph "Stage 2: Python Dependencies"
-        PD[FROM python:3.11-slim
+        PD[FROM python:3.14-slim
         COPY requirements.txt .
         RUN pip install --prefix=/install -r requirements.txt
         OUTPUT: /install]
     end
 
     subgraph "Stage 3: Runtime"
-        RT[FROM python:3.11-slim
+        RT[FROM python:3.14-slim
         WORKDIR /app
         COPY --from=PD /install /usr/local
         RUN scrapling install
