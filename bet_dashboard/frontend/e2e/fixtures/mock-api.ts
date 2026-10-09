@@ -1,7 +1,6 @@
-// Campaign convention (WS-A, 2026-10-07): local Playwright visual/E2E MUST call
-// installDemoApi so UI review shots show matches/slips. Expand demo-data.ts as new
-// surfaces need data. Exception: explicit empty-state stories (#46).
-// Skip when E2E_BASE_URL is set (CI docker has a real stack).
+// Two-track demo data: local Playwright MUST call installDemoApi; CI uses
+// setup/seed_e2e.py. Expand BOTH when a new surface needs data (same rows).
+// Exception: explicit empty-state specs. Skip this helper when E2E_BASE_URL.
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
 import type { SlipsPage, ProfilesMap } from '../../src/types';

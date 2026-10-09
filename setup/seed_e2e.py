@@ -4,8 +4,9 @@ Runs ONLY as the one-shot ``e2e-seed`` service in setup/compose.e2e.yaml,
 against that compose project's throwaway named volume — never against a real
 workspace (workspace/data/*.db stays a pipeline output per AGENTS.md).
 
-Why: the E2E specs skip installDemoApi when E2E_BASE_URL is set, so the CI
-stack itself must serve the demo rows. Two jobs:
+Two-track convention: this file is the CI delivery path for the same rows as
+bet_dashboard/frontend/e2e/fixtures/demo-data.ts. When you add a surface,
+expand demo-data.ts AND this seed in the same change. Two jobs:
 
 1. Insert the 3 demo matches from
    bet_dashboard/frontend/e2e/fixtures/demo-data.ts. The real stack derives

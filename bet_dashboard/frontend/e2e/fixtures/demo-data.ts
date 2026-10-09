@@ -1,4 +1,5 @@
-// Durable Playwright demo matches (committed, reuse + expand — not one-off).
+// Canonical demo rows for BOTH tracks: installDemoApi (local) and
+// setup/seed_e2e.py (CI e2e DB). Expand here first, then teach both tracks.
 // Reuses Vitest factories — no second Match type.
 import { makeMatch, makeMatchesPage, makeProfile, makeSlip, makeSlipsPage } from '../../src/test/factories';
 

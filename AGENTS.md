@@ -60,16 +60,25 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 
 ## Frontend visual / E2E demo data (binding)
 
-Local Playwright visual and E2E review of **any** UI change must show populated, realistic data — empty tables and empty slips have no review value unless the story is explicitly an empty-state story.
+Any frontend test that needs **populated** data must grow **both tracks together** and commit both. Local mocks and the CI e2e DB are one mocked database, two delivery paths — not two independent fixtures.
 
-- Call `installDemoApi(page)` from `bet_dashboard/frontend/e2e/fixtures/mock-api.ts` in every new or recaptured local visual/E2E spec.
-- Expand `bet_dashboard/frontend/e2e/fixtures/demo-data.ts` when a new surface needs matches, slips, or profiles. Reuse existing Vitest factories (`makeMatch`, `makeSlip`, …). Do not invent a second type system.
-- Commit fixtures and baselines. This is not one-off / scratch / local-only.
-- **Exception:** specs that exist to show empty states (Workstream A #46). Those must stay empty — do **not** call `installDemoApi`.
-- **Skip mocks when `E2E_BASE_URL` is set** (CI docker stack has a real backend).
-- **CI e2e stack is seeded:** `setup/seed_e2e.py` — run by the one-shot `e2e-seed` service in `setup/compose.e2e.yaml` — inserts the demo matches into the isolated e2e DB before the backend boots and parks the ticker daemons, so specs that skip mocks serve the same rows. It touches ONLY that throwaway compose volume, never `workspace/data/*.db`.
-- Pathname-only `page.route` matchers. Do not use `**/api/matches*` globs — they steal Vite `/src/api/*.ts` and blank the page.
-- Default `GET /api/slips` stays `{ slips: [], stats: null, profiles: [] }` unless the spec passes `{ slips: DEMO_SLIPS_PAGE }`. Do not change the default and break empty-slip / empty-state specs.
-- This does **not** seed `npm run dev` or `workspace/data/*.db`. Those stay pipeline outputs.
+| Track | When | How |
+|---|---|---|
+| **Local** (Vite, no backend) | `E2E_BASE_URL` unset | `installDemoApi(page)` from `bet_dashboard/frontend/e2e/fixtures/mock-api.ts` |
+| **CI e2e** (docker stack) | `E2E_BASE_URL` set | `setup/seed_e2e.py` via compose `e2e-seed` one-shot — same rows in the isolated volume |
+
+**When you add a new surface** (slips, profiles, odds-history, …):
+
+1. Add the row/shape to `bet_dashboard/frontend/e2e/fixtures/demo-data.ts` (reuse Vitest factories — no second type system).
+2. Teach `installDemoApi` to serve it (pathname-only `page.route` — never `**/api/matches*` globs).
+3. Teach `setup/seed_e2e.py` to insert the **same** rows into the CI e2e DB (vote-math / schema as the real read path). Keep default `GET /api/slips` empty unless the spec opts in.
+4. Commit fixtures, seed, and baselines in the **same change**. Do not land one track without the other.
+
+**Exceptions / never:**
+
+- Empty-state specs (#46) stay empty — no `installDemoApi`, no seed rows for that surface.
+- Skip `installDemoApi` when `E2E_BASE_URL` is set (CI already has the seeded stack).
+- Do **not** seed `npm run dev` or `workspace/data/*.db` (pipeline outputs).
+- `e2e-seed` touches only the throwaway compose volume.
 
 <!-- /bmad:context -->
