@@ -309,11 +309,15 @@ class OddsPortalFinder(BaseMatchFinder):
                                 if isinstance(status_obj, str):
                                     status_str = status_obj
                                 elif isinstance(status_obj, dict):
-                                    status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
+                                    status_str = str(status_obj.get("@id", "")) or str(
+                                        status_obj.get("name", "")
+                                    )
 
                                 if "Scheduled" in status_str:
                                     try:
-                                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
+                                        match_date = datetime.fromisoformat(
+                                            start_date_str.replace("Z", "+00:00")
+                                        ).date()
                                         if today <= match_date <= max_date:
                                             links.append(match_url)
                                     except Exception:
@@ -323,7 +327,9 @@ class OddsPortalFinder(BaseMatchFinder):
 
                 links = list(dict.fromkeys(links))
                 urls.extend(links)
-                logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
+                logger.info(
+                    "Found %d match URLs on %s (total: %d)", len(links), url, len(urls)
+                )
             except Exception as e:
                 logger.error("Failed to scrape %s: %s", url, e)
                 continue
@@ -336,28 +342,54 @@ class OddsPortalFinder(BaseMatchFinder):
         thread_name = threading.current_thread().name
         logger.info("[%s] Starting batch of %d URLs", thread_name, len(urls))
 
-        with browser(solve_cloudflare=True, interactive=True, disable_resources=False, headless=True) as session:
+        with browser(
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+            headless=True,
+        ) as session:
             for url in urls:
                 try:
                     try:
                         session.fetch(url, wait_until="domcontentloaded", timeout=90000)
                     except Exception as e:
-                        logger.warning("[%s] Fetch error (retrying): %s", thread_name, e)
+                        logger.warning(
+                            "[%s] Fetch error (retrying): %s", thread_name, e
+                        )
                         time.sleep(4)
                         with contextlib.suppress(Exception):
-                            session.fetch(url, wait_until="domcontentloaded", timeout=60000)
+                            session.fetch(
+                                url, wait_until="domcontentloaded", timeout=60000
+                            )
 
                     soup = BeautifulSoup(session.page.content(), "html.parser")
 
-                    home_team = soup.select_one('[data-testid="game-host"] a').text.strip()
-                    away_team = soup.select_one('[data-testid="game-guest"] a').text.strip()
-                    date_text = soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)').text.strip().rstrip(",")
+                    # AC-03: empty host/guest/time nodes skip this URL
+                    home_el = soup.select_one('[data-testid="game-host"] a')
+                    away_el = soup.select_one('[data-testid="game-guest"] a')
+                    date_el = soup.select_one(
+                        '[data-testid="game-time-item"] p:nth-of-type(2)'
+                    )
+                    if home_el is None or away_el is None or date_el is None:
+                        logger.info(
+                            "[%s] SKIPPED [%s]: missing host/guest/time node",
+                            thread_name,
+                            url,
+                        )
+                        continue
+                    home_team = home_el.text.strip()
+                    away_team = away_el.text.strip()
+                    date_text = date_el.text.strip().rstrip(",")
 
                     match_date = self._parse_match_date(date_text)
 
                     odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
-                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
-                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
+                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(
+                        session, thread_name
+                    )
+                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(
+                        session, thread_name
+                    )
                     ou = self._scrape_tab_ou(session, thread_name)
 
                     odds = Odds(
@@ -385,7 +417,13 @@ class OddsPortalFinder(BaseMatchFinder):
 
                     with self._add_match_lock:
                         self.add_match(
-                            Match(home_team=home_team, away_team=away_team, datetime=match_date, predictions=None, odds=odds)
+                            Match(
+                                home_team=home_team,
+                                away_team=away_team,
+                                datetime=match_date,
+                                predictions=None,
+                                odds=odds,
+                            )
                         )
 
                 except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
@@ -413,7 +451,9 @@ class OddsPortalFinder(BaseMatchFinder):
         """Click a market tab and return its expanded odd-container cells."""
         assert session.click("li.odds-item", tab_label), "Click failed"
         soup = BeautifulSoup(session.page.content(), "html.parser")
-        return soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all("div", {"data-testid": "odd-container"})
+        return soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all(
+            "div", {"data-testid": "odd-container"}
+        )
 
     def _scrape_tab_1x2(self, session, thread_name: str):
         """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure)."""
@@ -475,8 +515,12 @@ class OddsPortalFinder(BaseMatchFinder):
                 "+3.5": (6, 7),
                 "+4.5": (8, 9),
             }
-            for row in soup.find_all("div", {"data-testid": "over-under-collapsed-row"}):
-                name = row.find("div", {"data-testid": "over-under-collapsed-option-box"}).get_text(strip=True)
+            for row in soup.find_all(
+                "div", {"data-testid": "over-under-collapsed-row"}
+            ):
+                name = row.find(
+                    "div", {"data-testid": "over-under-collapsed-option-box"}
+                ).get_text(strip=True)
                 conts = row.find_all("div", {"data-testid": "odd-container-default"})
                 over = conts[0].find("p").get_text(strip=True)
                 under = conts[1].find("p").get_text(strip=True)
@@ -510,8 +554,13 @@ class OddsPortalFinder(BaseMatchFinder):
             [len(c) for c in chunks],
         )
 
-        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal") as executor:
-            futures = {executor.submit(self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)}
+        with ThreadPoolExecutor(
+            max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal"
+        ) as executor:
+            futures = {
+                executor.submit(self._process_url_batch, chunk): i
+                for i, chunk in enumerate(chunks)
+            }
             for future in as_completed(futures):
                 chunk_idx = futures[future]
                 try:

@@ -51,24 +51,43 @@ class LegitPredictFinder(BaseMatchFinder):
                 return
             dt_obj = datetime.strptime(url.split("dt=")[-1], "%d-%m-%Y")
             soup = BeautifulSoup(html, "html.parser")
-            matches_trs = soup.find("div", class_="content nopaddingsmall").find("tbody").find_all("tr")
+            matches_trs = (
+                soup.find("div", class_="content nopaddingsmall")
+                .find("tbody")
+                .find_all("tr")
+            )
 
             for tr in matches_trs:
                 try:
-                    home_team = tr.find_all("td")[2].text.strip().split("VS")[0].strip()
-                    away_team = tr.find_all("td")[2].text.strip().split("VS")[1].strip()
-                    score = Score(
-                        LEGITPREDICT_NAME,
-                        int(tr.find_all("td")[3].text.strip().split("-")[0]),
-                        int(tr.find_all("td")[3].text.strip().split("-")[1]),
+                    tds = tr.find_all("td")
+                    if len(tds) < 4:
+                        logger.info("SKIPPED [%s]: missing cells", url)
+                        continue
+                    home_team = tds[2].text.strip().split("VS")[0].strip()
+                    away_team = tds[2].text.strip().split("VS")[1].strip()
+                    score_parts = tds[3].text.strip().split("-")
+                    time_parts = tds[0].text.strip().split(":")
+                    # AC-10: skip unless both score parts and HH:MM parse
+                    if len(score_parts) < 2 or len(time_parts) < 2:
+                        logger.info("SKIPPED [%s]: incomplete score/time", url)
+                        continue
+                    try:
+                        home_score = int(score_parts[0])
+                        away_score = int(score_parts[1])
+                        hour = int(time_parts[0])
+                        minute = int(time_parts[1])
+                    except ValueError:
+                        logger.info("SKIPPED [%s]: unparsable score/time", url)
+                        continue
+                    score = Score(LEGITPREDICT_NAME, home_score, away_score)
+
+                    dt_obj = dt_obj.replace(hour=hour, minute=minute).replace(
+                        hour=0, minute=0, second=0, microsecond=0
                     )
 
-                    dt_obj = dt_obj.replace(
-                        hour=int(tr.find("td").text.strip().split(":")[0]),
-                        minute=int(tr.find("td").text.strip().split(":")[1]),
-                    ).replace(hour=0, minute=0, second=0, microsecond=0)
-
-                    self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
+                    self.add_match(
+                        Match(home_team, away_team, dt_obj, score, None, None)
+                    )
 
                 except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                     logger.error(f"SKIPPED [{url}]: {e}")

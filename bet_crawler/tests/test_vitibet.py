@@ -6,7 +6,12 @@ import importlib
 
 from bet_crawler.finders.VitibetFinder import VITIBET_NAME, VitibetFinder
 
-from .finder_test_helpers import load_fixture, make_finder, patch_fetch, relax_date_window
+from .finder_test_helpers import (
+    load_fixture,
+    make_finder,
+    patch_fetch,
+    relax_date_window,
+)
 
 vb = importlib.import_module("bet_crawler.finders.VitibetFinder")
 
@@ -26,7 +31,9 @@ class TestVitibet:
         patch_fetch(monkeypatch, vb, {vb.VITIBET_URL: hub})
         finder, _ = _finder(top_leagues_only=False)
         urls = finder.get_matches_urls()
-        assert urls == ["https://www.vitibet.com" + "index.php?clanek=leagues&liga=39&lang=en"]
+        assert urls == [
+            "https://www.vitibet.com" + "index.php?clanek=leagues&liga=39&lang=en"
+        ]
 
     def test_parse_page_extracts_matches(self) -> None:
         finder, collector = _finder()
@@ -45,9 +52,21 @@ class TestVitibet:
         finder, collector = _finder()
         url = next(iter(vb.TOP_LEAGUES))
         finder._parse_page(url, load_fixture("vitibet", "league.html"))
-        assert all(m.datetime.month == 6 and m.datetime.day == 15 for m in collector.matches)
+        assert all(
+            m.datetime.month == 6 and m.datetime.day == 15 for m in collector.matches
+        )
 
     def test_broken_structure_no_crash(self) -> None:
         finder, collector = _finder()
         finder._parse_page("u", load_fixture("vitibet", "broken.html"))
         assert len(collector) == 0
+
+    def test_dash_score_skipped_siblings_kept(self) -> None:
+        html = load_fixture("vitibet", "league.html").replace(
+            '<div class="mc-score">1 : 1</div>', '<div class="mc-score">- : -</div>'
+        )
+        finder, collector = _finder()
+        url = next(iter(vb.TOP_LEAGUES))
+        finder._parse_page(url, html)
+        assert len(collector) == 1
+        assert collector.first.home_team == "Juventus"

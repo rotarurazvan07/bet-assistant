@@ -6,7 +6,12 @@ import importlib
 
 from bet_crawler.finders.xGScoreFinder import XGSCORE_NAME, xGScoreFinder
 
-from .finder_test_helpers import fake_browser, load_fixture, make_finder, relax_date_window
+from .finder_test_helpers import (
+    fake_browser,
+    load_fixture,
+    make_finder,
+    relax_date_window,
+)
 
 xg = importlib.import_module("bet_crawler.finders.xGScoreFinder")
 
@@ -18,10 +23,15 @@ def _finder(**kw):
 
 class TestXGScore:
     def test_discovery_via_browser_returns_fixture_links(self, monkeypatch) -> None:
-        fake_browser(monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")})
+        fake_browser(
+            monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")}
+        )
         finder, _ = _finder()
         urls = finder.get_matches_urls()
-        assert urls == ["https://xgscore.io/prediction/arsenal-chelsea", "https://xgscore.io/prediction/milan-inter"]
+        assert urls == [
+            "https://xgscore.io/prediction/arsenal-chelsea",
+            "https://xgscore.io/prediction/milan-inter",
+        ]
 
     def test_parse_page_extracts_match_and_dc_odds(self) -> None:
         finder, collector = _finder(contributes_odds=True)
@@ -40,8 +50,12 @@ class TestXGScore:
 
     def test_finished_match_short_circuits(self, caplog) -> None:
         finder, collector = _finder()
-        finder._parse_page("u", load_fixture("xgscore", "finished.html"))
+        with caplog.at_level("INFO", logger="bet_crawler.finders.xGScoreFinder"):
+            finder._parse_page("u", load_fixture("xgscore", "finished.html"))
         assert len(collector) == 0
+        finished = [r for r in caplog.records if "Match finished" in r.getMessage()]
+        assert finished
+        assert all(r.levelname == "INFO" for r in finished)
 
     def test_broken_page_no_crash(self) -> None:
         finder, collector = _finder()
@@ -57,3 +71,22 @@ class TestXGScore:
         # Safe-default Odds object (all None) stripped? contributes_odds=True keeps it
         assert collector.first.odds is not None
         assert collector.first.odds.dc_1x is None
+
+    def test_week_button_missing_falls_back_to_default_view(self, monkeypatch) -> None:
+        session = fake_browser(
+            monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")}
+        )
+        session.execute_script = lambda script: False
+        monkeypatch.setattr(xg.time, "sleep", lambda *_a, **_k: None)
+        finder, _ = _finder()
+        urls = finder.get_matches_urls()
+        assert urls == [
+            "https://xgscore.io/prediction/arsenal-chelsea",
+            "https://xgscore.io/prediction/milan-inter",
+        ]
+
+    def test_empty_html_returns_list_not_none(self, monkeypatch) -> None:
+        fake_browser(monkeypatch, xg, {xg.XGSCORE_URL: ""})
+        monkeypatch.setattr(xg.time, "sleep", lambda *_a, **_k: None)
+        finder, _ = _finder()
+        assert finder.get_matches_urls() == []

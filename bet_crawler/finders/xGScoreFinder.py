@@ -56,22 +56,24 @@ class xGScoreFinder(BaseMatchFinder):
                     # Wait for the content to reload/update
                     time.sleep(5)
                 else:
-                    logger.info("Could not find 'Week' button.")
+                    # AC-11: wait/fallback to default view; don't empty-fail
+                    logger.info("Could not find 'Week' button; using default view")
+                    time.sleep(2)
             except Exception as e:
                 logger.info(f"Click error: {e}")
 
-            html = session.page.content()
+            html = session.page.content() or ""
 
-        if html:
-            matches_urls = []
-            soup = BeautifulSoup(html, "html.parser")
-            matches_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
-            for anchor in matches_anchors:
-                matches_urls.append(
-                    "https://xgscore.io" + anchor.find("a", class_="xgs-category-forecast-fixture_teams").get("href")
-                )
-            logger.info(f"Found {len(matches_urls)} matches.")
-            return matches_urls
+        matches_urls = []
+        soup = BeautifulSoup(html, "html.parser")
+        matches_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
+        for anchor in matches_anchors:
+            href_tag = anchor.find("a", class_="xgs-category-forecast-fixture_teams")
+            if href_tag is None or not href_tag.get("href"):
+                continue
+            matches_urls.append("https://xgscore.io" + href_tag.get("href"))
+        logger.info(f"Found {len(matches_urls)} matches.")
+        return matches_urls
 
     def get_matches(self, urls=None) -> None:
         """Execute browser scripts to load xgscore data and emit matches."""
@@ -86,16 +88,28 @@ class xGScoreFinder(BaseMatchFinder):
         """Parse one xgscore payload and emit matches via callback."""
         soup = BeautifulSoup(html, "html.parser")
         try:
-            home_team = soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()
-            away_team = soup.find_all("strong", class_="xgs-game-header_team-name")[1].get_text().strip()
+            home_team = (
+                soup.find_all("strong", class_="xgs-game-header_team-name")[0]
+                .get_text()
+                .strip()
+            )
+            away_team = (
+                soup.find_all("strong", class_="xgs-game-header_team-name")[1]
+                .get_text()
+                .strip()
+            )
 
             try:
-                date_str = soup.find("div", class_="xgs-game-header_datetime").get_text().strip()
-                match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
-                    hour=0, minute=0
+                date_str = (
+                    soup.find("div", class_="xgs-game-header_datetime")
+                    .get_text()
+                    .strip()
                 )
+                match_datetime = datetime.strptime(
+                    re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y"
+                ).replace(hour=0, minute=0)
             except Exception:
-                logger.error("Match finished")
+                logger.info("Match finished")  # AC-12: finished is skip, not ERROR
                 return
 
             home, away = re.search(r"Correct Score:\s*(\d+)-(\d+)", html).groups()
@@ -105,7 +119,9 @@ class xGScoreFinder(BaseMatchFinder):
             # Extract odds from the HTML div elements
             odds = self._extract_odds_from_html(soup)
 
-            self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
+            self.add_match(
+                Match(home_team, away_team, match_datetime, predictions, odds)
+            )
 
         except Exception as e:
             logger.error(f"SKIPPED: Parse error - {e}")
@@ -144,9 +160,7 @@ class xGScoreFinder(BaseMatchFinder):
         found_data = {}
 
         for label, field_name in labels.items():
-            pattern = (
-                rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
-            )
+            pattern = rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
             match = re.search(pattern, element_str, re.DOTALL)
             if match:
                 try:

@@ -71,7 +71,10 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
             soup = BeautifulSoup(html, "html.parser")
             if self.top_leagues_only:
                 matches_container = list(
-                    takewhile(lambda tr: "Matchday" not in tr.text, soup.find_all("tbody")[1].find_all("tr"))
+                    takewhile(
+                        lambda tr: "Matchday" not in tr.text,
+                        soup.find_all("tbody")[1].find_all("tr"),
+                    )
                 )
             else:
                 matches_container = soup.find_all("tbody")[2].find_all("tr")
@@ -82,25 +85,51 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                     dt_tag = cells[0].find(class_="fulldatetime")
                     if dt_tag:
                         dt_str = dt_tag.get_text(strip=True)
-                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(hour=0, minute=0, second=0, microsecond=0)
+                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(
+                            hour=0, minute=0, second=0, microsecond=0
+                        )
 
                         teams = list(cells[1].stripped_strings)
                         home_team = teams[0]
                         away_team = teams[1]
 
                         score_text = cells[2].get_text(strip=True)
+                        # AC-07: skip if split length < 2 or empty
+                        parts = score_text.split(":")
+                        if (
+                            len(parts) < 2
+                            or not parts[0].strip()
+                            or not parts[1].strip()
+                        ):
+                            logger.info(
+                                "SKIPPED [%s]: incomplete score %r", url, score_text
+                            )
+                            continue
 
                         predictions = [
                             Score(
                                 ONE_MILLION_PREDICTIONS_NAME,
-                                int(score_text.split(":")[0]),
-                                int(score_text.split(":")[1]),
+                                int(parts[0]),
+                                int(parts[1]),
                             )
                         ]
                         odds = None
 
-                        league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
-                        self.add_match(Match(home_team, away_team, dt_obj, predictions, odds, league=league))
+                        league = (
+                            TOP_LEAGUES.get(url)
+                            if self.top_leagues_only and url in TOP_LEAGUES
+                            else None
+                        )
+                        self.add_match(
+                            Match(
+                                home_team,
+                                away_team,
+                                dt_obj,
+                                predictions,
+                                odds,
+                                league=league,
+                            )
+                        )
 
                 except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
                     logger.error(f"SKIPPED [{url}]: {e}")
