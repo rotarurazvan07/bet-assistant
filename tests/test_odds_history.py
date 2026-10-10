@@ -201,6 +201,7 @@ class TestGetOddsHistoryFromRow:
         # Insert a match with embedded history
         manager.ensure_buffer()
         manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -217,7 +218,7 @@ class TestGetOddsHistoryFromRow:
                 ),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
 
         result = manager.get_odds_history_from_row(0)
@@ -237,6 +238,7 @@ class TestGetMovementForRow:
     def test_get_movement_with_data(self, manager):
         manager.ensure_buffer()
         manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -251,7 +253,7 @@ class TestGetMovementForRow:
                 ),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
 
         result = manager.get_movement_for_row(0)
@@ -279,6 +281,7 @@ class TestMergeWithHistoryPreservation:
 
         current_manager.ensure_buffer()
         current_manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -287,7 +290,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 1.5, "draw": 3.0, "away": 5.0}),
                 "result_url": None,
                 "league": "Test League",
-            }
+            },
         )
         current_manager.flush()
 
@@ -295,6 +298,7 @@ class TestMergeWithHistoryPreservation:
         fresh_manager = MatchesManager(fresh_db)
         fresh_manager.ensure_buffer()
         fresh_manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -303,7 +307,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 1.6, "draw": 3.1, "away": 4.8}),
                 "result_url": None,
                 "league": "Test League",
-            }
+            },
         )
         fresh_manager.flush()
         fresh_manager.close()
@@ -334,6 +338,7 @@ class TestMergeWithHistoryPreservation:
         current_manager.ensure_buffer()
         # Past match - should NOT transfer history
         current_manager.insert(
+            "matches",
             {
                 "home_team_name": "Past Team A",
                 "away_team_name": "Past Team B",
@@ -342,7 +347,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 1.5}),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
         current_manager.flush()
 
@@ -350,6 +355,7 @@ class TestMergeWithHistoryPreservation:
         fresh_manager = MatchesManager(fresh_db)
         fresh_manager.ensure_buffer()
         fresh_manager.insert(
+            "matches",
             {
                 "home_team_name": "Future Team A",
                 "away_team_name": "Future Team B",
@@ -358,7 +364,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 2.0}),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
         fresh_manager.flush()
         fresh_manager.close()

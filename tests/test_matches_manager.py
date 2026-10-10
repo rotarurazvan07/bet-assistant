@@ -343,6 +343,45 @@ class TestResetMatchesDb:
         buf = mm.ensure_buffer()
         assert len(buf) == 0
 
+    def test_normal_reset_empties_disk_and_clears_dirty(self, populated_mm):
+        populated_mm.flush()
+        populated_mm.reset_matches_db()
+        rows = populated_mm.fetch_rows("SELECT COUNT(*) AS n FROM matches")
+        assert rows[0][0] == 0
+        assert populated_mm._dirty is False
+        indexes = populated_mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
+        assert {row[0] for row in indexes} >= {"idx_datetime", "idx_home_team", "idx_away_team"}
+
+    def test_regression_reset_does_not_call_removed_clear_database(self, mm):
+        assert not hasattr(mm, "clear_database")
+        mm.reset_matches_db()
+
+
+class TestScrapeKitPin:
+    """Lock scrape-kit to v0.2.1 on every install path."""
+
+    PIN = "git+https://github.com/rotarurazvan07/scrape-kit.git@v0.2.1"
+    REQUIREMENTS = (
+        "bet_dashboard/backend/requirements.txt",
+        "setup/requirements-scrape.txt",
+    )
+
+    def test_both_requirements_pin_v021(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for rel in self.REQUIREMENTS:
+            path = os.path.join(root, rel)
+            with open(path, encoding="utf-8") as fh:
+                lines = [ln.strip() for ln in fh if "scrape-kit" in ln and not ln.lstrip().startswith("#")]
+            assert lines == [self.PIN], f"{rel} scrape-kit refs={lines}"
+
+    def test_scrape_requirements_pandas_matches_scrape_kit_v021(self):
+        # AC-02: scrape-kit v0.2.1 requires pandas==3.0.6; keep the scrape pin aligned.
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, "setup/requirements-scrape.txt")
+        with open(path, encoding="utf-8") as fh:
+            pins = [ln.strip() for ln in fh if ln.strip().startswith("pandas")]
+        assert pins == ["pandas==3.0.6"], f"scrape pandas refs={pins}"
+
 
 # ── flush ─────────────────────────────────────────────────────────────────────
 
@@ -425,6 +464,17 @@ class TestFind:
         found, _ = mm_no_sim._find("Arsenaal", "Chelseea", DT_BASE)  # typos
         assert found is None  # no engine → fuzzy cannot find
 
+    def test_edge_fuzzy_row_score_none_engine_returns_none(self, mm_no_sim):
+        """NONE_ENGINE: _fuzzy_row_score must not AttributeError when engine is missing."""
+        assert mm_no_sim.similarity_engine is None
+        assert mm_no_sim._fuzzy_row_score("Arsenal", "Chelsea", "Arsenal", "Chelsea") is None
+
+    def test_edge_add_match_skips_update_when_idx_none(self, mm):
+        """UPDATE_IDX: found-without-idx must not call _update_existing_match."""
+        mm.add_match(make_match("Arsenal", "Chelsea"))
+        mm._find = lambda *a, **k: ({"home_team_name": "Arsenal"}, None)
+        assert mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_b", 1, 0)])) is None
+
 
 # ── merge_databases ───────────────────────────────────────────────────────────
 
@@ -498,6 +548,16 @@ class TestMergeDatabases:
         buf = mm.ensure_buffer()
         odds = json.loads(buf.iloc[0]["odds"])
         assert odds["home"] == 1.5
+
+    def test_edge_chunk_with_empty_odds(self, mm, tmp_path):
+        """MERGE_NO_ODDS: empty/falsey odds merge without TypeError."""
+        chunk_dir = tmp_path / "chunks"
+        chunk_dir.mkdir()
+        make_chunk_db(chunk_dir / "chunk1.db", [make_match("A", "B", odds=None)])
+        mm.merge_databases(str(chunk_dir))
+        buf = mm.ensure_buffer()
+        assert len(buf) == 1
+        assert buf.iloc[0]["odds"] in (None, "")
 
 
 # ── Complex Scenarios ─────────────────────────────────────────────────────────

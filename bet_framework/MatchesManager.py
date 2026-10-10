@@ -108,6 +108,7 @@ class MatchesManager(BufferedStorageManager):
 
     def __init__(self, db_path: str, similarity_config: dict | None = None) -> None:
         """Open/create the DB and set similarity thresholds."""
+        self._similarity_config = dict(similarity_config) if similarity_config else None
         if similarity_config:
             self.similarity_engine: SimilarityEngine | None = SimilarityEngine(similarity_config)
         else:
@@ -148,16 +149,19 @@ class MatchesManager(BufferedStorageManager):
 
     def _fuzzy_row_score(self, home, away, rh, ra) -> float | None:
         """Score one buffered row against the target teams; None means not a match."""
-        ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
+        engine = self.similarity_engine
+        if engine is None:
+            return None
+        ok_h, sc_h = engine.similarity(rh, home)
         if not ok_h:
             # Near-miss: check away too for score tracking
             if sc_h >= 30:
-                _, sc_a = self.similarity_engine.is_similar(ra, away)
+                _, sc_a = engine.similarity(ra, away)
                 combined = (sc_h + sc_a) / 2
                 if 40 <= combined < 65:
                     self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
             return None
-        ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
+        ok_a, sc_a = engine.similarity(ra, away)
         if not ok_a:
             combined = (sc_h + sc_a) / 2
             if 40 <= combined < 65:
@@ -247,6 +251,8 @@ class MatchesManager(BufferedStorageManager):
                 return self._insert_new_match(match)
 
             # Update existing match
+            if idx is None:
+                return None
             changed = self._update_existing_match(match, found, idx)
             if changed:
                 self._dirty = True
@@ -258,20 +264,23 @@ class MatchesManager(BufferedStorageManager):
 
     def _insert_new_match(self, match: Match) -> int:
         """Insert a new match into the buffer."""
-        self.insert(
-            {
-                "home_team_name": match.home_team,
-                "away_team_name": match.away_team,
-                "datetime": match.datetime.isoformat(),
-                "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
-                if match.predictions
-                else None,
-                "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
-                "result_url": match.result_url,
-                "league": match.league,
-            }
-        )
-        return len(self._buffer) - 1
+        with self.db_lock:
+            self.insert(
+                "matches",
+                {
+                    "home_team_name": match.home_team,
+                    "away_team_name": match.away_team,
+                    "datetime": match.datetime.isoformat(),
+                    "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
+                    if match.predictions
+                    else None,
+                    "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
+                    "result_url": match.result_url,
+                    "league": match.league,
+                },
+            )
+            self.ensure_buffer()
+            return len(self._buffer) - 1
 
     def _update_existing_match(self, match: Match, found: dict, idx: int) -> bool:
         """Update an existing match in the buffer. Returns True if changes were made."""
@@ -298,7 +307,7 @@ class MatchesManager(BufferedStorageManager):
         if not _is_empty(match.odds):
             odds_changed = self._update_odds(match, found, idx)
             changed = odds_changed or changed
-            if odds_changed:
+            if odds_changed and match.odds is not None:
                 logger.info(f"Updating odds for {match.home_team} vs {match.away_team} with new values: {asdict(match.odds)}")
 
         if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
@@ -342,6 +351,8 @@ class MatchesManager(BufferedStorageManager):
 
     def _update_odds(self, match: Match, found: dict, idx: int) -> bool:
         """Append an odds snapshot to a match's history."""
+        if match.odds is None:
+            return False
         cur = self.deserialize_json(found.get("odds")) or {}
         raw_patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
         if not raw_patch:
@@ -375,7 +386,7 @@ class MatchesManager(BufferedStorageManager):
 
     def reset_matches_db(self) -> None:
         """Drop and recreate the matches DB."""
-        self.clear_database("matches")  # clears buffer + dirty flag (inherited)
+        self.clear_table("matches")  # clears buffer + dirty flag (inherited)
 
     def merge_databases(self, chunks_dir: str) -> None:
         """Merge chunk DBs into the store with fuzzy dedup."""
@@ -569,7 +580,7 @@ class MatchesManager(BufferedStorageManager):
         first_odds = history[0]
         # Derive simplified market keys from central configuration (strip 'odds_' prefix)
         markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
-        movement = {}
+        movement: dict[str, str | None] = {}
 
         for market in markets:
             first_val = first_odds.get(market)
@@ -728,7 +739,7 @@ class MatchesManager(BufferedStorageManager):
 
         fresh_file_size = os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
         logger.info(f"Loading fresh DB from {fresh_db_path} (size: {fresh_file_size} bytes)")
-        fresh_manager = MatchesManager(fresh_db_path, self.similarity_engine._config if self.similarity_engine else None)
+        fresh_manager = MatchesManager(fresh_db_path, self._similarity_config)
         fresh_buf = fresh_manager.ensure_buffer()
         logger.info(
             f"Fresh buffer: {len(fresh_buf)} rows, columns: {list(fresh_buf.columns) if not fresh_buf.empty else 'N/A'}"

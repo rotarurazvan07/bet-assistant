@@ -78,7 +78,7 @@ class StubEngine:
         self.score_fn = score_fn
         self.calls = []
 
-    def is_similar(self, a, b):
+    def similarity(self, a, b):
         self.calls.append((a, b))
         return self.score_fn(a, b)
 
@@ -176,17 +176,19 @@ class TestEngineConfiguration:
         assert engine.similarity_threshold == 65.0
         assert engine.strong_mismatch_cap == 35.0
 
-    def test_empty_config_raises_value_error(self):
-        with pytest.raises(ValueError, match="Configuration is required"):
+    def test_empty_config_raises_matching_error(self):
+        from scrape_kit import MatchingError
+
+        with pytest.raises(MatchingError, match="Configuration is required"):
             SimilarityEngine({})
 
     def test_threshold_comparison_is_strictly_greater(self, real_config):
         # A pair scoring exactly at the threshold must NOT count as similar.
         engine = SimilarityEngine(real_config)  # fresh instance: no cached results
-        _ok, score = engine.is_similar("Liverpool FC", "Liverpool")
+        _ok, score = engine.similarity("Liverpool FC", "Liverpool")
         assert score == 90.0
         engine.similarity_threshold = score
-        ok, score2 = engine.is_similar("Manchester United", "Man Utd")
+        ok, score2 = engine.similarity("Manchester United", "Man Utd")
         assert score2 == 90.0
         assert ok is False
 
@@ -196,38 +198,38 @@ class TestEngineConfiguration:
 
 class TestAcronymsAndSynonyms:
     def test_fc_prefix_is_stripped(self, real_engine):
-        ok, _score = real_engine.is_similar("FC Arsenal", "Arsenal")
+        ok, _score = real_engine.similarity("FC Arsenal", "Arsenal")
         assert ok is True
 
     def test_fc_suffix_is_stripped(self, real_engine):
-        ok, _score = real_engine.is_similar("Liverpool FC", "Liverpool")
+        ok, _score = real_engine.similarity("Liverpool FC", "Liverpool")
         assert ok is True
 
     def test_cf_suffix_is_stripped(self, real_engine):
-        ok, _score = real_engine.is_similar("Barcelona CF", "Barcelona")
+        ok, _score = real_engine.similarity("Barcelona CF", "Barcelona")
         assert ok is True
 
     def test_ac_prefix_is_stripped(self, real_engine):
-        ok, _score = real_engine.is_similar("AC Milan", "Milan")
+        ok, _score = real_engine.similarity("AC Milan", "Milan")
         assert ok is True
 
     def test_dotted_acronym_is_expanded(self, real_engine):
         # "din." -> "dinamo" per the diacritic/acronym table.
-        ok, _score = real_engine.is_similar("Din. Zagreb", "Dinamo Zagreb")
+        ok, _score = real_engine.similarity("Din. Zagreb", "Dinamo Zagreb")
         assert ok is True
 
     def test_synonym_man_utd_expands_to_manchester_united(self, real_engine):
-        ok, score = real_engine.is_similar("Man Utd", "Manchester United")
+        ok, score = real_engine.similarity("Man Utd", "Manchester United")
         assert ok is True
         assert score == pytest.approx(90.0)
 
     def test_synonym_spurs_expands_to_tottenham(self, real_engine):
-        ok, score = real_engine.is_similar("Spurs", "Tottenham Hotspur")
+        ok, score = real_engine.similarity("Spurs", "Tottenham Hotspur")
         assert ok is True
         assert score == pytest.approx(90.0)
 
     def test_synonym_wolves_expands_to_wolverhampton(self, real_engine):
-        ok, score = real_engine.is_similar("Wolves", "Wolverhampton Wanderers")
+        ok, score = real_engine.similarity("Wolves", "Wolverhampton Wanderers")
         assert ok is True
         assert score == pytest.approx(90.0)
 
@@ -249,9 +251,9 @@ class TestAcronymsAndSynonyms:
             "threshold": 65,
         }
         engine = SimilarityEngine(cfg)
-        ok, _score = engine.is_similar("FC Arsenal", "Arsenal Football Club")
+        ok, _score = engine.similarity("FC Arsenal", "Arsenal Football Club")
         assert ok is True
-        ok, _score = engine.is_similar("Man Utd", "Manchester United")
+        ok, _score = engine.similarity("Man Utd", "Manchester United")
         assert ok is True
 
 
@@ -261,35 +263,35 @@ class TestAcronymsAndSynonyms:
 class TestStrongTokenEnforcement:
     def test_manchester_city_vs_united_capped(self, real_engine):
         # strong = {city} vs {united}: disjoint -> capped below threshold.
-        ok, score = real_engine.is_similar("Manchester City", "Manchester United")
+        ok, score = real_engine.similarity("Manchester City", "Manchester United")
         assert ok is False
         assert score <= 35.0
 
     def test_shared_weak_location_words_do_not_merge(self, real_engine):
-        ok, score = real_engine.is_similar("New York City", "New York Bulls")
+        ok, score = real_engine.similarity("New York City", "New York Bulls")
         assert ok is False
         assert score <= 35.0
 
     def test_single_word_clubs_never_merge(self, real_engine):
-        ok, score = real_engine.is_similar("Barcelona", "Valencia")
+        ok, score = real_engine.similarity("Barcelona", "Valencia")
         assert ok is False
         assert score <= 35.0
 
     def test_weak_real_prefix_does_not_rescue_mismatch(self, real_engine):
         # "real" is a weak token; madrid vs sociedad are disjoint strong tokens.
-        ok, score = real_engine.is_similar("Real Madrid", "Real Sociedad")
+        ok, score = real_engine.similarity("Real Madrid", "Real Sociedad")
         assert ok is False
         assert score <= 35.0
 
     def test_cap_is_min_of_base_and_cap(self, real_engine):
         # Cap behaves as a ceiling: score = min(base_score, 35.0).
-        _ok1, capped = real_engine.is_similar("Manchester City", "Manchester United")
-        _ok2, lower = real_engine.is_similar("Real Madrid", "Real Betis")
+        _ok1, capped = real_engine.similarity("Manchester City", "Manchester United")
+        _ok2, lower = real_engine.similarity("Real Madrid", "Real Betis")
         assert capped == pytest.approx(35.0)
         assert lower <= 35.0
 
     def test_disjoint_teams_score_below_threshold(self, real_engine):
-        ok, _score = real_engine.is_similar("Totally Different", "Completely Other")
+        ok, _score = real_engine.similarity("Totally Different", "Completely Other")
         assert ok is False
 
 
@@ -298,23 +300,23 @@ class TestStrongTokenEnforcement:
 
 class TestNormalization:
     def test_diacritics_are_stripped(self, real_engine):
-        ok, score = real_engine.is_similar("Malmo FF", "Malmö FF")
+        ok, score = real_engine.similarity("Malmo FF", "Malmö FF")
         assert ok is True
         assert score == pytest.approx(99.2)
 
     def test_typo_rescued_phonetically(self, real_engine):
-        ok, score = real_engine.is_similar("Sevilla", "Sevlla")
+        ok, score = real_engine.similarity("Sevilla", "Sevlla")
         assert ok is True
         assert score > 65.0
 
     def test_empty_strings_never_match(self, real_engine):
-        ok, score = real_engine.is_similar("", "")
+        ok, score = real_engine.similarity("", "")
         assert ok is False
         assert score == 0.0
 
-    def test_identity_is_similar_for_pool_teams(self, real_engine):
+    def test_identity_similarity_for_pool_teams(self, real_engine):
         for name in TEAM_POOL:
-            ok, _score = real_engine.is_similar(name, name)
+            ok, _score = real_engine.similarity(name, name)
             assert ok is True, name
 
 
@@ -325,22 +327,22 @@ class TestEngineProperties:
     @settings(deadline=None)
     @given(a=st.sampled_from(TEAM_POOL), b=st.sampled_from(TEAM_POOL))
     def test_property_symmetry(self, real_engine, a, b):
-        forward = real_engine.is_similar(a, b)
-        backward = real_engine.is_similar(b, a)
+        forward = real_engine.similarity(a, b)
+        backward = real_engine.similarity(b, a)
         assert forward[0] == backward[0]
         assert forward[1] == pytest.approx(backward[1])
 
     @settings(deadline=None)
     @given(a=st.sampled_from(TEAM_POOL), b=st.sampled_from(TEAM_POOL))
     def test_property_score_range_and_threshold_consistency(self, real_engine, a, b):
-        ok, score = real_engine.is_similar(a, b)
+        ok, score = real_engine.similarity(a, b)
         assert 0.0 <= score <= 100.0
         assert ok == (score > real_engine.similarity_threshold)
 
     @settings(deadline=None)
     @given(a=st.sampled_from(TEAM_POOL))
     def test_property_names_from_config_pool_match_themselves(self, real_engine, a):
-        ok, score = real_engine.is_similar(a, a)
+        ok, score = real_engine.similarity(a, a)
         assert ok is True
         assert score > 65.0
 
