@@ -343,6 +343,38 @@ class TestResetMatchesDb:
         buf = mm.ensure_buffer()
         assert len(buf) == 0
 
+    def test_normal_reset_empties_disk_and_clears_dirty(self, populated_mm):
+        populated_mm.flush()
+        populated_mm.reset_matches_db()
+        rows = populated_mm.fetch_rows("SELECT COUNT(*) AS n FROM matches")
+        assert rows[0][0] == 0
+        assert populated_mm._dirty is False
+        indexes = populated_mm.fetch_rows(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'"
+        )
+        assert {row[0] for row in indexes} >= {"idx_datetime", "idx_home_team", "idx_away_team"}
+
+    def test_regression_reset_does_not_call_removed_clear_database(self, mm):
+        assert not hasattr(mm, "clear_database")
+        mm.reset_matches_db()
+
+class TestScrapeKitPin:
+    """Lock scrape-kit to v0.2.1 on every install path."""
+
+    PIN = "git+https://github.com/rotarurazvan07/scrape-kit.git@v0.2.1"
+    REQUIREMENTS = (
+        "bet_dashboard/backend/requirements.txt",
+        "setup/requirements-scrape.txt",
+    )
+
+    def test_both_requirements_pin_v021(self):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for rel in self.REQUIREMENTS:
+            path = os.path.join(root, rel)
+            with open(path, encoding="utf-8") as fh:
+                lines = [ln.strip() for ln in fh if "scrape-kit" in ln and not ln.lstrip().startswith("#")]
+            assert lines == [self.PIN], f"{rel} scrape-kit refs={lines}"
+
 
 # ── flush ─────────────────────────────────────────────────────────────────────
 

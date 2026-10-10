@@ -4,5 +4,5 @@ websockets>=12.0
 python-multipart>=0.0.9
 pydantic>=2.7.0
 pandas
-git+https://github.com/rotarurazvan07/scrape-kit.git
+git+https://github.com/rotarurazvan07/scrape-kit.git@v0.2.1
 beautifulsoup4

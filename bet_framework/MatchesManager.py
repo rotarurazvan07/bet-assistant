@@ -1,5 +1,7 @@
 """Buffered SQLite match store with fuzzy dedup and odds history."""
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
 from typing import NamedTuple
@@ -87,7 +89,7 @@ def _is_empty(value) -> bool:
     try:
         if pd.isna(value):
             return True
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         # pd.isna raises TypeError for non-scalar containers (list, dict, Odds…)
         pass
     if isinstance(value, str):
@@ -108,6 +110,7 @@ class MatchesManager(BufferedStorageManager):
 
     def __init__(self, db_path: str, similarity_config: dict | None = None) -> None:
         """Open/create the DB and set similarity thresholds."""
+        self._similarity_config = dict(similarity_config) if similarity_config else None
         if similarity_config:
             self.similarity_engine: SimilarityEngine | None = SimilarityEngine(similarity_config)
         else:
@@ -148,16 +151,16 @@ class MatchesManager(BufferedStorageManager):
 
     def _fuzzy_row_score(self, home, away, rh, ra) -> float | None:
         """Score one buffered row against the target teams; None means not a match."""
-        ok_h, sc_h = self.similarity_engine.is_similar(rh, home)
+        ok_h, sc_h = self.similarity_engine.similarity(rh, home)
         if not ok_h:
             # Near-miss: check away too for score tracking
             if sc_h >= 30:
-                _, sc_a = self.similarity_engine.is_similar(ra, away)
+                _, sc_a = self.similarity_engine.similarity(ra, away)
                 combined = (sc_h + sc_a) / 2
                 if 40 <= combined < 65:
                     self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
             return None
-        ok_a, sc_a = self.similarity_engine.is_similar(ra, away)
+        ok_a, sc_a = self.similarity_engine.similarity(ra, away)
         if not ok_a:
             combined = (sc_h + sc_a) / 2
             if 40 <= combined < 65:
@@ -258,20 +261,23 @@ class MatchesManager(BufferedStorageManager):
 
     def _insert_new_match(self, match: Match) -> int:
         """Insert a new match into the buffer."""
-        self.insert(
-            {
-                "home_team_name": match.home_team,
-                "away_team_name": match.away_team,
-                "datetime": match.datetime.isoformat(),
-                "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
-                if match.predictions
-                else None,
-                "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
-                "result_url": match.result_url,
-                "league": match.league,
-            }
-        )
-        return len(self._buffer) - 1
+        with self.db_lock:
+            self.insert(
+                "matches",
+                {
+                    "home_team_name": match.home_team,
+                    "away_team_name": match.away_team,
+                    "datetime": match.datetime.isoformat(),
+                    "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
+                    if match.predictions
+                    else None,
+                    "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
+                    "result_url": match.result_url,
+                    "league": match.league,
+                },
+            )
+            self.ensure_buffer()
+            return len(self._buffer) - 1
 
     def _update_existing_match(self, match: Match, found: dict, idx: int) -> bool:
         """Update an existing match in the buffer. Returns True if changes were made."""
@@ -375,7 +381,7 @@ class MatchesManager(BufferedStorageManager):
 
     def reset_matches_db(self) -> None:
         """Drop and recreate the matches DB."""
-        self.clear_database("matches")  # clears buffer + dirty flag (inherited)
+        self.clear_table("matches")  # clears buffer + dirty flag (inherited)
 
     def merge_databases(self, chunks_dir: str) -> None:
         """Merge chunk DBs into the store with fuzzy dedup."""
@@ -728,7 +734,7 @@ class MatchesManager(BufferedStorageManager):
 
         fresh_file_size = os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
         logger.info(f"Loading fresh DB from {fresh_db_path} (size: {fresh_file_size} bytes)")
-        fresh_manager = MatchesManager(fresh_db_path, self.similarity_engine._config if self.similarity_engine else None)
+        fresh_manager = MatchesManager(fresh_db_path, self._similarity_config)
         fresh_buf = fresh_manager.ensure_buffer()
         logger.info(
             f"Fresh buffer: {len(fresh_buf)} rows, columns: {list(fresh_buf.columns) if not fresh_buf.empty else 'N/A'}"

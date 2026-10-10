@@ -1,5 +1,7 @@
 """Tests for embedded odds history tracking functionality."""
 
+from __future__ import annotations
+
 import json
 import os
 import tempfile
@@ -201,6 +203,7 @@ class TestGetOddsHistoryFromRow:
         # Insert a match with embedded history
         manager.ensure_buffer()
         manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -237,6 +240,7 @@ class TestGetMovementForRow:
     def test_get_movement_with_data(self, manager):
         manager.ensure_buffer()
         manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -279,6 +283,7 @@ class TestMergeWithHistoryPreservation:
 
         current_manager.ensure_buffer()
         current_manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -295,6 +300,7 @@ class TestMergeWithHistoryPreservation:
         fresh_manager = MatchesManager(fresh_db)
         fresh_manager.ensure_buffer()
         fresh_manager.insert(
+            "matches",
             {
                 "home_team_name": "Team A",
                 "away_team_name": "Team B",
@@ -334,6 +340,7 @@ class TestMergeWithHistoryPreservation:
         current_manager.ensure_buffer()
         # Past match - should NOT transfer history
         current_manager.insert(
+            "matches",
             {
                 "home_team_name": "Past Team A",
                 "away_team_name": "Past Team B",
@@ -350,6 +357,7 @@ class TestMergeWithHistoryPreservation:
         fresh_manager = MatchesManager(fresh_db)
         fresh_manager.ensure_buffer()
         fresh_manager.insert(
+            "matches",
             {
                 "home_team_name": "Future Team A",
                 "away_team_name": "Future Team B",
