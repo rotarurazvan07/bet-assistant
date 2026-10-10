@@ -23,9 +23,7 @@ def _finder(**kw):
 
 class TestXGScore:
     def test_discovery_via_browser_returns_fixture_links(self, monkeypatch) -> None:
-        fake_browser(
-            monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")}
-        )
+        fake_browser(monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")})
         finder, _ = _finder()
         urls = finder.get_matches_urls()
         assert urls == [
@@ -73,9 +71,7 @@ class TestXGScore:
         assert collector.first.odds.dc_1x is None
 
     def test_week_button_missing_falls_back_to_default_view(self, monkeypatch) -> None:
-        session = fake_browser(
-            monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")}
-        )
+        session = fake_browser(monkeypatch, xg, {xg.XGSCORE_URL: load_fixture("xgscore", "discovery.html")})
         session.execute_script = lambda script: False
         monkeypatch.setattr(xg.time, "sleep", lambda *_a, **_k: None)
         finder, _ = _finder()

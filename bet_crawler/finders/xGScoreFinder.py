@@ -88,26 +88,14 @@ class xGScoreFinder(BaseMatchFinder):
         """Parse one xgscore payload and emit matches via callback."""
         soup = BeautifulSoup(html, "html.parser")
         try:
-            home_team = (
-                soup.find_all("strong", class_="xgs-game-header_team-name")[0]
-                .get_text()
-                .strip()
-            )
-            away_team = (
-                soup.find_all("strong", class_="xgs-game-header_team-name")[1]
-                .get_text()
-                .strip()
-            )
+            home_team = soup.find_all("strong", class_="xgs-game-header_team-name")[0].get_text().strip()
+            away_team = soup.find_all("strong", class_="xgs-game-header_team-name")[1].get_text().strip()
 
             try:
-                date_str = (
-                    soup.find("div", class_="xgs-game-header_datetime")
-                    .get_text()
-                    .strip()
+                date_str = soup.find("div", class_="xgs-game-header_datetime").get_text().strip()
+                match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
+                    hour=0, minute=0
                 )
-                match_datetime = datetime.strptime(
-                    re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y"
-                ).replace(hour=0, minute=0)
             except Exception:
                 logger.info("Match finished")  # AC-12: finished is skip, not ERROR
                 return
@@ -119,9 +107,7 @@ class xGScoreFinder(BaseMatchFinder):
             # Extract odds from the HTML div elements
             odds = self._extract_odds_from_html(soup)
 
-            self.add_match(
-                Match(home_team, away_team, match_datetime, predictions, odds)
-            )
+            self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
 
         except Exception as e:
             logger.error(f"SKIPPED: Parse error - {e}")
@@ -160,7 +146,9 @@ class xGScoreFinder(BaseMatchFinder):
         found_data = {}
 
         for label, field_name in labels.items():
-            pattern = rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
+            pattern = (
+                rf'class="[^"]*odds-cell_label[^>]*>{label}</span>.*?class="[^"]*text-sm-tiny[^>]*>\s*([0-9.]+)\s*</span>'
+            )
             match = re.search(pattern, element_str, re.DOTALL)
             if match:
                 try:

@@ -79,9 +79,7 @@ class TestPredictz:
         assert len(collector) == 0
 
     def test_missing_odds_fall_back_to_none(self) -> None:
-        html = load_fixture("predictz", "league.html").replace(
-            'class="odds"', 'class="oddsx"'
-        )
+        html = load_fixture("predictz", "league.html").replace('class="odds"', 'class="oddsx"')
         finder, collector = _finder(contributes_odds=True)
         url = next(iter(pz.TOP_LEAGUES))
         finder._parse_page(url, html)
@@ -98,15 +96,11 @@ class TestPredictz:
 
         calls = []
 
-        def fake_scrape(
-            urls, callback, mode=ScrapeMode.FAST, max_concurrency=1
-        ) -> None:
+        def fake_scrape(urls, callback, mode=ScrapeMode.FAST, max_concurrency=1) -> None:
             calls.append((list(urls), mode))
             if mode == ScrapeMode.FAST:
                 callback(urls[0], "<html><body></body></html>")
-                raise FetcherError(
-                    "Fast scrape had 1 failures. Sample: 403", url=urls[-1]
-                )
+                raise FetcherError("Fast scrape had 1 failures. Sample: 403", url=urls[-1])
             for url in urls:
                 callback(url, "<html><body></body></html>")
 
@@ -120,9 +114,7 @@ class TestPredictz:
     def test_fast_and_stealth_403_still_no_raise(self, monkeypatch) -> None:
         from scrape_kit import FetcherError, ScrapeMode
 
-        def fake_scrape(
-            urls, callback, mode=ScrapeMode.FAST, max_concurrency=1
-        ) -> None:
+        def fake_scrape(urls, callback, mode=ScrapeMode.FAST, max_concurrency=1) -> None:
             raise FetcherError("Fast scrape had 1 failures", url=urls[0])
 
         monkeypatch.setattr(pz, "scrape", fake_scrape)

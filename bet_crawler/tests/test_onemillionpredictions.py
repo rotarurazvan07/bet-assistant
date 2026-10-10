@@ -4,9 +4,7 @@ test_onemillionpredictions.py
 
 import importlib
 
-from bet_crawler.finders.OneMillionPredictionsFinder import (
-    ONE_MILLION_PREDICTIONS_NAME as NAME,
-)
+from bet_crawler.finders.OneMillionPredictionsFinder import ONE_MILLION_PREDICTIONS_NAME as NAME
 from bet_crawler.finders.OneMillionPredictionsFinder import OneMillionPredictionsFinder
 
 from .finder_test_helpers import (
@@ -34,9 +32,7 @@ class TestOneMillionPredictions:
         patch_fetch(monkeypatch, omp, {omp.ONE_MILLION_PREDICTIONS_URL: hub})
         finder, _ = _finder(top_leagues_only=False)
         urls = finder.get_matches_urls()
-        assert urls == [
-            "https://onemillionpredictions.com/day2/correct-score/"
-        ]  # [1:] drops first
+        assert urls == ["https://onemillionpredictions.com/day2/correct-score/"]  # [1:] drops first
 
     def test_parse_page_stops_at_matchday(self) -> None:
         finder, collector = _finder()
@@ -51,9 +47,7 @@ class TestOneMillionPredictions:
         assert m.league is not None
 
     def test_women_team_row_filtered(self) -> None:
-        html = load_fixture("onemillionpredictions", "league.html").replace(
-            "Arsenal", "Arsenal W"
-        )
+        html = load_fixture("onemillionpredictions", "league.html").replace("Arsenal", "Arsenal W")
         finder, collector = _finder()
         url = next(iter(omp.TOP_LEAGUES))
         finder._parse_page(url, html)
@@ -65,9 +59,7 @@ class TestOneMillionPredictions:
         assert len(collector) == 0
 
     def test_incomplete_score_row_skipped_siblings_kept(self) -> None:
-        html = load_fixture("onemillionpredictions", "league.html").replace(
-            "<td>1:2</td>", "<td>:</td>"
-        )
+        html = load_fixture("onemillionpredictions", "league.html").replace("<td>1:2</td>", "<td>:</td>")
         finder, collector = _finder()
         url = next(iter(omp.TOP_LEAGUES))
         finder._parse_page(url, html)

@@ -25,10 +25,7 @@ class TestLegitPredict:
         assert len(urls) == 4  # today + 3 days
         today = date.today()
         assert f"{lp.LEGITPREDICT_URL}{today.strftime('%d-%m-%Y')}" in urls
-        assert (
-            f"{lp.LEGITPREDICT_URL}{(today + timedelta(days=3)).strftime('%d-%m-%Y')}"
-            in urls
-        )
+        assert f"{lp.LEGITPREDICT_URL}{(today + timedelta(days=3)).strftime('%d-%m-%Y')}" in urls
 
     def test_empty_day_guard(self) -> None:
         finder, collector = _finder()
