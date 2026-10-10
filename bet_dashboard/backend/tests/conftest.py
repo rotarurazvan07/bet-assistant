@@ -12,8 +12,6 @@ Architecture decision:
   access fails loudly; ``.logic`` delegates to the real-pandas fake.
 """
 
-from __future__ import annotations
-
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path

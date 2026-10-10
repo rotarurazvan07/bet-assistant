@@ -3,8 +3,6 @@
 Branch-level coverage of every private helper in routers/analytics.py.
 """
 
-from __future__ import annotations
-
 from conftest import make_leg, make_slip
 from routers.analytics import (
     _correlation_matrix,

@@ -12,8 +12,6 @@ Public surface
   calc_consensus(scores) → dict
 """
 
-from __future__ import annotations
-
 
 def to_pct(n: int, total: int) -> float:
     """Convert a count *n* to a percentage of *total*, rounded to 1 d.p.

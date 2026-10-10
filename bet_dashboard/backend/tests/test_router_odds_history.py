@@ -5,8 +5,6 @@ Covers: /{match_id} history + 404s, /{match_id}/movement, /movements/all,
 fix in OddsMovementSummary.
 """
 
-from __future__ import annotations
-
 from conftest import FakeDashboardLogic, make_match_row, make_matches_df
 
 BASE = "/api/odds-history"

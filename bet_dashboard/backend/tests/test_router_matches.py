@@ -5,8 +5,6 @@ min_consensus, min_odds, only_significant_movement, excluded_sources,
 empty-dataframe path, 422 validation, and frontend MatchesPage contract.
 """
 
-from __future__ import annotations
-
 import math
 
 from conftest import FakeDashboardLogic, make_match_row, make_matches_df

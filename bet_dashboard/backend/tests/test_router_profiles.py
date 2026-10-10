@@ -1,7 +1,5 @@
 """[P0] API tests for the profiles router (issue #58)."""
 
-from __future__ import annotations
-
 BASE = "/api/profiles"
 
 

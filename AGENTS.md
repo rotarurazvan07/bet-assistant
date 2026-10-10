@@ -3,7 +3,7 @@
 
 ## bet-assistant
 
-Automated betting intelligence platform: 18+ crawlers, consensus engine, slip builder, real-time React dashboard. Python 3.11+ (FastAPI, scrape-kit), Node 22+ (React 19, TypeScript, Vite, MUI v9), Docker. Planning in `docs/`, specs in `_bmad-output/`.
+Automated betting intelligence platform: 18+ crawlers, consensus engine, slip builder, real-time React dashboard. Python 3.14 (FastAPI, scrape-kit), Node 22+ (React 19, TypeScript, Vite, MUI v9), Docker. Planning in `docs/`, specs in `_bmad-output/`.
 
 ## Policy
 
@@ -33,13 +33,13 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - **Crawler**: `python -m bet_crawler.crawl --mode <mode> --config_dir config` (runner sets: `actions` cloud, `local` self-hosted, `test`)
 - **Python tests**: `cd bet_dashboard/backend && python -m pytest tests/ -v`
 - **Frontend tests**: `cd bet_dashboard/frontend && npm test`
-- **Lint/format**: `ruff check . --fix && ruff format .` (Python, line-length 127, py310+); `cd bet_dashboard/frontend && npm run lint` (TypeScript strict, ESLint flat)
-- **CI pipeline**: auto-fix → test (3.10/3.11/3.12) → audit (mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate) → gate
+- **Lint/format**: `ruff check . --fix && ruff format .` (Python, line-length 127, py314); `cd bet_dashboard/frontend && npm run lint` (TypeScript strict, ESLint flat)
+- **CI pipeline**: auto-fix → test (3.14 only) → audit (mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate) → gate
 - **Scrape workflow**: runs hourly on `self-hosted, linux, bet-runner` + `ubuntu-22.04`; merges chunks, releases `latest-db` tag on `main`
 
 ## Conventions that differ from defaults
 
-- Python: line-length 127, target py310+, isort `--profile black`, ruff `--select E,F,B,C,SIM,PERF --ignore UP`
+- Python: line-length 127, target py314, isort `--profile black`, ruff `--select E,F,B,C,SIM,PERF --ignore UP`
 - TypeScript: React 19, strict mode, MUI v9 + TailwindCSS + CSS variables (`--bg-base`, `--accent`, `--live`)
 - Crawler timezone: `Europe/Bucharest` (from `scraper_config.yaml:local_timezone`)
 - Skip patterns: youth (`U\d{2}`), women (`\bW\b`), reserve (`II`, `2`, `III`, `B`, `C`, `Am`, `Res`) — defined in `scraper_config.yaml:SKIP_PATTERNS`

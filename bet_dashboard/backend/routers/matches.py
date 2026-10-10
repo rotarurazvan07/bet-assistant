@@ -1,7 +1,5 @@
 """Matches API: filtered, paginated match listing."""
 
-from __future__ import annotations
-
 import math
 
 from core.market_config import CONSENSUS_COLUMNS, MARKET_DEFINITIONS

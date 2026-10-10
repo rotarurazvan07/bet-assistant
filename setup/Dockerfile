@@ -8,7 +8,7 @@ RUN npm ci
 COPY bet_dashboard/frontend/ ./
 RUN npm run build
 
-FROM python:3.11-slim AS python-deps
+FROM python:3.14-slim AS python-deps
 
 ENV PIP_NO_CACHE_DIR=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -24,7 +24,7 @@ RUN apt-get update \
 COPY bet_dashboard/backend/requirements.txt .
 RUN pip install --prefix=/install -r requirements.txt
 
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 

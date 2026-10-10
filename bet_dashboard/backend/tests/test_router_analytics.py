@@ -4,8 +4,6 @@ Validates the full GET /api/analytics structure, profile/date filter passthrough
 and the all-numeric-fields-finite guarantee (no NaN/Inf in JSON).
 """
 
-from __future__ import annotations
-
 import math
 
 from conftest import FakeDashboardLogic, make_leg, make_slip

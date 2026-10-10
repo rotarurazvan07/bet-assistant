@@ -19,8 +19,6 @@ Isolation: every test uses tmp_path config dirs; the repo-level config/ tree
 is never touched (SettingsManager instances only ever see throwaway dirs).
 """
 
-from __future__ import annotations
-
 import sys
 from dataclasses import asdict
 from pathlib import Path

@@ -1,7 +1,7 @@
 # 🎯 Bet Assistant
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg)](https://www.python.org/downloads/)
 [![Node 22+](https://img.shields.io/badge/node-22+-green.svg)](https://nodejs.org/)
 [![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
@@ -460,7 +460,7 @@ bet-assistant/
 │   └── profiles/             # YAML profiles for Smart Builder
 ├── setup/
 │   ├── compose.yaml          # Docker Compose stack (3 services)
-│   ├── Dockerfile            # Multi-stage: Node 22 → Python 3.11
+│   ├── Dockerfile            # Multi-stage: Node 22 → Python 3.14
 │   ├── runner.Dockerfile     # Self-hosted GitHub runner image
 │   ├── nginx.conf            # Reverse proxy + SPA routing
 │   ├── start-dashboard.sh    # Entrypoint: nginx + uvicorn
@@ -591,7 +591,7 @@ cd bet_dashboard/frontend && npm run lint  # TypeScript
 
 **CI Pipeline** (`.github/workflows/cicd.yml`):
 1.  **Auto-fix**: autoflake, pyupgrade, autotyping, isort, ruff format/lint
-2.  **Test**: pytest on Python 3.10/3.11/3.12 with coverage
+2.  **Test**: pytest on Python 3.14 with coverage
 3.  **Audit**: mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate
 4.  **Gate**: Consolidated report with GitHub annotations
 

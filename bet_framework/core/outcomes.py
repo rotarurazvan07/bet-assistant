@@ -11,8 +11,6 @@ Public surface
   determine_outcome(home, away, market, type)    → Outcome
 """
 
-from __future__ import annotations
-
 from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
 
 

@@ -67,12 +67,9 @@ jobs:
           # Process all source and test directories
           autoflake --in-place --recursive             --remove-all-unused-imports --remove-unused-variables             --exclude .venv,__pycache__             $SRC_DIR $TEST_DIR
 
-      - name: pyupgrade — modernise syntax to Python 3.11+
+      - name: pyupgrade — modernise syntax to Python 3.14+
         run: |
-          # Floor = 3.11 (setup/Dockerfile runtime), NOT the 3.14 CI runner:
-          # --py314-plus emitted PEP 758 (`except A, B:`) which parsed fine
-          # on CI but crashed the E2E docker stack at import (3d7b924).
-          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py311-plus || true
+          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py314-plus || true
 
       - name: autotyping — infer trivial return type annotations
         run: |
@@ -87,8 +84,7 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          # Floor 3.11 for the same reason as pyupgrade (docker runtime).
-          ruff format --line-length 127 --target-version py311             $SRC_DIR $TEST_DIR
+          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
@@ -105,9 +101,6 @@ jobs:
           elif git diff --quiet; then
             echo "Nothing to fix — working tree is clean."
           else
-            # Hard gate: never push code the docker runtime (3.11) cannot
-            # parse. This is what let PEP 758 syntax reach main in 3d7b924.
-            python scripts/check_syntax_floor.py
             git diff --stat > autofix-diffstat.txt
             git add -A
             # No [skip ci]: the auto-fix push MUST run the full pipeline —
@@ -183,12 +176,6 @@ jobs:
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
           fi
-
-      - name: Syntax floor gate (docker runtime is 3.11)
-        # CI parses 3.14 but the E2E docker runtime is python:3.11-slim —
-        # 3.14-only syntax (PEP 758 `except A, B:`) passes every CI job and
-        # crashes the stack at import. Gate on the oldest runtime we ship.
-        run: python scripts/check_syntax_floor.py
 
       - name: Run tests — framework suite (root tests/)
         # D-A: per-suite invocations. A combined 'pytest tests/ bet_crawler/tests

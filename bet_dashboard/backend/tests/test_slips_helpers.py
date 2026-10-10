@@ -4,8 +4,6 @@ Covers validate_manual_leg, _dict_to_candidate_leg, _leg_to_dict,
 _slip_to_dict, _enum_or_str at branch level (no HTTP layer).
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from types import SimpleNamespace
 

@@ -5,8 +5,6 @@ tests monkeypatch routers.services.datetime to a fixed value so the
 Today/Tomorrow branches are stable.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock

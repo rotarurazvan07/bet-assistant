@@ -5,8 +5,6 @@ Covers: POST /api/slips validation + 400/422, GET filters
 POST /validate_manual, DELETE /{id}, POST /validate, POST /generate.
 """
 
-from __future__ import annotations
-
 from types import SimpleNamespace
 
 from conftest import FakeDashboardLogic, make_leg, make_slip

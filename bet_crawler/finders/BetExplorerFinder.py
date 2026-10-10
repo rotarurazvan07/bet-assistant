@@ -341,7 +341,7 @@ class BetExplorerFinder(BaseMatchFinder):
                                             links.append(match_url)
                                     except Exception:
                                         continue
-                    except (json.JSONDecodeError, TypeError):
+                    except json.JSONDecodeError, TypeError:
                         continue
 
                 links = list(dict.fromkeys(links))

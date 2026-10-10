@@ -5,7 +5,7 @@
 The Bet Assistant crawler is a **Python ETL pipeline** built on **scrape-kit** that aggregates match predictions from 18+ betting sources, calculates consensus percentages, and stores data in SQLite with embedded odds history.
 
 **Tech Stack**:
-- Python 3.11+
+- Python 3.14
 - scrape-kit (browser automation, Cloudflare solving, parallel scraping)
 - BeautifulSoup4 (HTML parsing)
 - SQLite (chunk-based parallel processing)

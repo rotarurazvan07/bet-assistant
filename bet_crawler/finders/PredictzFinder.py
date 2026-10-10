@@ -122,7 +122,7 @@ class PredictzFinder(BaseMatchFinder):
                             draw=entry.find_all(class_="odds")[1].get_text(),
                             away=entry.find_all(class_="odds")[2].get_text(),
                         )
-                    except (AttributeError, IndexError):
+                    except AttributeError, IndexError:
                         odds = None
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None

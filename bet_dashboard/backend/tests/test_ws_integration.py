@@ -12,8 +12,6 @@ timeout, so every receive is wrapped in a watchdog executor with result(timeout)
 — a wedged receive fails loudly instead of hanging the suite.
 """
 
-from __future__ import annotations
-
 import asyncio
 import json
 import threading
