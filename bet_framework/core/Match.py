@@ -122,7 +122,7 @@ class Match:
         # Runtime callers pass None / a single Score / a list — the branch
         # below normalizes all three (widened type kills the dead-check error).
         predictions: list[Score] | Score | None,
-        odds: Odds,
+        odds: Odds | None,
         result_url: str | None = None,
         league: str | None = None,
     ) -> None:

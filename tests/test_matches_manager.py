@@ -464,6 +464,17 @@ class TestFind:
         found, _ = mm_no_sim._find("Arsenaal", "Chelseea", DT_BASE)  # typos
         assert found is None  # no engine → fuzzy cannot find
 
+    def test_edge_fuzzy_row_score_none_engine_returns_none(self, mm_no_sim):
+        """NONE_ENGINE: _fuzzy_row_score must not AttributeError when engine is missing."""
+        assert mm_no_sim.similarity_engine is None
+        assert mm_no_sim._fuzzy_row_score("Arsenal", "Chelsea", "Arsenal", "Chelsea") is None
+
+    def test_edge_add_match_skips_update_when_idx_none(self, mm):
+        """UPDATE_IDX: found-without-idx must not call _update_existing_match."""
+        mm.add_match(make_match("Arsenal", "Chelsea"))
+        mm._find = lambda *a, **k: ({"home_team_name": "Arsenal"}, None)
+        assert mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_b", 1, 0)])) is None
+
 
 # ── merge_databases ───────────────────────────────────────────────────────────
 
@@ -537,6 +548,16 @@ class TestMergeDatabases:
         buf = mm.ensure_buffer()
         odds = json.loads(buf.iloc[0]["odds"])
         assert odds["home"] == 1.5
+
+    def test_edge_chunk_with_empty_odds(self, mm, tmp_path):
+        """MERGE_NO_ODDS: empty/falsey odds merge without TypeError."""
+        chunk_dir = tmp_path / "chunks"
+        chunk_dir.mkdir()
+        make_chunk_db(chunk_dir / "chunk1.db", [make_match("A", "B", odds=None)])
+        mm.merge_databases(str(chunk_dir))
+        buf = mm.ensure_buffer()
+        assert len(buf) == 1
+        assert buf.iloc[0]["odds"] in (None, "")
 
 
 # ── Complex Scenarios ─────────────────────────────────────────────────────────

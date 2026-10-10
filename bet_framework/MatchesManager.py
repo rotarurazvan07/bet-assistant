@@ -149,16 +149,19 @@ class MatchesManager(BufferedStorageManager):
 
     def _fuzzy_row_score(self, home, away, rh, ra) -> float | None:
         """Score one buffered row against the target teams; None means not a match."""
-        ok_h, sc_h = self.similarity_engine.similarity(rh, home)
+        engine = self.similarity_engine
+        if engine is None:
+            return None
+        ok_h, sc_h = engine.similarity(rh, home)
         if not ok_h:
             # Near-miss: check away too for score tracking
             if sc_h >= 30:
-                _, sc_a = self.similarity_engine.similarity(ra, away)
+                _, sc_a = engine.similarity(ra, away)
                 combined = (sc_h + sc_a) / 2
                 if 40 <= combined < 65:
                     self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
             return None
-        ok_a, sc_a = self.similarity_engine.similarity(ra, away)
+        ok_a, sc_a = engine.similarity(ra, away)
         if not ok_a:
             combined = (sc_h + sc_a) / 2
             if 40 <= combined < 65:
@@ -248,6 +251,8 @@ class MatchesManager(BufferedStorageManager):
                 return self._insert_new_match(match)
 
             # Update existing match
+            if idx is None:
+                return None
             changed = self._update_existing_match(match, found, idx)
             if changed:
                 self._dirty = True
@@ -302,7 +307,7 @@ class MatchesManager(BufferedStorageManager):
         if not _is_empty(match.odds):
             odds_changed = self._update_odds(match, found, idx)
             changed = odds_changed or changed
-            if odds_changed:
+            if odds_changed and match.odds is not None:
                 logger.info(f"Updating odds for {match.home_team} vs {match.away_team} with new values: {asdict(match.odds)}")
 
         if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
@@ -346,6 +351,8 @@ class MatchesManager(BufferedStorageManager):
 
     def _update_odds(self, match: Match, found: dict, idx: int) -> bool:
         """Append an odds snapshot to a match's history."""
+        if match.odds is None:
+            return False
         cur = self.deserialize_json(found.get("odds")) or {}
         raw_patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
         if not raw_patch:
@@ -573,7 +580,7 @@ class MatchesManager(BufferedStorageManager):
         first_odds = history[0]
         # Derive simplified market keys from central configuration (strip 'odds_' prefix)
         markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
-        movement = {}
+        movement: dict[str, str | None] = {}
 
         for market in markets:
             first_val = first_odds.get(market)
