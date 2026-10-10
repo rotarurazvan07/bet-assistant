@@ -349,14 +349,13 @@ class TestResetMatchesDb:
         rows = populated_mm.fetch_rows("SELECT COUNT(*) AS n FROM matches")
         assert rows[0][0] == 0
         assert populated_mm._dirty is False
-        indexes = populated_mm.fetch_rows(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'"
-        )
+        indexes = populated_mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
         assert {row[0] for row in indexes} >= {"idx_datetime", "idx_home_team", "idx_away_team"}
 
     def test_regression_reset_does_not_call_removed_clear_database(self, mm):
         assert not hasattr(mm, "clear_database")
         mm.reset_matches_db()
+
 
 class TestScrapeKitPin:
     """Lock scrape-kit to v0.2.1 on every install path."""

@@ -1,7 +1,5 @@
 """Tests for embedded odds history tracking functionality."""
 
-from __future__ import annotations
-
 import json
 import os
 import tempfile
@@ -220,7 +218,7 @@ class TestGetOddsHistoryFromRow:
                 ),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
 
         result = manager.get_odds_history_from_row(0)
@@ -255,7 +253,7 @@ class TestGetMovementForRow:
                 ),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
 
         result = manager.get_movement_for_row(0)
@@ -292,7 +290,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 1.5, "draw": 3.0, "away": 5.0}),
                 "result_url": None,
                 "league": "Test League",
-            }
+            },
         )
         current_manager.flush()
 
@@ -309,7 +307,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 1.6, "draw": 3.1, "away": 4.8}),
                 "result_url": None,
                 "league": "Test League",
-            }
+            },
         )
         fresh_manager.flush()
         fresh_manager.close()
@@ -349,7 +347,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 1.5}),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
         current_manager.flush()
 
@@ -366,7 +364,7 @@ class TestMergeWithHistoryPreservation:
                 "odds": json.dumps({"home": 2.0}),
                 "result_url": None,
                 "league": None,
-            }
+            },
         )
         fresh_manager.flush()
         fresh_manager.close()
