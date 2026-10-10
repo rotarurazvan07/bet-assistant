@@ -32,7 +32,7 @@ class WhoScoredFinder(BaseMatchFinder):
         """Get match URLs via browser (needs JS rendering)."""
         with browser(solve_cloudflare=True) as session:
             page = session.fetch(WHOSCORED_URL + "previews")
-            soup = BeautifulSoup(page.html_content, "html.parser")
+            soup = BeautifulSoup(page, "html.parser")
 
         table = soup.find("table", class_="grid")
         urls = [WHOSCORED_URL + a["href"] for a in table.find_all("a") if "matches" in a["href"]]

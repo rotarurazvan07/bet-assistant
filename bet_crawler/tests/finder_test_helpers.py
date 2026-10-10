@@ -105,7 +105,7 @@ class FakeBrowserSession:
     """Patch target for scrape_kit browser() sessions.
 
     Supports the three usage patterns in the codebase:
-    - session.fetch(url).html_content            (WhoScored discovery)
+    - session.fetch(url) -> str HTML             (WhoScored discovery; scrape-kit@v0.2.1)
     - session.execute_script(...)                (xGScore discovery)
     - session.page.content() + session.click(sel, label) (OddsPortal/BetExplorer)
 
@@ -127,7 +127,7 @@ class FakeBrowserSession:
         if url in self.fetch_error_urls:
             raise RuntimeError("fetch failed")
         self._current_url = url
-        return self
+        return self.html_content
 
     def click(self, selector, label=None) -> bool:
         self.clicks.append(label if label is not None else selector)
