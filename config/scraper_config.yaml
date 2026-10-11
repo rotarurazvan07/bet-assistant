@@ -1,9 +1,11 @@
 # Web Scraper settings
 retry_indicators:
   - "403 Forbidden"
-
+  - "429 Too Many Requests"
 block_indicators:
-  - "403 Forbidden"
+  - "Just a moment"
+  - "Checking your browser"
+  - "cf-browser-verification"
 
 # Matches filtering settings
 num_days_ahead: 1
@@ -103,12 +105,12 @@ RUNNER_SETS:
     - predictz
     - soccervista
     - windrawwin
-    - onemillionpredictions
     - xgscore
     - eaglepredict
     - legitpredict
     - betclan
     - footballpredictions
+    # - onemillionpredictions
   local:
     - whoscored
     - footballbettingtips
