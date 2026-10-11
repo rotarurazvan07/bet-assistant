@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import FetcherError, ScrapeMode, fetch, scrape
 
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
@@ -76,12 +76,28 @@ class PredictzFinder(BaseMatchFinder):
 
     def get_matches(self, urls) -> None:
         """Scrape all predictz URLs and emit matches via callback."""
-        scrape(
-            urls,
-            self._parse_page,
-            mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
-        )
+        if not urls:
+            return
+        parsed: set[str] = set()
+
+        def _on_page(url, html) -> None:
+            parsed.add(url)
+            self._parse_page(url, html)
+
+        try:
+            scrape(urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
+        except FetcherError as exc:  # AC-06: sample 403s must not hard-fail the crawler
+            remaining = [u for u in urls if u not in parsed]
+            logger.warning(
+                "Predictz FAST scrape had failures (%s); retrying %d URL(s) in STEALTH",
+                exc,
+                len(remaining),
+            )
+            if remaining:
+                try:
+                    scrape(remaining, _on_page, mode=ScrapeMode.STEALTH, max_concurrency=1)
+                except FetcherError as stealth_exc:
+                    logger.warning("Predictz STEALTH retry still failed: %s", stealth_exc)
 
     def _parse_page(self, url, html) -> None:
         """Parse one predictz league page and emit matches via callback."""
@@ -126,7 +142,16 @@ class PredictzFinder(BaseMatchFinder):
                         odds = None
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
-                    self.add_match(Match(home_team, away_team, match_datetime, scores, odds, league=league))
+                    self.add_match(
+                        Match(
+                            home_team,
+                            away_team,
+                            match_datetime,
+                            scores,
+                            odds,
+                            league=league,
+                        )
+                    )
 
         except Exception as e:
             logger.error(f"Error parsing {url}: {e}")

@@ -9,7 +9,12 @@ import importlib
 
 from bet_crawler.finders.PredictzFinder import PREDICTZ_NAME, PredictzFinder
 
-from .finder_test_helpers import load_fixture, make_finder, patch_fetch, relax_date_window
+from .finder_test_helpers import (
+    load_fixture,
+    make_finder,
+    patch_fetch,
+    relax_date_window,
+)
 
 pz = importlib.import_module("bet_crawler.finders.PredictzFinder")
 
@@ -85,3 +90,33 @@ class TestPredictz:
         finder, collector = _finder()
         finder._parse_page("u", "<html><body><p>nothing</p></body></html>")
         assert len(collector) == 0
+
+    def test_fast_403_retries_stealth_and_does_not_raise(self, monkeypatch) -> None:
+        from scrape_kit import FetcherError, ScrapeMode
+
+        calls = []
+
+        def fake_scrape(urls, callback, mode=ScrapeMode.FAST, max_concurrency=1) -> None:
+            calls.append((list(urls), mode))
+            if mode == ScrapeMode.FAST:
+                callback(urls[0], "<html><body></body></html>")
+                raise FetcherError("Fast scrape had 1 failures. Sample: 403", url=urls[-1])
+            for url in urls:
+                callback(url, "<html><body></body></html>")
+
+        monkeypatch.setattr(pz, "scrape", fake_scrape)
+        finder, _ = _finder()
+        finder.get_matches(["https://ok/", "https://403/"])
+        assert calls[0][1] == ScrapeMode.FAST
+        assert calls[1][0] == ["https://403/"]
+        assert calls[1][1] == ScrapeMode.STEALTH
+
+    def test_fast_and_stealth_403_still_no_raise(self, monkeypatch) -> None:
+        from scrape_kit import FetcherError, ScrapeMode
+
+        def fake_scrape(urls, callback, mode=ScrapeMode.FAST, max_concurrency=1) -> None:
+            raise FetcherError("Fast scrape had 1 failures", url=urls[0])
+
+        monkeypatch.setattr(pz, "scrape", fake_scrape)
+        finder, _ = _finder()
+        finder.get_matches(["https://403/"])
