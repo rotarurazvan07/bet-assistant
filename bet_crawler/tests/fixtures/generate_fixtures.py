@@ -329,44 +329,73 @@ LEGITPREDICT_BROKEN = "<html><body><div>no table</div></body></html>"
 OP_TOMORROW_ISO = (datetime.combine(TOMORROW, datetime.min.time(), tzinfo=timezone.utc)).strftime("%Y-%m-%dT15:00:00Z")
 OP_FUTURE_ISO = "2035-06-15T15:00:00Z"  # far out-of-window for discovery filter
 
+OP_H2H = "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"
+
 ODDSPORTAL_LEAGUE = f"""<html><body>
 <script type="application/ld+json">
 {{"@graph": [
-  {{"url": "https://www.oddsportal.com/match/in-window-1/", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Scheduled"}},
-  {{"url": "https://www.oddsportal.com/match/in-window-1/", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Scheduled"}},
-  {{"url": "https://www.oddsportal.com/match/out-window/", "startDate": "{OP_FUTURE_ISO}", "eventStatus": "Scheduled"}},
-  {{"url": "https://www.oddsportal.com/match/cancelled/", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Cancelled"}},
-  {{"url": "https://www.oddsportal.com/match/no-date/"}}
+  {{"@type": ["Event", "SportsEvent"], "url": "{OP_H2H}#xtmHKGT0/", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": {{"@id": "https://schema.org/EventScheduled"}}}},
+  {{"@type": ["Event", "SportsEvent"], "url": "{OP_H2H}", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Scheduled"}},
+  {{"@type": ["Event", "SportsEvent"], "url": "https://www.oddsportal.com/inplay-odds/junk/", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Scheduled"}},
+  {{"@type": ["Event", "SportsEvent"], "url": "#hash-only", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Scheduled"}},
+  {{"@type": ["Event", "SportsEvent"], "url": "https://www.oddsportal.com/football/h2h/out-window/x/y/", "startDate": "{OP_FUTURE_ISO}", "eventStatus": "Scheduled"}},
+  {{"@type": ["Event", "SportsEvent"], "url": "https://www.oddsportal.com/football/h2h/cancelled/x/y/", "startDate": "{OP_TOMORROW_ISO}", "eventStatus": "Cancelled"}},
+  {{"@type": ["Event", "SportsEvent"], "url": "https://www.oddsportal.com/football/h2h/no-date/x/y/"}}
 ]}}
 </script>
 </body></html>"""
 
 
 def _oddsportal_page(tab) -> str:
+    """Live-shaped OddsPortal HTML (2026-10-11 rendered DOM)."""
+    ld = (
+        '<script type="application/ld+json">'
+        '{"@type":["Event","SportsEvent"],'
+        '"homeTeam":{"name":"Arsenal"},"awayTeam":{"name":"Chelsea"},'
+        '"startDate":"2035-06-15T15:00:00Z",'
+        '"url":"/football/h2h/arsenal-xxx/chelsea-yyy/"}'
+        "</script>"
+    )
+    tabs = (
+        "<ul>"
+        '<li class="tab-item"><button><span>1X2</span></button></li>'
+        '<li class="tab-item"><button><span>Over/Under</span></button></li>'
+        '<li class="tab-item"><button><span>Both Teams to Score</span></button></li>'
+        '<li class="tab-item"><button><span>Double Chance</span></button></li>'
+        "</ul>"
+    )
     if tab == "base":
-        return """<html><body>
-<div data-testid="game-host"><a>Arsenal</a></div>
-<div data-testid="game-guest"><a>Chelsea</a></div>
-<div data-testid="game-time-item"><p>Sat</p><p>15 Jun 2035,</p></div>
-</body></html>"""
+        return f"<html><body>{ld}{tabs}</body></html>"
     if tab == "1X2":
-        return """<html><body><div data-testid="over-under-expanded-row">
-<div data-testid="odd-container"><a class="odds-link">2.10</a></div>
-<div data-testid="odd-container"><a class="odds-link">3.40</a></div>
-<div data-testid="odd-container"><a class="odds-link">3.75</a></div>
-</div></body></html>"""
+        return (
+            "<html><body>"
+            f"{ld}{tabs}"
+            '<table class="w-full table-fixed"><thead><tr>'
+            "<th>Bookmakers</th><th>1</th><th>X</th><th>2</th><th>Payout</th>"
+            '</tr></thead><tbody><tr class="h-9">'
+            "<td>888sport</td><td>2.10</td><td>3.40</td><td>3.75</td><td>-</td>"
+            "</tr></tbody></table></body></html>"
+        )
     if tab == "Both Teams to Score":
-        return """<html><body><div data-testid="over-under-expanded-row">
-<div data-testid="odd-container"><a class="odds-link">1.85</a></div>
-<div data-testid="odd-container"><a class="odds-link">1.95</a></div>
-</div></body></html>"""
+        return (
+            "<html><body>"
+            f"{ld}{tabs}"
+            '<table class="w-full table-fixed"><thead><tr>'
+            "<th>Bookmakers</th><th>Yes</th><th>No</th><th>Payout</th>"
+            '</tr></thead><tbody><tr class="h-9">'
+            "<td>888sport</td><td>1.85</td><td>1.95</td><td>-</td>"
+            "</tr></tbody></table></body></html>"
+        )
     if tab == "Double Chance":
-        return """<html><body><div data-testid="over-under-expanded-row">
-<div data-testid="odd-container"><a class="odds-link">1.25</a></div>
-<div data-testid="odd-container"><a class="odds-link">1.30</a></div>
-<div data-testid="odd-container"><a class="odds-link">1.45</a></div>
-</div></body></html>"""
-    # Over/Under tab
+        return (
+            "<html><body>"
+            f"{ld}{tabs}"
+            '<table class="w-full table-fixed"><thead><tr>'
+            "<th>Bookmakers</th><th>1X</th><th>12</th><th>X2</th><th>Payout</th>"
+            '</tr></thead><tbody><tr class="h-9">'
+            "<td>888sport</td><td>1.25</td><td>1.30</td><td>1.45</td><td>-</td>"
+            "</tr></tbody></table></body></html>"
+        )
     rows = ""
     for line, over, under in [
         ("+0.5", "1.10", "8.00"),
@@ -375,12 +404,14 @@ def _oddsportal_page(tab) -> str:
         ("+3.5", "3.20", "1.34"),
         ("+4.5", "6.50", "1.09"),
     ]:
-        rows += f"""<div data-testid="over-under-collapsed-row">
-<div data-testid="over-under-collapsed-option-box">{line}</div>
-<div data-testid="odd-container-default"><p>{over}</p></div>
-<div data-testid="odd-container-default"><p>{under}</p></div>
-</div>"""
-    return f"<html><body>{rows}</body></html>"
+        rows += f"<tr><td>Over/Under {line}</td><td>{over}</td><td>{under}</td><td>95%</td></tr>"
+    return (
+        "<html><body>"
+        f"{ld}{tabs}"
+        '<table class="w-full table-fixed"><thead><tr>'
+        "<th>Handicap</th><th>Over</th><th>Under</th><th>Payout</th>"
+        f"</tr></thead><tbody>{rows}</tbody></table></body></html>"
+    )
 
 
 ODDSPORTAL_BROKEN = "<html><body><p>Access denied</p></body></html>"

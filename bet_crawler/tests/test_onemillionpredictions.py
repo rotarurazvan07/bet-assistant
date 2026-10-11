@@ -7,7 +7,12 @@ import importlib
 from bet_crawler.finders.OneMillionPredictionsFinder import ONE_MILLION_PREDICTIONS_NAME as NAME
 from bet_crawler.finders.OneMillionPredictionsFinder import OneMillionPredictionsFinder
 
-from .finder_test_helpers import load_fixture, make_finder, patch_fetch, relax_date_window
+from .finder_test_helpers import (
+    load_fixture,
+    make_finder,
+    patch_fetch,
+    relax_date_window,
+)
 
 omp = importlib.import_module("bet_crawler.finders.OneMillionPredictionsFinder")
 
@@ -52,3 +57,11 @@ class TestOneMillionPredictions:
         finder, collector = _finder()
         finder._parse_page("u", load_fixture("onemillionpredictions", "broken.html"))
         assert len(collector) == 0
+
+    def test_incomplete_score_row_skipped_siblings_kept(self) -> None:
+        html = load_fixture("onemillionpredictions", "league.html").replace("<td>1:2</td>", "<td>:</td>")
+        finder, collector = _finder()
+        url = next(iter(omp.TOP_LEAGUES))
+        finder._parse_page(url, html)
+        assert len(collector) == 1
+        assert collector.first.home_team == "Arsenal"

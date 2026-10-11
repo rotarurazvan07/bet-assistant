@@ -29,12 +29,18 @@ class TestLegitPredict:
 
     def test_empty_day_guard(self) -> None:
         finder, collector = _finder()
-        finder._parse_page(lp.LEGITPREDICT_URL + "25-09-2026", load_fixture("legitpredict", "empty.html"))
+        finder._parse_page(
+            lp.LEGITPREDICT_URL + "25-09-2026",
+            load_fixture("legitpredict", "empty.html"),
+        )
         assert len(collector) == 0
 
     def test_parse_page_extracts_rows(self) -> None:
         finder, collector = _finder()
-        finder._parse_page(lp.LEGITPREDICT_URL + "25-09-2026", load_fixture("legitpredict", "page.html"))
+        finder._parse_page(
+            lp.LEGITPREDICT_URL + "25-09-2026",
+            load_fixture("legitpredict", "page.html"),
+        )
         assert len(collector) == 2  # third row has garbage score -> per-row skip
         m = collector.first
         assert m.home_team == "Arsenal"
@@ -45,17 +51,36 @@ class TestLegitPredict:
 
     def test_bad_row_skipped_not_fatal(self, caplog) -> None:
         finder, collector = _finder()
-        with caplog.at_level("ERROR", logger="bet_crawler.finders.LegitPredictFinder"):
-            finder._parse_page(lp.LEGITPREDICT_URL + "25-09-2026", load_fixture("legitpredict", "page.html"))
+        with caplog.at_level("INFO", logger="bet_crawler.finders.LegitPredictFinder"):
+            finder._parse_page(
+                lp.LEGITPREDICT_URL + "25-09-2026",
+                load_fixture("legitpredict", "page.html"),
+            )
         assert any("SKIPPED" in r.getMessage() for r in caplog.records)
 
     def test_broken_page_no_crash(self) -> None:
         finder, collector = _finder()
-        finder._parse_page(lp.LEGITPREDICT_URL + "25-09-2026", load_fixture("legitpredict", "broken.html"))
+        finder._parse_page(
+            lp.LEGITPREDICT_URL + "25-09-2026",
+            load_fixture("legitpredict", "broken.html"),
+        )
         assert len(collector) == 0
 
     def test_url_dt_parsing(self) -> None:
         finder, collector = _finder()
-        finder._parse_page(lp.LEGITPREDICT_URL + "15-06-2035", load_fixture("legitpredict", "page.html"))
+        finder._parse_page(
+            lp.LEGITPREDICT_URL + "15-06-2035",
+            load_fixture("legitpredict", "page.html"),
+        )
         assert collector.first.datetime.year == 2035
         assert collector.first.datetime.month == 6
+
+    def test_empty_score_and_time_skipped_siblings_kept(self) -> None:
+        html = load_fixture("legitpredict", "page.html").replace(
+            "<tr><td>21:00</td><td>ok</td><td>Milan VS Inter</td><td>1-1</td></tr>",
+            "<tr><td></td><td>ok</td><td>Milan VS Inter</td><td>-</td></tr>",
+        )
+        finder, collector = _finder()
+        finder._parse_page(lp.LEGITPREDICT_URL + "25-09-2026", html)
+        assert len(collector) == 1
+        assert collector.first.home_team == "Arsenal"

@@ -112,13 +112,18 @@ class VitibetFinder(BaseMatchFinder):
 
                     # Score prediction
                     score_div = match_link.find("div", class_="mc-score")
-                    predictions = [
-                        Score(
-                            VITIBET_NAME,
-                            float(score_div.text.strip().split(" : ")[0]),
-                            float(score_div.text.strip().split(" : ")[1]),
-                        )
-                    ]
+                    tokens = [] if score_div is None else score_div.text.strip().split(" : ")
+                    # AC-09: skip if token is not a number
+                    if len(tokens) < 2:
+                        logger.info("SKIPPED [%s]: incomplete score", url)
+                        continue
+                    try:
+                        home_score = float(tokens[0])
+                        away_score = float(tokens[1])
+                    except ValueError:
+                        logger.info("SKIPPED [%s]: non-numeric score %r", url, score_div.text)
+                        continue
+                    predictions = [Score(VITIBET_NAME, home_score, away_score)]
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(

@@ -56,22 +56,24 @@ class xGScoreFinder(BaseMatchFinder):
                     # Wait for the content to reload/update
                     time.sleep(5)
                 else:
-                    logger.info("Could not find 'Week' button.")
+                    # AC-11: wait/fallback to default view; don't empty-fail
+                    logger.info("Could not find 'Week' button; using default view")
+                    time.sleep(2)
             except Exception as e:
                 logger.info(f"Click error: {e}")
 
-            html = session.page.content()
+            html = session.page.content() or ""
 
-        if html:
-            matches_urls = []
-            soup = BeautifulSoup(html, "html.parser")
-            matches_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
-            for anchor in matches_anchors:
-                matches_urls.append(
-                    "https://xgscore.io" + anchor.find("a", class_="xgs-category-forecast-fixture_teams").get("href")
-                )
-            logger.info(f"Found {len(matches_urls)} matches.")
-            return matches_urls
+        matches_urls = []
+        soup = BeautifulSoup(html, "html.parser")
+        matches_anchors = soup.find_all("div", class_="xgs-category-forecast-fixture")
+        for anchor in matches_anchors:
+            href_tag = anchor.find("a", class_="xgs-category-forecast-fixture_teams")
+            if href_tag is None or not href_tag.get("href"):
+                continue
+            matches_urls.append("https://xgscore.io" + href_tag.get("href"))
+        logger.info(f"Found {len(matches_urls)} matches.")
+        return matches_urls
 
     def get_matches(self, urls=None) -> None:
         """Execute browser scripts to load xgscore data and emit matches."""
@@ -95,7 +97,7 @@ class xGScoreFinder(BaseMatchFinder):
                     hour=0, minute=0
                 )
             except Exception:
-                logger.error("Match finished")
+                logger.info("Match finished")  # AC-12: finished is skip, not ERROR
                 return
 
             home, away = re.search(r"Correct Score:\s*(\d+)-(\d+)", html).groups()

@@ -6,7 +6,12 @@ import importlib
 
 from bet_crawler.finders.VitibetFinder import VITIBET_NAME, VitibetFinder
 
-from .finder_test_helpers import load_fixture, make_finder, patch_fetch, relax_date_window
+from .finder_test_helpers import (
+    load_fixture,
+    make_finder,
+    patch_fetch,
+    relax_date_window,
+)
 
 vb = importlib.import_module("bet_crawler.finders.VitibetFinder")
 
@@ -51,3 +56,13 @@ class TestVitibet:
         finder, collector = _finder()
         finder._parse_page("u", load_fixture("vitibet", "broken.html"))
         assert len(collector) == 0
+
+    def test_dash_score_skipped_siblings_kept(self) -> None:
+        html = load_fixture("vitibet", "league.html").replace(
+            '<div class="mc-score">1 : 1</div>', '<div class="mc-score">- : -</div>'
+        )
+        finder, collector = _finder()
+        url = next(iter(vb.TOP_LEAGUES))
+        finder._parse_page(url, html)
+        assert len(collector) == 1
+        assert collector.first.home_team == "Juventus"
