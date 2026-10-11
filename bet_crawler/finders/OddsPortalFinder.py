@@ -1,5 +1,6 @@
 """Match finder for oddsportal.com match pages."""
 
+import re
 import threading
 import time
 
@@ -262,9 +263,16 @@ ALL_LINKS = [
     "https://www.oddsportal.com/football/zambia/super-league/",
 ]
 
+_DECIMAL = re.compile(r"^\d+\.\d+$")
+
 
 class OddsPortalFinder(BaseMatchFinder):
-    """Scrapes oddsportal matches with per-market odds tabs."""
+    """Scrapes oddsportal matches with per-market odds tabs.
+
+    Satisfies: AC-01 JSON-LD identity, AC-02 live tab/table odds, AC-03 h2h discovery.
+    """
+
+    _SITE = "https://www.oddsportal.com"
 
     def __init__(self, add_match_callback, **runtime_settings) -> None:
         """Wire the finder contract for oddsportal (see BaseMatchFinder)."""
@@ -283,43 +291,19 @@ class OddsPortalFinder(BaseMatchFinder):
                 soup = BeautifulSoup(html, "html.parser")
 
                 links = []
-                for script in soup.find_all("script", type="application/ld+json"):
-                    if not script.string:
+                for event in self._iter_ld_events(soup):
+                    match_url = self._normalize_match_url(event.get("url"))
+                    start_date_str = event.get("startDate")
+                    if not match_url or not start_date_str:
+                        continue
+                    if not self._event_is_scheduled(event):
                         continue
                     try:
-                        data = json.loads(script.string)
-                        # Normalize data to a list of candidates (handle list, @graph, or single object)
-                        candidates = []
-                        if isinstance(data, list):
-                            candidates = data
-                        elif isinstance(data, dict):
-                            candidates = data.get("@graph", [data])
-
-                        for event in candidates:
-                            if not isinstance(event, dict):
-                                continue
-
-                            match_url = event.get("url")
-                            start_date_str = event.get("startDate")
-
-                            if match_url and start_date_str:
-                                # eventStatus check: handles strings, URIs, and missing fields
-                                status_obj = event.get("eventStatus", "Scheduled")
-                                status_str = ""
-                                if isinstance(status_obj, str):
-                                    status_str = status_obj
-                                elif isinstance(status_obj, dict):
-                                    status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
-
-                                if "Scheduled" in status_str:
-                                    try:
-                                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
-                                        if today <= match_date <= max_date:
-                                            links.append(match_url)
-                                    except Exception:
-                                        continue
-                    except json.JSONDecodeError, TypeError:
+                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
+                    except Exception:
                         continue
+                    if today <= match_date <= max_date:
+                        links.append(match_url)
 
                 links = list(dict.fromkeys(links))
                 urls.extend(links)
@@ -353,23 +337,16 @@ class OddsPortalFinder(BaseMatchFinder):
                             session.fetch(url, wait_until="domcontentloaded", timeout=60000)
 
                     soup = BeautifulSoup(session.page.content(), "html.parser")
-
-                    # AC-03: empty host/guest/time nodes skip this URL
-                    home_el = soup.select_one('[data-testid="game-host"] a')
-                    away_el = soup.select_one('[data-testid="game-guest"] a')
-                    date_el = soup.select_one('[data-testid="game-time-item"] p:nth-of-type(2)')
-                    if home_el is None or away_el is None or date_el is None:
+                    identity = self._parse_identity(soup)
+                    if identity is None:
+                        # AC-03: skip only when teams+date cannot be read
                         logger.info(
-                            "[%s] SKIPPED [%s]: missing host/guest/time node",
+                            "[%s] SKIPPED [%s]: missing SportsEvent identity",
                             thread_name,
                             url,
                         )
                         continue
-                    home_team = home_el.text.strip()
-                    away_team = away_el.text.strip()
-                    date_text = date_el.text.strip().rstrip(",")
-
-                    match_date = self._parse_match_date(date_text)
+                    home_team, away_team, match_date = identity
 
                     odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
                     odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
@@ -410,45 +387,115 @@ class OddsPortalFinder(BaseMatchFinder):
                             )
                         )
 
-                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
+                except Exception as e:  # per-row fault isolation: one bad page must not kill the batch
                     logger.error("[%s] Error parsing %s: %s", thread_name, url, e)
                     continue
 
         logger.info("[%s] Batch complete", thread_name)
 
-    def _parse_match_date(self, date_text: str):
-        """Parse the OddsPortal date header into a midnight datetime."""
-        for fmt in ("%d %b %Y", "%d %B %Y"):
-            parsed = self._try_parse_date(date_text, fmt)
-            if parsed is not None:
-                return parsed.replace(hour=0, minute=0, second=0)
-        raise ValueError(f"Unknown date format: {date_text}")
+    def _iter_ld_events(self, soup):
+        """Yield dicts from application/ld+json scripts (list, @graph, or object)."""
+        for script in soup.find_all("script", type="application/ld+json"):
+            raw = script.string or script.get_text() or ""
+            if not raw.strip():
+                continue
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError, TypeError:
+                continue
+            if isinstance(data, list):
+                candidates = data
+            elif isinstance(data, dict):
+                candidates = data.get("@graph", [data])
+            else:
+                continue
+            for event in candidates:
+                if isinstance(event, dict):
+                    yield event
 
-    def _try_parse_date(self, date_text: str, fmt: str):
-        """Parse date_text with one format; None when it does not match."""
-        try:
-            return datetime.strptime(date_text, fmt)
-        except ValueError:
+    def _event_is_scheduled(self, event: dict) -> bool:
+        """True when eventStatus is missing or contains Scheduled."""
+        status_obj = event.get("eventStatus", "Scheduled")
+        if isinstance(status_obj, str):
+            status_str = status_obj
+        elif isinstance(status_obj, dict):
+            status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
+        else:
+            status_str = ""
+        return "Scheduled" in status_str
+
+    def _normalize_match_url(self, match_url):
+        """Absolutize h2h URLs; drop inplay-odds and hash-only junk."""
+        if not isinstance(match_url, str) or not match_url.strip():
             return None
+        url = match_url.strip()
+        if "inplay-odds" in url:
+            return None
+        if url.startswith("#"):
+            return None
+        if url.startswith("//"):
+            url = "https:" + url
+        elif url.startswith("/"):
+            url = self._SITE + url
+        if not url.startswith("http"):
+            return None
+        url = url.split("#", 1)[0]
+        if "/football/h2h/" not in url:
+            return None
+        return url.rstrip("/") + "/"
 
-    def _click_tab_cells(self, session, thread_name: str, tab_label: str):
-        """Click a market tab and return its expanded odd-container cells."""
-        assert session.click("li.odds-item", tab_label), "Click failed"
-        soup = BeautifulSoup(session.page.content(), "html.parser")
-        return soup.find("div", {"data-testid": "over-under-expanded-row"}).find_all("div", {"data-testid": "odd-container"})
+    def _parse_identity(self, soup):
+        """Read home/away/date from SportsEvent JSON-LD. None if identity missing."""
+        for event in self._iter_ld_events(soup):
+            home = event.get("homeTeam")
+            away = event.get("awayTeam")
+            if isinstance(home, dict):
+                home = home.get("name")
+            if isinstance(away, dict):
+                away = away.get("name")
+            start = event.get("startDate")
+            if not home or not away or not start:
+                continue
+            try:
+                match_date = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            return (
+                str(home).strip(),
+                str(away).strip(),
+                match_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None),
+            )
+        return None
+
+    def _click_tab(self, session, tab_label: str):
+        """Click a live li.tab-item market tab and return the parsed soup."""
+        # live 2026-10-11: <li class="tab-item"><button><span>1X2</span>
+        assert session.click("li.tab-item", tab_label), "Click failed"
+        return BeautifulSoup(session.page.content(), "html.parser")
+
+    def _first_bookmaker_odds(self, soup):
+        """Decimal odds from the first bookmaker row of table.w-full.table-fixed."""
+        table = soup.select_one("table.w-full.table-fixed")
+        if table is None:
+            return []
+        row = table.select_one("tbody tr")
+        if row is None:
+            return []
+        out = []
+        for td in row.find_all("td", recursive=False)[1:]:
+            text = td.get_text(strip=True)
+            if text.endswith("%"):
+                continue
+            out.append(None if (not text or text == "-") else text)
+        return out
 
     def _scrape_tab_1x2(self, session, thread_name: str):
         """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure)."""
         odds_1 = odds_X = odds_2 = None
         try:
             logger.info("[%s] Extracting 1X2 odds", thread_name)
-            cells = self._click_tab_cells(session, thread_name, "1X2")
-            odds_1 = cells[0].find("a", class_="odds-link").get_text(strip=True)
-            odds_X = cells[1].find("a", class_="odds-link").get_text(strip=True)
-            odds_2 = cells[2].find("a", class_="odds-link").get_text(strip=True)
-            odds_1 = odds_1 if odds_1 != "-" else None
-            odds_X = odds_X if odds_X != "-" else None
-            odds_2 = odds_2 if odds_2 != "-" else None
+            cells = self._first_bookmaker_odds(self._click_tab(session, "1X2"))
+            odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
         except Exception:
             logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
         return odds_1, odds_X, odds_2
@@ -458,11 +505,8 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_btts_y = odds_btts_n = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
-            cells = self._click_tab_cells(session, thread_name, "Both Teams to Score")
-            odds_btts_y = cells[0].find("a", class_="odds-link").get_text(strip=True)
-            odds_btts_n = cells[1].find("a", class_="odds-link").get_text(strip=True)
-            odds_btts_y = odds_btts_y if odds_btts_y != "-" else None
-            odds_btts_n = odds_btts_n if odds_btts_n != "-" else None
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score"))
+            odds_btts_y, odds_btts_n = cells[0], cells[1]
         except Exception:
             logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
         return odds_btts_y, odds_btts_n
@@ -472,13 +516,8 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
         try:
             logger.info("[%s] Extracting DC odds", thread_name)
-            cells = self._click_tab_cells(session, thread_name, "Double Chance")
-            odds_dc_1x = cells[0].find("a", class_="odds-link").get_text(strip=True)
-            odds_dc_12 = cells[1].find("a", class_="odds-link").get_text(strip=True)
-            odds_dc_x2 = cells[2].find("a", class_="odds-link").get_text(strip=True)
-            odds_dc_1x = odds_dc_1x if odds_dc_1x != "-" else None
-            odds_dc_12 = odds_dc_12 if odds_dc_12 != "-" else None
-            odds_dc_x2 = odds_dc_x2 if odds_dc_x2 != "-" else None
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance"))
+            odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
         except Exception:
             logger.warning("[%s] Failed to scrape DC odds", thread_name)
         return odds_dc_1x, odds_dc_12, odds_dc_x2
@@ -488,8 +527,7 @@ class OddsPortalFinder(BaseMatchFinder):
         out = [None] * 10
         try:
             logger.info("[%s] Extracting O/U odds", thread_name)
-            assert session.click("li.odds-item", "Over/Under"), "Click failed"
-            soup = BeautifulSoup(session.page.content(), "html.parser")
+            soup = self._click_tab(session, "Over/Under")
             buckets = {
                 "+0.5": (0, 1),
                 "+1.5": (2, 3),
@@ -497,15 +535,22 @@ class OddsPortalFinder(BaseMatchFinder):
                 "+3.5": (6, 7),
                 "+4.5": (8, 9),
             }
-            for row in soup.find_all("div", {"data-testid": "over-under-collapsed-row"}):
-                name = row.find("div", {"data-testid": "over-under-collapsed-option-box"}).get_text(strip=True)
-                conts = row.find_all("div", {"data-testid": "odd-container-default"})
-                over = conts[0].find("p").get_text(strip=True)
-                under = conts[1].find("p").get_text(strip=True)
+            table = soup.select_one("table.w-full.table-fixed")
+            if table is None:
+                return tuple(out)
+            for row in table.select("tbody tr"):
+                name = row.get_text(" ", strip=True)
+                decimals = [
+                    td.get_text(strip=True)
+                    for td in row.find_all("td", recursive=False)
+                    if _DECIMAL.match(td.get_text(strip=True))
+                ]
+                if len(decimals) < 2:
+                    continue
                 for prefix, (oi, ui) in buckets.items():
                     if prefix in name:
-                        out[oi] = over if over != "-" else None
-                        out[ui] = under if under != "-" else None
+                        out[oi] = decimals[0]
+                        out[ui] = decimals[1]
         except Exception:
             logger.warning("[%s] Failed to scrape O/U odds", thread_name)
         return tuple(out)

@@ -60,7 +60,7 @@ class TestDiscovery:
         finder, _ = _finder(top_leagues_only=True, num_days_ahead=2)
         urls = finder.get_matches_urls()
         # in-window scheduled x2 (deduped) + out-window + cancelled + no-date all excluded
-        assert sorted(urls) == ["https://www.oddsportal.com/match/in-window-1/"]
+        assert sorted(urls) == ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
 
     def test_all_links_branch_when_not_top_only(self, monkeypatch) -> None:
         url = "https://www.oddsportal.com/football/world/world-cup-2026/"  # ALL_LINKS[0]
@@ -68,7 +68,7 @@ class TestDiscovery:
         monkeypatch.setattr(op, "ALL_LINKS", [url])
         finder, _ = _finder(top_leagues_only=False, num_days_ahead=2)
         urls = finder.get_matches_urls()
-        assert urls == ["https://www.oddsportal.com/match/in-window-1/"]
+        assert urls == ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
 
     def test_fetch_error_on_one_league_continues(self, monkeypatch) -> None:
         def boom(url, **kw):
@@ -84,7 +84,7 @@ class TestDiscovery:
         monkeypatch.setattr(op, "TOP_LEAGUES", ["https://x/1/", "https://x/2/"])
         patch_fetch(monkeypatch, op, {"https://x/1/": league, "https://x/2/": league})
         finder, _ = _finder(top_leagues_only=True, num_days_ahead=2)
-        assert finder.get_matches_urls() == ["https://www.oddsportal.com/match/in-window-1/"]
+        assert finder.get_matches_urls() == ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
 
 
 class TestGetMatches:
@@ -142,13 +142,13 @@ class TestProcessUrlBatch:
                 return ou
             return base_html
 
-        content_map = {"https://www.oddsportal.com/match/in-window-1/": content_for}
+        content_map = {"https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for}
         return fake_browser(monkeypatch, op, content_map, **(extra or {}))
 
     def test_full_odds_flow_adds_match_with_all_markets(self, monkeypatch) -> None:
         self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(["https://www.oddsportal.com/match/in-window-1/"])
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
         m = collector.first
         assert m.home_team == "Arsenal"
@@ -184,7 +184,7 @@ class TestProcessUrlBatch:
 
         session.fetch = flaky_fetch
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(["https://www.oddsportal.com/match/in-window-1/"])
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1  # retry path succeeded
 
     def test_broken_page_logged_no_match(self, monkeypatch) -> None:
@@ -194,18 +194,40 @@ class TestProcessUrlBatch:
         finder._process_url_batch(["https://www.oddsportal.com/match/broken-x/"])
         assert len(collector) == 0
 
-    def test_missing_host_nodes_skips_url_siblings_kept(self, monkeypatch) -> None:
+    def test_missing_identity_skips_url_siblings_kept(self, monkeypatch) -> None:
         session = self._session_map(monkeypatch)
         session.content_map["https://www.oddsportal.com/match/broken-x/"] = load_fixture("oddsportal", "broken.html")
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(
             [
                 "https://www.oddsportal.com/match/broken-x/",
-                "https://www.oddsportal.com/match/in-window-1/",
+                "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/",
             ]
         )
         assert len(collector) == 1
         assert collector.first.home_team == "Arsenal"
+
+    def test_missing_market_tab_still_adds_match(self, monkeypatch) -> None:
+        """AC-04: a market tab without its table leaves that market None."""
+        session = self._session_map(monkeypatch)
+        identity_only = load_fixture("oddsportal", "match_base.html")
+        x2 = load_fixture("oddsportal", "match_1x2.html")
+
+        def content_for(clicks):
+            if not clicks or clicks[-1] == "1X2":
+                return x2
+            return identity_only
+
+        session.content_map["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"] = content_for
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        assert len(collector) == 1
+        m = collector.first
+        assert m.home_team == "Arsenal"
+        assert m.odds.home == 2.10
+        assert m.odds.btts_y is None
+        assert m.odds.dc_12 is None
+        assert m.odds.over_25 is None
 
     def test_thread_safe_add_match(self, monkeypatch) -> None:
         """_add_match_lock exists and guards concurrent adds (wiring pin)."""
