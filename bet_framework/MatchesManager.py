@@ -245,7 +245,9 @@ class MatchesManager(BufferedStorageManager):
                 }
                 if not {s.source for s in match.predictions if s.source}.isdisjoint(ex_src):
                     if self._is_exact_team_match(match, found):
-                        logger.warning(f"Source collision — skip duplicate predictions for {match.home_team} vs {match.away_team}")
+                        logger.warning(
+                            f"Source collision — skip duplicate predictions for {match.home_team} vs {match.away_team}"
+                        )
                     else:
                         logger.warning(f"Source collision — skip {match.home_team} vs {match.away_team}")
                         found = None
