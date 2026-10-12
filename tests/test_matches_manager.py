@@ -242,16 +242,78 @@ class TestAddMatch:
         buf = mm.ensure_buffer()
         assert "15:30" in buf.iloc[0]["datetime"]
 
-    def test_edge_source_collision_skips_merge(self, mm):
+    def test_edge_exact_source_collision_skips_duplicate_prediction(self, mm):
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 3, 0)]))
         buf = mm.ensure_buffer()
-        # Source collision — second match added as a separate row
-        # or predictions not merged (depending on implementation)
+        # Source collision keeps one canonical row and skips the duplicate prediction.
+        assert len(buf) == 1
         preds = json.loads(buf.iloc[0]["predictions_scores"])
-        # Should only have one prediction from src_a (the original)
         src_a_preds = [p for p in preds if p["source"] == "src_a"]
         assert len(src_a_preds) == 1
+        assert src_a_preds[0]["home"] == 2.0
+
+    def test_edge_exact_source_collision_merges_new_sources(self, mm):
+        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
+        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 3, 0), Score("src_b", 1, 1)]))
+        buf = mm.ensure_buffer()
+
+        assert len(buf) == 1
+        preds = json.loads(buf.iloc[0]["predictions_scores"])
+        assert preds == [{"source": "src_a", "home": 2.0, "away": 1.0}, {"source": "src_b", "home": 1.0, "away": 1.0}]
+
+    def test_edge_exact_source_collision_updates_missing_url_without_duplicate(self, mm):
+        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
+        mm.add_match(
+            make_match(
+                "Arsenal",
+                "Chelsea",
+                preds=[Score("src_a", 3, 0)],
+                url="https://example.com/result",
+            )
+        )
+        buf = mm.ensure_buffer()
+
+        assert len(buf) == 1
+        assert buf.iloc[0]["result_url"] == "https://example.com/result"
+        preds = json.loads(buf.iloc[0]["predictions_scores"])
+        assert preds == [{"source": "src_a", "home": 2.0, "away": 1.0}]
+
+    def test_edge_fuzzy_source_collision_inserts_separate_row(self, mm):
+        mm.add_match(make_match("Arsenal FC", "Chelsea", preds=[Score("src_a", 2, 1)]))
+        mm.add_match(
+            make_match(
+                "Arsenal",
+                "Chelsea",
+                preds=[Score("src_a", 3, 0)],
+                url="https://example.com/result",
+            )
+        )
+        buf = mm.ensure_buffer()
+
+        assert len(buf) == 2
+        assert buf.iloc[0]["result_url"] is None
+        assert buf.iloc[1]["result_url"] == "https://example.com/result"
+        first_preds = json.loads(buf.iloc[0]["predictions_scores"])
+        second_preds = json.loads(buf.iloc[1]["predictions_scores"])
+        assert first_preds == [{"source": "src_a", "home": 2.0, "away": 1.0}]
+        assert second_preds == [{"source": "src_a", "home": 3.0, "away": 0.0}]
+
+    def test_edge_case_changed_source_collision_inserts_separate_row(self, mm):
+        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
+        mm.add_match(
+            make_match(
+                "arsenal",
+                "Chelsea",
+                preds=[Score("src_a", 3, 0)],
+                url="https://example.com/result",
+            )
+        )
+        buf = mm.ensure_buffer()
+
+        assert len(buf) == 2
+        assert buf.iloc[0]["result_url"] is None
+        assert buf.iloc[1]["result_url"] == "https://example.com/result"
 
     def test_edge_no_predictions_no_odds(self, mm):
         match = make_match("H", "A", preds=[], odds=None)
