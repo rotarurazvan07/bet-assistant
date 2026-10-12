@@ -221,6 +221,69 @@ class TestProcessUrlBatch:
         assert odds.dc_1x is None
         assert odds.over_25 == 1.70
 
+    def test_click_targets_inner_tab_button(self, monkeypatch) -> None:
+        """Live 2026-10-12: React onClick is on li.tab-item > button, not the li."""
+        session = self._session_map(monkeypatch)
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        assert len(collector) == 1
+        assert session.click_calls
+        assert all(sel == "li.tab-item button" for sel, _ in session.click_calls)
+
+    def test_li_fallback_when_button_selector_missing(self, monkeypatch) -> None:
+        """Old layout without inner buttons still scrapes via the li fallback."""
+        session = self._session_map(monkeypatch)
+        real_click = session.click
+
+        def click_no_button(selector, label=None):
+            if selector == "li.tab-item button":
+                return False
+            return real_click(selector, label)
+
+        session.click = click_no_button
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        odds = collector.first.odds
+        assert (odds.home, odds.btts_y, odds.dc_1x, odds.over_05) == (2.10, 1.85, 1.25, 1.10)
+
+    def test_live_shaped_market_tables_are_accepted(self, monkeypatch) -> None:
+        """Live 2026-10-12 shape: glued 'claim bonus' bookmaker text, quarter lines,
+        and '%' payouts must parse — never time out as 'did not settle'."""
+        x2 = load_fixture("oddsportal", "match_1x2.html")
+        btts = load_fixture("oddsportal", "match_btts.html").replace(">888sport<", ">888sportclaim bonus<")
+        dc = load_fixture("oddsportal", "match_dc.html").replace(">888sport<", ">888sportclaim bonus<")
+        quarter = "<tr><td>Over/Under +0.75</td><td>1.04</td><td>12.00</td><td>95.7%</td></tr>"
+        ou = (
+            load_fixture("oddsportal", "match_ou.html")
+            .replace("<td>Over/Under +0.5</td>", "<td>Over/Under +0.5O/U +0.57</td>")
+            .replace("<td>Over/Under +2.5</td>", "<td>Over/Under +2.5O/U +2.57</td>")
+            .replace("<tr><td>Over/Under +1.5</td>", quarter + "<tr><td>Over/Under +1.5</td>")
+        )
+
+        def content_for(clicks):
+            label = clicks[-1] if clicks else ""
+            return {
+                "": x2,
+                "1X2": x2,
+                "Both Teams to Score": btts,
+                "Double Chance": dc,
+                "Over/Under": ou,
+            }.get(label, x2)
+
+        fake_browser(
+            monkeypatch,
+            op,
+            {"https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for},
+        )
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        odds = collector.first.odds
+        assert (odds.home, odds.btts_y, odds.btts_n) == (2.10, 1.85, 1.95)
+        assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.30, 1.45)
+        assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (1.10, 8.00, 1.35, 3.10)
+        assert (odds.over_25, odds.under_25, odds.over_35, odds.under_35) == (1.70, 2.10, 3.20, 1.34)
+        assert (odds.over_45, odds.under_45) == (6.50, 1.09)
+
     def test_fetch_error_then_retry_recovers(self, monkeypatch) -> None:
         session = self._session_map(monkeypatch)
         # make retry succeed: fetch_error_urls only raise once

@@ -2,6 +2,7 @@
 
 import contextlib
 import json
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -354,27 +355,111 @@ class BetExplorerFinder(BaseMatchFinder):
         logger.info("Total URLs found: %d", len(urls))
         return list(set(urls))
 
+    _TAB_SETTLE_S = 6
+    _TAB_POLL_S = 0.25
+    _DECIMAL = re.compile(r"^\d+\.\d+$")
+
+    def _average_decimals(self, soup):
+        """Decimal strings from oddsComparisonAll__average_text (skip CTA labels)."""
+        return [
+            d.get_text(strip=True)
+            for d in soup.find_all("div", class_="oddsComparisonAll__average_text")
+            if self._DECIMAL.match(d.get_text(strip=True))
+        ]
+
+    def _active_tab(self, soup):
+        """Title of the active bet-type tab (live 2026-10-12: li.oddsComparison__activeLi)."""
+        li = soup.select_one("#bettype_menu_best li.oddsComparison__activeLi")
+        return li.get("title") if li else None
+
+    def _click_market(self, session, selector, expected_n, allow_same: bool = False):
+        """Click a BetExplorer market tab and wait until its averages render.
+
+        Live 2026-10-12 Coventry–Newcastle: `#bettype_menu_best` click returns while
+        averages still show 1X2 (3.19/3.58/2.20). BTTS becomes 1.57/2.34 and DC
+        1.67/1.30/1.36 only after ~1.5s. Reading immediately copies 1 and X.
+        """
+        title = selector.split('title="', 1)[1].split('"', 1)[0]
+        before = self._average_decimals(BeautifulSoup(session.page.content(), "html.parser"))
+        assert session.click(selector), "Click failed"
+        deadline = time.monotonic() + self._TAB_SETTLE_S
+        soup = BeautifulSoup(session.page.content(), "html.parser")
+        while True:
+            avgs = self._average_decimals(soup)
+            changed = avgs[:expected_n] != before[:expected_n]
+            if len(avgs) >= expected_n and changed:
+                return soup
+            # 1X2 loads by default: accept it only while its own tab is active,
+            # so leftovers from a previous URL cannot pass as the current market.
+            if allow_same and len(avgs) >= expected_n and self._active_tab(soup) == title:
+                return soup
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"{selector} averages did not settle")
+            time.sleep(self._TAB_POLL_S)
+            soup = BeautifulSoup(session.page.content(), "html.parser")
+
+    def _ou_handicap_odds(self, soup):
+        """data-odd cells per half-line handicap (0.50..4.50); {} off the O/U view."""
+        return {
+            s.get("data-all-handicap"): [
+                d for d in s.find_all("div", class_="oddsComparisonAll__average_text") if d.get("data-odd")
+            ]
+            for s in soup.find_all("div", {"data-all-handicap": True})
+            if not s.get("data-all-handicap", "").startswith("handicap-")
+        }
+
+    def _wait_ou_handicaps(self, session):
+        """Wait until all five half-line rows render (live 2026-10-12: ~1.5s after li#all)."""
+        keys = ("0.50", "1.50", "2.50", "3.50", "4.50")
+        deadline = time.monotonic() + self._TAB_SETTLE_S
+        soup = BeautifulSoup(session.page.content(), "html.parser")
+        while True:
+            c = self._ou_handicap_odds(soup)
+            if all(len(c.get(k, [])) >= 2 for k in keys):
+                return c
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Over/Under handicaps did not settle")
+            time.sleep(self._TAB_POLL_S)
+            soup = BeautifulSoup(session.page.content(), "html.parser")
+
     def _process_url_batch(self, urls: list) -> None:
         """Process a batch of URLs in a single browser session (runs in its own thread)."""
         thread_name = threading.current_thread().name
         logger.info("[%s] Starting batch of %d URLs", thread_name, len(urls))
 
-        with browser(solve_cloudflare=True, interactive=True, disable_resources=False, headless=True) as session:
+        with browser(
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+            headless=True,
+        ) as session:
             for url in urls:
                 try:
                     try:
                         session.fetch(url, wait_until="domcontentloaded", timeout=90000)
                     except Exception as fetch_err:
-                        logger.warning("[%s] Fetch error (retrying fetch): %s", thread_name, fetch_err)
+                        logger.warning(
+                            "[%s] Fetch error (retrying fetch): %s",
+                            thread_name,
+                            fetch_err,
+                        )
                         time.sleep(4)
                         with contextlib.suppress(Exception):
                             session.fetch(url, wait_until="domcontentloaded", timeout=60000)
 
                     try:
-                        session.page.wait_for_selector(".list-details__item__title", state="attached", timeout=30000)
+                        session.page.wait_for_selector(
+                            ".list-details__item__title",
+                            state="attached",
+                            timeout=30000,
+                        )
                         session.page.wait_for_selector("#match-date", state="attached", timeout=30000)
                     except Exception:
-                        logger.warning("[%s] Critical selectors not found, skipping: %s", thread_name, url)
+                        logger.warning(
+                            "[%s] Critical selectors not found, skipping: %s",
+                            thread_name,
+                            url,
+                        )
                         continue
 
                     try:
@@ -382,7 +467,9 @@ class BetExplorerFinder(BaseMatchFinder):
                         logger.debug("[%s] Odds tab menu found", thread_name)
                     except Exception:
                         logger.warning(
-                            "[%s] Odds tab menu (#bettype_menu_best) not found — odds will be empty: %s", thread_name, url
+                            "[%s] Odds tab menu (#bettype_menu_best) not found — odds will be empty: %s",
+                            thread_name,
+                            url,
                         )
                         continue
 
@@ -404,51 +491,64 @@ class BetExplorerFinder(BaseMatchFinder):
 
                     try:
                         logger.info("[%s] Extracting 1x2 Odds", thread_name)
-                        assert session.click('#bettype_menu_best li[title="1X2"]'), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        odds_1 = soup.find_all("div", class_="oddsComparisonAll__average_text")[0].text.strip()
-                        odds_X = soup.find_all("div", class_="oddsComparisonAll__average_text")[1].text.strip()
-                        odds_2 = soup.find_all("div", class_="oddsComparisonAll__average_text")[2].text.strip()
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
+                        soup = self._click_market(
+                            session,
+                            '#bettype_menu_best li[title="1X2"]',
+                            3,
+                            allow_same=True,
+                        )
+                        avgs = self._average_decimals(soup)
+                        odds_1, odds_X, odds_2 = avgs[0], avgs[1], avgs[2]
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape 1X2 odds: %s", thread_name, e)
 
                     try:
                         logger.info("[%s] Extracting BTTS Odds", thread_name)
-                        assert session.click('#bettype_menu_best li[title="Both Teams To Score"]'), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        odds_btts_y = soup.find_all("div", class_="oddsComparisonAll__average_text")[0].text.strip()
-                        odds_btts_n = soup.find_all("div", class_="oddsComparisonAll__average_text")[1].text.strip()
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
+                        soup = self._click_market(
+                            session,
+                            '#bettype_menu_best li[title="Both Teams To Score"]',
+                            2,
+                        )
+                        avgs = self._average_decimals(soup)
+                        odds_btts_y, odds_btts_n = avgs[0], avgs[1]
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, e)
 
                     try:
                         logger.info("[%s] Extracting DC Odds", thread_name)
-                        assert session.click('#bettype_menu_best li[title="Double Chance"]'), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        odds_dc_1x = soup.find_all("div", class_="oddsComparisonAll__average_text")[0].text.strip()
-                        odds_dc_12 = soup.find_all("div", class_="oddsComparisonAll__average_text")[1].text.strip()
-                        odds_dc_x2 = soup.find_all("div", class_="oddsComparisonAll__average_text")[2].text.strip()
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape DC odds", thread_name)
+                        soup = self._click_market(session, '#bettype_menu_best li[title="Double Chance"]', 3)
+                        avgs = self._average_decimals(soup)
+                        odds_dc_1x, odds_dc_12, odds_dc_x2 = avgs[0], avgs[1], avgs[2]
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape DC odds: %s", thread_name, e)
 
                     try:
                         logger.info("[%s] Extracting Over/Under Odds", thread_name)
                         assert session.click('#bettype_menu_best li[title="Over/Under"]'), "Click failed"
                         assert session.click(".oddsComparison__ul.bestOddsComparison li#all"), "Click failed"
-                        soup = BeautifulSoup(session.page.content(), "html.parser")
-                        h = {
-                            s.get("data-all-handicap"): s.find_all("div", class_="oddsComparisonAll__average_text")
-                            for s in soup.find_all("div", {"data-all-handicap": True})
-                            if not s.get("data-all-handicap", "").startswith("handicap-")
-                        }
-                        c = {k: [d for d in v if d.get("data-odd")] for k, v in h.items()}
-                        odds_over05, odds_under05 = c["0.50"][0].get("data-odd"), c["0.50"][1].get("data-odd")
-                        odds_over15, odds_under15 = c["1.50"][0].get("data-odd"), c["1.50"][1].get("data-odd")
-                        odds_over25, odds_under25 = c["2.50"][0].get("data-odd"), c["2.50"][1].get("data-odd")
-                        odds_over35, odds_under35 = c["3.50"][0].get("data-odd"), c["3.50"][1].get("data-odd")
-                        odds_over45, odds_under45 = c["4.50"][0].get("data-odd"), c["4.50"][1].get("data-odd")
-                    except Exception:
-                        logger.warning("[%s] Failed to scrape O/U odds", thread_name)
+                        c = self._wait_ou_handicaps(session)
+                        odds_over05, odds_under05 = (
+                            c["0.50"][0].get("data-odd"),
+                            c["0.50"][1].get("data-odd"),
+                        )
+                        odds_over15, odds_under15 = (
+                            c["1.50"][0].get("data-odd"),
+                            c["1.50"][1].get("data-odd"),
+                        )
+                        odds_over25, odds_under25 = (
+                            c["2.50"][0].get("data-odd"),
+                            c["2.50"][1].get("data-odd"),
+                        )
+                        odds_over35, odds_under35 = (
+                            c["3.50"][0].get("data-odd"),
+                            c["3.50"][1].get("data-odd"),
+                        )
+                        odds_over45, odds_under45 = (
+                            c["4.50"][0].get("data-odd"),
+                            c["4.50"][1].get("data-odd"),
+                        )
+                    except Exception as e:
+                        logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, e)
 
                     odds = Odds(
                         home=odds_1,
@@ -472,7 +572,13 @@ class BetExplorerFinder(BaseMatchFinder):
                     )
                     logger.info("[%s] %s", thread_name, odds)
 
-                    match = Match(home_team=home_team, away_team=away_team, datetime=match_date, predictions=None, odds=odds)
+                    match = Match(
+                        home_team=home_team,
+                        away_team=away_team,
+                        datetime=match_date,
+                        predictions=None,
+                        odds=odds,
+                    )
                     with self._add_match_lock:
                         self.add_match(match)
 

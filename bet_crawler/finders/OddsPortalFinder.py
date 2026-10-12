@@ -512,8 +512,11 @@ class OddsPortalFinder(BaseMatchFinder):
         previous market's cells.
         """
         # live 2026-10-11: <li class="tab-item"><button><span>1X2</span>
+        # live 2026-10-12: React's onClick sits on the inner <button>; a synthetic
+        # click on the <li> bubbles past it and the table never flips.
         before = self._table_fingerprint(BeautifulSoup(session.page.content(), "html.parser"))
-        assert session.click("li.tab-item", tab_label), "Click failed"
+        if not session.click("li.tab-item button", tab_label):
+            assert session.click("li.tab-item", tab_label), "Click failed"
         deadline = time.monotonic() + self._TAB_SETTLE_S
         try:
             soup = BeautifulSoup(session.page.content(), "html.parser")

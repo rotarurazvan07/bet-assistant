@@ -119,6 +119,8 @@ class FakeBrowserSession:
         self.fetch_error_urls = set(fetch_error_urls)
         self.fetched = []
         self.clicks = []
+        # (selector, label) pairs — pins click targets (2026-10-12 OP button fix)
+        self.click_calls = []
         self._current_url = None
         self.page = self
 
@@ -131,6 +133,7 @@ class FakeBrowserSession:
 
     def click(self, selector, label=None) -> bool:
         self.clicks.append(label if label is not None else selector)
+        self.click_calls.append((selector, label))
         return True
 
     def execute_script(self, script) -> bool:

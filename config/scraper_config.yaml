@@ -116,7 +116,7 @@ RUNNER_SETS:
     - footballbettingtips
     - forebet
     - betexplorer
-    # - oddsportal
+    - oddsportal
   test:
     - betexplorer
 
