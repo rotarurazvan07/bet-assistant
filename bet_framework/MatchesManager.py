@@ -244,8 +244,13 @@ class MatchesManager(BufferedStorageManager):
                     s.get("source") for s in (self.deserialize_json(found.get("predictions_scores")) or []) if s.get("source")
                 }
                 if not {s.source for s in match.predictions if s.source}.isdisjoint(ex_src):
-                    logger.warning(f"Source collision — skip {match.home_team} vs {match.away_team}")
-                    found = None
+                    if self._is_exact_team_match(match, found):
+                        logger.warning(
+                            f"Source collision — skip duplicate predictions for {match.home_team} vs {match.away_team}"
+                        )
+                    else:
+                        logger.warning(f"Source collision — skip {match.home_team} vs {match.away_team}")
+                        found = None
 
             if found is None:
                 return self._insert_new_match(match)
@@ -281,6 +286,15 @@ class MatchesManager(BufferedStorageManager):
             )
             self.ensure_buffer()
             return len(self._buffer) - 1
+
+    @staticmethod
+    def _is_exact_team_match(match: Match, found: dict) -> bool:
+        """Return True only when both displayed team names match exactly."""
+        home = found.get("home_team_name")
+        away = found.get("away_team_name")
+        if not isinstance(home, str) or not isinstance(away, str):
+            return False
+        return home == match.home_team and away == match.away_team
 
     def _update_existing_match(self, match: Match, found: dict, idx: int) -> bool:
         """Update an existing match in the buffer. Returns True if changes were made."""
