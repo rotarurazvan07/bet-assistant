@@ -1,22 +1,22 @@
 """Match finder for oddsportal.com match pages."""
 
+import contextlib
+import json
 import re
 import threading
 import time
-
-from scrape_kit import browser, fetch, get_logger
-
-logger = get_logger(__name__)
-import contextlib
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
 from bs4 import BeautifulSoup
+from scrape_kit import browser, fetch, get_logger
 
-from bet_framework.core.Match import *
+from bet_framework.core.Match import Match, Odds
 
+from ._parallel import balanced_chunks
 from .BaseMatchFinder import BaseMatchFinder
+
+logger = get_logger(__name__)
 
 ODDSPORTAL_NAME = "oddsportal"
 MAX_CONCURRENCY = 10
@@ -564,11 +564,7 @@ class OddsPortalFinder(BaseMatchFinder):
             self._process_url_batch(urls)
             return
 
-        chunk_size = max(1, len(urls) // MAX_CONCURRENCY)
-        chunks = [urls[i : i + chunk_size] for i in range(0, len(urls), chunk_size)]
-        while len(chunks) > MAX_CONCURRENCY:
-            chunks[-2].extend(chunks[-1])
-            chunks.pop()
+        chunks = balanced_chunks(urls, MAX_CONCURRENCY)
 
         logger.info(
             "Parallelizing %d URLs across %d workers (chunks: %s)",

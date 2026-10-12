@@ -78,6 +78,22 @@ class TestGetMatches:
         finder.get_matches(["u1", "u2"])
         assert seen == [["u1", "u2"]]
 
+    def test_chunking_balances_uneven_url_count(self, monkeypatch) -> None:
+        captured = {}
+
+        def fake_batch(self, urls) -> None:
+            captured.setdefault("batches", []).append(list(urls))
+
+        monkeypatch.setattr(be, "MAX_CONCURRENCY", 10)
+        monkeypatch.setattr(BetExplorerFinder, "_process_url_batch", fake_batch)
+        finder, _ = _finder()
+        urls = [f"u{i:02d}" for i in range(39)]
+
+        finder.get_matches(urls)
+
+        assert sorted(len(batch) for batch in captured["batches"]) == [3, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        assert sorted(sum(captured["batches"], [])) == urls
+
 
 class TestProcessUrlBatch:
     def _session_map(self, monkeypatch, fetch_error: bool = False):
