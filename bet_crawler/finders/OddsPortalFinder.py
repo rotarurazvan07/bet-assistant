@@ -8,14 +8,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
-from scrape_kit import browser, fetch, get_logger
-
 from bs4 import BeautifulSoup
+from scrape_kit import browser, fetch, get_logger
 
 from bet_framework.core.Match import Match, Odds
 
-from .BaseMatchFinder import BaseMatchFinder
 from ._parallel import balanced_chunks
+from .BaseMatchFinder import BaseMatchFinder
 
 logger = get_logger(__name__)
 
