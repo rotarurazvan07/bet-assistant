@@ -299,9 +299,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     if not self._event_is_scheduled(event):
                         continue
                     try:
-                        match_date = datetime.fromisoformat(
-                            start_date_str.replace("Z", "+00:00")
-                        ).date()
+                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
                     except Exception:
                         continue
                     if today <= match_date <= max_date:
@@ -309,9 +307,7 @@ class OddsPortalFinder(BaseMatchFinder):
 
                 links = list(dict.fromkeys(links))
                 urls.extend(links)
-                logger.info(
-                    "Found %d match URLs on %s (total: %d)", len(links), url, len(urls)
-                )
+                logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:
                 logger.error("Failed to scrape %s: %s", url, e)
                 continue
@@ -335,14 +331,10 @@ class OddsPortalFinder(BaseMatchFinder):
                     try:
                         session.fetch(url, wait_until="domcontentloaded", timeout=90000)
                     except Exception as e:
-                        logger.warning(
-                            "[%s] Fetch error (retrying): %s", thread_name, e
-                        )
+                        logger.warning("[%s] Fetch error (retrying): %s", thread_name, e)
                         time.sleep(4)
                         with contextlib.suppress(Exception):
-                            session.fetch(
-                                url, wait_until="domcontentloaded", timeout=60000
-                            )
+                            session.fetch(url, wait_until="domcontentloaded", timeout=60000)
 
                     soup = BeautifulSoup(session.page.content(), "html.parser")
                     identity = self._parse_identity(soup)
@@ -357,12 +349,8 @@ class OddsPortalFinder(BaseMatchFinder):
                     home_team, away_team, match_date = identity
 
                     odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
-                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(
-                        session, thread_name
-                    )
-                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(
-                        session, thread_name
-                    )
+                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
+                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
                     ou = self._scrape_tab_ou(session, thread_name)
 
                     odds = Odds(
@@ -399,9 +387,7 @@ class OddsPortalFinder(BaseMatchFinder):
                             )
                         )
 
-                except (
-                    Exception
-                ) as e:  # per-row fault isolation: one bad page must not kill the batch
+                except Exception as e:  # per-row fault isolation: one bad page must not kill the batch
                     logger.error("[%s] Error parsing %s: %s", thread_name, url, e)
                     continue
 
@@ -433,9 +419,7 @@ class OddsPortalFinder(BaseMatchFinder):
         if isinstance(status_obj, str):
             status_str = status_obj
         elif isinstance(status_obj, dict):
-            status_str = str(status_obj.get("@id", "")) or str(
-                status_obj.get("name", "")
-            )
+            status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
         else:
             status_str = ""
         return "Scheduled" in status_str
@@ -479,9 +463,7 @@ class OddsPortalFinder(BaseMatchFinder):
             return (
                 str(home).strip(),
                 str(away).strip(),
-                match_date.replace(
-                    hour=0, minute=0, second=0, microsecond=0, tzinfo=None
-                ),
+                match_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None),
             )
         return None
 
@@ -530,9 +512,7 @@ class OddsPortalFinder(BaseMatchFinder):
         previous market's cells.
         """
         # live 2026-10-11: <li class="tab-item"><button><span>1X2</span>
-        before = self._table_fingerprint(
-            BeautifulSoup(session.page.content(), "html.parser")
-        )
+        before = self._table_fingerprint(BeautifulSoup(session.page.content(), "html.parser"))
         assert session.click("li.tab-item", tab_label), "Click failed"
         deadline = time.monotonic() + self._TAB_SETTLE_S
         try:
@@ -568,9 +548,7 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_1 = odds_X = odds_2 = None
         try:
             logger.info("[%s] Extracting 1X2 odds", thread_name)
-            cells = self._first_bookmaker_odds(
-                self._click_tab(session, "1X2", ("1", "X", "2"))
-            )
+            cells = self._first_bookmaker_odds(self._click_tab(session, "1X2", ("1", "X", "2")))
             if len(cells) >= 3:
                 odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
         except Exception as e:
@@ -582,9 +560,7 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_btts_y = odds_btts_n = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
-            cells = self._first_bookmaker_odds(
-                self._click_tab(session, "Both Teams to Score", ("Yes", "No"))
-            )
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
             if len(cells) >= 2:
                 odds_btts_y, odds_btts_n = cells[0], cells[1]
         except Exception as e:
@@ -596,9 +572,7 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
         try:
             logger.info("[%s] Extracting DC odds", thread_name)
-            cells = self._first_bookmaker_odds(
-                self._click_tab(session, "Double Chance", ("1X", "12", "X2"))
-            )
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance", ("1X", "12", "X2")))
             if len(cells) >= 3:
                 odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
         except Exception as e:
@@ -656,13 +630,8 @@ class OddsPortalFinder(BaseMatchFinder):
             [len(c) for c in chunks],
         )
 
-        with ThreadPoolExecutor(
-            max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal"
-        ) as executor:
-            futures = {
-                executor.submit(self._process_url_batch, chunk): i
-                for i, chunk in enumerate(chunks)
-            }
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal") as executor:
+            futures = {executor.submit(self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)}
             for future in as_completed(futures):
                 chunk_idx = futures[future]
                 try:
