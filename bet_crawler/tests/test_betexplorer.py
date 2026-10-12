@@ -11,7 +11,13 @@ import pytest
 
 from bet_crawler.finders.BetExplorerFinder import BETEXPLORER_NAME, BetExplorerFinder
 
-from .finder_test_helpers import fake_browser, load_fixture, make_finder, patch_fetch, relax_date_window
+from .finder_test_helpers import (
+    fake_browser,
+    load_fixture,
+    make_finder,
+    patch_fetch,
+    relax_date_window,
+)
 
 be = importlib.import_module("bet_crawler.finders.BetExplorerFinder")
 
@@ -136,13 +142,49 @@ class TestProcessUrlBatch:
         assert odds.home == 2.10
         assert odds.draw == 3.40
         assert odds.away == 3.75
-        assert odds.btts_y == 2.10  # first btts cell value from fixture
-        assert odds.dc_1x == 2.10
+        assert odds.btts_y == 1.57
+        assert odds.btts_n == 2.34
+        assert odds.dc_1x == 1.67
+        assert odds.dc_12 == 1.30
+        assert odds.dc_x2 == 1.36
         assert odds.over_05 == 1.10
         assert odds.under_05 == 8.00
         assert odds.over_25 == 1.70
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
+        assert (odds.dc_1x, odds.dc_12, odds.dc_x2) != (odds.home, odds.draw, odds.away)
+        assert (odds.btts_y, odds.btts_n) != (odds.home, odds.draw)
+
+    def test_stale_1x2_averages_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
+        """Live t+0: BTTS/DC click still shows 1X2 averages."""
+        monkeypatch.setattr(BetExplorerFinder, "_TAB_SETTLE_S", 0)
+        base_html = load_fixture("betexplorer", "match_base.html")
+        x2 = load_fixture("betexplorer", "match_1x2.html")
+        ou = load_fixture("betexplorer", "match_ou.html")
+
+        def content_for(clicks):
+            if not clicks:
+                return base_html
+            for entry in reversed(clicks):
+                if "Over/Under" in entry or "li#all" in entry:
+                    return ou
+                if "1X2" in entry or "Both Teams" in entry or "Double Chance" in entry:
+                    return x2
+            return base_html
+
+        fake_browser(
+            monkeypatch,
+            be,
+            {"https://www.betexplorer.com/match/in-window-1/": content_for},
+        )
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.betexplorer.com/match/in-window-1/"])
+        assert len(collector) == 1
+        odds = collector.first.odds
+        assert odds.home == 2.10
+        assert odds.btts_y is None
+        assert odds.dc_1x is None
+        assert odds.over_25 == 1.70
 
     def test_retry_after_fetch_error(self, monkeypatch) -> None:
         session = self._session_map(monkeypatch, fetch_error=True)
@@ -162,14 +204,20 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
 
     def test_missing_critical_selectors_skips_url(self, monkeypatch) -> None:
-        content_map = {"https://www.betexplorer.com/match/empty/": "<html><body><p>nothing</p></body></html>"}
+        content_map = {
+            "https://www.betexplorer.com/match/empty/": "<html><body><p>nothing</p></body></html>"
+        }
         fake_browser(monkeypatch, be, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.betexplorer.com/match/empty/"])
         assert len(collector) == 0
 
     def test_broken_page_no_crash(self, monkeypatch) -> None:
-        content_map = {"https://www.betexplorer.com/match/broken/": load_fixture("betexplorer", "broken.html")}
+        content_map = {
+            "https://www.betexplorer.com/match/broken/": load_fixture(
+                "betexplorer", "broken.html"
+            )
+        }
         fake_browser(monkeypatch, be, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.betexplorer.com/match/broken/"])
