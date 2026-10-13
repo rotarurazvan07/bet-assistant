@@ -251,14 +251,30 @@ describe('services endpoints', () => {
         expect(data.services.puller.enabled).toBe(true);
     });
 
-    it('saveServiceSettings POSTs hour/minute', async () => {
+    it('saveServiceSettings POSTs legacy hour/minute payload unchanged', async () => {
         let body: Record<string, unknown> | null = null;
         server.use(http.post('/api/services/settings', async ({ request }) => {
             body = await request.json() as Record<string, unknown>;
             return HttpResponse.json({ ok: true });
         }));
-        await saveServiceSettings(10, 30);
+        await saveServiceSettings({ generate_hour: 10, generate_minute: 30 });
         expect(body).toEqual({ generate_hour: 10, generate_minute: 30 });
+    });
+
+    it('saveServiceSettings POSTs per-profile map payload', async () => {
+        let body: Record<string, unknown> | null = null;
+        server.use(http.post('/api/services/settings', async ({ request }) => {
+            body = await request.json() as Record<string, unknown>;
+            return HttpResponse.json({ ok: true });
+        }));
+        await saveServiceSettings({
+            profiles: {
+                low: { enabled: true, hour: 9, minute: 30, units: 2.5, target_payout: 100 },
+            },
+        });
+        expect(body).toEqual({
+            profiles: { low: { enabled: true, hour: 9, minute: 30, units: 2.5, target_payout: 100 } },
+        });
     });
 
     it('toggleService templated POST returns name/enabled', async () => {

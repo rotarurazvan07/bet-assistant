@@ -1,112 +1,81 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchServices, saveServiceSettings, toggleService } from '../api/data';
+import { fetchProfiles, fetchServices, saveServiceSettings, toggleService } from '../api/data';
 import EmptyState, { ServicesEmptyIcon } from '../components/EmptyState';
 import ServiceCard from '../components/ServiceCard';
 import { TooltipIcon } from '../components/ui';
-import type { ServicesData } from '../types';
+import type { ProfileSchedulePayload, ServicesData } from '../types';
 
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { StaticTimePicker } from '@mui/x-date-pickers/StaticTimePicker';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
-import dayjs from 'dayjs';
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
-// Custom theme mapping the high-fidelity CSS variable tokens
-const muiDarkTheme = createTheme({
-    palette: {
-        mode: 'dark',
-        background: {
-            default: '#131C2E', // var(--bg-raised)
-            paper: '#18243A',   // var(--bg-card)
-        },
-        primary: {
-            main: '#7C3AED',    // var(--purple)
-        },
-        text: {
-            primary: '#C9D6F0',   // var(--text-primary)
-            secondary: '#b8c1d3', // var(--text-secondary)
-        },
-    },
-    typography: {
-        fontFamily: "'JetBrains Mono', 'Inter', monospace",
-        fontSize: 12,
-    },
-    components: {
-        MuiPickersLayout: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#131C2E',
-                    color: '#C9D6F0',
-                    border: '1px solid rgba(255, 255, 255, 0.07)',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
-                    overflow: 'hidden',
-                },
-            },
-        },
-        MuiPickersToolbar: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#18243A',
-                    borderRight: '1px solid rgba(255, 255, 255, 0.07)',
-                    '& .MuiTypography-root': {
-                        fontFamily: "'Outfit', sans-serif",
-                    },
-                },
-            },
-        },
-        MuiClock: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#131C2E',
-                },
-            },
-        },
-        MuiClockPointer: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#7C3AED',
-                },
-                thumb: {
-                    backgroundColor: '#7C3AED',
-                    borderColor: '#7C3AED',
-                },
-            },
-        },
-        MuiClockNumber: {
-            styleOverrides: {
-                root: {
-                    fontFamily: "'JetBrains Mono', monospace",
-                    color: '#b8c1d3',
-                    '&.Mui-selected': {
-                        color: '#ffffff',
-                    },
-                },
-            },
-        },
-        MuiClockAmPmSelectedCircle: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#7C3AED',
-                },
-            },
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-});
+// ── Row toggle (role=switch, design-system tokens, no new deps) ──────────────
+
+function RowToggle({ enabled, onToggle, label }: {
+    enabled: boolean; onToggle: (v: boolean) => void; label: string;
+}) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={label}
+            onClick={() => onToggle(!enabled)}
+            className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer shrink-0"
+            style={{
+                background: enabled
+                    ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+                    : 'var(--bg-raised)',
+                border: `1px solid ${enabled ? 'var(--border-accent)' : 'var(--border)'}`,
+                boxShadow: enabled ? '0 0 12px var(--accent-glow)' : 'none',
+            }}
+        >
+            <span
+                className="absolute top-[2px] w-4 h-4 rounded-full bg-white transition-all duration-300"
+                style={{
+                    left: enabled ? 'calc(100% - 18px)' : '2px',
+                    boxShadow: 'var(--shadow-sm)',
+                }}
+            />
+        </button>
+    );
+}
 
 export default function Services() {
     const [data, setData] = useState<ServicesData | null>(null);
-    const [genHour, setGenHour] = useState(8);
-    const [genMinute, setGenMinute] = useState(0);
+    const [rows, setRows] = useState<Record<string, ProfileSchedulePayload>>({});
     const [status, setStatus] = useState('');
+    const [saving, setSaving] = useState(false);
 
     const load = useCallback(async () => {
         try {
-            const d = await fetchServices();
+            const [d, profiles] = await Promise.all([fetchServices(), fetchProfiles()]);
             setData(d);
-            setGenHour(d.generate_hour);
-            setGenMinute(d.generate_minute);
+            const names = Object.keys(profiles).sort();
+            setRows(() => {
+                const next: Record<string, ProfileSchedulePayload> = {};
+                for (const name of names) {
+                    const saved = d.profiles_schedule?.[name];
+                    // Backwards compat: profiles without a saved schedule prefill from the
+                    // legacy global generate_hour/generate_minute so Schedule behaviour
+                    // does not regress (issue #41 / Part D).
+                    next[name] = saved
+                        ? {
+                            enabled: saved.enabled,
+                            hour: saved.hour,
+                            minute: saved.minute,
+                            units: saved.units,
+                            target_payout: saved.target_payout,
+                        }
+                        : {
+                            enabled: false,
+                            hour: d.generate_hour,
+                            minute: d.generate_minute,
+                            units: 1,
+                            target_payout: null,
+                        };
+                }
+                return next;
+            });
         } catch {
             // Network/API failure: keep the loading card rather than crash;
             // surface the failure in the status line (existing app pattern).
@@ -114,13 +83,26 @@ export default function Services() {
         }
     }, []);
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { load(); }, [load]);
 
+    function updateRow(name: string, patch: Partial<ProfileSchedulePayload>) {
+        setRows(prev => ({
+            ...prev,
+            [name]: { ...prev[name], ...patch },
+        }));
+    }
+
     async function handleSave() {
-        await saveServiceSettings(genHour, genMinute);
-        setStatus('✓ Settings saved — schedules recalculated');
-        load();
+        setSaving(true);
+        try {
+            await saveServiceSettings({ profiles: rows });
+            setStatus('✓ Schedules saved — per-profile generation updated');
+            await load();
+        } catch {
+            setStatus('⚠ Save failed — check the values and retry');
+        } finally {
+            setSaving(false);
+        }
     }
 
     async function handleToggle(name: string) {
@@ -144,6 +126,7 @@ export default function Services() {
     );
 
     const now = data.server_time ? new Date(data.server_time) : new Date();
+    const profileNames = Object.keys(rows);
 
     return (
         <div>
@@ -180,49 +163,119 @@ export default function Services() {
                     />
                 ))}
 
-                {/* Scheduler settings */}
-                <div className="card p-4 lg:col-span-3">
-                    <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
-                        style={{ color: 'var(--text-secondary)' }}>Scheduled Time</p>
-
-                    <div className="grid grid-cols-1 gap-6 mb-4">
-
-                        {/* Generate Slips hour */}
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-4">
-                                <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
-                                    Generate Slips
-                                    <TooltipIcon text="Creates betting slips based on builder configurations and predictions. Runs daily at the scheduled time." align="right" />
-                                </span>
-                            </div>
-
-                            <div className="flex justify-center lg:justify-start">
-                                <ThemeProvider theme={muiDarkTheme}>
-                                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                                        <StaticTimePicker
-                                            ampm={false}
-                                            orientation="landscape"
-                                            value={dayjs().hour(genHour).minute(genMinute).second(0)}
-                                            onChange={(newValue) => {
-                                                if (newValue) {
-                                                    setGenHour(newValue.hour());
-                                                    setGenMinute(newValue.minute());
-                                                }
-                                            }}
-                                            slotProps={{
-                                                actionBar: {
-                                                    actions: []
-                                                }
-                                            }}
-                                        />
-                                    </LocalizationProvider>
-                                </ThemeProvider>
-                            </div>
-                        </div>
+                {/* Per-profile auto-generation scheduler */}
+                <div className="card p-4 lg:col-span-3" data-testid="profile-scheduler">
+                    <div className="flex items-center gap-1.5 mb-4">
+                        <p className="font-mono text-[10px] tracking-widest uppercase"
+                            style={{ color: 'var(--text-secondary)' }}>Per-profile Auto-Generation</p>
+                        <TooltipIcon
+                            text="Each enabled profile generates its own slips automatically at the scheduled time, using the units and target payout set here — independent of the Smart Builder values."
+                            align="right"
+                        />
                     </div>
 
-                    <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+                    {profileNames.length === 0 ? (
+                        <p className="font-mono text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                            No saved profiles yet — create one in the Smart Builder first.
+                        </p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="font-mono text-[9px] uppercase tracking-widest"
+                                        style={{ color: 'var(--text-secondary)' }}>
+                                        <th className="py-2 pr-3">Profile</th>
+                                        <th className="py-2 pr-3">Auto</th>
+                                        <th className="py-2 pr-3">Hour</th>
+                                        <th className="py-2 pr-3">Minute</th>
+                                        <th className="py-2 pr-3">Units</th>
+                                        <th className="py-2 pr-3">Target Payout</th>
+                                        <th className="py-2">Next Run</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {profileNames.map(name => {
+                                        const row = rows[name];
+                                        const nextRun = data.profiles_schedule?.[name]?.next_run;
+                                        return (
+                                            <tr key={name} style={{ borderTop: '1px solid var(--border)' }}>
+                                                <td className="py-2.5 pr-3">
+                                                    <span className="font-mono text-[11px] font-semibold"
+                                                        style={{ color: 'var(--text-bright)' }}>{name}</span>
+                                                </td>
+                                                <td className="py-2.5 pr-3">
+                                                    <RowToggle
+                                                        enabled={row.enabled}
+                                                        onToggle={v => updateRow(name, { enabled: v })}
+                                                        label={`Auto-generate ${name}`}
+                                                    />
+                                                </td>
+                                                <td className="py-2.5 pr-3">
+                                                    <select
+                                                        className="field w-20"
+                                                        aria-label={`${name} hour`}
+                                                        value={row.hour}
+                                                        onChange={e => updateRow(name, { hour: Number(e.target.value) })}
+                                                    >
+                                                        {HOURS.map(h => (
+                                                            <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="py-2.5 pr-3">
+                                                    <select
+                                                        className="field w-20"
+                                                        aria-label={`${name} minute`}
+                                                        value={row.minute}
+                                                        onChange={e => updateRow(name, { minute: Number(e.target.value) })}
+                                                    >
+                                                        {MINUTES.map(m => (
+                                                            <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="py-2.5 pr-3">
+                                                    <input
+                                                        type="number"
+                                                        className="field w-20"
+                                                        aria-label={`${name} units`}
+                                                        min={0.5}
+                                                        step={0.5}
+                                                        value={row.units}
+                                                        onChange={e => updateRow(name, { units: Number(e.target.value) })}
+                                                    />
+                                                </td>
+                                                <td className="py-2.5 pr-3">
+                                                    <input
+                                                        type="number"
+                                                        className="field w-24"
+                                                        aria-label={`${name} target payout`}
+                                                        min={0}
+                                                        step={10}
+                                                        value={row.target_payout ?? ''}
+                                                        placeholder="—"
+                                                        onChange={e => updateRow(name, {
+                                                            target_payout: e.target.value === '' ? null : Number(e.target.value),
+                                                        })}
+                                                    />
+                                                </td>
+                                                <td className="py-2.5">
+                                                    <span className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>
+                                                        {nextRun ?? '—'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-3 pt-4 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                        <button className="btn-primary" onClick={handleSave} disabled={saving}>
+                            {saving ? 'Saving…' : 'Save Settings'}
+                        </button>
                         {status && (
                             <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{status}</span>
                         )}
