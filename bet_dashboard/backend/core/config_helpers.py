@@ -22,15 +22,51 @@ def _config_to_yaml_dict(
     units: float = 1.0,
     target_payout: float | None = None,
     run_daily_count: int = 0,
+    schedule: dict | None = None,
 ) -> dict:
-    """Convert a config object to a plain dict for YAML serialization."""
+    """Convert a config object to a plain dict for YAML serialization.
+
+    An optional ``schedule`` block is round-tripped verbatim; when it is absent
+    (``None``) no ``schedule`` key is fabricated.
+    """
     d = asdict(cfg)
     for k in _RUNTIME_ONLY:
         d[k] = None
     d["units"] = units
     d["target_payout"] = target_payout
     d["run_daily_count"] = run_daily_count
+    if schedule is not None:
+        d["schedule"] = dict(schedule)
     return d
+
+
+def parse_schedule_block(raw: object) -> dict | None:
+    """Normalize an optional profile ``schedule`` block; ``None`` when absent or invalid.
+
+    Expected keys: ``enabled``, ``hour``, ``minute``, ``units``, ``target_payout``.
+    Absent ``units``/``target_payout`` stay ``None`` so the profile's own values
+    apply; out-of-range times or non-numeric values invalidate the block.
+    """
+    if not isinstance(raw, dict):
+        return None
+    try:
+        hour = int(raw.get("hour", 0))
+        minute = int(raw.get("minute", 0))
+        units = float(raw["units"]) if raw.get("units") is not None else None
+        payout = float(raw["target_payout"]) if raw.get("target_payout") is not None else None
+    except (TypeError, ValueError):
+        return None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    if units is not None and units <= 0:
+        units = None
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "hour": hour,
+        "minute": minute,
+        "units": units,
+        "target_payout": payout,
+    }
 
 
 def ensure_default_profiles(profiles_dir: str, settings: SettingsManager) -> None:

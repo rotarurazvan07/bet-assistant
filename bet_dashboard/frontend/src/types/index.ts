@@ -326,11 +326,36 @@ export interface ServiceInfo {
     last_time_generated?: string | null;
 }
 
+export interface ServiceInfo {
+    name: string; description: string;
+    enabled: boolean; alive: boolean;
+    hour: number | null;
+    minute: number | null;
+    interval_seconds: number | null;
+    next_run: string | null;
+    last_time_generated?: string | null;
+}
+
+// Per-profile scheduled slip generation (issue #41, Workstream B Part D).
+// `next_run` is computed server-side from the backend's clock; when absent the
+// client derives a "Today/Tomorrow HH:MM" label from generate_hour/minute.
+export interface ProfileSchedule {
+    enabled: boolean;
+    hour: number;
+    minute: number;
+    units: number;
+    target_payout: number | null;
+    next_run?: string;
+}
+
+export type ProfileSchedulePayload = Omit<ProfileSchedule, 'next_run'>;
+
 export interface ServicesData {
     services: Record<string, ServiceInfo>;
     generate_hour: number;
     generate_minute: number;
     server_time: string;
+    profiles_schedule?: Record<string, ProfileSchedule>;
 }
 
 // ── WebSocket events ──────────────────────────────────────────────────────────

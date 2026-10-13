@@ -4,7 +4,7 @@ import type {
     ProfilesMap, Profile,
     SlipsPage, ManualLegIn,
     AnalyticsData,
-    ServicesData,
+    ServicesData, ProfileSchedulePayload,
 } from '../types';
 
 // ── Builder ──────────────────────────────────────────────────────────────────
@@ -113,8 +113,12 @@ export async function fetchServices(): Promise<ServicesData> {
     return res.data;
 }
 
-export async function saveServiceSettings(generate_hour: number, generate_minute: number): Promise<void> {
-    await client.post('/services/settings', { generate_hour, generate_minute });
+export type ServicesSettingsPayload =
+    | { generate_hour: number; generate_minute: number }
+    | { profiles: Record<string, ProfileSchedulePayload> };
+
+export async function saveServiceSettings(payload: ServicesSettingsPayload): Promise<void> {
+    await client.post('/services/settings', payload);
 }
 
 export async function toggleService(name: string): Promise<{ name: string; enabled: boolean }> {

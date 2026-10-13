@@ -20,7 +20,7 @@ from core.analytics_utils import (
     calculate_streak_metrics,
     get_rolling_edge_trend,
 )
-from core.config_helpers import _yaml_to_config, ensure_default_profiles
+from core.config_helpers import _yaml_to_config, ensure_default_profiles, parse_schedule_block
 from core.ticker_service import TickerService
 from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
@@ -106,6 +106,8 @@ class AppLogic:
         self._last_etag: str | None = None
         # Last run tracking for hour-based services
         self._last_generator_run: str | None = None
+        # Per-profile last-run guard for scheduled generation (persisted in runtime_state)
+        self._last_profile_runs: dict[str, str] = {}
 
         # Initialize services
         svc_cfg = self._settings.get("services") or {}
@@ -161,6 +163,9 @@ class AppLogic:
 
     def _is_generator_hour_met(self) -> bool:
         """Predicate to check if it's time to run the generator (once per daily window)."""
+        if self._effective_profile_schedules():
+            return bool(self._due_profile_names())
+
         now = datetime.now()
         today_key = now.strftime("%Y-%m-%d")
 
@@ -187,15 +192,56 @@ class AppLogic:
         if last_generated:
             try:
                 last_dt = datetime.fromisoformat(last_generated)
-                if last_dt.strftime("%Y-%m-%d") == today_key:
-                    # Already ran today — sync in-memory guard and skip
-                    self._last_generator_run = today_key
-                    return False
-            except ValueError, TypeError:
-                pass
+            except (ValueError, TypeError):
+                last_dt = None
+            if last_dt and last_dt.strftime("%Y-%m-%d") == today_key:
+                # Already ran today — sync in-memory guard and skip
+                self._last_generator_run = today_key
+                return False
 
         self._last_generator_run = today_key
         return True
+
+    def _due_profile_names(self) -> list[str]:
+        """Enabled schedule rows whose time is met today and that have not run yet today."""
+        now = datetime.now()
+        today_key = now.strftime("%Y-%m-%d")
+        runtime_cfg = self._settings.get("runtime_state") or {}
+        persisted = runtime_cfg.get("profile_last_runs") or {}
+        due: list[str] = []
+        for name, row in self._effective_profile_schedules().items():
+            if not row.get("enabled"):
+                continue
+            target_time = now.replace(
+                hour=int(row.get("hour", 0)), minute=int(row.get("minute", 0)), second=0, microsecond=0
+            )
+            if now < target_time:
+                continue
+            if (self._last_profile_runs.get(name) or persisted.get(name)) == today_key:
+                continue
+            due.append(name)
+        return due
+
+    def _effective_profile_schedules(self) -> dict[str, dict]:
+        """Merge live per-profile schedules over optional profile-YAML ``schedule`` blocks.
+
+        Live rows persisted by ``save_service_settings`` win over per-profile YAML
+        blocks; an empty dict means no scheduling anywhere (legacy global mode).
+        """
+        merged: dict[str, dict] = {}
+        profiles_raw = self._settings.get("profiles") or {}
+        for name, cfg in profiles_raw.items():
+            block = parse_schedule_block(cfg.get("schedule")) if isinstance(cfg, dict) else None
+            if block is not None:
+                merged[name] = block
+        svc_cfg = self._settings.get("services") or {}
+        live = svc_cfg.get("profiles_schedule") or {}
+        if isinstance(live, dict):
+            for name, row in live.items():
+                block = parse_schedule_block(row)
+                if block is not None:
+                    merged[name] = block
+        return merged
 
     def _check_for_changes(self) -> bool:
         """HEAD request to check if GitHub release has changed via ETag."""
@@ -259,11 +305,25 @@ class AppLogic:
     def _do_generate(self) -> None:
         """Ticker daemon: generate slips for active profiles at the scheduled hour."""
         try:
-            profiles = self._get_active_profiles()
+            schedules = self._effective_profile_schedules()
+            due_names = self._due_profile_names() if schedules else None
+            if schedules and not due_names:
+                # Schedules configured but nothing due right now
+                return
+            profiles = self._get_active_profiles(due_only=schedules is not None and bool(schedules))
+            if due_names is not None:
+                profiles = {k: v for k, v in profiles.items() if k in due_names}
             if profiles:
                 self.generate_slips(profiles)
                 runtime = self._settings.get("runtime_state") or {}
                 runtime["last_time_generated"] = datetime.now().isoformat()
+                if schedules:
+                    today_key = datetime.now().strftime("%Y-%m-%d")
+                    profile_runs = runtime.get("profile_last_runs") or {}
+                    for name in profiles:
+                        profile_runs[name] = today_key
+                        self._last_profile_runs[name] = today_key
+                    runtime["profile_last_runs"] = profile_runs
                 self._settings.write("runtime_state", runtime)
             self._broadcast_slips_updated()
         except Exception as exc:
@@ -770,11 +830,39 @@ class AppLogic:
 
     # ── Helpers ──────────────────────────────────────────────────────────[...]
 
-    def _get_active_profiles(self) -> dict[str, tuple]:
-        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
-        profiles_raw = self._settings.get("profiles") or {}
+    def _get_active_profiles(self, due_only: bool = False) -> dict[str, tuple]:
+    """Profiles to generate slips for, resolved to (BetSlipConfig, units, count, target_payout) tuples.
+
+    Legacy mode (no schedules anywhere): gate is ``run_daily_count > 0`` and the
+    profile's own units/target_payout stand unchanged.
+
+    Schedule mode (per-profile schedule rows exist): every enabled schedule row is
+    active regardless of ``run_daily_count``; row values override profile units
+    and target_payout when set; count = ``run_daily_count`` if > 0 else 1.
+    With ``due_only=True`` the result is further restricted to profiles whose
+    scheduled time has passed today and which have not generated yet today.
+    """
+    profiles_raw = self._settings.get("profiles") or {}
+    schedules = self._effective_profile_schedules()
+
+    if not schedules:
         return {
             name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 0), cfg.get("target_payout"))
             for name, cfg in profiles_raw.items()
             if cfg.get("run_daily_count")
         }
+
+    result: dict[str, tuple] = {}
+    for name, cfg in profiles_raw.items():
+        row = schedules.get(name)
+        if not row or not row.get("enabled"):
+            continue
+        units = row["units"] if row.get("units") is not None else cfg.get("units", 1.0)
+        payout = row["target_payout"] if row.get("target_payout") is not None else cfg.get("target_payout")
+        count = cfg.get("run_daily_count", 0) if cfg.get("run_daily_count", 0) > 0 else 1
+        result[name] = (_yaml_to_config(cfg), units, count, payout)
+
+    if due_only:
+        due = set(self._due_profile_names())
+        result = {k: v for k, v in result.items() if k in due}
+    return result

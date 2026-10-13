@@ -1,6 +1,6 @@
 """Pydantic request/response models for the API."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 # ── Builder ───────────────────────────────────────────────────────────────────
 
@@ -158,11 +158,28 @@ class BetSlipOut(BaseModel):
 # ── Services ──────────────────────────────────────────────────────────────────
 
 
-class ServicesSettingsIn(BaseModel):
-    """Payload for service scheduler settings."""
+class ProfileScheduleRow(BaseModel):
+    """Per-profile auto-generation schedule row."""
 
-    generate_hour: int
-    generate_minute: int = 0
+    enabled: bool = False
+    hour: int = Field(ge=0, le=23)
+    minute: int = Field(0, ge=0, le=59)
+    units: float = Field(1.0, gt=0)
+    target_payout: float | None = Field(None, gt=0)
+
+class ServicesSettingsIn(BaseModel):
+    """Payload for service scheduler settings (legacy global time and/or per-profile rows)."""
+
+    generate_hour: int | None = Field(None, ge=0, le=23)
+    generate_minute: int = Field(0, ge=0, le=59)
+    profiles: dict[str, ProfileScheduleRow] | None = None
+
+    @model_validator(mode="after")
+    def _require_legacy_or_profiles(self) -> "ServicesSettingsIn":
+        """Reject payloads that provide neither legacy globals nor profile rows."""
+        if self.generate_hour is None and self.profiles is None:
+            raise ValueError("Either generate_hour or profiles must be provided")
+        return self
 
 
 # ── Odds History ──────────────────────────────────────────────────────────────
