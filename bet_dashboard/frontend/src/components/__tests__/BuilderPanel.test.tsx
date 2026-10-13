@@ -51,10 +51,15 @@ function renderPanel(cfgOverrides: Partial<BuilderConfig> = {}, leagues: string[
 
 
 describe('BuilderPanel', () => {
-    it('renders all accordion section titles', () => {
+    it('renders all accordion section titles (five honest groups)', () => {
         renderPanel();
-        for (const title of ['Bet Shape', 'Quality Gate', 'Markets', 'Tolerance & Stop', 'Scoring', 'Odds Movement', 'Advanced']) {
+        for (const title of ['Core Targets', 'Quality Gate', 'Selection Logic', 'Markets & Sources', 'Odds Movement']) {
             expect(screen.getByText(title)).toBeInTheDocument();
+        }
+        // Retired accordion headers are gone (query by header-button role so
+        // TradeoffSlider edge labels like 'Sources' cannot false-positive).
+        for (const gone of ['Bet Shape', 'Tolerance & Stop', 'Scoring', 'Advanced', 'Markets', 'Leagues', 'Sources']) {
+            expect(screen.queryByRole('button', { name: new RegExp(`^${gone}$`) })).not.toBeInTheDocument();
         }
     });
 
@@ -76,11 +81,14 @@ describe('BuilderPanel', () => {
         expect(last.target_odds).toBe(7);
     });
 
-    it('Leagues section renders only when availableLeagues non-empty', () => {
+    it('Leagues sub-block renders only when availableLeagues non-empty (inside Markets & Sources)', () => {
         const { rerender } = render(<BuilderPanel cfg={baseCfg()} availableLeagues={[]} availableSources={[]} onChange={() => {}} />);
-        expect(screen.queryByText(/Leagues/)).not.toBeInTheDocument();
+        // Merged group always renders (markets are always there)...
+        expect(screen.getByText('Markets & Sources')).toBeInTheDocument();
+        // ...but the Leagues sub-block label does not exist without leagues
+        expect(screen.queryByText(/Leagues \(/)).not.toBeInTheDocument();
         rerender(<BuilderPanel cfg={baseCfg()} availableLeagues={['England', 'Spain']} availableSources={[]} onChange={() => {}} />);
-        expect(screen.getByText(/Leagues/)).toBeInTheDocument();
+        expect(screen.getByText(/Leagues \(/)).toBeInTheDocument();
     });
 
     it('league toggle: single add from null cfg, add to populated, remove, remove-to-null', async () => {
@@ -92,7 +100,6 @@ describe('BuilderPanel', () => {
 
         // 1. add England from null cfg → ['England']
         const t1 = renderPanel({}, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
         await user.click(screen.getByTitle('England'));
         let last = t1.onChange.mock.calls[t1.onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_leagues).toEqual(['England']);
@@ -101,7 +108,6 @@ describe('BuilderPanel', () => {
 
         // 2. add Spain to cfg already containing England → ['England', 'Spain']
         const t2 = renderPanel({ included_leagues: ['England'] }, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
         await user.click(screen.getByTitle('Spain'));
         last = t2.onChange.mock.calls[t2.onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_leagues).toEqual(['England', 'Spain']);
@@ -110,7 +116,6 @@ describe('BuilderPanel', () => {
 
         // 3. remove England from populated cfg → ['Spain']
         const t3 = renderPanel({ included_leagues: ['England', 'Spain'] }, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
         await user.click(screen.getByTitle('England'));
         last = t3.onChange.mock.calls[t3.onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_leagues).toEqual(['Spain']);
@@ -119,7 +124,6 @@ describe('BuilderPanel', () => {
 
         // 4. remove last remaining → null (all)
         const t4 = renderPanel({ included_leagues: ['Spain'] }, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
         await user.click(screen.getByTitle('Spain'));
         last = t4.onChange.mock.calls[t4.onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_leagues).toBeNull();
@@ -128,7 +132,6 @@ describe('BuilderPanel', () => {
     it('source toggle adds to excluded_sources', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({}, [], ['forebet', 'predictz']);
-        await user.click(screen.getByRole('button', { name: /Sources/ }));
         await user.click(screen.getByTitle('forebet'));
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.excluded_sources).toEqual(['forebet']);
@@ -137,7 +140,6 @@ describe('BuilderPanel', () => {
     it('Clear All leagues resets to null', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({ included_leagues: ['England'] }, ['England']);
-        await user.click(screen.getByText(/Leagues/));
         await user.click(screen.getByText('Clear All'));
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_leagues).toBeNull();
@@ -202,12 +204,12 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         expect(last.tolerance_factor).toBe(0.5);
     });
 
-    it('Scoring DualSliders fire quality_vs_balance and consensus_vs_sources', async () => {
+    it('TradeoffSliders fire quality_vs_balance and consensus_vs_sources (issue #41 pinned contract)', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({ consensus_floor: 80 });
-        await user.click(screen.getByRole('button', { name: /Scoring/ }));
-        // sliders in DOM (T&S closed): QG floor(0), MinLegsFill(1),
-        // Distribution Logic(2), Agreement Logic(3)
+        await user.click(screen.getByRole('button', { name: /Selection Logic/ }));
+        // DOM order (defaults): MinLegsFill(0, Core Targets), floor(1, Quality Gate),
+        // Distribution Logic TradeoffSlider(2), Agreement Logic TradeoffSlider(3).
         const sliders = document.querySelectorAll('input[type="range"]');
         fireEvent.change(sliders[2], { target: { value: '80' } });
         let last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
@@ -217,7 +219,7 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         expect(last.consensus_vs_sources).toBe(0.3);
     });
 
-    it('Advanced NullableRow slider (Shrinkage k) change', () => {
+    it('Selection Logic NullableRow slider (Shrinkage k) change', () => {
         // Same controlled-panel pattern as TolFactor: pass enabled cfg so the
         // InlineSlider mounts. Find by rendered value (cfg 3 → '3').
         const { onChange } = renderPanel({ consensus_shrinkage_k: 3 });
@@ -230,20 +232,22 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
     });
 
     it('Quality Gate SliderRow (Consensus Floor) fires onChange', () => {
-        const { onChange } = renderPanel({ consensus_floor: 70 });
-        const sliders = document.querySelectorAll('input[type="range"]');
-        // Quality Gate is defaultOpen — its slider is the first in the DOM
-        fireEvent.change(sliders[0], { target: { value: '85' } });
+        const { onChange } = renderPanel({ consensus_floor: 80 });
+        const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
+        // Unique-value find: consensus_floor 80 renders slider value '80'
+        const floor = sliders.find((sl) => sl.value === '80');
+        expect(floor).toBeDefined();
+        fireEvent.change(floor as HTMLInputElement, { target: { value: '85' } });
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.consensus_floor).toBe(85);
     });
 
-    it('Agreement Logic disabled at consensus_floor 100 (DualSlider disabled)', async () => {
+    it('Agreement Logic disabled at consensus_floor 100 (TradeoffSlider disabled)', async () => {
         const user = userEvent.setup();
         renderPanel({ consensus_floor: 100 });
-        await user.click(screen.getByRole('button', { name: /Scoring/ }));
+        await user.click(screen.getByRole('button', { name: /Selection Logic/ }));
         const sliders = document.querySelectorAll('input[type="range"]');
-        // Agreement Logic is sliders[3] (see Scoring test comment)
+        // Agreement Logic is sliders[3] (see Selection Logic test comment)
         expect((sliders[3] as HTMLInputElement).disabled).toBe(true);
     });
 });
