@@ -46,7 +46,7 @@ def _next_run_interval(interval_seconds: int | None) -> str | None:
 
 @router.get("")
 def get_services(request: Request):
-    """Return service info plus scheduler settings."""
+    """Return service info plus scheduler settings (legacy global time and per-profile schedules)."""
     app = _get(request)
     svc_cfg = app.settings.get("services") or {}
     runtime_cfg = app.settings.get("runtime_state") or {}
@@ -54,8 +54,6 @@ def get_services(request: Request):
 
     services_out = {}
     for name, svc in app.services.items():
-        # Determine next_run based on whether service is hour-based or interval-based
-        # We now look at the config for 'hour' metadata as TickerService is pure polling
         hour = None
         minute = None
         if name == "generator":
@@ -81,21 +79,44 @@ def get_services(request: Request):
             "last_time_generated": runtime_cfg.get("last_time_generated") if name == "generator" else None,
         }
 
+    # Resolve profiles schedule with live next_run strings
+    profiles_schedule_out = {}
+    raw_schedules = app._effective_profile_schedules()
+    for p_name, row in raw_schedules.items():
+        r_copy = dict(row)
+        if r_copy.get("enabled"):
+            r_copy["next_run"] = _next_run_hour(r_copy.get("hour"), r_copy.get("minute", 0))
+        else:
+            r_copy["next_run"] = "Disabled"
+        profiles_schedule_out[p_name] = r_copy
+
     return {
         "services": services_out,
         "generate_hour": svc_cfg.get("generate_hour", 8),
         "generate_minute": svc_cfg.get("generate_minute", 0),
+        "profiles_schedule": profiles_schedule_out,
         "server_time": now,
     }
 
 
 @router.post("/settings")
 def save_settings(request: Request, body: ServicesSettingsIn):
-    """Persist scheduler hour/minute settings."""
-    _get(request).save_service_settings(body.generate_hour, body.generate_minute)
+    """Persist scheduler settings (legacy global time and/or per-profile schedule rows)."""
+    app = _get(request)
+    try:
+        profiles_dict = {k: v.model_dump() for k, v in body.profiles.items()} if body.profiles is not None else None
+        app.save_service_settings(
+            generate_hour=body.generate_hour,
+            generate_minute=body.generate_minute,
+            profiles=profiles_dict
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     return {
         "generate_hour": body.generate_hour,
         "generate_minute": body.generate_minute,
+        "profiles_schedule": body.profiles and {k: v.model_dump() for k, v in body.profiles.items()},
     }
 
 

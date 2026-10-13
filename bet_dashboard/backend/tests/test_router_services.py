@@ -51,7 +51,7 @@ class TestGetServices:
     def test_services_envelope_shape(self, services_client) -> None:
         tc, _ = services_client
         data = tc.get(BASE).json()
-        assert set(data) == {"services", "generate_hour", "generate_minute", "server_time"}
+        assert set(data) == {"services", "generate_hour", "generate_minute", "profiles_schedule", "server_time"}
 
     def test_generator_next_run_today_when_hour_ahead(self, services_client, frozen_clock) -> None:
         tc, mock = services_client
@@ -147,8 +147,9 @@ class TestSaveSettings:
         tc, mock = services_client
         r = tc.post(f"{BASE}/settings", json={"generate_hour": 9, "generate_minute": 15})
         assert r.status_code == 200
-        assert r.json() == {"generate_hour": 9, "generate_minute": 15}
-        mock.save_service_settings.assert_called_once_with(9, 15)
+        assert r.json()["generate_hour"] == 9
+        assert r.json()["generate_minute"] == 15
+        mock.save_service_settings.assert_called_once_with(generate_hour=9, generate_minute=15, profiles=None)
 
     def test_save_settings_missing_hour_returns_422(self, services_client) -> None:
         tc, _ = services_client
@@ -157,7 +158,7 @@ class TestSaveSettings:
     def test_save_settings_defaults_minute_zero(self, services_client) -> None:
         tc, mock = services_client
         tc.post(f"{BASE}/settings", json={"generate_hour": 7})
-        mock.save_service_settings.assert_called_once_with(7, 0)
+        mock.save_service_settings.assert_called_once_with(generate_hour=7, generate_minute=0, profiles=None)
 
 
 class TestToggleService:
@@ -196,3 +197,83 @@ class TestToggleService:
         assert payload["name"] == "puller"
         assert payload["enabled"] is False
         assert "timestamp" in payload
+
+
+class TestProfileSchedules:
+    """[P0] Per-profile auto-generation scheduling (Workstream B Part D)"""
+
+    def test_get_includes_profiles_schedule_key(self, services_client) -> None:
+        tc, _ = services_client
+        assert tc.get(BASE).json()["profiles_schedule"] == {}
+
+    def test_get_maps_next_run_for_enabled_rows(self, services_client, frozen_clock) -> None:
+        tc, mock = services_client
+        mock._effective_profile_schedules.return_value = {
+            "low": {"enabled": True, "hour": 12, "minute": 0, "units": 2.0, "target_payout": None},
+        }
+        row = tc.get(BASE).json()["profiles_schedule"]["low"]
+        assert row["enabled"] is True and row["hour"] == 12 and row["minute"] == 0
+        assert row["next_run"].startswith("Today 12:00")
+        assert "2h" in row["next_run"]
+
+    def test_get_next_run_disabled_label(self, services_client) -> None:
+        tc, mock = services_client
+        mock._effective_profile_schedules.return_value = {
+            "low": {"enabled": False, "hour": 9, "minute": 30, "units": 1.0, "target_payout": None},
+        }
+        assert tc.get(BASE).json()["profiles_schedule"]["low"]["next_run"] == "Disabled"
+
+    def test_get_tomorrow_label_when_hour_passed(self, services_client, frozen_clock) -> None:
+        tc, mock = services_client
+        mock._effective_profile_schedules.return_value = {
+            "low": {"enabled": True, "hour": 8, "minute": 0, "units": 1.0, "target_payout": 100.0},
+        }
+        row = tc.get(BASE).json()["profiles_schedule"]["low"]
+        assert row["next_run"].startswith("Tomorrow 08:00")
+        assert row["target_payout"] == 100.0
+
+    def test_post_profiles_shape_calls_logic_with_profiles(self, services_client) -> None:
+        tc, mock = services_client
+        payload = {
+            "profiles": {
+                "low": {"enabled": True, "hour": 9, "minute": 30, "units": 2.5, "target_payout": 100.0},
+            }
+        }
+        r = tc.post(f"{BASE}/settings", json=payload)
+        assert r.status_code == 200
+        mock.save_service_settings.assert_called_once_with(
+            generate_hour=None,
+            generate_minute=0,
+            profiles={"low": {"enabled": True, "hour": 9, "minute": 30, "units": 2.5, "target_payout": 100.0}},
+        )
+
+    def test_post_profiles_request_echoes_map(self, services_client) -> None:
+        tc, _ = services_client
+        payload = {"profiles": {"low": {"enabled": False, "hour": 7, "minute": 0}}}
+        r = tc.post(f"{BASE}/settings", json=payload)
+        assert "low" in r.json()["profiles_schedule"]
+
+    def test_post_without_generate_hour_and_profiles_422(self, services_client) -> None:
+        tc, _ = services_client
+        assert tc.post(f"{BASE}/settings", json={"generate_minute": 15}).status_code == 422
+        assert tc.post(f"{BASE}/settings", json={}).status_code == 422
+
+    def test_post_unknown_profile_422(self, services_client) -> None:
+        tc, mock = services_client
+        mock.save_service_settings.side_effect = ValueError("Unknown profile: ghost")
+        payload = {"profiles": {"ghost": {"enabled": True, "hour": 9, "minute": 0}}}
+        r = tc.post(f"{BASE}/settings", json=payload)
+        assert r.status_code == 422
+        assert "Unknown profile" in r.json()["detail"]
+
+    def test_post_legacy_and_profiles_minute_kept(self, services_client) -> None:
+        tc, mock = services_client
+        payload = {
+            "generate_hour": 6,
+            "generate_minute": 45,
+            "profiles": {"low": {"enabled": True, "hour": 9, "minute": 0}},
+        }
+        assert tc.post(f"{BASE}/settings", json=payload).status_code == 200
+        _, kwargs = mock.save_service_settings.call_args
+        assert kwargs["generate_hour"] == 6 and kwargs["generate_minute"] == 45
+        assert kwargs["profiles"] == {"low": {"enabled": True, "hour": 9, "minute": 0, "units": 1.0, "target_payout": None}}

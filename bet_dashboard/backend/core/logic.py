@@ -831,38 +831,38 @@ class AppLogic:
     # ── Helpers ──────────────────────────────────────────────────────────[...]
 
     def _get_active_profiles(self, due_only: bool = False) -> dict[str, tuple]:
-    """Profiles to generate slips for, resolved to (BetSlipConfig, units, count, target_payout) tuples.
+        """Profiles to generate slips for, resolved to (BetSlipConfig, units, count, target_payout) tuples.
 
-    Legacy mode (no schedules anywhere): gate is ``run_daily_count > 0`` and the
-    profile's own units/target_payout stand unchanged.
+        Legacy mode (no schedules anywhere): gate is ``run_daily_count > 0`` and the
+        profile's own units/target_payout stand unchanged.
 
-    Schedule mode (per-profile schedule rows exist): every enabled schedule row is
-    active regardless of ``run_daily_count``; row values override profile units
-    and target_payout when set; count = ``run_daily_count`` if > 0 else 1.
-    With ``due_only=True`` the result is further restricted to profiles whose
-    scheduled time has passed today and which have not generated yet today.
-    """
-    profiles_raw = self._settings.get("profiles") or {}
-    schedules = self._effective_profile_schedules()
+        Schedule mode (per-profile schedule rows exist): every enabled schedule row is
+        active regardless of ``run_daily_count``; row values override profile units
+        and target_payout when set; count = ``run_daily_count`` if > 0 else 1.
+        With ``due_only=True`` the result is further restricted to profiles whose
+        scheduled time has passed today and which have not generated yet today.
+        """
+        profiles_raw = self._settings.get("profiles") or {}
+        schedules = self._effective_profile_schedules()
 
-    if not schedules:
-        return {
-            name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 0), cfg.get("target_payout"))
-            for name, cfg in profiles_raw.items()
-            if cfg.get("run_daily_count")
-        }
+        if not schedules:
+            return {
+                name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 0), cfg.get("target_payout"))
+                for name, cfg in profiles_raw.items()
+                if cfg.get("run_daily_count")
+            }
 
-    result: dict[str, tuple] = {}
-    for name, cfg in profiles_raw.items():
-        row = schedules.get(name)
-        if not row or not row.get("enabled"):
-            continue
-        units = row["units"] if row.get("units") is not None else cfg.get("units", 1.0)
-        payout = row["target_payout"] if row.get("target_payout") is not None else cfg.get("target_payout")
-        count = cfg.get("run_daily_count", 0) if cfg.get("run_daily_count", 0) > 0 else 1
-        result[name] = (_yaml_to_config(cfg), units, count, payout)
+        result: dict[str, tuple] = {}
+        for name, cfg in profiles_raw.items():
+            row = schedules.get(name)
+            if not row or not row.get("enabled"):
+                continue
+            units = row["units"] if row.get("units") is not None else cfg.get("units", 1.0)
+            payout = row["target_payout"] if row.get("target_payout") is not None else cfg.get("target_payout")
+            count = cfg.get("run_daily_count", 0) if cfg.get("run_daily_count", 0) > 0 else 1
+            result[name] = (_yaml_to_config(cfg), units, count, payout)
 
-    if due_only:
-        due = set(self._due_profile_names())
-        result = {k: v for k, v in result.items() if k in due}
-    return result
+        if due_only:
+            due = set(self._due_profile_names())
+            result = {k: v for k, v in result.items() if k in due}
+        return result
