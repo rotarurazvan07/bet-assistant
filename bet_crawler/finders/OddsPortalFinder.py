@@ -467,11 +467,68 @@ class OddsPortalFinder(BaseMatchFinder):
             )
         return None
 
-    def _click_tab(self, session, tab_label: str):
-        """Click a live li.tab-item market tab and return the parsed soup."""
+    _TAB_SETTLE_S = 6
+    _TAB_POLL_S = 0.25
+
+    def _table_fingerprint(self, soup):
+        """Headers + first-row decimals so a tab swap is detectable."""
+        table = soup.select_one("table.w-full.table-fixed")
+        if table is None:
+            return ((), ())
+        heads = tuple(th.get_text(strip=True) for th in table.select("thead th"))
+        row = table.select_one("tbody tr")
+        cells = tuple(self._first_bookmaker_odds(soup)) if row is not None else ()
+        return (heads, cells)
+
+    def _tab_ready(self, soup, expected_headers, before):
+        """True when thead matches the market and first-row odds are not leftover 1X2."""
+        if not expected_headers:
+            return True
+        heads, cells = self._table_fingerprint(soup)
+        if not heads or not cells or not all(h in heads for h in expected_headers):
+            return False
+        now = [c for c in cells if c and _DECIMAL.match(str(c))]
+        if not now:
+            return False
+        prev_heads, prev_cells = before
+        prev = [c for c in prev_cells if c and _DECIMAL.match(str(c))]
+        # No table before the click (live page loads empty) — first render is current.
+        if not prev:
+            return True
+        # Already on this market (1X2 default) — accept.
+        if prev_heads and all(h in prev_heads for h in expected_headers):
+            return True
+        # Live palace dumps: headers flip to Yes/No but cells stay 1 and X.
+        n = min(len(now), len(prev))
+        return now[:n] != prev[:n]
+
+    def _click_tab(self, session, tab_label: str, expected_headers=()):
+        """Click a live li.tab-item and wait until the table is that market.
+
+        Live 2026-10-12 Coventry–Newcastle: tab chrome flips immediately but
+        table.w-full.table-fixed is empty at t+0 and fills ~1s later. Reading
+        content() right after click copies the previous 1X2 cells (DC==1/X/2,
+        BTTS==1/X). Wait until thead matches and the first row is not the
+        previous market's cells.
+        """
         # live 2026-10-11: <li class="tab-item"><button><span>1X2</span>
-        assert session.click("li.tab-item", tab_label), "Click failed"
-        return BeautifulSoup(session.page.content(), "html.parser")
+        # live 2026-10-12: React's onClick sits on the inner <button>; a synthetic
+        # click on the <li> bubbles past it and the table never flips.
+        before = self._table_fingerprint(BeautifulSoup(session.page.content(), "html.parser"))
+        if not session.click("li.tab-item button", tab_label):
+            assert session.click("li.tab-item", tab_label), "Click failed"
+        deadline = time.monotonic() + self._TAB_SETTLE_S
+        try:
+            soup = BeautifulSoup(session.page.content(), "html.parser")
+        except Exception as err:
+            raise TimeoutError(f"{tab_label} page closed: {err}") from err
+        while True:
+            if self._tab_ready(soup, expected_headers, before):
+                return soup
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"{tab_label} table did not settle")
+            time.sleep(self._TAB_POLL_S)
+            soup = BeautifulSoup(session.page.content(), "html.parser")
 
     def _first_bookmaker_odds(self, soup):
         """Decimal odds from the first bookmaker row of table.w-full.table-fixed."""
@@ -494,10 +551,11 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_1 = odds_X = odds_2 = None
         try:
             logger.info("[%s] Extracting 1X2 odds", thread_name)
-            cells = self._first_bookmaker_odds(self._click_tab(session, "1X2"))
-            odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
-        except Exception:
-            logger.warning("[%s] Failed to scrape 1X2 odds", thread_name)
+            cells = self._first_bookmaker_odds(self._click_tab(session, "1X2", ("1", "X", "2")))
+            if len(cells) >= 3:
+                odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
+        except Exception as e:
+            logger.warning("[%s] Failed to scrape 1X2 odds: %s", thread_name, e)
         return odds_1, odds_X, odds_2
 
     def _scrape_tab_btts(self, session, thread_name: str):
@@ -505,10 +563,11 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_btts_y = odds_btts_n = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
-            cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score"))
-            odds_btts_y, odds_btts_n = cells[0], cells[1]
-        except Exception:
-            logger.warning("[%s] Failed to scrape BTTS odds", thread_name)
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
+            if len(cells) >= 2:
+                odds_btts_y, odds_btts_n = cells[0], cells[1]
+        except Exception as e:
+            logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, e)
         return odds_btts_y, odds_btts_n
 
     def _scrape_tab_dc(self, session, thread_name: str):
@@ -516,10 +575,11 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
         try:
             logger.info("[%s] Extracting DC odds", thread_name)
-            cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance"))
-            odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
-        except Exception:
-            logger.warning("[%s] Failed to scrape DC odds", thread_name)
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance", ("1X", "12", "X2")))
+            if len(cells) >= 3:
+                odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
+        except Exception as e:
+            logger.warning("[%s] Failed to scrape DC odds: %s", thread_name, e)
         return odds_dc_1x, odds_dc_12, odds_dc_x2
 
     def _scrape_tab_ou(self, session, thread_name: str):
@@ -527,7 +587,7 @@ class OddsPortalFinder(BaseMatchFinder):
         out = [None] * 10
         try:
             logger.info("[%s] Extracting O/U odds", thread_name)
-            soup = self._click_tab(session, "Over/Under")
+            soup = self._click_tab(session, "Over/Under", ("Over", "Under"))
             buckets = {
                 "+0.5": (0, 1),
                 "+1.5": (2, 3),
@@ -551,8 +611,8 @@ class OddsPortalFinder(BaseMatchFinder):
                     if prefix in name:
                         out[oi] = decimals[0]
                         out[ui] = decimals[1]
-        except Exception:
-            logger.warning("[%s] Failed to scrape O/U odds", thread_name)
+        except Exception as e:
+            logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, e)
         return tuple(out)
 
     def get_matches(self, urls) -> None:
