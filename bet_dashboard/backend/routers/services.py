@@ -106,9 +106,7 @@ def save_settings(request: Request, body: ServicesSettingsIn):
     try:
         profiles_dict = {k: v.model_dump() for k, v in body.profiles.items()} if body.profiles is not None else None
         app.save_service_settings(
-            generate_hour=body.generate_hour,
-            generate_minute=body.generate_minute,
-            profiles=profiles_dict
+            generate_hour=body.generate_hour, generate_minute=body.generate_minute, profiles=profiles_dict
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

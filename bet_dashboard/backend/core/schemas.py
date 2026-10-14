@@ -167,6 +167,7 @@ class ProfileScheduleRow(BaseModel):
     units: float = Field(1.0, gt=0)
     target_payout: float | None = Field(None, gt=0)
 
+
 class ServicesSettingsIn(BaseModel):
     """Payload for service scheduler settings (legacy global time and/or per-profile rows)."""
 
@@ -175,7 +176,7 @@ class ServicesSettingsIn(BaseModel):
     profiles: dict[str, ProfileScheduleRow] | None = None
 
     @model_validator(mode="after")
-    def _require_legacy_or_profiles(self) -> "ServicesSettingsIn":
+    def _require_legacy_or_profiles(self) -> ServicesSettingsIn:
         """Reject payloads that provide neither legacy globals nor profile rows."""
         if self.generate_hour is None and self.profiles is None:
             raise ValueError("Either generate_hour or profiles must be provided")

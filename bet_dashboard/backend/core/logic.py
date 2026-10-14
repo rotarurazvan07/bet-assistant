@@ -192,7 +192,7 @@ class AppLogic:
         if last_generated:
             try:
                 last_dt = datetime.fromisoformat(last_generated)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 last_dt = None
             if last_dt and last_dt.strftime("%Y-%m-%d") == today_key:
                 # Already ran today — sync in-memory guard and skip
@@ -212,9 +212,7 @@ class AppLogic:
         for name, row in self._effective_profile_schedules().items():
             if not row.get("enabled"):
                 continue
-            target_time = now.replace(
-                hour=int(row.get("hour", 0)), minute=int(row.get("minute", 0)), second=0, microsecond=0
-            )
+            target_time = now.replace(hour=int(row.get("hour", 0)), minute=int(row.get("minute", 0)), second=0, microsecond=0)
             if now < target_time:
                 continue
             if (self._last_profile_runs.get(name) or persisted.get(name)) == today_key:
