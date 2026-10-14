@@ -3,6 +3,8 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { pullDb } from '../api/data';
 import OnboardingTour from './OnboardingTour';
 import { TOUR_DONE_KEY } from './tourStorage';
+import { useKeyboardShortcuts, shortcutRegistry } from '../hooks/useKeyboardShortcuts';
+import { ShortcutsOverlay } from './ShortcutsOverlay';
 
 // AC-01/AC-02 (issue #36): workflow-grouped nav — Core → Insights → System;
 // routes unchanged, labels renamed to action verbs.
@@ -75,10 +77,26 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
     const [dateFrom, setDateFrom] = useState(() => getInitialDate('dateFrom'));
     const [dateTo, setDateTo] = useState(() => getInitialDate('dateTo'));
     const [pulling, setPulling] = useState(false);
+    const [helpOpen, setHelpOpen] = useState(false);
+
+    // Workstream B (#47): global keyboard shortcut layer (Cmd/Ctrl combos).
+    useKeyboardShortcuts();
 
     useEffect(() => {
         saveDates(dateFrom, dateTo);
     }, [dateFrom, dateTo]);
+    // Workstream B (#47): register Layout-owned shortcuts (refresh, pull, help).
+    useEffect(() => {
+        shortcutRegistry.refresh = () => { void handleRefresh(); };
+        shortcutRegistry.pull = () => { void handlePull(); };
+        shortcutRegistry.toggleHelp = () => setHelpOpen((o) => !o);
+        return () => {
+            delete shortcutRegistry.refresh;
+            delete shortcutRegistry.pull;
+            delete shortcutRegistry.toggleHelp;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const showFilters = location.pathname === '/' ||
         location.pathname === '/builder' ||
@@ -216,6 +234,8 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             </main>
             {/* AC-07: mount tour here (Router + Restart). Do not edit App.tsx. */}
             <OnboardingTour key={tourEpoch} />
+            {/* Workstream B (#47): keyboard-shortcuts help overlay (Cmd/Ctrl + ?). */}
+            <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
         </div>
     );
 }

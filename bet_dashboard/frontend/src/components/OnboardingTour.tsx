@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Alert, Backdrop, Button, MobileStepper, Paper, Snackbar, useMediaQuery } from '@mui/material';
 import Unstable_TrapFocus from '@mui/material/Unstable_TrapFocus';
-import { TOUR_DONE_KEY } from './tourStorage';
+import { TOUR_DONE_KEY, setTourOpen } from './tourStorage';
 
 const STEPS = [
     {
@@ -15,7 +15,7 @@ const STEPS = [
         route: '/builder',
         title: 'Create your strategy',
         body: 'Pick a preset, watch Live Preview, then save your profile.',
-        targets: ['[data-profile-chip]', 'input[placeholder="profile name"]', '[data-tour="build-preview"]', '[data-tour="build-save"]'],
+        targets: ['[data-tour="profile-select"]', '[data-tour="build-preview"]', '[data-tour="build-save"]'],
     },
     {
         route: '/slips',
@@ -81,6 +81,13 @@ export default function OnboardingTour() {
     const location = useLocation();
     const [open, setOpen] = useState(() => !readDone());
     const [step, setStep] = useState(0);
+
+    // Workstream B (#47): broadcast tour open/closed so the floating slip panel
+    // can stand its focus trap down while the tour owns focus.
+    useEffect(() => {
+        setTourOpen(open);
+        return () => setTourOpen(false);
+    }, [open]);
 
     const finish = useCallback(() => {
         persistDone();

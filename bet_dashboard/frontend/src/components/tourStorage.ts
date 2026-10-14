@@ -13,3 +13,24 @@ export function markFirstSlip(): boolean {
         return false;
     }
 }
+
+/** Workstream B (#47): module-level tour-open flag + subscribers so the slip
+ * panel's focus trap can stand down while the tour dialog is open.
+ * Kept deliberately tiny — no context, no new deps. */
+let tourOpen = false;
+const tourListeners = new Set<(open: boolean) => void>();
+
+export function setTourOpen(open: boolean): void {
+    tourOpen = open;
+    tourListeners.forEach((fn) => fn(open));
+}
+
+export function subscribeTourOpen(fn: (open: boolean) => void): () => void {
+    tourListeners.add(fn);
+    fn(tourOpen);
+    return () => { tourListeners.delete(fn); };
+}
+
+export function isTourOpen(): boolean {
+    return tourOpen;
+}

@@ -461,3 +461,36 @@ thead .sticky-col {
   max-height: 400px;
   overflow-y: auto;
 }
+
+/* ── Keyboard shortcuts + focus management (Workstream B #47) ─────────── */
+
+/* Visible keyboard focus ring on all interactive elements. Applies only to
+   keyboard focus (:focus-visible) so mouse interactions and visual
+   baselines are untouched. */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* Help overlay (? shortcut) — reuses existing tokens, no new dependencies. */
+.shortcuts-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.shortcuts-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    width: min(440px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}

@@ -9,6 +9,7 @@ import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
 import { FirstSlipToast } from '../components/OnboardingTour';
 import { markFirstSlip } from '../components/tourStorage';
+import { shortcutRegistry } from '../hooks/useKeyboardShortcuts';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
@@ -86,6 +87,14 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).onlySignificantMovement ?? false : false;
     });
+
+    // Workstream B (#47): expose Discover search focus to the global shortcut layer (/ key).
+    useEffect(() => {
+        shortcutRegistry.focusSearch = () => {
+            document.querySelector<HTMLElement>("[data-shortcut='discover-search']")?.focus();
+        };
+        return () => { delete shortcutRegistry.focusSearch; };
+    }, []);
     const [page, setPage] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).page : 1;
@@ -469,6 +478,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                         type="text"
                                         placeholder="Filter by team..."
                                         className="field w-full"
+                                        data-shortcut="discover-search"
                                         value={search}
                                         onChange={e => setSearch(e.target.value)}
                                     />

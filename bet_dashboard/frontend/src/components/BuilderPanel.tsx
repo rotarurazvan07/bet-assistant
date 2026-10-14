@@ -250,6 +250,7 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                 <Row label="Target Odds"
                     tip="Desired cumulative odds for the entire slip.">
                     <input className="field w-20" type="number" min={1.1} max={1000} step={0.1}
+                        data-shortcut-target
                         value={cfg.target_odds}
                         onChange={e => up('target_odds', +e.target.value)} />
                 </Row>

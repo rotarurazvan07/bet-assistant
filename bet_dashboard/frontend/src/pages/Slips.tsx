@@ -8,6 +8,7 @@ import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
 import type { SlipsPage, LiveData, BetSlip } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
+import { shortcutRegistry } from '../hooks/useKeyboardShortcuts';
 
 const FILTERS_STORAGE_KEY = 'slips_filters_state';
 
@@ -126,6 +127,17 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
         setStatus(`✓ Generated ${result.generated} slip(s)`);
         load();
     }
+
+    // Workstream B (#47): expose Track actions to the global shortcut layer.
+    useEffect(() => {
+        shortcutRegistry.validate = () => { void handleValidate(); };
+        shortcutRegistry.generate = () => { void handleGenerate(); };
+        return () => {
+            delete shortcutRegistry.validate;
+            delete shortcutRegistry.generate;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     async function handleDelete(id: number) {
         await deleteSlip(id);

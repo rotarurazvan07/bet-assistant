@@ -4,6 +4,7 @@ import { useMediaQuery } from '@mui/material';
 import Unstable_TrapFocus from '@mui/material/Unstable_TrapFocus';
 import type { CandidateLeg } from '../types';
 import SlipBuilderPanel from './SlipBuilderPanel';
+import { subscribeTourOpen } from './tourStorage';
 
 interface Props {
     legs: CandidateLeg[];
@@ -27,6 +28,22 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
         setSeenPulse(pulseToken);
         setPulseClass(pulseToken ? (pulseToken % 2 ? ' slip-chrome-pulse-a' : ' slip-chrome-pulse-b') : '');
     }
+
+    // Workstream B (#47): stand the focus trap down while the onboarding tour
+    // dialog is open — two TrapFocus wrappers fighting is worse than none.
+    const [tourActive, setTourActive] = useState(false);
+    useEffect(() => subscribeTourOpen(setTourActive), []);
+
+    // Workstream B (#47): remember the trigger that expanded the panel and
+    // return focus to it when the panel minimizes or unmounts.
+    const triggerRef = useRef<Element | null>(null);
+    useEffect(() => {
+        if (isMinimized) return;
+        triggerRef.current = document.activeElement;
+        return () => {
+            if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
+        };
+    }, [isMinimized]);
     const onPulseEnd = () => setPulseClass('');
     const [snap, setSnap] = useState<'50' | '90'>(() => {
         try { return localStorage.getItem(SNAP_KEY) === '90' ? '90' : '50'; } catch { return '50'; }
@@ -123,7 +140,9 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
     return createPortal(
         // AC-06: MUI focus trap. autoFocus/restore stay off so focus is never
         // stolen from the page (keeps the #36 nav keyboard walk intact).
-        <Unstable_TrapFocus open disableAutoFocus disableRestoreFocus>
+        // Workstream B (#47): also stand down while the onboarding tour dialog
+        // is open so the two TrapFocus wrappers never fight for Tab order.
+        <Unstable_TrapFocus open disableAutoFocus disableRestoreFocus disableEnforceFocus={tourActive}>
             {panel}
         </Unstable_TrapFocus>,
         document.body
