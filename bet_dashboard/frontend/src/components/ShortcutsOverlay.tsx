@@ -59,7 +59,7 @@ export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: ()
                                 <tr key={s.combo} style={{ borderTop: '1px solid var(--border)' }}>
                                     <td className="py-2 pr-3">
                                         <kbd className="font-mono text-[10px] font-bold px-2 py-0.5 rounded"
-                                            style={{ color: 'var(--accent)', background: 'var(--accent-glow)' }}>
+                                            style={{ color: 'var(--text-bright)', background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
                                             {s.combo}
                                         </kbd>
                                     </td>

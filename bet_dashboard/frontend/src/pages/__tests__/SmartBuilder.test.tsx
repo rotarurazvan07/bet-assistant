@@ -66,12 +66,14 @@ describe('SmartBuilder page', () => {
         expect(screen.getByRole('heading', { name: 'Build' })).toBeInTheDocument();
     });
 
-    it('renders profile sidebar + builder panel + preview grid', async () => {
+    it('renders profile combobox + grouped builder panel + preview grid', async () => {
         await renderAndHydrate();
-        expect(screen.getByText('Profiles')).toBeInTheDocument();
-        expect(screen.getByText('Bet Shape')).toBeInTheDocument();
-        expect(screen.getByText('+ Add to Slips')).toBeInTheDocument();
-        expect(screen.getByText('Reset excluded')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('profile name')).toBeInTheDocument();
+        expect(screen.getByText('Core Targets')).toBeInTheDocument();
+        expect(screen.getByText('+ Add to Slips')).toBeInTheDocument(); // preview has legs by default
+        expect(screen.queryByText('Reset excluded')).not.toBeInTheDocument();
+        expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
+        expect(screen.queryByText('Profiles')).not.toBeInTheDocument(); // chips sidebar removed
     });
 
     it('config change triggers a NEW debounced preview (count increments)', async () => {
@@ -96,14 +98,16 @@ describe('SmartBuilder page', () => {
         expect(parsed.units).toBe(1);
     });
 
-    it('profile buttons render from fetchProfiles and load on click', async () => {
+    it('profile combobox lists profiles and loads one on selection (Part C.4)', async () => {
         server.use(
             http.get('/api/profiles', () => HttpResponse.json({ profiles: { cautious: { target_odds: 4, units: 2, target_legs: 4 } } })),
         );
         const user = userEvent.setup();
         await renderAndHydrate();
-        const chip = await screen.findByText('cautious');
-        await user.click(chip);
+        const combo = screen.getByPlaceholderText('profile name');
+        await user.click(combo);
+        const option = await screen.findByText('cautious', {}, { timeout: 3000 });
+        await user.click(option);
         const input = screen.getByPlaceholderText('profile name') as HTMLInputElement;
         await waitFor(() => expect(input.value).toBe('cautious'), { timeout: 3000 });
         await waitFor(() => expect(lastPreviewBody).toContain('"target_odds":4'), { timeout: 3000 });
@@ -145,7 +149,9 @@ describe('SmartBuilder page', () => {
         renderBuilder();
         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
         expect(screen.getByText('No preview yet')).toBeInTheDocument();
-        await user.click(screen.getByText('+ Add to Slips'));
+        // Part C.3: header button moved inline in Live Preview and hides when empty;
+        // in empty state the EmptyState secondary CTA remains the only path.
+        await user.click(screen.getByRole('button', { name: 'Add to Slips' }));
         expect(screen.getByText('No legs in preview.')).toBeInTheDocument();
     });
 
@@ -219,5 +225,43 @@ describe('SmartBuilder page', () => {
             const unitsInput = screen.getByDisplayValue('10') as HTMLInputElement;
             expect(unitsInput).toBeInTheDocument();
         }, { timeout: 3000 });
+    });
+
+    it('inline + Add to Slips is hidden when the preview has no legs (Part C.3)', async () => {
+        server.use(
+            http.post('/api/builder/preview', async () => {
+                previewCalls += 1;
+                return HttpResponse.json({ legs: [], total_odds: 1, pending_urls: [] });
+            }),
+        );
+        renderBuilder();
+        await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
+        expect(screen.getByText('No preview yet')).toBeInTheDocument();
+        expect(screen.queryByText('+ Add to Slips')).not.toBeInTheDocument();
+    });
+
+    it('loading a profile with run_daily_count does NOT resurrect the Run Daily control (Part C.5)', async () => {
+        server.use(
+            http.get('/api/profiles', () => HttpResponse.json({ profiles: { daily: { target_odds: 4, units: 2, run_daily_count: 3 } } })),
+        );
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        const combo = screen.getByPlaceholderText('profile name');
+        await user.click(combo);
+        const option = await screen.findByText('daily', {}, { timeout: 3000 });
+        await user.click(option);
+        await waitFor(() => {
+            expect((screen.getByPlaceholderText('profile name') as HTMLInputElement).value).toBe('daily');
+        }, { timeout: 3000 });
+        expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
+    });
+
+    it('combobox freeSolo keeps a typed name so Save can create it (Part C.4)', async () => {
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        const combo = screen.getByPlaceholderText('profile name');
+        await user.clear(combo);
+        await user.type(combo, 'Fresh Name');
+        expect((combo as HTMLInputElement).value).toBe('Fresh Name');
     });
 });

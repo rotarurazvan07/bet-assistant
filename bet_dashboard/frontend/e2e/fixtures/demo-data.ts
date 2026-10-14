@@ -1,7 +1,7 @@
 // Canonical demo rows for BOTH tracks: installDemoApi (local) and
 // setup/seed_e2e.py (CI e2e DB). Expand here first, then teach both tracks.
 // Reuses Vitest factories — no second Match type.
-import { makeMatch, makeMatchesPage, makeProfile, makeSlip, makeSlipsPage } from '../../src/test/factories';
+import { makeMatch, makeMatchesPage, makeProfile, makeProfilesMap, makeSlip, makeSlipsPage, makeServicesData, makeProfileSchedule } from '../../src/test/factories';
 
 export const DEMO_MATCHES = [
     makeMatch({
@@ -64,4 +64,18 @@ export const DEMO_SLIPS_PAGE = makeSlipsPage({
     profiles: ['low'],
 });
 
-export const DEMO_PROFILES = { low: makeProfile() };
+export const DEMO_PROFILES = makeProfilesMap({
+    low: makeProfile({ units: 2.0 }),
+});
+
+// Per-profile auto-generation rows served by GET /api/services (Workstream B Part D).
+// Mirrors the YAML rows seeded into the CI e2e stack by setup/seed_e2e.py.
+export const DEMO_SERVICES = makeServicesData({
+    generate_hour: 9,
+    generate_minute: 0,
+    profiles_schedule: {
+        low: makeProfileSchedule({ enabled: true, hour: 9, minute: 30, units: 2.5, target_payout: 100, next_run: 'Today 09:30 (in 2h 30m)' }),
+        medium: makeProfileSchedule({ enabled: false, hour: 12, minute: 0, units: 1, target_payout: null, next_run: 'Disabled' }),
+        high_risk: makeProfileSchedule({ enabled: false, hour: 21, minute: 0, units: 0.5, target_payout: null, next_run: 'Disabled' }),
+    },
+});

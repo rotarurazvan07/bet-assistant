@@ -5,7 +5,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
 import { useKeyboardShortcuts, shortcutRegistry } from '../useKeyboardShortcuts';
 
 

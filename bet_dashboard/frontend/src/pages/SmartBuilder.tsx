@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Autocomplete, TextField } from '@mui/material';
 import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
 import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
@@ -273,37 +274,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             border: '1px solid var(--border)',
                             boxShadow: 'var(--shadow-lg)',
                         }}>
-                        <div className="px-5 pt-5 pb-4"
-                            style={{ borderBottom: '1px solid var(--border)' }}>
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-sm">👤</span>
-                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
-                                    style={{ color: 'var(--text-secondary)' }}>Profiles</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                {Object.keys(profiles).map(name => (
-                                    <button key={name}
-                                        data-profile-chip
-                                        className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-lg transition-all duration-200"
-                                        style={{
-                                            background: activeName === name
-                                                ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
-                                                : 'var(--bg-card)',
-                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border)'}`,
-                                            color: activeName === name ? 'var(--text-bright)' : 'var(--text-secondary)',
-                                            boxShadow: activeName === name ? 'var(--accent-glow)' : 'none',
-                                        }}
-                                        onClick={() => loadProfile(name, profiles[name])}>
-                                        {name}
-                                    </button>
-                                ))}
-                                {!Object.keys(profiles).length && (
-                                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                                        No saved profiles yet
-                                    </span>
-                                )}
-                            </div>
-                        </div>
                         <div className="px-3 py-4">
                             <BuilderPanel
                                 cfg={cfg}
@@ -326,14 +296,62 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         backdropFilter: 'blur(10px)',
                     }}>
                     {/* AC-03: page heading in the management bar */}
-                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Build</h1>
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <input className="field w-40" placeholder="profile name"
-                            value={activeName} onChange={e => setActiveName(e.target.value)} />
+                    {/* AC-03: page heading in the management bar */}
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Build</h1>
+                        {status && (
+                            <span className="text-[11px] font-mono px-3 py-1 rounded-lg"
+                                style={{
+                                    color: 'var(--accent)',
+                                    background: 'var(--accent-glow)',
+                                }}>
+                                {status}
+                            </span>
+                        )}
+                    </div>
+                    {/* Workstream B (Part C): header zones — identity+save | bet sizing | status.
+                        Removed from header: 'Reset excluded' (Excluded panel owns Clear All),
+                        '+ Add to Slips' (now inline in Live Preview, only when legs exist),
+                        'Run Daily' editor (moved to Services; schema keeps run_daily_count). */}
+                    <div className="flex items-center gap-3 flex-wrap mt-3">
+                        {/* Zone 1: profile identity + persistence */}
+                        <Autocomplete
+                            freeSolo
+                            data-tour="profile-select"
+                            size="small"
+                            options={Object.keys(profiles).sort()}
+                            value={activeName}
+                            onInputChange={(_, v) => setActiveName(v ?? '')}
+                            onChange={(_, v) => {
+                                const name = typeof v === 'string' ? v : (v ?? '');
+                                if (name && profiles[name]) loadProfile(name, profiles[name]);
+                                else setActiveName(name);
+                            }}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    placeholder="profile name"
+                                    sx={{
+                                        width: 220,
+                                        '& .MuiInputBase-root': {
+                                            background: 'var(--bg-raised)',
+                                            border: '1px solid var(--border)',
+                                            borderRadius: 8,
+                                            fontFamily: "'JetBrains Mono', monospace",
+                                            fontSize: 12,
+                                            color: 'var(--text-bright)',
+                                        },
+                                        '& .MuiInputBase-root:hover': { borderColor: 'var(--accent)' },
+                                        '& .MuiInputBase-input': { color: 'var(--text-bright)' },
+                                        input: { padding: '7px 12px' },
+                                    }}
+                                />
+                            )}
+                        />
                         <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
                         <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
 
-                        {/* Units & Target Payout */}
+                        {/* Zone 2: bet sizing */}
                         <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Units</span>
@@ -350,25 +368,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                     value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
                             </div>
                         </div>
-
-                        <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
-                        <button className="btn-ghost" onClick={handleClearExcluded}>Reset excluded</button>
-
-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Run Daily</span>
-                            <input className="field w-16" type="number" min={0} step={1}
-                                value={runDaily} onChange={e => setRunDaily(+e.target.value)} />
-                        </div>
-
-                        {status && (
-                            <span className="text-[11px] font-mono ml-auto px-3 py-1 rounded-lg"
-                                style={{
-                                    color: 'var(--accent)',
-                                    background: 'var(--accent-glow)',
-                                }}>
-                                {status}
-                            </span>
-                        )}
                     </div>
                 </div>
 
@@ -415,8 +414,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 primary={{
                                     label: 'Select a Preset',
                                     onClick: () => {
-                                        const first = document.querySelector<HTMLElement>('[data-profile-chip]');
-                                        const target = first ?? document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
+                                        const target = document.querySelector<HTMLElement>('[data-tour="profile-select"] input')
+                                            ?? document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
                                         target?.focus();
                                         target?.scrollIntoView({ block: 'center' });
                                     },
@@ -432,6 +431,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 minStrength={cfg.odds_movement_strength_min ?? undefined}
                             />
                         )}
+                    {(preview?.legs?.length ?? 0) > 0 && (
+                        <div className="flex items-center justify-end pt-4 mt-2 border-t" style={{ borderColor: 'var(--border)' }}>
+                            <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
+                        </div>
+                    )}
                     </div>
                 </div>
 

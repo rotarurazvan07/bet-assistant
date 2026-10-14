@@ -157,8 +157,8 @@ function SliderRow({ label, tip, value, min, max, step, format, onChange, showCe
 
 // ── Toggle Switch ─────────────────────────────────────────────────────────────
 
-function ToggleSwitch({ enabled, onToggle }: {
-    enabled: boolean; onToggle: (v: boolean) => void;
+function ToggleSwitch({ enabled, onToggle, label = 'setting' }: {
+    enabled: boolean; onToggle: (v: boolean) => void; label?: string;
 }) {
     return (
         <div className="flex items-center gap-2">
@@ -166,6 +166,9 @@ function ToggleSwitch({ enabled, onToggle }: {
                 style={{ color: !enabled ? 'var(--accent)' : 'var(--text-secondary)' }}>Auto</span>
             <button
                 type="button"
+                role="switch"
+                aria-checked={enabled}
+                aria-label={`${label} mode`}
                 onClick={() => onToggle(!enabled)}
                 className="relative w-10 h-5 rounded-full transition-all duration-300 cursor-pointer"
                 style={{
@@ -200,7 +203,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
                     <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
                     {tip && <TooltipIcon text={tip} align="right" />}
                 </div>
-                <ToggleSwitch enabled={enabled} onToggle={onToggle} />
+                <ToggleSwitch enabled={enabled} onToggle={onToggle} label={label} />
             </div>
             {enabled && <div className="mt-2 fade-in">{children}</div>}
         </div>
@@ -244,7 +247,7 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
     }
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="builder-panel">
             {/* ── Core Targets ─────────────────────────────────────────── */}
             <AccordionSection title="Core Targets" icon="🎯" defaultOpen={true}>
                 <Row label="Target Odds"
@@ -345,7 +348,7 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                     onChange={v => up('consensus_vs_sources', v)} />
                 <Row label="Balance Decay"
                     tip="Decay method for balancing selections. Linear = steady decay, Gaussian = bell-shaped decay with stronger central weighting.">
-                    <select className="field w-28" value={cfg.balance_decay}
+                    <select className="field w-28" value={cfg.balance_decay} aria-label="Balance decay"
                         onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}>
                         <option value="linear">Linear</option>
                         <option value="gaussian">Gaussian</option>

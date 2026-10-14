@@ -3,8 +3,8 @@
 // Exception: explicit empty-state specs. Skip this helper when E2E_BASE_URL.
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
-import type { SlipsPage, ProfilesMap } from '../../src/types';
-import { DEMO_MATCHES, DEMO_MATCHES_PAGE } from './demo-data';
+import type { SlipsPage, ProfilesMap, ServicesData } from '../../src/types';
+import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_PROFILES, DEMO_SERVICES } from './demo-data';
 
 function apiPath(pathname: string, exact: string): boolean {
     return pathname === exact || pathname.startsWith(`${exact}/`);
@@ -13,6 +13,7 @@ function apiPath(pathname: string, exact: string): boolean {
 export type DemoApiOpts = {
     slips?: SlipsPage;
     profiles?: ProfilesMap;
+    services?: ServicesData;
 };
 
 export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promise<void> {
@@ -56,6 +57,21 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
                 matches_loaded: DEMO_MATCHES.length,
             }),
         });
+    });
+    // Workstream B (Part D): services scheduler + profiles map from demo-data.
+    await page.route((url) => apiPath(url.pathname, '/api/services'), async (route) => {
+        if (route.request().method() === 'GET') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.services ?? DEMO_SERVICES) });
+        } else {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
+        }
+    });
+    await page.route((url) => url.pathname === '/api/profiles', async (route) => {
+        if (route.request().method() !== 'GET') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
+            return;
+        }
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ profiles: opts.profiles ?? DEMO_PROFILES }) });
     });
     if (opts.profiles) {
         await page.route((url) => url.pathname === '/api/profiles', async (route) => {
