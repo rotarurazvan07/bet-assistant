@@ -103,7 +103,6 @@ RUNNER_SETS:
     - vitibet
     - scorepredictor
     - soccervista
-    - xgscore
     - eaglepredict
     - legitpredict
     - betclan
@@ -117,6 +116,7 @@ RUNNER_SETS:
     - oddsportal
     - windrawwin
     - predictz
+    - xgscore
   test:
     - betexplorer
 
