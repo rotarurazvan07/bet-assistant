@@ -61,10 +61,10 @@ CRAWLER_KEYS:
     class: "PredictzFinder"
     contributes_odds: false
     top_leagues_only: true
-  onemillionpredictions:
-    class: "OneMillionPredictionsFinder"
-    contributes_odds: false
-    top_leagues_only: true
+  # onemillionpredictions:
+  #   class: "OneMillionPredictionsFinder"
+  #   contributes_odds: false
+  #   top_leagues_only: true
   footballbettingtips:
     class: "FootballBettingTipsFinder"
     contributes_odds: false
@@ -102,9 +102,7 @@ RUNNER_SETS:
   actions:
     - vitibet
     - scorepredictor
-    - predictz
     - soccervista
-    - windrawwin
     - xgscore
     - eaglepredict
     - legitpredict
@@ -117,6 +115,8 @@ RUNNER_SETS:
     - forebet
     - betexplorer
     - oddsportal
+    - windrawwin
+    - predictz
   test:
     - betexplorer
 
