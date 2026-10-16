@@ -47,9 +47,7 @@ class TestAllMovements:
             home="Past",
             away="Gone",
         )
-        future = make_match_row(
-            match_id="new", datetime=datetime.utcnow() + timedelta(hours=2)
-        )
+        future = make_match_row(match_id="new", datetime=datetime.utcnow() + timedelta(hours=2))
         logic = FakeDashboardLogic(df=make_matches_df([past, future]))
         client, _ = client_factory(logic=logic)
         data = client.get(f"{BASE}/movements/all").json()
@@ -75,9 +73,7 @@ class TestSignificantMovements:
 
     def test_no_significant_movement_excluded(self, client_factory) -> None:
         logic = FakeDashboardLogic()
-        logic._movement_strength = {
-            "home": {"direction": "up", "change_pct": 1.0, "significant": False}
-        }
+        logic._movement_strength = {"home": {"direction": "up", "change_pct": 1.0, "significant": False}}
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/movements/significant").json() == {}
 
@@ -93,9 +89,7 @@ class TestSignificantMovements:
     def test_past_match_excluded(self, client_factory) -> None:
         from datetime import datetime, timedelta
 
-        past = make_match_row(
-            match_id="old", datetime=datetime.utcnow() - timedelta(hours=2)
-        )
+        past = make_match_row(match_id="old", datetime=datetime.utcnow() - timedelta(hours=2))
         logic = FakeDashboardLogic(df=make_matches_df([past]))
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/movements/significant").json() == {}

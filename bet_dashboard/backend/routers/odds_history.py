@@ -41,9 +41,7 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
             if movement and any(v is not None for v in movement.values()):
                 # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
                 summary_kwargs = {
-                    md.odds_key.replace("odds_", ""): movement.get(
-                        md.odds_key.replace("odds_", "")
-                    )
+                    md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", ""))
                     for md in MARKET_DEFINITIONS
                 }
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
@@ -68,11 +66,7 @@ def get_significant_movements(request: Request) -> dict:
             strength = logic.get_odds_movement_with_strength(idx)
             if not strength:
                 continue
-            sig_count = sum(
-                1
-                for v in strength.values()
-                if isinstance(v, dict) and v.get("significant")
-            )
+            sig_count = sum(1 for v in strength.values() if isinstance(v, dict) and v.get("significant"))
             if sig_count == 0:
                 continue
             match_id = row.get("match_id", str(idx))
@@ -97,7 +91,6 @@ def get_match_movement(request: Request, match_id: int):
 
     # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
     summary_kwargs = {
-        md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", ""))
-        for md in MARKET_DEFINITIONS
+        md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", "")) for md in MARKET_DEFINITIONS
     }
     return OddsMovementSummary(**summary_kwargs)

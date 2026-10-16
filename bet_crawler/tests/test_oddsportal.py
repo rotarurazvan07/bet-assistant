@@ -58,30 +58,22 @@ def _league_url(top_only: bool = True):
 
 
 class TestDiscovery:
-    def test_json_ld_discovery_filters_window_status_and_dedupes(
-        self, monkeypatch
-    ) -> None:
+    def test_json_ld_discovery_filters_window_status_and_dedupes(self, monkeypatch) -> None:
         url = _league_url()
         patch_fetch(monkeypatch, op, {url: load_fixture("oddsportal", "league.html")})
         monkeypatch.setattr(op, "TOP_LEAGUES", [url])
         finder, _ = _finder(top_leagues_only=True, num_days_ahead=2)
         urls = finder.get_matches_urls()
         # in-window scheduled x2 (deduped) + out-window + cancelled + no-date all excluded
-        assert sorted(urls) == [
-            "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"
-        ]
+        assert sorted(urls) == ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
 
     def test_all_links_branch_when_not_top_only(self, monkeypatch) -> None:
-        url = (
-            "https://www.oddsportal.com/football/world/world-cup-2026/"  # ALL_LINKS[0]
-        )
+        url = "https://www.oddsportal.com/football/world/world-cup-2026/"  # ALL_LINKS[0]
         patch_fetch(monkeypatch, op, {url: load_fixture("oddsportal", "league.html")})
         monkeypatch.setattr(op, "ALL_LINKS", [url])
         finder, _ = _finder(top_leagues_only=False, num_days_ahead=2)
         urls = finder.get_matches_urls()
-        assert urls == [
-            "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"
-        ]
+        assert urls == ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
 
     def test_fetch_error_on_one_league_continues(self, monkeypatch) -> None:
         def boom(url, **kw):
@@ -97,9 +89,7 @@ class TestDiscovery:
         monkeypatch.setattr(op, "TOP_LEAGUES", ["https://x/1/", "https://x/2/"])
         patch_fetch(monkeypatch, op, {"https://x/1/": league, "https://x/2/": league})
         finder, _ = _finder(top_leagues_only=True, num_days_ahead=2)
-        assert finder.get_matches_urls() == [
-            "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"
-        ]
+        assert finder.get_matches_urls() == ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
 
 
 class TestGetMatches:
@@ -184,17 +174,13 @@ class TestProcessUrlBatch:
                 return ou
             return base_html
 
-        content_map = {
-            "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for
-        }
+        content_map = {"https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for}
         return fake_browser(monkeypatch, op, content_map, **(extra or {}))
 
     def test_full_odds_flow_adds_match_with_all_markets(self, monkeypatch) -> None:
         self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
         m = collector.first
         assert m.home_team == "Arsenal"
@@ -223,11 +209,7 @@ class TestProcessUrlBatch:
         monkeypatch.setattr(OddsPortalFinder, "_TAB_SETTLE_S", 0)
         x2 = load_fixture("oddsportal", "match_1x2.html")
         stale_btts = x2.replace(">1</th>", ">Yes</th>").replace(">X</th>", ">No</th>")
-        stale_dc = (
-            x2.replace(">1</th>", ">1X</th>")
-            .replace(">X</th>", ">12</th>")
-            .replace(">2</th>", ">X2</th>")
-        )
+        stale_dc = x2.replace(">1</th>", ">1X</th>").replace(">X</th>", ">12</th>").replace(">2</th>", ">X2</th>")
         ou = load_fixture("oddsportal", "match_ou.html")
 
         def content_for(clicks):
@@ -244,14 +226,10 @@ class TestProcessUrlBatch:
         fake_browser(
             monkeypatch,
             op,
-            {
-                "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for
-            },
+            {"https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for},
         )
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
         odds = collector.first.odds
         assert odds.home == 2.10
@@ -263,9 +241,7 @@ class TestProcessUrlBatch:
         """Live 2026-10-12: React onClick is on li.tab-item > button, not the li."""
         session = self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
         assert session.click_calls
         assert all(sel == "li.tab-item button" for sel, _ in session.click_calls)
@@ -282,9 +258,7 @@ class TestProcessUrlBatch:
 
         session.click = click_no_button
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
         assert (odds.home, odds.btts_y, odds.dc_1x, odds.over_05) == (
             2.10,
@@ -297,20 +271,14 @@ class TestProcessUrlBatch:
         """Live 2026-10-12 shape: glued 'claim bonus' bookmaker text, quarter lines,
         and '%' payouts must parse — never time out as 'did not settle'."""
         x2 = load_fixture("oddsportal", "match_1x2.html")
-        btts = load_fixture("oddsportal", "match_btts.html").replace(
-            ">888sport<", ">888sportclaim bonus<"
-        )
-        dc = load_fixture("oddsportal", "match_dc.html").replace(
-            ">888sport<", ">888sportclaim bonus<"
-        )
+        btts = load_fixture("oddsportal", "match_btts.html").replace(">888sport<", ">888sportclaim bonus<")
+        dc = load_fixture("oddsportal", "match_dc.html").replace(">888sport<", ">888sportclaim bonus<")
         quarter = "<tr><td>Over/Under +0.75</td><td>1.04</td><td>12.00</td><td>95.7%</td></tr>"
         ou = (
             load_fixture("oddsportal", "match_ou.html")
             .replace("<td>Over/Under +0.5</td>", "<td>Over/Under +0.5O/U +0.57</td>")
             .replace("<td>Over/Under +2.5</td>", "<td>Over/Under +2.5O/U +2.57</td>")
-            .replace(
-                "<tr><td>Over/Under +1.5</td>", quarter + "<tr><td>Over/Under +1.5</td>"
-            )
+            .replace("<tr><td>Over/Under +1.5</td>", quarter + "<tr><td>Over/Under +1.5</td>")
         )
 
         def content_for(clicks):
@@ -326,14 +294,10 @@ class TestProcessUrlBatch:
         fake_browser(
             monkeypatch,
             op,
-            {
-                "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for
-            },
+            {"https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for},
         )
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
         assert (odds.home, odds.btts_y, odds.btts_n) == (2.10, 1.85, 1.95)
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.30, 1.45)
@@ -365,17 +329,11 @@ class TestProcessUrlBatch:
 
         session.fetch = flaky_fetch
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1  # retry path succeeded
 
     def test_broken_page_logged_no_match(self, monkeypatch) -> None:
-        content_map = {
-            "https://www.oddsportal.com/match/broken-x/": load_fixture(
-                "oddsportal", "broken.html"
-            )
-        }
+        content_map = {"https://www.oddsportal.com/match/broken-x/": load_fixture("oddsportal", "broken.html")}
         fake_browser(monkeypatch, op, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.oddsportal.com/match/broken-x/"])
@@ -383,9 +341,7 @@ class TestProcessUrlBatch:
 
     def test_missing_identity_skips_url_siblings_kept(self, monkeypatch) -> None:
         session = self._session_map(monkeypatch)
-        session.content_map["https://www.oddsportal.com/match/broken-x/"] = (
-            load_fixture("oddsportal", "broken.html")
-        )
+        session.content_map["https://www.oddsportal.com/match/broken-x/"] = load_fixture("oddsportal", "broken.html")
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(
             [
@@ -408,13 +364,9 @@ class TestProcessUrlBatch:
                 return x2
             return identity_only
 
-        session.content_map[
-            "https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"
-        ] = content_for
+        session.content_map["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"] = content_for
         finder, collector = _finder(contributes_odds=True)
-        finder._process_url_batch(
-            ["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"]
-        )
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
         m = collector.first
         assert m.home_team == "Arsenal"
@@ -443,73 +395,39 @@ class TestMovement:
 
     def test_opening_pp_first_decimal_after_label(self) -> None:
         """B1: 'Opening odds: 2.00 +5.0' must NOT fabricate movement (opening=5.0)."""
-        pp = OddsPortalFinder._opening_pp_from_tooltip(
-            "ODDS MOVEMENT 2.10 +0.0 Opening odds: 2.00 +5.0", "2.10"
-        )
+        pp = OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.10 +0.0 Opening odds: 2.00 +5.0", "2.10")
         assert pp is None
 
     def test_opening_pp_happy_path(self) -> None:
         """B1/B4: unambiguous tooltip reproduces the known pp."""
-        pp = OddsPortalFinder._opening_pp_from_tooltip(
-            "ODDS MOVEMENT 2.10 +0.0 Opening odds: 2.00", "2.10"
-        )
+        pp = OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.10 +0.0 Opening odds: 2.00", "2.10")
         assert pp == 5.0
 
     def test_opening_pp_missing_label(self) -> None:
         """B4: no 'Opening odds:' entry - never guessed."""
-        assert (
-            OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.10 +0.0", "2.10")
-            is None
-        )
+        assert OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.10 +0.0", "2.10") is None
 
     def test_opening_pp_zero_opening_rejected(self) -> None:
         """B4: opening 0.00 cannot divide."""
-        assert (
-            OddsPortalFinder._opening_pp_from_tooltip(
-                "ODDS MOVEMENT 2.10 +0.0 Opening odds: 0.00", "2.10"
-            )
-            is None
-        )
+        assert OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.10 +0.0 Opening odds: 0.00", "2.10") is None
 
     def test_opening_pp_current_must_match_cell(self) -> None:
         """B4: tooltip for another cell (current != hovered) is dropped."""
-        assert (
-            OddsPortalFinder._opening_pp_from_tooltip(
-                "ODDS MOVEMENT 3.10 +0.0 Opening odds: 2.00", "2.10"
-            )
-            is None
-        )
+        assert OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 3.10 +0.0 Opening odds: 2.00", "2.10") is None
 
     def test_opening_pp_multi_number_tooltip_rejected(self) -> None:
         """B4: more decimals after the label make it unpinnable."""
-        assert (
-            OddsPortalFinder._opening_pp_from_tooltip(
-                "ODDS MOVEMENT 2.10 +0.0 Opening odds: 2.00 1.85", "2.10"
-            )
-            is None
-        )
+        assert OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.10 +0.0 Opening odds: 2.00 1.85", "2.10") is None
 
     def test_opening_pp_three_decimal_tooltip_matches_two_decimal_cell(self) -> None:
         """F13: tooltips may carry 3 decimals while cells show 2."""
-        pp = OddsPortalFinder._opening_pp_from_tooltip(
-            "ODDS MOVEMENT 2.105 +0.0 Opening odds: 2.00", "2.10"
-        )
+        pp = OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 2.105 +0.0 Opening odds: 2.00", "2.10")
         assert pp == 5.25
 
     def test_opening_pp_sanity_band(self) -> None:
         """F13: 1.001-1000 opening band; 0.5 and 5000 are not prices."""
-        assert (
-            OddsPortalFinder._opening_pp_from_tooltip(
-                "ODDS MOVEMENT 0.60 +0.0 Opening odds: 0.50", "0.60"
-            )
-            is None
-        )
-        assert (
-            OddsPortalFinder._opening_pp_from_tooltip(
-                "ODDS MOVEMENT 5000.00 +0.0 Opening odds: 5000.00", "5000.00"
-            )
-            is None
-        )
+        assert OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 0.60 +0.0 Opening odds: 0.50", "0.60") is None
+        assert OddsPortalFinder._opening_pp_from_tooltip("ODDS MOVEMENT 5000.00 +0.0 Opening odds: 5000.00", "5000.00") is None
 
     def test_ou_line_lookup_is_exact_token(self) -> None:
         """F10a: '+10.5' style labels must not claim the '+0.5' keys."""
@@ -550,16 +468,12 @@ class TestMovement:
         assert finder._hover_opening_pp(session, anchor, "2.10") == 5.0
         assert page.content_calls <= 3
 
-    def test_cell_movements_skips_row_on_anchor_count_mismatch(
-        self, monkeypatch
-    ) -> None:
+    def test_cell_movements_skips_row_on_anchor_count_mismatch(self, monkeypatch) -> None:
         """F10b: 3 anchors for 2 keys - no positional key shifting."""
         page = FakeTooltipPage(self.BASE_HTML, [])
         finder, session = self._hover_finder(monkeypatch, page)
         row = FakeRow("Both Teams to Score", [FakeAnchor("1.90", page, 0)])
-        result = finder._hover_cell_movements(
-            session, ("btts_yes", "btts_no"), first_row_only=False
-        )
+        result = finder._hover_cell_movements(session, ("btts_yes", "btts_no"), first_row_only=False)
         assert result == {"btts_yes": None, "btts_no": None}
         assert row  # row shape kept for the full-run assertion below
 
@@ -584,11 +498,7 @@ class TestMovement:
         """B3: finder emits btts_yes/btts_no - the keys MARKET_DEFINITIONS derive."""
         from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
 
-        expected = {
-            md.odds_key.replace("odds_", "")
-            for md in MARKET_DEFINITIONS
-            if md.market_type == "btts"
-        }
+        expected = {md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS if md.market_type == "btts"}
         assert expected == {"btts_yes", "btts_no"}
         page = FakeTooltipPage(self.BASE_HTML, [])
         finder, session = self._hover_finder(monkeypatch, page)
@@ -605,10 +515,6 @@ class TestMovement:
         tbody = page.locator("table.w-full.table-fixed tbody").first
         tbody.rows = [FakeRow("1X2", [FakeAnchor("2.10", page, 0)])]
         with caplog.at_level("WARNING", logger="bet_crawler.finders.OddsPortalFinder"):
-            finder._hover_cell_movements(
-                session, ("home", "draw", "away"), first_row_only=False
-            )
-        assert any(
-            "confirmed opening-odds movement" in r.getMessage() for r in caplog.records
-        )
+            finder._hover_cell_movements(session, ("home", "draw", "away"), first_row_only=False)
+        assert any("confirmed opening-odds movement" in r.getMessage() for r in caplog.records)
         assert any(r.levelno == logging.WARNING for r in caplog.records)

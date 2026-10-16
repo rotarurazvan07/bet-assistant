@@ -314,34 +314,24 @@ class TestMovementCorruptData:
     """F11: corrupt movement_change_pp must not raise — unconfirmed instead."""
 
     def test_pp_not_a_dict_is_unconfirmed(self, manager):
-        result = manager.calculate_movement_from_odds(
-            {"home": 1.5, "movement_change_pp": "not-a-dict"}
-        )
+        result = manager.calculate_movement_from_odds({"home": 1.5, "movement_change_pp": "not-a-dict"})
         assert result["home"] is None
 
     def test_pp_list_is_unconfirmed(self, manager):
-        result = manager.calculate_movement_from_odds(
-            {"home": 1.5, "movement_change_pp": [5.0, 1.0]}
-        )
+        result = manager.calculate_movement_from_odds({"home": 1.5, "movement_change_pp": [5.0, 1.0]})
         assert result["home"] is None
 
     def test_value_string_is_unconfirmed(self, manager):
-        result = manager.calculate_movement_from_odds(
-            {"home": 1.5, "movement_change_pp": {"home": "5.6"}}
-        )
+        result = manager.calculate_movement_from_odds({"home": 1.5, "movement_change_pp": {"home": "5.6"}})
         assert result["home"] is None
 
     def test_strength_pp_not_a_dict_is_safe(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": "garbage"}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": "garbage"})
         assert result["home"]["direction"] is None
         assert result["home"]["significant"] is False
 
     def test_strength_value_string_is_unconfirmed(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": "5.6"}}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": "5.6"}})
         assert result["home"]["direction"] is None
         assert result["home"]["significant"] is False
 
@@ -350,41 +340,29 @@ class TestSignificanceThreshold:
     """F12: significance is abs(pp) >= threshold (default 5%), no low-odds rule."""
 
     def test_boundary_exactly_threshold_is_significant(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": 5.0}}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": 5.0}})
         assert result["home"]["significant"] is True
 
     def test_boundary_below_threshold_not_significant(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": 4.99}}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": 4.99}})
         assert result["home"]["significant"] is False
 
     def test_negative_magnitude_uses_abs(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": -5.0}}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": -5.0}})
         assert result["home"]["direction"] == "down"
         assert result["home"]["significant"] is True
 
     def test_low_odds_no_longer_inflates_significance(self, manager):
         """F12: |pp| = 2.0 at odds < 2.0 is NOT significant anymore (old rule dropped)."""
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": 2.0}}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": 2.0}})
         assert result["home"]["direction"] == "up"
         assert result["home"]["significant"] is False
 
     def test_custom_threshold_argument(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": 2.0}}, threshold=1.0
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": 2.0}}, threshold=1.0)
         assert result["home"]["significant"] is True
 
     def test_stable_is_never_significant(self, manager):
-        result = manager.calculate_movement_with_strength(
-            {"home": 1.5, "movement_change_pp": {"home": 0.0}}
-        )
+        result = manager.calculate_movement_with_strength({"home": 1.5, "movement_change_pp": {"home": 0.0}})
         assert result["home"]["direction"] == "stable"
         assert result["home"]["significant"] is False

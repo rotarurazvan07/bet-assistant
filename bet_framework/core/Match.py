@@ -59,7 +59,7 @@ def ensure_decimal_odds(odds_value) -> float | None:
             # Already decimal odds
             return round(val, 2)
 
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         return None
 
 
@@ -114,10 +114,7 @@ class Odds:
         # movement_change_pp is a dict of percentages, no coercion needed
         if self.movement_change_pp is not None:
             # ensure all values are floats
-            self.movement_change_pp = {
-                k: float(v) if v is not None else None
-                for k, v in self.movement_change_pp.items()
-            }
+            self.movement_change_pp = {k: float(v) if v is not None else None for k, v in self.movement_change_pp.items()}
 
 
 class Match:
@@ -154,9 +151,7 @@ class Match:
         return {
             "home_team": self.home_team,
             "away_team": self.away_team,
-            "datetime": self.datetime.isoformat()
-            if isinstance(self.datetime, datetime)
-            else self.datetime,
+            "datetime": self.datetime.isoformat() if isinstance(self.datetime, datetime) else self.datetime,
             "predictions": self.predictions,
             "odds": asdict(self.odds) if self.odds else None,
             "result_url": self.result_url if self.result_url else None,

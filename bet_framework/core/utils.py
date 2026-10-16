@@ -37,7 +37,7 @@ def is_valid_url(url: Any) -> bool:
     try:
         if math.isnan(float(url)):
             return False
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pass
     stripped = str(url).strip().lower()
     return bool(stripped) and stripped not in ("none", "null")

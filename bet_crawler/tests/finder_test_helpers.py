@@ -59,9 +59,7 @@ def make_finder(
         top_leagues_only=top_leagues_only,
         num_days_ahead=num_days_ahead,
         local_timezone=local_timezone,
-        skip_patterns=skip_patterns
-        if skip_patterns is not None
-        else DEFAULT_SKIP_PATTERNS,
+        skip_patterns=skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS,
     )
     return finder, collector
 
@@ -247,9 +245,7 @@ class FakeTooltipPage:
             self.html += self.tooltips[index]
 
     def locator(self, selector):
-        return FakeLocator(
-            [self.tbody] if selector == "table.w-full.table-fixed tbody" else []
-        )
+        return FakeLocator([self.tbody] if selector == "table.w-full.table-fixed tbody" else [])
 
 
 class FakeTbody:
