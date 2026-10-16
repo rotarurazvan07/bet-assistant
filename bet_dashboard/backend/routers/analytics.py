@@ -265,7 +265,7 @@ def _source_market_correlation(slips) -> dict:
 
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
-            except (ValueError, AttributeError):
+            except ValueError, AttributeError:
                 continue
 
             market_label = str(leg.market)
@@ -343,7 +343,7 @@ def _source_breakdown(slips) -> list[dict]:
 
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
-            except (ValueError, AttributeError):
+            except ValueError, AttributeError:
                 continue
 
             # Determine actual outcome for this leg's market

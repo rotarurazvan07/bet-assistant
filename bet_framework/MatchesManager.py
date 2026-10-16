@@ -1,5 +1,4 @@
 """Buffered SQLite match store with fuzzy dedup and odds history."""
-from __future__ import annotations
 
 import json
 from datetime import datetime
@@ -88,7 +87,7 @@ def _is_empty(value) -> bool:
     try:
         if pd.isna(value):
             return True
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         # pd.isna raises TypeError for non-scalar containers (list, dict, Odds…)
         pass
     if isinstance(value, str):

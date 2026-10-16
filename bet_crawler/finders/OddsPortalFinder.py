@@ -408,7 +408,7 @@ class OddsPortalFinder(BaseMatchFinder):
                 continue
             try:
                 data = json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
+            except json.JSONDecodeError, TypeError:
                 continue
             if isinstance(data, list):
                 candidates = data
@@ -562,23 +562,19 @@ class OddsPortalFinder(BaseMatchFinder):
     }
     _TOOLTIP_WAIT_S = 2.0
 
-    def _hover_cell_movements(self, session, market_keys, first_row_only=True):
+    def _hover_cell_movements(self, session, market_keys, first_row_only: bool = True):
         """Hover odds cells and collect source-confirmed opening-odds movement.
 
         Issue #105: a value is recorded only when the odds popup explicitly
         shows an 'Opening odds:' entry — never guessed.
         """
-        result = {k: None for k in market_keys}
+        result = dict.fromkeys(market_keys)
         try:
             tbody = session.page.locator("table.w-full.table-fixed tbody")
             row_count = tbody.locator("tr").count()
             if row_count < 1:
                 return result
-            rows = (
-                [tbody.locator("tr").first]
-                if first_row_only
-                else [tbody.locator("tr").nth(i) for i in range(row_count)]
-            )
+            rows = [tbody.locator("tr").first] if first_row_only else [tbody.locator("tr").nth(i) for i in range(row_count)]
             for row in rows:
                 keys = market_keys
                 if not first_row_only:

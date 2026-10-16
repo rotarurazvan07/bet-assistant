@@ -139,7 +139,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     )
 
                     break
-            except (json.JSONDecodeError, TypeError):
+            except json.JSONDecodeError, TypeError:
                 continue
 
         return home_team, away_team, match_datetime

@@ -12,7 +12,6 @@ Architecture decisions (documented per plan):
   construction and ticker callbacks are safe by default; tests asserting on
   payloads use the conftest ``broadcast_capture`` fixture.
 """
-from __future__ import annotations
 
 import json
 import sqlite3

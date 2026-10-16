@@ -37,7 +37,6 @@ Formula:
 Picks inside the ±tolerance band are "Tier 1" and always rank above "Tier 2"
 picks, preventing the slip from drifting far from the target total odds.
 """
-from __future__ import annotations
 
 import hashlib
 import math
@@ -1135,7 +1134,7 @@ class BetAssistant(BaseStorageManager):
                 if dt:
                     try:
                         leg_dt = datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         leg_dt = dt
 
                 # Parse predictions JSON
@@ -1145,7 +1144,7 @@ class BetAssistant(BaseStorageManager):
                 if predictions_json:
                     try:
                         predictions = json.loads(predictions_json)
-                    except (json.JSONDecodeError, TypeError):
+                    except json.JSONDecodeError, TypeError:
                         predictions = []
 
                 slips[slip_id].legs.append(

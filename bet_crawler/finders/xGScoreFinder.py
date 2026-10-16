@@ -153,7 +153,7 @@ class xGScoreFinder(BaseMatchFinder):
             if match:
                 try:
                     found_data[field_name] = float(match.group(1))
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     continue
 
         return found_data
