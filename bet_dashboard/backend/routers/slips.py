@@ -80,7 +80,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
         odds_val = float(odds)
         if odds_val <= 0:
             raise ValueError()
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return {"valid": False, "error": f"Invalid odds: {odds}"}
 
     # 4 — optional URL format

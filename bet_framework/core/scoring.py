@@ -1,4 +1,5 @@
 """
+
 bet_framework.core.scoring
 ───────────────────────────
 Pure functions for scoring and ranking candidate picks against a BetSlipConfig.
@@ -19,6 +20,7 @@ Public surface
   score_balance(odds, ideal, tolerance, cfg)     → float
   score_pick(opt, ideal_odds, max_sources, cfg)  → (int, float, float)
 """
+from __future__ import annotations
 
 import math
 from typing import TYPE_CHECKING

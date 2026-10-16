@@ -173,7 +173,7 @@ class TestAppLogicLifecycle:
         return fake
 
     def test_pull_matches_db_downloads_merges_and_refreshes(self, app_env, monkeypatch) -> None:
-        """[P0] Pull downloads the release DB, preserves history, refreshes data."""
+        """[P0] Pull downloads the release DB and replaces data (no history carry-over)."""
         fresh_db = app_env.tmp_path / "fresh.db"
         fresh_rows = []
         for i in range(3):
@@ -193,8 +193,7 @@ class TestAppLogicLifecycle:
         assert len(app_env.app.match_df) == 3
         assert app_env.app.match_df.iloc[0]["odds"]["home"] == 2.1  # fresh odds won
         history = app_env.app.get_odds_history(0)
-        assert len(history) == 2  # 1 preserved + 1 appended snapshot
-        assert history[0]["timestamp"] == "2030-01-01T10:00:00"
+        assert history == []  # issue #105: nothing preserved on pull
 
     def test_pull_matches_db_download_error_raises_runtime_error(self, app_env, monkeypatch) -> None:
         """[P1] URLError during download is wrapped into RuntimeError."""
@@ -389,7 +388,7 @@ class TestAppLogicLifecycle:
         app = app_env.app
         odds = app.match_df.iloc[0]["odds"]
         assert app.get_odds_movement(0) == app._matches_manager.calculate_movement_from_odds(odds)
-        assert app.get_odds_movement(0)["home"] == "up"  # 1.8 → 1.9
+        assert app.get_odds_movement(0)["home"] == "up"  # movement_change_pp: +5.56
 
     def test_get_odds_movement_invalid_index_returns_empty(self, app_env) -> None:
         """[P1] Out-of-range match ids return an empty dict."""
@@ -414,7 +413,7 @@ class TestAppLogicLifecycle:
         movement = app_env.app.get_odds_movement_with_strength(0)
         assert movement["home"]["direction"] == "up"
         assert movement["home"]["change_pct"] == 5.56
-        assert movement["home"]["significant"] is False  # needs 2+ history entries
+        assert movement["home"]["significant"] is True  # |+5.56| crosses the 5% threshold
 
     def test_get_odds_history_formats_snapshots_without_ts_key(self, app_env) -> None:
         """[P0] History snapshots expose timestamp + odds without the raw 'ts' key."""

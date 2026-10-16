@@ -59,7 +59,7 @@ def ensure_decimal_odds(odds_value) -> float | None:
             # Already decimal odds
             return round(val, 2)
 
-    except ValueError, TypeError, AttributeError:
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
@@ -88,6 +88,8 @@ class Odds:
     dc_1x: float | None = None
     dc_12: float | None = None
     dc_x2: float | None = None
+    # Percentage movement from opening odds per market (positive = odds increased, negative = odds decreased)
+    movement_change_pp: dict[str, float | None] | None = None
 
     def __post_init__(self) -> None:
         """Coerce odds values to floats where present."""
@@ -109,6 +111,10 @@ class Odds:
         self.dc_1x = ensure_decimal_odds(self.dc_1x)
         self.dc_12 = ensure_decimal_odds(self.dc_12)
         self.dc_x2 = ensure_decimal_odds(self.dc_x2)
+        # movement_change_pp is a dict of percentages, no coercion needed
+        if self.movement_change_pp is not None:
+            # ensure all values are floats
+            self.movement_change_pp = {k: float(v) if v is not None else None for k, v in self.movement_change_pp.items()}
 
 
 class Match:

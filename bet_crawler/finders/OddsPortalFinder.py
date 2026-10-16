@@ -264,6 +264,7 @@ ALL_LINKS = [
 ]
 
 _DECIMAL = re.compile(r"^\d+\.\d+$")
+_SIGNED_DECIMAL = re.compile(r"-?\d+\.\d+")
 
 
 class OddsPortalFinder(BaseMatchFinder):
@@ -348,10 +349,15 @@ class OddsPortalFinder(BaseMatchFinder):
                         continue
                     home_team, away_team, match_date = identity
 
-                    odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
-                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
-                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
-                    ou = self._scrape_tab_ou(session, thread_name)
+                    movements: dict = {}
+                    odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name, movements)
+                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name, movements)
+                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name, movements)
+                    ou = self._scrape_tab_ou(session, thread_name, movements)
+
+                    # Issue #105: keep only source-confirmed movements — a
+                    # dict of all-None values stays None (never guessed).
+                    movement_pp = {k: v for k, v in movements.items() if v is not None} or None
 
                     odds = Odds(
                         home=odds_1,
@@ -372,6 +378,7 @@ class OddsPortalFinder(BaseMatchFinder):
                         dc_1x=odds_dc_1x,
                         dc_12=odds_dc_12,
                         dc_x2=odds_dc_x2,
+                        movement_change_pp=movement_pp,
                     )
 
                     logger.info("[%s] %s", thread_name, odds)
@@ -401,7 +408,7 @@ class OddsPortalFinder(BaseMatchFinder):
                 continue
             try:
                 data = json.loads(raw)
-            except json.JSONDecodeError, TypeError:
+            except (json.JSONDecodeError, TypeError):
                 continue
             if isinstance(data, list):
                 candidates = data
@@ -546,44 +553,160 @@ class OddsPortalFinder(BaseMatchFinder):
             out.append(None if (not text or text == "-") else text)
         return out
 
-    def _scrape_tab_1x2(self, session, thread_name: str):
-        """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure)."""
+    _OU_LINES = {
+        "+0.5": ("over_05", "under_05"),
+        "+1.5": ("over_15", "under_15"),
+        "+2.5": ("over_25", "under_25"),
+        "+3.5": ("over_35", "under_35"),
+        "+4.5": ("over_45", "under_45"),
+    }
+    _TOOLTIP_WAIT_S = 2.0
+
+    def _hover_cell_movements(self, session, market_keys, first_row_only=True):
+        """Hover odds cells and collect source-confirmed opening-odds movement.
+
+        Issue #105: a value is recorded only when the odds popup explicitly
+        shows an 'Opening odds:' entry — never guessed.
+        """
+        result = {k: None for k in market_keys}
+        try:
+            tbody = session.page.locator("table.w-full.table-fixed tbody")
+            row_count = tbody.locator("tr").count()
+            if row_count < 1:
+                return result
+            rows = (
+                [tbody.locator("tr").first]
+                if first_row_only
+                else [tbody.locator("tr").nth(i) for i in range(row_count)]
+            )
+            for row in rows:
+                keys = market_keys
+                if not first_row_only:
+                    line = row.inner_text(timeout=4000) or ""
+                    keys = next((pair for prefix, pair in self._OU_LINES.items() if prefix in line), None)
+                    if keys is None:
+                        continue
+                    keys = list(keys)
+                anchors = row.locator("a").filter(has_text=re.compile(r"^\s*\d+\.\d+\s*$"))
+                for i in range(min(anchors.count(), len(keys))):
+                    try:
+                        anchor = anchors.nth(i)
+                        cell_text = (anchor.text_content(timeout=2000) or "").strip()
+                        if not _DECIMAL.match(cell_text):
+                            continue
+                        result[keys[i]] = self._hover_opening_pp(session, anchor, cell_text)
+                    except Exception as exc:
+                        logger.debug("movement hover failed (%s): %s", keys[i], exc)
+        except Exception as exc:
+            logger.debug("movement hover setup failed: %s", exc)
+        return result
+
+    def _hover_opening_pp(self, session, anchor, cell_text):
+        """Hover one odds anchor; return its % movement from opening odds (or None)."""
+        try:
+            anchor.hover(timeout=4000)
+        except Exception as exc:
+            logger.debug("movement hover failed: %s", exc)
+            return None
+        deadline = time.monotonic() + self._TOOLTIP_WAIT_S
+        while time.monotonic() < deadline:
+            soup = BeautifulSoup(session.page.content(), "html.parser")
+            for div in soup.find_all("div", class_="absolute"):
+                tip = div.get_text(" ", strip=True)
+                if "ODDS MOVEMENT" in tip:
+                    pp = self._opening_pp_from_tooltip(tip, cell_text)
+                    if pp is not None:
+                        return pp
+            time.sleep(0.25)
+        return None
+
+    @staticmethod
+    def _opening_pp_from_tooltip(tip, cell_text):
+        """Compute movement % from one ODDS MOVEMENT tooltip; None when unconfirmed.
+
+        Guards (issue #105): the popup must say 'Opening odds:', its current
+        odds must match the hovered cell, and the opening value must be
+        positive — otherwise the movement stays None (never guessed).
+        """
+        if "Opening odds:" not in tip:
+            return None
+        head, tail = tip.split("Opening odds:", 1)
+        open_nums = _SIGNED_DECIMAL.findall(tail)
+        if not open_nums:
+            return None
+        opening = float(open_nums[-1])
+        cur_nums = _SIGNED_DECIMAL.findall(head.split("ODDS MOVEMENT", 1)[-1])
+        if not cur_nums:
+            return None
+        current = float(cur_nums[0])
+        try:
+            expected = float(cell_text)
+        except ValueError:
+            return None
+        if opening <= 0 or abs(current - expected) > 0.015:
+            return None
+        return round((current - opening) / opening * 100, 2)
+
+    def _scrape_tab_1x2(self, session, thread_name: str, movements: dict | None = None):
+        """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure).
+
+        When `movements` is provided, also hovers the first-bookmaker odds cells
+        to collect source-confirmed opening-odds movement (issue #105).
+        """
         odds_1 = odds_X = odds_2 = None
         try:
             logger.info("[%s] Extracting 1X2 odds", thread_name)
             cells = self._first_bookmaker_odds(self._click_tab(session, "1X2", ("1", "X", "2")))
             if len(cells) >= 3:
                 odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
+                if movements is not None:
+                    movements.update(self._hover_cell_movements(session, ("home", "draw", "away")))
         except Exception as e:
             logger.warning("[%s] Failed to scrape 1X2 odds: %s", thread_name, e)
         return odds_1, odds_X, odds_2
 
-    def _scrape_tab_btts(self, session, thread_name: str):
-        """Scrape the BTTS tab; returns (yes, no) odds (None on miss/failure)."""
+    def _scrape_tab_btts(self, session, thread_name: str, movements: dict | None = None):
+        """Scrape the BTTS tab; returns (yes, no) odds (None on miss/failure).
+
+        When `movements` is provided, also hovers the first-bookmaker odds cells
+        to collect source-confirmed opening-odds movement (issue #105).
+        """
         odds_btts_y = odds_btts_n = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
             cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
             if len(cells) >= 2:
                 odds_btts_y, odds_btts_n = cells[0], cells[1]
+                if movements is not None:
+                    movements.update(self._hover_cell_movements(session, ("btts_y", "btts_n")))
         except Exception as e:
             logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, e)
         return odds_btts_y, odds_btts_n
 
-    def _scrape_tab_dc(self, session, thread_name: str):
-        """Scrape the Double Chance tab; returns (1x, 12, x2) odds (None on miss/failure)."""
+    def _scrape_tab_dc(self, session, thread_name: str, movements: dict | None = None):
+        """Scrape the Double Chance tab; returns (1x, 12, x2) odds (None on miss/failure).
+
+        When `movements` is provided, also hovers the first-bookmaker odds cells
+        to collect source-confirmed opening-odds movement (issue #105).
+        """
         odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
         try:
             logger.info("[%s] Extracting DC odds", thread_name)
             cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance", ("1X", "12", "X2")))
             if len(cells) >= 3:
                 odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
+                if movements is not None:
+                    movements.update(self._hover_cell_movements(session, ("dc_1x", "dc_12", "dc_x2")))
         except Exception as e:
             logger.warning("[%s] Failed to scrape DC odds: %s", thread_name, e)
         return odds_dc_1x, odds_dc_12, odds_dc_x2
 
-    def _scrape_tab_ou(self, session, thread_name: str):
-        """Scrape the Over/Under tab; returns the 10 O/U odds (None on miss/failure)."""
+    def _scrape_tab_ou(self, session, thread_name: str, movements: dict | None = None):
+        """Scrape the Over/Under tab; returns the 10 O/U odds (None on miss/failure).
+
+        When `movements` is provided, also hovers every line's odds cells to
+        collect source-confirmed opening-odds movement (issue #105).
+        """
         out = [None] * 10
         try:
             logger.info("[%s] Extracting O/U odds", thread_name)
@@ -611,6 +734,25 @@ class OddsPortalFinder(BaseMatchFinder):
                     if prefix in name:
                         out[oi] = decimals[0]
                         out[ui] = decimals[1]
+            if movements is not None:
+                movements.update(
+                    self._hover_cell_movements(
+                        session,
+                        (
+                            "over_05",
+                            "under_05",
+                            "over_15",
+                            "under_15",
+                            "over_25",
+                            "under_25",
+                            "over_35",
+                            "under_35",
+                            "over_45",
+                            "under_45",
+                        ),
+                        first_row_only=False,
+                    )
+                )
         except Exception as e:
             logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, e)
         return tuple(out)

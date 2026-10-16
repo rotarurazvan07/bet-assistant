@@ -12,6 +12,7 @@ Architecture decisions (documented per plan):
   construction and ticker callbacks are safe by default; tests asserting on
   payloads use the conftest ``broadcast_capture`` fixture.
 """
+from __future__ import annotations
 
 import json
 import sqlite3
@@ -84,6 +85,15 @@ def make_match_row_db(i=0, **overrides):
                 "under_25": 1.95,
                 "btts_yes": 1.75,
                 "btts_no": 2.05,
+                "movement_change_pp": {
+                    "home": 5.56,
+                    "draw": -2.86,
+                    "away": -4.55,
+                    "over_25": -2.63,
+                    "under_25": 2.63,
+                    "btts_yes": 2.94,
+                    "btts_no": -2.38,
+                },
                 "history": [
                     {
                         "ts": "2030-01-01T10:00:00",

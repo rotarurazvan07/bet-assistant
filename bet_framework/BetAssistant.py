@@ -37,6 +37,7 @@ Formula:
 Picks inside the ±tolerance band are "Tier 1" and always rank above "Tier 2"
 picks, preventing the slip from drifting far from the target total odds.
 """
+from __future__ import annotations
 
 import hashlib
 import math
@@ -1002,24 +1003,25 @@ class BetAssistant(BaseStorageManager):
 
     @staticmethod
     def _get_market_movement(odds_dict: dict | None, market_key: str) -> tuple[str | None, float]:
-        """Extract movement direction and strength for a specific market from odds history."""
+        """Extract movement direction and strength from source-provided movement_change_pp.
+
+        movement_change_pp maps odds field names to the percentage change
+        from the source's confirmed opening odds. None means the source never
+        confirmed an opening odds for that market — never guessed.
+        """
         if not odds_dict or not isinstance(odds_dict, dict):
             return None, 0.0
-        history = odds_dict.get("history", [])
-        if not history or len(history) < 2:
+        pp_map = odds_dict.get("movement_change_pp")
+        if not isinstance(pp_map, dict):
             return None, 0.0
-        first = history[0]
-        cur_val = odds_dict.get(market_key)
-        first_val = first.get(market_key)
-        if cur_val is None or first_val is None or first_val == 0:
+        pp = pp_map.get(market_key)
+        if pp is None or not isinstance(pp, (int, float)):
             return None, 0.0
-        if not isinstance(cur_val, (int, float)) or not isinstance(first_val, (int, float)):
-            return None, 0.0
-        change_pct = abs(cur_val - first_val) / first_val
-        if cur_val > first_val:
-            return "up", round(change_pct, 4)
-        elif cur_val < first_val:
-            return "down", round(change_pct, 4)
+        pp = float(pp)
+        if pp > 0:
+            return "up", round(abs(pp) / 100.0, 4)
+        if pp < 0:
+            return "down", round(abs(pp) / 100.0, 4)
         return "stable", 0.0
 
     # ── Leg selection loop ────────────────────────────────────────────────────
@@ -1133,7 +1135,7 @@ class BetAssistant(BaseStorageManager):
                 if dt:
                     try:
                         leg_dt = datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         leg_dt = dt
 
                 # Parse predictions JSON
@@ -1143,7 +1145,7 @@ class BetAssistant(BaseStorageManager):
                 if predictions_json:
                     try:
                         predictions = json.loads(predictions_json)
-                    except json.JSONDecodeError, TypeError:
+                    except (json.JSONDecodeError, TypeError):
                         predictions = []
 
                 slips[slip_id].legs.append(

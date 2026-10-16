@@ -133,55 +133,64 @@ class TestAppendToHistory:
 
 
 class TestCalculateMovementFromOdds:
-    """Test calculate_movement_from_odds method."""
+    """Issue #105: movement comes from scraped movement_change_pp, not history."""
 
-    def test_movement_no_history(self, manager):
+    def test_movement_no_pp_data(self, manager):
         odds = {"home": 1.5, "draw": 3.0, "away": 5.0}
         result = manager.calculate_movement_from_odds(odds)
-        assert result == {}
+        assert result["home"] is None
+        assert result["draw"] is None
+        assert result["away"] is None
 
-    def test_movement_with_history_up(self, manager):
-        odds = {
-            "home": 1.6,
-            "draw": 3.0,
-            "history": [{"ts": "2026-05-17T10:00:00", "home": 1.5, "draw": 3.0}],
-        }
+    def test_movement_pp_up(self, manager):
+        odds = {"home": 1.6, "draw": 3.0, "movement_change_pp": {"home": 6.67, "draw": 0.0}}
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "up"
         assert result["draw"] == "stable"
 
-    def test_movement_with_history_down(self, manager):
-        odds = {
-            "home": 1.4,
-            "draw": 3.0,
-            "history": [{"ts": "2026-05-17T10:00:00", "home": 1.5, "draw": 3.0}],
-        }
+    def test_movement_pp_down(self, manager):
+        odds = {"home": 1.4, "movement_change_pp": {"home": -6.67}}
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "down"
 
-    def test_movement_with_history_stable(self, manager):
-        odds = {
-            "home": 1.5,
-            "draw": 3.0,
-            "history": [{"ts": "2026-05-17T10:00:00", "home": 1.5, "draw": 3.0}],
-        }
+    def test_movement_pp_stable(self, manager):
+        odds = {"home": 1.5, "draw": 3.0, "movement_change_pp": {"home": 0.0, "draw": 0.0}}
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "stable"
         assert result["draw"] == "stable"
 
-    def test_movement_missing_market_in_history(self, manager):
-        odds = {
-            "home": 1.5,
-            "over_25": 2.0,
-            "history": [{"ts": "2026-05-17T10:00:00", "home": 1.4}],
-        }
+    def test_movement_unconfirmed_market_is_none(self, manager):
+        odds = {"home": 1.5, "over_25": 2.0, "movement_change_pp": {"home": 7.14}}
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "up"
-        assert result["over_25"] is None  # Not in history
+        assert result["over_25"] is None
 
     def test_movement_none_odds(self, manager):
-        result = manager.calculate_movement_from_odds(None)
-        assert result == {}
+        assert manager.calculate_movement_from_odds(None) == {}
+
+
+class TestCalculateMovementWithStrength:
+    """Issue #105: strength derives from movement_change_pp magnitude."""
+
+    def test_strength_no_pp(self, manager):
+        result = manager.calculate_movement_with_strength({"home": 1.5})
+        assert result["home"] == {"direction": None, "change_pct": 0.0, "significant": False}
+
+    def test_strength_large_change_significant(self, manager):
+        odds = {"home": 1.6, "movement_change_pp": {"home": 10.0}}
+        result = manager.calculate_movement_with_strength(odds)
+        assert result["home"]["direction"] == "up"
+        assert result["home"]["change_pct"] == 10.0
+        assert result["home"]["significant"] is True
+
+    def test_strength_small_change_not_significant(self, manager):
+        odds = {"home": 3.0, "movement_change_pp": {"home": -2.5}}
+        result = manager.calculate_movement_with_strength(odds)
+        assert result["home"]["direction"] == "down"
+        assert result["home"]["significant"] is False
+
+    def test_strength_none_odds(self, manager):
+        assert manager.calculate_movement_with_strength(None) == {}
 
 
 class TestGetOddsHistoryFromRow:
@@ -248,7 +257,7 @@ class TestGetMovementForRow:
                     {
                         "home": 1.6,
                         "draw": 3.0,
-                        "history": [{"ts": "2026-05-17T10:00:00", "home": 1.5, "draw": 3.0}],
+                        "movement_change_pp": {"home": 6.67, "draw": 0.0},
                     }
                 ),
                 "result_url": None,
@@ -273,8 +282,8 @@ class TestMergeWithHistoryPreservation:
         if os.path.exists(path):
             os.unlink(path)
 
-    def test_merge_transfers_history(self, temp_db, fresh_db):
-        """Test that history is transferred from current to fresh database."""
+    def test_merge_replaces_with_fresh_data(self, temp_db, fresh_db):
+        """Issue #105: pulls replace data outright - no odds history preserved."""
         # Set up current database with a match that has odds
         current_manager = MatchesManager(temp_db)
         future_dt = (datetime.now() + timedelta(days=1)).isoformat()
@@ -322,10 +331,8 @@ class TestMergeWithHistoryPreservation:
         odds_json = buf.iloc[0]["odds"]
         odds = json.loads(odds_json)
 
-        assert "history" in odds
-        assert len(odds["history"]) == 1
-        assert odds["history"][0]["home"] == 1.5  # Old odds in history
-        assert odds["home"] == 1.6  # New current odds
+        assert "history" not in odds
+        assert odds["home"] == 1.6  # Fresh current odds win
 
         current_manager.close()
 

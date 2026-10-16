@@ -1,4 +1,5 @@
 """Buffered SQLite match store with fuzzy dedup and odds history."""
+from __future__ import annotations
 
 import json
 from datetime import datetime
@@ -87,7 +88,7 @@ def _is_empty(value) -> bool:
     try:
         if pd.isna(value):
             return True
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         # pd.isna raises TypeError for non-scalar containers (list, dict, Odds…)
         pass
     if isinstance(value, str):
@@ -576,81 +577,62 @@ class MatchesManager(BufferedStorageManager):
         return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
 
     def calculate_movement_from_odds(self, odds_dict: dict | None) -> dict:
-        """Calculate movement from embedded history in odds dict.
+        """Derive movement directions from the scraped movement_change_pp dict.
 
         Returns dict with keys like 'home', 'draw', 'away', etc.
-        Values are 'up', 'down', 'stable', or None if no data.
+        Values are 'up', 'down', 'stable', or None when the source
+        did not confirm an opening odds for that market.
         """
         if not odds_dict:
             return {}
-
-        history = self._extract_history_from_odds(odds_dict)
-        current = self._get_current_odds_snapshot(odds_dict)
-
-        if not history or not current:
-            return {}
-
-        # Compare first historical snapshot to current values
-        first_odds = history[0]
-        # Derive simplified market keys from central configuration (strip 'odds_' prefix)
+        pp = odds_dict.get("movement_change_pp") or {}
         markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
         movement: dict[str, str | None] = {}
-
         for market in markets:
-            first_val = first_odds.get(market)
-            current_val = current.get(market)
-
-            if first_val is None or current_val is None:
+            v = pp.get(market)
+            if v is None:
                 movement[market] = None
-            elif current_val > first_val:
+            elif v > 0:
                 movement[market] = "up"
-            elif current_val < first_val:
+            elif v < 0:
                 movement[market] = "down"
             else:
                 movement[market] = "stable"
-
         return movement
 
     def calculate_movement_with_strength(self, odds_dict: dict | None) -> dict:
-        """Calculate movement with strength metrics for significance filtering.
+        """Derive movement direction + strength from scraped movement_change_pp.
 
         Returns dict mapping market -> {direction, change_pct, significant}.
-        A movement is significant if |change_pct| >= 5% relative change
-        OR |absolute_change| >= 0.10 for low odds (< 2.0).
-        Requires at least 2 history snapshots to be considered significant.
+        Values come straight from the source-provided opening-odds movement;
+        None movement_change_pp means the source never confirmed opening odds
+        (never guessed).
+        significant when |pp| >= 5.0, or |pp| >= 1.0 for low odds (< 2.0).
         """
         if not odds_dict:
             return {}
-        history = self._extract_history_from_odds(odds_dict)
-        current = self._get_current_odds_snapshot(odds_dict)
-        if not history or not current:
-            return {}
-        first_odds = history[0]
+        pp = odds_dict.get("movement_change_pp") or {}
         markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
-        has_enough_history = len(history) >= 2
         result: dict = {}
         for market in markets:
-            first_val = first_odds.get(market)
-            current_val = current.get(market)
-            if first_val is None or current_val is None:
+            v = pp.get(market)
+            if v is None:
                 result[market] = {"direction": None, "change_pct": 0.0, "significant": False}
                 continue
-            change_pct = 0.0 if first_val == 0 else round(((current_val - first_val) / abs(first_val)) * 100, 2)
-            abs_change = abs(current_val - first_val)
-            if current_val > first_val:
+            if v > 0:
                 direction = "up"
-            elif current_val < first_val:
+            elif v < 0:
                 direction = "down"
             else:
                 direction = "stable"
-            significant = False
-            if (
-                has_enough_history
-                and direction != "stable"
-                and (abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10)
-            ):
-                significant = True
-            result[market] = {"direction": direction, "change_pct": change_pct, "significant": significant}
+            current_val = odds_dict.get(market)
+            low_odds = isinstance(current_val, (int, float)) and current_val < 2.0
+            significant = direction != "stable" and (abs(v) >= 5.0 or (low_odds and abs(v) >= 1.0))
+            result[market] = {
+                "direction": direction,
+                "change_pct": float(v),
+                "significant": significant,
+            }
         return result
 
     def get_movement_for_row(self, row_idx: int) -> dict:
@@ -719,36 +701,12 @@ class MatchesManager(BufferedStorageManager):
         return True
 
     def merge_with_history_preservation(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
-        """Merge fresh database while preserving odds history from current data.
+        """Replace current data with the freshly pulled database.
 
-        Flow:
-        1. Load current matches and prune those with datetime < today (local_tz)
-        2. Load fresh database
-        3. For each remaining current match, fuzzy-match to fresh DB
-        4. On match: append current odds as history entry to fresh row
-        5. Replace current buffer with merged fresh data
+        Issue #105: odds movement now comes from the source-provided
+        movement_change_pp field, so nothing needs to be preserved across
+        pulls — the previous odds-history carry-over is intentionally gone.
         """
-        from zoneinfo import ZoneInfo
-
-        try:
-            tz = ZoneInfo(local_tz)
-        except Exception:
-            tz = ZoneInfo("UTC")
-
-        now_local = datetime.now(tz)
-        today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-        timestamp = now_local.isoformat()
-
-        # Get current matches that are still future (not past)
-        current_buf = self.ensure_buffer()
-        future_matches = []
-
-        if not current_buf.empty:
-            future_matches = self._collect_future_matches(current_buf, today_start, tz)
-
-        logger.info(f"Found {len(future_matches)} future matches with potential history to preserve")
-
-        # Load fresh database into a temporary manager
         import os
 
         fresh_file_size = os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
@@ -761,31 +719,13 @@ class MatchesManager(BufferedStorageManager):
 
         if fresh_buf.empty:
             logger.warning("Fresh database is empty, nothing to merge")
+            fresh_manager.close()
             return
 
-        # For each future match from current DB, try to find it in fresh DB and transfer history
-        transferred = 0
-        for match_data in future_matches:
-            try:
-                if not match_data["odds"]:
-                    continue
-                if self._transfer_match_history(fresh_manager, fresh_buf, match_data, timestamp, max_history):
-                    transferred += 1
-            except Exception as exc:
-                logger.error(f"History transfer error for {match_data.get('home')} vs {match_data.get('away')}: {exc}")
-
-        logger.info(f"Transferred odds history to {transferred} matches in fresh database")
-
-        # Transfer data via buffer to avoid file locking issues (WinError 32)
-        # Capture the merged fresh buffer before closing anything
         merged_buffer = fresh_buf.copy()
-        logger.info(f"Captured {len(merged_buffer)} rows from fresh database into memory")
-
-        # Close fresh manager to release file lock
         fresh_manager.close()
         del fresh_manager
 
-        # Clear our database and replace with merged data
         self.reset_matches_db()
         self._buffer = merged_buffer.reset_index(drop=True)
         self._dirty = True
