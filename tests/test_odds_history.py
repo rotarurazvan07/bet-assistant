@@ -28,12 +28,6 @@ def manager(temp_db):
     mgr.close()
 
 
-
-
-
-
-
-
 class TestCalculateMovementFromOdds:
     """Issue #105: movement comes from scraped movement_change_pp, not history."""
 
@@ -93,8 +87,6 @@ class TestCalculateMovementWithStrength:
 
     def test_strength_none_odds(self, manager):
         assert manager.calculate_movement_with_strength(None) == {}
-
-
 
 
 class TestGetMovementForRow:

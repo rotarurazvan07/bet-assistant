@@ -1,7 +1,7 @@
 """Odds movement API (issue #105: sourced from movement_change_pp)."""
 
 from core.schemas import OddsMovementSummary
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 
 from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
 
@@ -72,8 +72,6 @@ def get_significant_movements(request: Request) -> dict:
 
 
 # ── Single-match movement endpoint ─────────────────────────────────────────
-
-
 
 
 @router.get("/{match_id}/movement", response_model=OddsMovementSummary)

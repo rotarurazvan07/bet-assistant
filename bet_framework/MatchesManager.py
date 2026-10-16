@@ -525,10 +525,6 @@ class MatchesManager(BufferedStorageManager):
 
     # ── Embedded Odds History ──────────────────────────────────────────────────
 
-
-
-
-
     def calculate_movement_from_odds(self, odds_dict: dict | None) -> dict:
         """Derive movement directions from the scraped movement_change_pp dict.
 
@@ -597,9 +593,6 @@ class MatchesManager(BufferedStorageManager):
         odds_json = buf.iloc[row_idx].get("odds")
         odds_dict = self.deserialize_json(odds_json) if odds_json else {}
         return self.calculate_movement_from_odds(odds_dict)
-
-
-
 
     def merge_fresh_db(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
         """Replace current data with the freshly pulled database.

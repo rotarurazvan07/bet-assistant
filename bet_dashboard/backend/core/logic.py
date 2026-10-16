@@ -245,7 +245,6 @@ class AppLogic:
             return {}
         return self._matches_manager.calculate_movement_with_strength(odds_dict)
 
-
     def _do_generate(self) -> None:
         """Ticker daemon: generate slips for active profiles at the scheduled hour."""
         try:

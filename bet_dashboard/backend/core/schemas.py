@@ -168,10 +168,6 @@ class ServicesSettingsIn(BaseModel):
 # ── Odds Movement (issue #105: source-provided movement_change_pp) ───────────
 
 
-
-
-
-
 class OddsMovementSummary(BaseModel):
     """Per-market odds movement directions and strengths."""
 

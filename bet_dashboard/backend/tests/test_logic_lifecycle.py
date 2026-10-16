@@ -413,8 +413,6 @@ class TestAppLogicLifecycle:
         assert movement["home"]["change_pct"] == 5.56
         assert movement["home"]["significant"] is True  # |+5.56| crosses the 5% threshold
 
-
-
     # ── Ticker callbacks ────────────────────────────────────────────────────
 
     def test_do_pull_pulls_and_broadcasts_matches_updated(self, app_env, monkeypatch, broadcast_capture) -> None:

@@ -10,8 +10,6 @@ from conftest import FakeDashboardLogic, make_match_row, make_matches_df
 BASE = "/api/odds-history"
 
 
-
-
 class TestGetMatchMovement:
     """[P0] GET /api/odds-history/{match_id}/movement"""
 
