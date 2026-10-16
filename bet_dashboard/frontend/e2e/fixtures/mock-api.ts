@@ -4,7 +4,7 @@
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
 import type { SlipsPage, ProfilesMap } from '../../src/types';
-import { DEMO_MATCHES, DEMO_MATCHES_PAGE } from './demo-data';
+import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_MOVEMENTS, DEMO_MOVEMENT_STRENGTHS } from './demo-data';
 
 function apiPath(pathname: string, exact: string): boolean {
     return pathname === exact || pathname.startsWith(`${exact}/`);
@@ -28,7 +28,25 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
-            body: '{}',
+            body: JSON.stringify(DEMO_MOVEMENTS),
+        });
+    });
+    await page.route((url) => apiPath(url.pathname, '/api/odds-history/movements/significant'), async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(DEMO_MOVEMENT_STRENGTHS),
+        });
+    });
+    // Per-match movement: /api/odds-history/{match_id}/movement. Pathname-only
+    // matcher above is not possible for a path param, so parse the suffix.
+    await page.route((url) => /^\/api\/odds-history\/[^/]+\/movement$/.test(url.pathname), async (route) => {
+        const matchId = url.pathname.split('/')[4];
+        const movement = DEMO_MOVEMENTS[matchId] ?? {};
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(movement),
         });
     });
     await page.route((url) => url.pathname === '/api/slips', async (route) => {

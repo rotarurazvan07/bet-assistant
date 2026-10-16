@@ -39,7 +39,11 @@ class TestCalculateMovementFromOdds:
         assert result["away"] is None
 
     def test_movement_pp_up(self, manager):
-        odds = {"home": 1.6, "draw": 3.0, "movement_change_pp": {"home": 6.67, "draw": 0.0}}
+        odds = {
+            "home": 1.6,
+            "draw": 3.0,
+            "movement_change_pp": {"home": 6.67, "draw": 0.0},
+        }
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "up"
         assert result["draw"] == "stable"
@@ -50,7 +54,11 @@ class TestCalculateMovementFromOdds:
         assert result["home"] == "down"
 
     def test_movement_pp_stable(self, manager):
-        odds = {"home": 1.5, "draw": 3.0, "movement_change_pp": {"home": 0.0, "draw": 0.0}}
+        odds = {
+            "home": 1.5,
+            "draw": 3.0,
+            "movement_change_pp": {"home": 0.0, "draw": 0.0},
+        }
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "stable"
         assert result["draw"] == "stable"
@@ -70,7 +78,11 @@ class TestCalculateMovementWithStrength:
 
     def test_strength_no_pp(self, manager):
         result = manager.calculate_movement_with_strength({"home": 1.5})
-        assert result["home"] == {"direction": None, "change_pct": 0.0, "significant": False}
+        assert result["home"] == {
+            "direction": None,
+            "change_pct": 0.0,
+            "significant": False,
+        }
 
     def test_strength_large_change_significant(self, manager):
         odds = {"home": 1.6, "movement_change_pp": {"home": 10.0}}
@@ -241,3 +253,138 @@ class TestMergeFreshDb:
         assert "history" not in odds or len(odds.get("history", [])) == 0
 
         current_manager.close()
+
+
+class TestMergeFreshDbFlushFailure:
+    """F7: a flush failure after merge must not wipe previously stored data."""
+
+    @pytest.fixture
+    def fresh_db(self):
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        yield path
+        if os.path.exists(path):
+            os.unlink(path)
+
+    @staticmethod
+    def _insert_match(mgr, home, odds):
+        mgr.ensure_buffer()
+        mgr.insert(
+            "matches",
+            {
+                "home_team_name": home,
+                "away_team_name": "Team B",
+                "datetime": (datetime.now() + timedelta(days=1)).isoformat(),
+                "predictions_scores": None,
+                "odds": json.dumps(odds),
+                "result_url": None,
+                "league": None,
+            },
+        )
+
+    def test_flush_failure_keeps_old_data(self, temp_db, fresh_db, monkeypatch):
+        """F7: monkeypatched flush() raising must leave the OLD rows intact on disk."""
+        current_manager = MatchesManager(temp_db)
+        self._insert_match(current_manager, "Old Team", {"home": 1.5})
+        current_manager.flush()
+
+        fresh_manager = MatchesManager(fresh_db)
+        self._insert_match(fresh_manager, "New Team", {"home": 2.0})
+        fresh_manager.flush()
+        fresh_manager.close()
+
+        def boom():
+            raise RuntimeError("simulated flush failure")
+
+        monkeypatch.setattr(current_manager, "flush", boom)
+        with pytest.raises(RuntimeError, match="simulated flush failure"):
+            current_manager.merge_fresh_db(fresh_db)
+        monkeypatch.undo()  # restore flush before close(), else teardown re-raises
+
+        # Old data must still be readable from disk after the failed merge.
+        reloaded = MatchesManager(temp_db)
+        buf = reloaded.ensure_buffer()
+        assert len(buf) == 1
+        assert buf.iloc[0]["home_team_name"] == "Old Team"
+        reloaded.close()
+        current_manager.close()
+
+
+class TestMovementCorruptData:
+    """F11: corrupt movement_change_pp must not raise — unconfirmed instead."""
+
+    def test_pp_not_a_dict_is_unconfirmed(self, manager):
+        result = manager.calculate_movement_from_odds(
+            {"home": 1.5, "movement_change_pp": "not-a-dict"}
+        )
+        assert result["home"] is None
+
+    def test_pp_list_is_unconfirmed(self, manager):
+        result = manager.calculate_movement_from_odds(
+            {"home": 1.5, "movement_change_pp": [5.0, 1.0]}
+        )
+        assert result["home"] is None
+
+    def test_value_string_is_unconfirmed(self, manager):
+        result = manager.calculate_movement_from_odds(
+            {"home": 1.5, "movement_change_pp": {"home": "5.6"}}
+        )
+        assert result["home"] is None
+
+    def test_strength_pp_not_a_dict_is_safe(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": "garbage"}
+        )
+        assert result["home"]["direction"] is None
+        assert result["home"]["significant"] is False
+
+    def test_strength_value_string_is_unconfirmed(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": "5.6"}}
+        )
+        assert result["home"]["direction"] is None
+        assert result["home"]["significant"] is False
+
+
+class TestSignificanceThreshold:
+    """F12: significance is abs(pp) >= threshold (default 5%), no low-odds rule."""
+
+    def test_boundary_exactly_threshold_is_significant(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": 5.0}}
+        )
+        assert result["home"]["significant"] is True
+
+    def test_boundary_below_threshold_not_significant(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": 4.99}}
+        )
+        assert result["home"]["significant"] is False
+
+    def test_negative_magnitude_uses_abs(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": -5.0}}
+        )
+        assert result["home"]["direction"] == "down"
+        assert result["home"]["significant"] is True
+
+    def test_low_odds_no_longer_inflates_significance(self, manager):
+        """F12: |pp| = 2.0 at odds < 2.0 is NOT significant anymore (old rule dropped)."""
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": 2.0}}
+        )
+        assert result["home"]["direction"] == "up"
+        assert result["home"]["significant"] is False
+
+    def test_custom_threshold_argument(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": 2.0}}, threshold=1.0
+        )
+        assert result["home"]["significant"] is True
+
+    def test_stable_is_never_significant(self, manager):
+        result = manager.calculate_movement_with_strength(
+            {"home": 1.5, "movement_change_pp": {"home": 0.0}}
+        )
+        assert result["home"]["direction"] == "stable"
+        assert result["home"]["significant"] is False

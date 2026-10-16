@@ -41,8 +41,15 @@ class TestAllMovements:
     def test_past_match_excluded(self, client_factory) -> None:
         from datetime import datetime, timedelta
 
-        past = make_match_row(match_id="old", datetime=datetime.utcnow() - timedelta(hours=2), home="Past", away="Gone")
-        future = make_match_row(match_id="new", datetime=datetime.utcnow() + timedelta(hours=2))
+        past = make_match_row(
+            match_id="old",
+            datetime=datetime.utcnow() - timedelta(hours=2),
+            home="Past",
+            away="Gone",
+        )
+        future = make_match_row(
+            match_id="new", datetime=datetime.utcnow() + timedelta(hours=2)
+        )
         logic = FakeDashboardLogic(df=make_matches_df([past, future]))
         client, _ = client_factory(logic=logic)
         data = client.get(f"{BASE}/movements/all").json()
@@ -68,7 +75,9 @@ class TestSignificantMovements:
 
     def test_no_significant_movement_excluded(self, client_factory) -> None:
         logic = FakeDashboardLogic()
-        logic._movement_strength = {"home": {"direction": "up", "change_pct": 1.0, "significant": False}}
+        logic._movement_strength = {
+            "home": {"direction": "up", "change_pct": 1.0, "significant": False}
+        }
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/movements/significant").json() == {}
 
@@ -84,7 +93,41 @@ class TestSignificantMovements:
     def test_past_match_excluded(self, client_factory) -> None:
         from datetime import datetime, timedelta
 
-        past = make_match_row(match_id="old", datetime=datetime.utcnow() - timedelta(hours=2))
+        past = make_match_row(
+            match_id="old", datetime=datetime.utcnow() - timedelta(hours=2)
+        )
         logic = FakeDashboardLogic(df=make_matches_df([past]))
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/movements/significant").json() == {}
+
+
+class TestMovementsAllPayload:
+    """F8: matches whose movement has no non-None value are not emitted."""
+
+    def test_all_none_movement_excluded(self, client_factory) -> None:
+        """F8: calculate_movement_from_odds returns {market: None} when the
+        source confirmed no opening odds; such matches must not appear."""
+        logic = FakeDashboardLogic()
+        logic.get_odds_movement = lambda idx: {"home": None, "draw": None, "away": None}
+        client, _ = client_factory(logic=logic)
+        assert client.get(f"{BASE}/movements/all").json() == {}
+
+    def test_empty_movement_excluded(self, client_factory) -> None:
+        """F8: empty movement dicts are skipped as before."""
+        logic = FakeDashboardLogic()
+        logic.get_odds_movement = lambda idx: {}
+        client, _ = client_factory(logic=logic)
+        assert client.get(f"{BASE}/movements/all").json() == {}
+
+
+class TestMatchMovementNotFound:
+    """F15: out-of-range / negative match ids must 404, not 200-with-nulls."""
+
+    def test_out_of_range_id_returns_404(self, client) -> None:
+        assert client.get(f"{BASE}/99/movement").status_code == 404
+
+    def test_negative_id_returns_404(self, client) -> None:
+        assert client.get(f"{BASE}/-1/movement").status_code == 404
+
+    def test_valid_id_returns_200(self, client) -> None:
+        assert client.get(f"{BASE}/0/movement").status_code == 200

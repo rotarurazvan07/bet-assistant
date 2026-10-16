@@ -304,8 +304,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
 
 **Endpoints**:
 - `GET /api/odds-history/movements/all` - All future match movements
-- `GET /api/odds-history/movements/significant` - Significant only
-- `GET /api/odds-history/{match_id}` - Full history + snapshots
+- `GET /api/odds-history/movements/significant` - Significant only (with strength)
 - `GET /api/odds-history/{match_id}/movement` - Movement summary
 
 ### 8. System Router (`routers/system.py`)
@@ -372,7 +371,7 @@ self._services = {
 - `save_slip(profile, legs, units)` - Persist to SQLite
 - `validate_slips()` - Scrape results, update statuses
 - `generate_slips(profiles)` - Run daily profiles
-- `pull_matches_db(path)` - Download + merge with history preservation
+- `pull_matches_db(path)` - Download + replace buffer (fresh pull, no history carry-over)
 - `stats(profile, date_from, date_to)` - Comprehensive statistics
 
 ### TickerService (`core/ticker_service.py`)
@@ -470,8 +469,8 @@ Key models:
 - `ManualLegIn` - Manual slip leg input
 - `SlipIn` - Slip creation input
 - `ServicesSettingsIn` - Schedule settings
-- `OddsHistoryOut` - Odds history response
-- `OddsMovementSummary` - Movement directions
+- `OddsMovementSummary` - Movement directions (pp-sourced, issue #105)
+- `MarketMovementDetail` - Per-market direction + change_pct + significant
 - `CandidateLegOut` - Preview leg output
 - `PreviewOut` - Preview response
 - `BetSlipOut` - Slip response
@@ -551,18 +550,14 @@ final = quality_vs_balance * quality + (1 - quality_vs_balance) * balance_score
 - SimilarityEngine for team name normalization
 - Source collision guard (prevent duplicate sources)
 - Odds validation (implied probability 95-120%)
-- Embedded odds history (snapshots with timestamps)
-- History preservation on merge (transfer odds history)
 - Near-miss logging (40-65 similarity score)
 
-**Merge with History Preservation**:
+**Merge Fresh DB (issue #105)**: odds movement now comes from the source-provided `movement_change_pp` field, so nothing is carried over across pulls.
 ```python
-def merge_with_history_preservation(self, fresh_db_path, max_history=3, local_tz="UTC"):
-    # 1. Load current future matches
-    # 2. Load fresh database
-    # 3. Fuzzy-match current → fresh
-    # 4. Transfer odds history + append current snapshot
-    # 5. Replace buffer with merged fresh data
+def merge_fresh_db(self, fresh_db_path: str) -> None:
+    # 1. Load fresh database buffer
+    # 2. Replace buffer with merged fresh data
+    # No odds history carry-over: movement_change_pp is scraped per pull
 ```
 
 ### Core Data Models (`bet_framework/core/`)
@@ -591,7 +586,7 @@ CREATE TABLE matches (
     away_team_name TEXT NOT NULL,
     datetime TEXT NOT NULL,
     predictions_scores TEXT,  -- JSON: [{source, home, away}, ...]
-    odds TEXT,                -- JSON: {home, draw, away, over_25, ..., history: [...]}
+    odds TEXT,                -- JSON: {home, draw, away, over_25, ..., movement_change_pp: {market: pp}}
     result_url TEXT,
     league TEXT
 );
@@ -600,7 +595,7 @@ CREATE INDEX idx_home_team ON matches(home_team_name);
 CREATE INDEX idx_away_team ON matches(away_team_name);
 ```
 
-**Odds JSON Structure**:
+**Odds JSON Structure** (issue #105 — movement is pp-sourced, no history array):
 ```json
 {
   "home": 1.85,
@@ -608,12 +603,10 @@ CREATE INDEX idx_away_team ON matches(away_team_name);
   "away": 4.20,
   "over_25": 1.75,
   "under_25": 2.10,
-  "history": [
-    {"ts": "2026-08-22T10:00:00", "home": 1.90, "draw": 3.30, "away": 4.00},
-    {"ts": "2026-08-22T15:00:00", "home": 1.85, "draw": 3.40, "away": 4.20}
-  ]
+  "movement_change_pp": {"home": -6.4, "draw": 0.0, "away": null}
 }
 ```
+Movement directions derive from the sign of `movement_change_pp` per market; `null` means the source never confirmed opening odds (never guessed).
 
 ### slips.db
 

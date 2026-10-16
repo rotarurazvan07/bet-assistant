@@ -48,7 +48,14 @@ ODDS_VALID_LOW = 95.0
 ODDS_VALID_HIGH = 120.0
 ODDS_MARKET_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
     ("1X2", [("home", "1"), ("draw", "X"), ("away", "2")]),
-    ("Double Chance", [("double_chance_1x", "1X"), ("double_chance_x2", "X2"), ("double_chance_12", "12")]),
+    (
+        "Double Chance",
+        [
+            ("double_chance_1x", "1X"),
+            ("double_chance_x2", "X2"),
+            ("double_chance_12", "12"),
+        ],
+    ),
     ("O/U 0.5", [("over_0_5", "O0.5"), ("under_0_5", "U0.5")]),
     ("O/U 1.5", [("over_1_5", "O1.5"), ("under_1_5", "U1.5")]),
     ("O/U 2.5", [("over_2_5", "O2.5"), ("under_2_5", "U2.5")]),
@@ -64,7 +71,9 @@ for _gl, _gf in ODDS_MARKET_GROUPS:
         _FIELD_TO_GROUP[_fn] = (_gl, _gf)
 
 
-def _check_market_group(odds_dict: dict, fields: list[tuple[str, str]]) -> tuple[bool, float]:
+def _check_market_group(
+    odds_dict: dict, fields: list[tuple[str, str]]
+) -> tuple[bool, float]:
     """Check if a complete market group passes implied-probability sanity.
 
     Returns (is_valid, implied_prob_pct).
@@ -87,7 +96,7 @@ def _is_empty(value) -> bool:
     try:
         if pd.isna(value):
             return True
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         # pd.isna raises TypeError for non-scalar containers (list, dict, Odds…)
         pass
     if isinstance(value, str):
@@ -110,7 +119,9 @@ class MatchesManager(BufferedStorageManager):
         """Open/create the DB and set similarity thresholds."""
         self._similarity_config = dict(similarity_config) if similarity_config else None
         if similarity_config:
-            self.similarity_engine: SimilarityEngine | None = SimilarityEngine(similarity_config)
+            self.similarity_engine: SimilarityEngine | None = SimilarityEngine(
+                similarity_config
+            )
         else:
             self.similarity_engine = None
         self._near_misses: list[NearMiss] = []
@@ -133,9 +144,15 @@ class MatchesManager(BufferedStorageManager):
                     league             TEXT
                 )
             """)
-            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_datetime  ON matches(datetime)")
-            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)")
-            self.conn.execute("CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)")
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_datetime  ON matches(datetime)"
+            )
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_home_team ON matches(home_team_name)"
+            )
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_away_team ON matches(away_team_name)"
+            )
 
             # Schema Migration: Add league column to matches if it doesn't exist
             cursor = self.conn.execute("PRAGMA table_info(matches)")
@@ -159,7 +176,9 @@ class MatchesManager(BufferedStorageManager):
                 _, sc_a = engine.similarity(ra, away)
                 combined = (sc_h + sc_a) / 2
                 if 40 <= combined < 65:
-                    self._near_misses.append(NearMiss(home, away, rh, ra, combined, "", ""))
+                    self._near_misses.append(
+                        NearMiss(home, away, rh, ra, combined, "", "")
+                    )
             return None
         ok_a, sc_a = engine.similarity(ra, away)
         if not ok_a:
@@ -169,7 +188,9 @@ class MatchesManager(BufferedStorageManager):
             return None
         return (sc_h + sc_a) / 2
 
-    def _find(self, home: str, away: str, dt: datetime) -> tuple[dict | None, int | None]:
+    def _find(
+        self, home: str, away: str, dt: datetime
+    ) -> tuple[dict | None, int | None]:
         """Find a stored match by home/away names using fuzzy matching."""
         buf = self.ensure_buffer()
         if buf.empty:
@@ -177,7 +198,9 @@ class MatchesManager(BufferedStorageManager):
 
         target = pd.Timestamp(dt.date().isoformat())
         dates = pd.to_datetime(buf["datetime"].str[:10], errors="coerce")
-        mask = (dates >= target - pd.Timedelta(days=1)) & (dates <= target + pd.Timedelta(days=1))
+        mask = (dates >= target - pd.Timedelta(days=1)) & (
+            dates <= target + pd.Timedelta(days=1)
+        )
 
         best, best_idx, max_score = None, None, -1.0
         for idx, row in buf[mask].iterrows():
@@ -241,15 +264,23 @@ class MatchesManager(BufferedStorageManager):
             # Source-collision guard
             if found is not None and match.predictions:
                 ex_src = {
-                    s.get("source") for s in (self.deserialize_json(found.get("predictions_scores")) or []) if s.get("source")
+                    s.get("source")
+                    for s in (
+                        self.deserialize_json(found.get("predictions_scores")) or []
+                    )
+                    if s.get("source")
                 }
-                if not {s.source for s in match.predictions if s.source}.isdisjoint(ex_src):
+                if not {s.source for s in match.predictions if s.source}.isdisjoint(
+                    ex_src
+                ):
                     if self._is_exact_team_match(match, found):
                         logger.warning(
                             f"Source collision — skip duplicate predictions for {match.home_team} vs {match.away_team}"
                         )
                     else:
-                        logger.warning(f"Source collision — skip {match.home_team} vs {match.away_team}")
+                        logger.warning(
+                            f"Source collision — skip {match.home_team} vs {match.away_team}"
+                        )
                         found = None
 
             if found is None:
@@ -276,10 +307,14 @@ class MatchesManager(BufferedStorageManager):
                     "home_team_name": match.home_team,
                     "away_team_name": match.away_team,
                     "datetime": match.datetime.isoformat(),
-                    "predictions_scores": self.serialize_json([s.__dict__ for s in match.predictions])
+                    "predictions_scores": self.serialize_json(
+                        [s.__dict__ for s in match.predictions]
+                    )
                     if match.predictions
                     else None,
-                    "odds": self.serialize_json(asdict(match.odds)) if match.odds else None,
+                    "odds": self.serialize_json(asdict(match.odds))
+                    if match.odds
+                    else None,
                     "result_url": match.result_url,
                     "league": match.league,
                 },
@@ -322,15 +357,21 @@ class MatchesManager(BufferedStorageManager):
             odds_changed = self._update_odds(match, found, idx)
             changed = odds_changed or changed
             if odds_changed and match.odds is not None:
-                logger.info(f"Updating odds for {match.home_team} vs {match.away_team} with new values: {asdict(match.odds)}")
+                logger.info(
+                    f"Updating odds for {match.home_team} vs {match.away_team} with new values: {asdict(match.odds)}"
+                )
 
         if not _is_empty(match.result_url) and _is_empty(found.get("result_url")):
-            logger.info(f"Updating result_url for {match.home_team} vs {match.away_team} from None to {match.result_url}")
+            logger.info(
+                f"Updating result_url for {match.home_team} vs {match.away_team} from None to {match.result_url}"
+            )
             self._buffer.at[idx, "result_url"] = match.result_url
             changed = True
 
         if not _is_empty(match.league) and _is_empty(found.get("league")):
-            logger.info(f"Updating league for {match.home_team} vs {match.away_team} to {match.league}")
+            logger.info(
+                f"Updating league for {match.home_team} vs {match.away_team} to {match.league}"
+            )
             self._buffer.at[idx, "league"] = match.league
             changed = True
 
@@ -356,7 +397,11 @@ class MatchesManager(BufferedStorageManager):
         """Update datetime if existing has midnight time and new has specific time. Returns True if changed."""
         try:
             ex_dt = datetime.fromisoformat(found["datetime"])
-            if ex_dt.hour == 0 and ex_dt.minute == 0 and (match.datetime.hour != 0 or match.datetime.minute != 0):
+            if (
+                ex_dt.hour == 0
+                and ex_dt.minute == 0
+                and (match.datetime.hour != 0 or match.datetime.minute != 0)
+            ):
                 self._buffer.at[idx, "datetime"] = match.datetime.isoformat()
                 return True
         except Exception:
@@ -368,7 +413,11 @@ class MatchesManager(BufferedStorageManager):
         if match.odds is None:
             return False
         cur = self.deserialize_json(found.get("odds")) or {}
-        raw_patch = {k: v for k, v in asdict(match.odds).items() if _is_empty(cur.get(k)) and not _is_empty(v)}
+        raw_patch = {
+            k: v
+            for k, v in asdict(match.odds).items()
+            if _is_empty(cur.get(k)) and not _is_empty(v)
+        }
         if not raw_patch:
             return False
         # Validate each market group that would become complete after patching
@@ -422,7 +471,9 @@ class MatchesManager(BufferedStorageManager):
                         home_team=row["home_team_name"],
                         away_team=row["away_team_name"],
                         datetime=datetime.fromisoformat(row["datetime"]),
-                        predictions=[Score(**s) for s in json.loads(row["predictions_scores"])]
+                        predictions=[
+                            Score(**s) for s in json.loads(row["predictions_scores"])
+                        ]
                         if row["predictions_scores"]
                         else [],
                         odds=Odds(**json.loads(row["odds"])) if row["odds"] else None,
@@ -454,7 +505,9 @@ class MatchesManager(BufferedStorageManager):
         self._log_near_misses()
         self._clear_near_misses()
         self._log_odds_validation_report()
-        logger.info(f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing).")
+        logger.info(
+            f"Merge complete: {processed} rows processed ({added} new, {merged} merged into existing)."
+        )
 
     # ── Near-miss logging ──────────────────────────────────────────────────────
 
@@ -471,7 +524,9 @@ class MatchesManager(BufferedStorageManager):
                 unique.append(nm)
         logger.warning(f"=== NEAR-MISS REPORT: {len(unique)} pairs (score 40-65) ===")
         for nm in unique:
-            logger.warning(f"  [{nm.score:.0f}] {nm.home_a} vs {nm.away_a} <-> {nm.home_b} vs {nm.away_b}")
+            logger.warning(
+                f"  [{nm.score:.0f}] {nm.home_a} vs {nm.away_a} <-> {nm.home_b} vs {nm.away_b}"
+            )
         logger.warning("=== END NEAR-MISS REPORT ===")
 
     def _clear_near_misses(self) -> None:
@@ -501,17 +556,29 @@ class MatchesManager(BufferedStorageManager):
                     continue  # incomplete group
                 if not valid:
                     vals = {lbl: float(odds_dict[fld]) for fld, lbl in fields}
-                    issues.append(OddsValidationIssue(home, away, group_label, round(implied, 2), vals))
+                    issues.append(
+                        OddsValidationIssue(
+                            home, away, group_label, round(implied, 2), vals
+                        )
+                    )
         return issues
 
     def _log_odds_validation_report(self) -> None:
         """Log matches whose odds fail the implied-probability sanity check."""
         issues = self._validate_all_odds()
         if not issues:
-            logger.info("=== ODDS VALIDATION: all markets passed (%.0f-%.0f%% range) ===", ODDS_VALID_LOW, ODDS_VALID_HIGH)
+            logger.info(
+                "=== ODDS VALIDATION: all markets passed (%.0f-%.0f%% range) ===",
+                ODDS_VALID_LOW,
+                ODDS_VALID_HIGH,
+            )
             return
-        logger.warning("=== ODDS VALIDATION REPORT: %d problematic markets ===", len(issues))
-        for iss in sorted(issues, key=lambda x: abs(x.implied_prob_pct - 107.5), reverse=True):
+        logger.warning(
+            "=== ODDS VALIDATION REPORT: %d problematic markets ===", len(issues)
+        )
+        for iss in sorted(
+            issues, key=lambda x: abs(x.implied_prob_pct - 107.5), reverse=True
+        ):
             odds_str = "  ".join(f"{k}={v:.2f}" for k, v in iss.odds_values.items())
             logger.warning(
                 "  %s vs %s | %s | implied=%.1f%% | %s",
@@ -526,20 +593,26 @@ class MatchesManager(BufferedStorageManager):
     # ── Embedded Odds History ──────────────────────────────────────────────────
 
     def calculate_movement_from_odds(self, odds_dict: dict | None) -> dict:
-        """Derive movement directions from the scraped movement_change_pp dict.
+        """Derive movement directions from the source-provided movement_change_pp dict.
 
         Returns dict with keys like 'home', 'draw', 'away', etc.
         Values are 'up', 'down', 'stable', or None when the source
         did not confirm an opening odds for that market.
+
+        F11: corrupt movement data (non-dict movement_change_pp, non-numeric
+        per-market value) is treated as unconfirmed (None) instead of raising
+        TypeError — one corrupt row must not 500 the endpoints.
         """
-        if not odds_dict:
+        if not odds_dict or not isinstance(odds_dict, dict):
             return {}
-        pp = odds_dict.get("movement_change_pp") or {}
+        pp = odds_dict.get("movement_change_pp")
+        if not isinstance(pp, dict):
+            pp = {}
         markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
         movement: dict[str, str | None] = {}
         for market in markets:
             v = pp.get(market)
-            if v is None:
+            if not isinstance(v, (int, float)):
                 movement[market] = None
             elif v > 0:
                 movement[market] = "up"
@@ -549,24 +622,40 @@ class MatchesManager(BufferedStorageManager):
                 movement[market] = "stable"
         return movement
 
-    def calculate_movement_with_strength(self, odds_dict: dict | None) -> dict:
-        """Derive movement direction + strength from scraped movement_change_pp.
+    def calculate_movement_with_strength(
+        self, odds_dict: dict | None, threshold: float = 5.0
+    ) -> dict:
+        """Derive movement direction + strength from source-provided movement_change_pp.
 
         Returns dict mapping market -> {direction, change_pct, significant}.
         Values come straight from the source-provided opening-odds movement;
         None movement_change_pp means the source never confirmed opening odds
         (never guessed).
-        significant when |pp| >= 5.0, or |pp| >= 1.0 for low odds (< 2.0).
+
+        F12 significance semantics (binding): a market is significant iff
+        ``direction != "stable" and abs(change_pct) >= threshold``.
+        Default threshold is 5.0 percentage points, independent of the
+        current odds value (the old low-odds <2.0 special case is removed).
+
+        F11: corrupt movement data (non-dict movement_change_pp, non-numeric
+        per-market value) is reported as unconfirmed (direction None,
+        significant False) instead of raising TypeError.
         """
-        if not odds_dict:
+        if not odds_dict or not isinstance(odds_dict, dict):
             return {}
-        pp = odds_dict.get("movement_change_pp") or {}
+        pp = odds_dict.get("movement_change_pp")
+        if not isinstance(pp, dict):
+            pp = {}
         markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
         result: dict = {}
         for market in markets:
             v = pp.get(market)
-            if v is None:
-                result[market] = {"direction": None, "change_pct": 0.0, "significant": False}
+            if not isinstance(v, (int, float)):
+                result[market] = {
+                    "direction": None,
+                    "change_pct": 0.0,
+                    "significant": False,
+                }
                 continue
             if v > 0:
                 direction = "up"
@@ -574,9 +663,7 @@ class MatchesManager(BufferedStorageManager):
                 direction = "down"
             else:
                 direction = "stable"
-            current_val = odds_dict.get(market)
-            low_odds = isinstance(current_val, (int, float)) and current_val < 2.0
-            significant = direction != "stable" and (abs(v) >= 5.0 or (low_odds and abs(v) >= 1.0))
+            significant = direction != "stable" and abs(float(v)) >= threshold
             result[market] = {
                 "direction": direction,
                 "change_pct": float(v),
@@ -594,17 +681,29 @@ class MatchesManager(BufferedStorageManager):
         odds_dict = self.deserialize_json(odds_json) if odds_json else {}
         return self.calculate_movement_from_odds(odds_dict)
 
-    def merge_fresh_db(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
+    def merge_fresh_db(self, fresh_db_path: str) -> None:
         """Replace current data with the freshly pulled database.
 
         Issue #105: odds movement now comes from the source-provided
         movement_change_pp field, so nothing needs to be preserved across
         pulls — the previous odds-history carry-over is intentionally gone.
+
+        F7 (data-loss fix): the old implementation called reset_matches_db()
+        (which commits an immediate DELETE of the matches table) before
+        flush() wrote the fresh buffer. A flush failure then left the live
+        database empty after restart. flush() is already an atomic
+        DELETE + append + commit under db_lock, so the pre-clear is
+        dropped: either the whole fresh buffer lands, or a failed flush
+        raises StorageError and the previous data stays intact.
         """
         import os
 
-        fresh_file_size = os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
-        logger.info(f"Loading fresh DB from {fresh_db_path} (size: {fresh_file_size} bytes)")
+        fresh_file_size = (
+            os.path.getsize(fresh_db_path) if os.path.exists(fresh_db_path) else -1
+        )
+        logger.info(
+            f"Loading fresh DB from {fresh_db_path} (size: {fresh_file_size} bytes)"
+        )
         fresh_manager = MatchesManager(fresh_db_path, self._similarity_config)
         fresh_buf = fresh_manager.ensure_buffer()
         logger.info(
@@ -620,9 +719,10 @@ class MatchesManager(BufferedStorageManager):
         fresh_manager.close()
         del fresh_manager
 
-        self.reset_matches_db()
         self._buffer = merged_buffer.reset_index(drop=True)
         self._dirty = True
         self.flush()
 
-        logger.info(f"Database merge complete: {len(self._buffer)} rows written to {self.db_path}")
+        logger.info(
+            f"Database merge complete: {len(self._buffer)} rows written to {self.db_path}"
+        )

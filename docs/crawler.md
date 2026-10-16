@@ -335,9 +335,9 @@ class MatchesManager(BufferedStorageManager):
         # Log near-misses (40-65 similarity)
         # Validate odds implied probability (95-120%)
     
-    def merge_with_history_preservation(self, fresh_db_path, max_history=3, local_tz="UTC"):
-        # Preserve odds history when merging fresh DB
-        # Transfer existing history + append current snapshot
+    def merge_fresh_db(self, fresh_db_path: str) -> None:
+        # Replace buffer with fresh pull (issue #105)
+        # No odds history carry-over: movement_change_pp is scraped per pull
 ```
 
 ### Database Schema
@@ -349,7 +349,7 @@ CREATE TABLE matches (
     away_team_name TEXT NOT NULL,
     datetime TEXT NOT NULL,
     predictions_scores TEXT,  -- JSON
-    odds TEXT,                -- JSON with history
+    odds TEXT,                -- JSON: {..., movement_change_pp: {market: pp}}
     result_url TEXT,
     league TEXT
 );
@@ -358,7 +358,7 @@ CREATE INDEX idx_home_team ON matches(home_team_name);
 CREATE INDEX idx_away_team ON matches(away_team_name);
 ```
 
-**Odds JSON with History**:
+**Odds JSON with Movement** (issue #105 — pp-sourced, no history array):
 ```json
 {
   "home": 1.85,
@@ -366,12 +366,10 @@ CREATE INDEX idx_away_team ON matches(away_team_name);
   "away": 4.20,
   "over_25": 1.75,
   "under_25": 2.10,
-  "history": [
-    {"ts": "2026-08-22T10:00:00", "home": 1.90, "draw": 3.30, "away": 4.00},
-    {"ts": "2026-08-22T15:00:00", "home": 1.85, "draw": 3.40, "away": 4.20}
-  ]
+  "movement_change_pp": {"home": -6.4, "draw": 0.0, "away": null}
 }
 ```
+Directions derive from the pp sign; `null` = source never confirmed opening odds.
 
 ---
 

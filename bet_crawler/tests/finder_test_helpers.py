@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "html"
 
@@ -58,7 +59,9 @@ def make_finder(
         top_leagues_only=top_leagues_only,
         num_days_ahead=num_days_ahead,
         local_timezone=local_timezone,
-        skip_patterns=skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS,
+        skip_patterns=skip_patterns
+        if skip_patterns is not None
+        else DEFAULT_SKIP_PATTERNS,
     )
     return finder, collector
 
@@ -165,3 +168,102 @@ def fake_browser(monkeypatch, finder_module, content_map, fetch_error_urls=()):
 
     monkeypatch.setattr(finder_module, "browser", fake_browser_ctx)
     return session
+
+
+class FakeAnchor:
+    """Minimal odds-cell anchor; hover() mounts this cell's tooltip (B2 tests)."""
+
+    def __init__(self, text, page, index) -> None:
+        self.text = text
+        self.page = page
+        self.index = index
+
+    def text_content(self, timeout=None) -> str:
+        return self.text
+
+    def hover(self, timeout=None) -> None:
+        self.page.mount(self.index)
+
+
+class FakeLocator:
+    """Playwright-ish locator over a fixed item list (count/nth/first/filter)."""
+
+    def __init__(self, items) -> None:
+        self._items = list(items)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def nth(self, i):
+        return self._items[i]
+
+    @property
+    def first(self):
+        return self._items[0]
+
+    def filter(self, has_text=None):
+        return self
+
+    def locator(self, selector):
+        """Delegate a nested locator to the single held item (tbody.locator('tr'))."""
+        return self._items[0].locator(selector)
+
+
+class FakeRow:
+    """Minimal table row: inner_text() is its line label, locator('a') its cells."""
+
+    def __init__(self, line, anchors) -> None:
+        self.line = line
+        self.anchors = anchors
+
+    def inner_text(self, timeout=None) -> str:
+        return self.line
+
+    def locator(self, selector):
+        return FakeLocator(self.anchors if selector == "a" else [])
+
+
+class FakeTooltipPage:
+    """Headless odds-table page for movement tests (issue #105 / CR #106).
+
+    content() returns the current HTML; hovering an anchor mounts that cell's
+    ODDS MOVEMENT tooltip div, so pre-hover popups stay mounted (B2 race).
+    """
+
+    def __init__(self, base_html, tooltips) -> None:
+        self.html = base_html
+        self.tooltips = tooltips
+        self.content_calls = 0
+        self.mounted = set()
+        self.tbody = FakeTbody(self)
+
+    def content(self) -> str:
+        self.content_calls += 1
+        return self.html
+
+    def mount(self, index) -> None:
+        if index not in self.mounted and index < len(self.tooltips):
+            self.mounted.add(index)
+            self.html += self.tooltips[index]
+
+    def locator(self, selector):
+        return FakeLocator(
+            [self.tbody] if selector == "table.w-full.table-fixed tbody" else []
+        )
+
+
+class FakeTbody:
+    """Hands out the rows a caller pre-registered on the page."""
+
+    def __init__(self, page) -> None:
+        self.page = page
+        self.rows = []
+
+    def locator(self, selector):
+        return FakeLocator(self.rows if selector == "tr" else [])
+
+
+def make_tooltip_session(page, rows):
+    """Wire a session over an existing FakeTooltipPage with the given rows."""
+    page.locator("table.w-full.table-fixed tbody").first.rows = rows
+    return SimpleNamespace(page=page)

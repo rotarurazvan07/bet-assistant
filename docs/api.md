@@ -595,24 +595,6 @@ Get movements with strength metrics, filtered to significant only.
 }
 ```
 
-#### GET `/api/odds-history/{match_id}`
-
-Get full odds history for a specific match.
-
-**Response** (`OddsHistoryOut`)
-```json
-{
-  "match_id": 0,
-  "match_name": "Team A vs Team B",
-  "datetime": "2026-08-23T20:00:00",
-  "snapshots": [
-    {"timestamp": "2026-08-22T10:00:00", "odds": {"home": 1.90, "draw": 3.30, "away": 4.00}},
-    {"timestamp": "2026-08-22T15:00:00", "odds": {"home": 1.85, "draw": 3.40, "away": 4.20}}
-  ],
-  "movement": {"home": "down", "draw": "up", "away": "up"}
-}
-```
-
 #### GET `/api/odds-history/{match_id}/movement`
 
 Get just the movement summary for a match.

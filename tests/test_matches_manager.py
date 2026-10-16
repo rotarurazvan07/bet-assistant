@@ -67,7 +67,9 @@ def make_chunk_db(path, matches):
         )
     """)
     for m in matches:
-        preds_json = json.dumps([s.__dict__ for s in m.predictions]) if m.predictions else None
+        preds_json = (
+            json.dumps([s.__dict__ for s in m.predictions]) if m.predictions else None
+        )
         odds_json = None
         if m.odds:
             from dataclasses import asdict
@@ -95,7 +97,9 @@ def make_chunk_db(path, matches):
 @pytest.fixture
 def mm(tmp_path):
     """MatchesManager with similarity engine enabled."""
-    manager = MatchesManager(str(tmp_path / "test.db"), similarity_config=SIMILARITY_CONFIG)
+    manager = MatchesManager(
+        str(tmp_path / "test.db"), similarity_config=SIMILARITY_CONFIG
+    )
     yield manager
     with contextlib.suppress(Exception):
         manager.close()
@@ -113,7 +117,9 @@ def mm_no_sim(tmp_path):
 @pytest.fixture
 def populated_mm(tmp_path):
     """MatchesManager pre-loaded with 3 matches."""
-    manager = MatchesManager(str(tmp_path / "populated.db"), similarity_config=SIMILARITY_CONFIG)
+    manager = MatchesManager(
+        str(tmp_path / "populated.db"), similarity_config=SIMILARITY_CONFIG
+    )
     manager.add_match(make_match("Arsenal", "Chelsea", DT_BASE, [Score("src_a", 2, 1)]))
     manager.add_match(
         make_match(
@@ -147,7 +153,9 @@ class TestInit:
         mm.close()
 
     def test_normal_with_similarity_engine(self, tmp_path):
-        mm = MatchesManager(str(tmp_path / "sim.db"), similarity_config=SIMILARITY_CONFIG)
+        mm = MatchesManager(
+            str(tmp_path / "sim.db"), similarity_config=SIMILARITY_CONFIG
+        )
         assert mm.similarity_engine is not None
         mm.close()
 
@@ -157,7 +165,9 @@ class TestInit:
         mm.close()
 
     def test_edge_empty_db_has_matches_table(self, mm):
-        rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='table' AND name='matches'")
+        rows = mm.fetch_rows(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='matches'"
+        )
         assert len(rows) == 1
 
 
@@ -255,14 +265,23 @@ class TestAddMatch:
 
     def test_edge_exact_source_collision_merges_new_sources(self, mm):
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
-        mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 3, 0), Score("src_b", 1, 1)]))
+        mm.add_match(
+            make_match(
+                "Arsenal", "Chelsea", preds=[Score("src_a", 3, 0), Score("src_b", 1, 1)]
+            )
+        )
         buf = mm.ensure_buffer()
 
         assert len(buf) == 1
         preds = json.loads(buf.iloc[0]["predictions_scores"])
-        assert preds == [{"source": "src_a", "home": 2.0, "away": 1.0}, {"source": "src_b", "home": 1.0, "away": 1.0}]
+        assert preds == [
+            {"source": "src_a", "home": 2.0, "away": 1.0},
+            {"source": "src_b", "home": 1.0, "away": 1.0},
+        ]
 
-    def test_edge_exact_source_collision_updates_missing_url_without_duplicate(self, mm):
+    def test_edge_exact_source_collision_updates_missing_url_without_duplicate(
+        self, mm
+    ):
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(
             make_match(
@@ -411,8 +430,14 @@ class TestResetMatchesDb:
         rows = populated_mm.fetch_rows("SELECT COUNT(*) AS n FROM matches")
         assert rows[0][0] == 0
         assert populated_mm._dirty is False
-        indexes = populated_mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
-        assert {row[0] for row in indexes} >= {"idx_datetime", "idx_home_team", "idx_away_team"}
+        indexes = populated_mm.fetch_rows(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'"
+        )
+        assert {row[0] for row in indexes} >= {
+            "idx_datetime",
+            "idx_home_team",
+            "idx_away_team",
+        }
 
     def test_regression_reset_does_not_call_removed_clear_database(self, mm):
         assert not hasattr(mm, "clear_database")
@@ -433,7 +458,11 @@ class TestScrapeKitPin:
         for rel in self.REQUIREMENTS:
             path = os.path.join(root, rel)
             with open(path, encoding="utf-8") as fh:
-                lines = [ln.strip() for ln in fh if "scrape-kit" in ln and not ln.lstrip().startswith("#")]
+                lines = [
+                    ln.strip()
+                    for ln in fh
+                    if "scrape-kit" in ln and not ln.lstrip().startswith("#")
+                ]
             assert lines == [self.PIN], f"{rel} scrape-kit refs={lines}"
 
     def test_scrape_requirements_pandas_matches_scrape_kit_v022(self):
@@ -453,7 +482,9 @@ class TestFlush:
         mm.add_match(make_match("Flush", "Test"))
         mm.flush()
         # Read from disk directly
-        rows = mm.fetch_rows("SELECT * FROM matches WHERE home_team_name = ?", ("Flush",))
+        rows = mm.fetch_rows(
+            "SELECT * FROM matches WHERE home_team_name = ?", ("Flush",)
+        )
         assert len(rows) == 1
 
     def test_normal_flush_clears_dirty_flag(self, mm):
@@ -471,7 +502,9 @@ class TestFlush:
         mm.add_match(make_match("A", "B"))
         mm.flush()
         # Verify indexes still exist
-        rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
+        rows = mm.fetch_rows(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'"
+        )
         index_names = [r["name"] for r in rows]
         assert "idx_datetime" in index_names
         assert "idx_home_team" in index_names
@@ -529,13 +562,19 @@ class TestFind:
     def test_edge_fuzzy_row_score_none_engine_returns_none(self, mm_no_sim):
         """NONE_ENGINE: _fuzzy_row_score must not AttributeError when engine is missing."""
         assert mm_no_sim.similarity_engine is None
-        assert mm_no_sim._fuzzy_row_score("Arsenal", "Chelsea", "Arsenal", "Chelsea") is None
+        assert (
+            mm_no_sim._fuzzy_row_score("Arsenal", "Chelsea", "Arsenal", "Chelsea")
+            is None
+        )
 
     def test_edge_add_match_skips_update_when_idx_none(self, mm):
         """UPDATE_IDX: found-without-idx must not call _update_existing_match."""
         mm.add_match(make_match("Arsenal", "Chelsea"))
         mm._find = lambda *a, **k: ({"home_team_name": "Arsenal"}, None)
-        assert mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_b", 1, 0)])) is None
+        assert (
+            mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_b", 1, 0)]))
+            is None
+        )
 
 
 # ── merge_databases ───────────────────────────────────────────────────────────
@@ -557,7 +596,11 @@ class TestMergeDatabases:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         # Use distinct team names that won't fuzzy-match each other
-        teams = [("Arsenal", "Chelsea"), ("Barcelona", "Real Madrid"), ("Bayern Munich", "Dortmund")]
+        teams = [
+            ("Arsenal", "Chelsea"),
+            ("Barcelona", "Real Madrid"),
+            ("Bayern Munich", "Dortmund"),
+        ]
         for i, (home, away) in enumerate(teams):
             make_chunk_db(
                 chunk_dir / f"chunk{i}.db",
@@ -718,7 +761,11 @@ class TestMatchesManagerScenarios:
         )
         make_chunk_db(
             chunk_dir / "chunk2.db",
-            [make_match("Manchester United FC", "Liverpool", preds=[Score("s2", 1, 1)])],
+            [
+                make_match(
+                    "Manchester United FC", "Liverpool", preds=[Score("s2", 1, 1)]
+                )
+            ],
         )
         mm.merge_databases(str(chunk_dir))
         buf = mm.ensure_buffer()
@@ -727,3 +774,41 @@ class TestMatchesManagerScenarios:
         preds = json.loads(buf.iloc[0]["predictions_scores"])
         sources = {p["source"] for p in preds}
         assert sources == {"s1", "s2"}
+
+
+class TestMovementPersistence:
+    """F16: movement_change_pp must survive a chunk merge + reload round-trip."""
+
+    def test_movement_survives_merge_databases(self, mm, tmp_path):
+        """F16: asdict -> serialize_json -> insert -> merge -> reload keeps movement_change_pp."""
+        movement = {"home": 5.6, "draw": -2.4}
+        odds = Odds(home=1.6, draw=3.0, movement_change_pp=movement)
+        chunk = make_match(home="Mov Team", away="Other Team", dt=DT_BASE, odds=odds)
+
+        chunk_dir = tmp_path / "chunks"
+        chunk_dir.mkdir()
+        make_chunk_db(str(chunk_dir / "chunk1.db"), [chunk])
+
+        mm.merge_databases(str(chunk_dir))
+        mm.close()
+
+        # Pin persistence: read the odds column straight from sqlite.
+        conn = sqlite3.connect(mm.db_path)
+        row = conn.execute(
+            "SELECT odds FROM matches WHERE home_team_name = ?", ("Mov Team",)
+        ).fetchone()
+        conn.close()
+        assert row is not None, "merged match row missing after chunk merge"
+        stored = json.loads(row[0])
+        assert stored["movement_change_pp"] == movement
+
+        # And a fresh manager reload reproduces the same movement map.
+        reloaded = MatchesManager(str(mm.db_path), similarity_config=SIMILARITY_CONFIG)
+        try:
+            odds_dict = reloaded.deserialize_json(
+                reloaded.ensure_buffer().iloc[0]["odds"]
+            )
+            assert reloaded.calculate_movement_from_odds(odds_dict)["home"] == "up"
+            assert reloaded.calculate_movement_from_odds(odds_dict)["draw"] == "down"
+        finally:
+            reloaded.close()

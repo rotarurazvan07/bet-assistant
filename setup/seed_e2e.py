@@ -71,7 +71,14 @@ def _votes(score: tuple[int, int], count: int, sources: list[str]) -> list[Score
 
 
 def _odds(**overrides) -> dict:
-    """Odds mirroring the Vitest makeMatch() defaults plus spec overrides."""
+    """Odds mirroring the Vitest makeMatch() defaults plus spec overrides.
+
+    ``movement_change_pp`` carries the same per-market pp values as
+    DEMO_MOVEMENTS in bet_dashboard/frontend/e2e/fixtures/demo-data.ts — the
+    real read path (calculate_movement_from_odds) turns them into the
+    directions the mocked /movements routes serve. Keep both in sync; the
+    direction split happens in MatchesManager, not here.
+    """
     base = {
         "home": 1.9,
         "draw": 3.4,
@@ -97,6 +104,12 @@ def _odds(**overrides) -> dict:
 
 
 # (home, away, datetime, predictions, odds, result_url, league)
+# Per-match movement pp values. Matches the DEMO_MOVEMENTS directions in
+# bet_dashboard/frontend/e2e/fixtures/demo-data.ts (pp sign → direction).
+_PP_ARSENAL = {"home": -6.4, "draw": 0.0, "away": 3.2}
+_PP_LIVERPOOL = {"home": 8.3, "draw": 0.0, "away": -2.1}
+_PP_BARCELONA: dict[str, float | None] = {"home": None, "draw": 0.0, "away": None}
+
 DEMO_MATCHES = [
     (
         "Arsenal",
@@ -108,7 +121,7 @@ DEMO_MATCHES = [
             Score("scorepredictor", 3, 1),
             Score("vitibet", 1, 1),
         ],
-        _odds(),
+        _odds(movement_change_pp=_PP_ARSENAL),
         "https://example.com/match/1",
         "England",
     ),
@@ -117,7 +130,7 @@ DEMO_MATCHES = [
         "Man City",
         "2026-10-07T18:00:00",
         _votes((2, 1), 21, _S5) + _votes((1, 1), 14, _S5) + _votes((1, 2), 15, _S5),
-        _odds(home=2.4, draw=3.2, away=2.9),
+        _odds(home=2.4, draw=3.2, away=2.9, movement_change_pp=_PP_LIVERPOOL),
         "https://example.com/match/2",
         "England",
     ),
@@ -126,7 +139,7 @@ DEMO_MATCHES = [
         "Real Madrid",
         "2026-10-08T20:45:00",
         _votes((2, 1), 19, _S6) + _votes((1, 1), 13, _S6) + _votes((1, 2), 18, _S6),
-        _odds(home=2.7, draw=3.3, away=2.5),
+        _odds(home=2.7, draw=3.3, away=2.5, movement_change_pp=_PP_BARCELONA),
         "https://example.com/match/3",
         "Spain",
     ),
@@ -193,6 +206,21 @@ def main() -> None:
         assert cons["result"]["home"] == expected, (
             f"{name}: cons_home {cons['result']['home']} != {expected}"
         )
+
+    # Movement: the pp-sourced contract must survive persistence AND derive
+    # the same directions the local mocks serve (DEMO_MOVEMENTS in demo-data.ts).
+    expected_movement = {
+        "Arsenal": {"home": "down", "draw": "stable", "away": "up"},
+        "Liverpool": {"home": "up", "draw": "stable", "away": "down"},
+        "Barcelona": {"home": None, "draw": "stable", "away": None},
+    }
+    _mgr = MatchesManager(MATCHES_DB)
+    for name, expected in expected_movement.items():
+        movement = _mgr.calculate_movement_from_odds(by_home[name]["odds"])
+        for market, direction in expected.items():
+            assert movement.get(market) == direction, (
+                f"{name}: movement[{market}] {movement.get(market)} != {direction}"
+            )
     print(
         f"e2e seed OK: 3 demo matches in {MATCHES_DB}; daemons parked in {CONFIG_DIR / 'services.yaml'}"
     )

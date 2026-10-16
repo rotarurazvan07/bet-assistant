@@ -1,7 +1,7 @@
 """Odds movement API (issue #105: sourced from movement_change_pp)."""
 
 from core.schemas import OddsMovementSummary
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 
 from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
 
@@ -35,10 +35,15 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
         if match_dt and match_dt > now:
             movement = logic.get_odds_movement(idx)
             match_id = row.get("match_id", str(idx))
-            if movement:
+            # F8: calculate_movement_from_odds returns truthy {market: None}
+            # when the source confirmed no opening odds — skip such matches
+            # instead of emitting an all-null summary for every fixture.
+            if movement and any(v is not None for v in movement.values()):
                 # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
                 summary_kwargs = {
-                    md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", ""))
+                    md.odds_key.replace("odds_", ""): movement.get(
+                        md.odds_key.replace("odds_", "")
+                    )
                     for md in MARKET_DEFINITIONS
                 }
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
@@ -63,7 +68,11 @@ def get_significant_movements(request: Request) -> dict:
             strength = logic.get_odds_movement_with_strength(idx)
             if not strength:
                 continue
-            sig_count = sum(1 for v in strength.values() if isinstance(v, dict) and v.get("significant"))
+            sig_count = sum(
+                1
+                for v in strength.values()
+                if isinstance(v, dict) and v.get("significant")
+            )
             if sig_count == 0:
                 continue
             match_id = row.get("match_id", str(idx))
@@ -78,10 +87,17 @@ def get_significant_movements(request: Request) -> dict:
 def get_match_movement(request: Request, match_id: int):
     """Get just the movement summary for a match."""
     logic = _get(request).logic
+    # F15: out-of-range/negative ids must 404, not 200-with-all-null.
+    # AppLogic.get_odds_movement returns {} for bad ids, so the router
+    # checks bounds itself before delegating.
+    df = logic.match_df
+    if df is None or df.empty or match_id < 0 or match_id >= len(df):
+        raise HTTPException(status_code=404, detail=f"Match {match_id} not found")
     movement = logic.get_odds_movement(match_id)
 
     # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
     summary_kwargs = {
-        md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", "")) for md in MARKET_DEFINITIONS
+        md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", ""))
+        for md in MARKET_DEFINITIONS
     }
     return OddsMovementSummary(**summary_kwargs)

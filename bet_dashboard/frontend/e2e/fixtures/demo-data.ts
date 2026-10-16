@@ -1,6 +1,7 @@
 // Canonical demo rows for BOTH tracks: installDemoApi (local) and
 // setup/seed_e2e.py (CI e2e DB). Expand here first, then teach both tracks.
 // Reuses Vitest factories — no second Match type.
+import type { MarketMovementDetail, OddsMovementSummary } from '../../src/types';
 import { makeMatch, makeMatchesPage, makeProfile, makeSlip, makeSlipsPage } from '../../src/test/factories';
 
 export const DEMO_MATCHES = [
@@ -42,6 +43,30 @@ export const DEMO_MATCHES = [
         league: 'Spain',
     }),
 ];
+
+// Odds movement (pp-sourced contract, issue #105): demo data mirrors the
+// real read path so /api/odds-history/movements/* have rows to serve.
+// Same pp values are seeded by setup/seed_e2e.py — keep both in sync.
+export const DEMO_MOVEMENTS: Record<string, OddsMovementSummary> = {
+    match_1_ab12cd34: { home: 'down', draw: 'stable', away: 'up' },
+    match_2_ef56gh78: { home: 'up', draw: 'stable', away: 'down' },
+    match_3_ij90kl12: { home: null, draw: 'stable', away: null },
+};
+
+// Strength details for /movements/significant (Odds Alert page). Markets with
+// significant: true are surfaced; the rest stay in the payload like the API.
+export const DEMO_MOVEMENT_STRENGTHS: Record<string, Record<string, MarketMovementDetail>> = {
+    match_1_ab12cd34: {
+        home: { direction: 'down', change_pct: -6.4, significant: true },
+        draw: { direction: 'stable', change_pct: 0.0, significant: false },
+        away: { direction: 'up', change_pct: 3.2, significant: false },
+    },
+    match_2_ef56gh78: {
+        home: { direction: 'up', change_pct: 8.3, significant: true },
+        draw: { direction: 'stable', change_pct: 0.0, significant: false },
+        away: { direction: 'down', change_pct: -2.1, significant: false },
+    },
+};
 
 export const DEMO_MATCHES_PAGE = makeMatchesPage({
     total: DEMO_MATCHES.length,

@@ -77,7 +77,15 @@ def _market_breakdown(slips) -> list[dict]:
 
             m = str(leg.market)
             if m not in data:
-                data[m] = {"market": m, "legs": 0, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0}
+                data[m] = {
+                    "market": m,
+                    "legs": 0,
+                    "won": 0,
+                    "lost": 0,
+                    "sum_odds": 0.0,
+                    "sum_implied": 0.0,
+                    "net_profit": 0.0,
+                }
 
             # Always aggregate profit (money is real even if leg is duplicated)
             if l_status == "Won":
@@ -192,7 +200,9 @@ def _league_breakdown(slips) -> list[dict]:
 # ── Source Reliability Breakdown ────────────────────────────────────────────────
 
 
-def _predict_outcome_from_score(home_goals: int, away_goals: int, market_label: str, market_type: str) -> str:
+def _predict_outcome_from_score(
+    home_goals: int, away_goals: int, market_label: str, market_type: str
+) -> str:
     """Predict outcome for a market based on a score prediction."""
     total_goals = home_goals + away_goals
 
@@ -265,12 +275,14 @@ def _source_market_correlation(slips) -> dict:
 
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
-            except ValueError, AttributeError:
+            except (ValueError, AttributeError):
                 continue
 
             market_label = str(leg.market)
             market_type = str(leg.market_type)
-            actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market_label, market_type)
+            actual_outcome = _predict_outcome_from_score(
+                actual_home, actual_away, market_label, market_type
+            )
 
             market_type_display = market_type
             market_types_set.add(market_type_display)
@@ -285,11 +297,16 @@ def _source_market_correlation(slips) -> dict:
                 if source not in source_data:
                     source_data[source] = {}
                 if market_type_display not in source_data[source]:
-                    source_data[source][market_type_display] = {"correct": 0, "total": 0}
+                    source_data[source][market_type_display] = {
+                        "correct": 0,
+                        "total": 0,
+                    }
 
                 source_data[source][market_type_display]["total"] += 1
 
-                predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
+                predicted_outcome = _predict_outcome_from_score(
+                    pred_home, pred_away, market_label, market_type
+                )
                 is_correct = predicted_outcome == actual_outcome
 
                 if is_correct:
@@ -300,12 +317,18 @@ def _source_market_correlation(slips) -> dict:
     for source in sorted(sources_set):
         matrix[source] = {}
         for market_type in sorted(market_types_set):
-            data = source_data.get(source, {}).get(market_type, {"correct": 0, "total": 0})
+            data = source_data.get(source, {}).get(
+                market_type, {"correct": 0, "total": 0}
+            )
             total = data["total"]
             accuracy = round(data["correct"] / total * 100, 1) if total else 0.0
             matrix[source][market_type] = {"accuracy": accuracy, "total": total}
 
-    return {"sources": sorted(sources_set), "markets": sorted(market_types_set), "matrix": matrix}
+    return {
+        "sources": sorted(sources_set),
+        "markets": sorted(market_types_set),
+        "matrix": matrix,
+    }
 
 
 def _source_breakdown(slips) -> list[dict]:
@@ -343,13 +366,15 @@ def _source_breakdown(slips) -> list[dict]:
 
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
-            except ValueError, AttributeError:
+            except (ValueError, AttributeError):
                 continue
 
             # Determine actual outcome for this leg's market
             market_label = str(leg.market)
             market_type = str(leg.market_type)
-            actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market_label, market_type)
+            actual_outcome = _predict_outcome_from_score(
+                actual_home, actual_away, market_label, market_type
+            )
 
             for pred in predictions:
                 source = pred.get("source", "unknown")
@@ -368,7 +393,9 @@ def _source_breakdown(slips) -> list[dict]:
                 source_data[source]["total_predictions"] += 1
 
                 # Compute predicted outcome for this market from source's predicted score
-                predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
+                predicted_outcome = _predict_outcome_from_score(
+                    pred_home, pred_away, market_label, market_type
+                )
 
                 # Check if prediction was correct
                 is_correct = predicted_outcome == actual_outcome
@@ -377,11 +404,16 @@ def _source_breakdown(slips) -> list[dict]:
                     source_data[source]["correct_predictions"] += 1
 
                 # Track score MAE
-                source_data[source]["score_mae_sum"] += abs(pred_home - actual_home) + abs(pred_away - actual_away)
+                source_data[source]["score_mae_sum"] += abs(
+                    pred_home - actual_home
+                ) + abs(pred_away - actual_away)
 
                 # Track per-market performance
                 if market_label not in source_data[source]["markets"]:
-                    source_data[source]["markets"][market_label] = {"total": 0, "correct": 0}
+                    source_data[source]["markets"][market_label] = {
+                        "total": 0,
+                        "correct": 0,
+                    }
                 source_data[source]["markets"][market_label]["total"] += 1
                 if is_correct:
                     source_data[source]["markets"][market_label]["correct"] += 1
@@ -391,7 +423,9 @@ def _source_breakdown(slips) -> list[dict]:
         total = data["total_predictions"]
         correct = data["correct_predictions"]
         accuracy = round(correct / total * 100, 1) if total else 0.0
-        score_mae = round(data["score_mae_sum"] / (total * 2), 2) if total else 0.0  # Avg goals error per team
+        score_mae = (
+            round(data["score_mae_sum"] / (total * 2), 2) if total else 0.0
+        )  # Avg goals error per team
 
         # Per-market breakdown
         market_breakdown = []
@@ -403,7 +437,9 @@ def _source_breakdown(slips) -> list[dict]:
                     "market": mkt,
                     "predictions": mkt_total,
                     "correct": mkt_correct,
-                    "accuracy": round(mkt_correct / mkt_total * 100, 1) if mkt_total else 0.0,
+                    "accuracy": round(mkt_correct / mkt_total * 100, 1)
+                    if mkt_total
+                    else 0.0,
                 }
             )
 
@@ -414,7 +450,9 @@ def _source_breakdown(slips) -> list[dict]:
                 "correct_predictions": correct,
                 "accuracy": accuracy,
                 "score_mae": score_mae,
-                "markets": sorted(market_breakdown, key=lambda x: x["accuracy"], reverse=True),
+                "markets": sorted(
+                    market_breakdown, key=lambda x: x["accuracy"], reverse=True
+                ),
             }
         )
 
@@ -476,7 +514,13 @@ def _profile_scatter(slips) -> list[dict]:
             continue
         p = slip.profile
         if p not in profiles:
-            profiles[p] = {"profile": p, "total": 0, "won": 0, "sum_odds": 0.0, "sum_profit": 0.0}
+            profiles[p] = {
+                "profile": p,
+                "total": 0,
+                "won": 0,
+                "sum_odds": 0.0,
+                "sum_profit": 0.0,
+            }
         profiles[p]["total"] += 1
         profiles[p]["sum_odds"] += slip.total_odds
         if status_str == "Won":
@@ -491,7 +535,9 @@ def _profile_scatter(slips) -> list[dict]:
             "win_rate": round((d["won"] / d["total"]) * 100, 1),
             "net_profit": round(d["sum_profit"], 2),
             "volume": d["total"],
-            "break_even_win_rate": round(d["total"] / d["sum_odds"] * 100, 1) if d["sum_odds"] > 0 else 0.0,
+            "break_even_win_rate": round(d["total"] / d["sum_odds"] * 100, 1)
+            if d["sum_odds"] > 0
+            else 0.0,
         }
         for p, d in profiles.items()
     ]
@@ -535,7 +581,9 @@ def get_analytics(
         "profiles": sorted({slip.profile for slip in all_slips}),
         # ── Phase 1 additions ──────────────────────────────────────────
         "rolling_edge": calculate_rolling_edge(slips, 14),
-        "drawdown": _drawdown_data(calculate_daily_summary(daily_summary_slips, prof, df_, dt_)),
+        "drawdown": _drawdown_data(
+            calculate_daily_summary(daily_summary_slips, prof, df_, dt_)
+        ),
         "market_breakdown": _market_breakdown(slips),
         "league_breakdown": _league_breakdown(slips),
         "correlation_matrix": _correlation_matrix(slips),
@@ -593,6 +641,10 @@ def _correlation_matrix(slips) -> dict:
             d = data[lg][m]
             wr = round(d["won"] / d["total"] * 100, 1)
             implied = round(d["sum_implied"] / d["total"] * 100, 1)
-            matrix[lg][m] = {"win_rate": wr, "edge": round(wr - implied, 1), "total": d["total"]}
+            matrix[lg][m] = {
+                "win_rate": wr,
+                "edge": round(wr - implied, 1),
+                "total": d["total"],
+            }
 
     return {"leagues": sorted(leagues), "markets": sorted(markets), "matrix": matrix}
