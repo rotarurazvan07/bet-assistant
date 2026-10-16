@@ -9,7 +9,7 @@ import type {
     CorrelationRecord, ProfileScatterPoint, MarketBreakdown, LeagueBreakdown,
     RollingEdgePoint, DrawdownPoint, ReturnDistribution, TimePatternItem,
     ServiceInfo, ServicesData, Profile, ProfilesMap,
-    CandidateLeg, PreviewResult, OddsHistory, OddsSnapshot, OddsMovementSummary,
+    CandidateLeg, PreviewResult, OddsMovementSummary,
 } from '../types';
 
 // ── primitives ──────────────────────────────────────────────────────────────
@@ -288,27 +288,6 @@ export function makePreviewResult(overrides: Partial<PreviewResult> = {}): Previ
         legs: [makeCandidateLeg()],
         total_odds: 1.9,
         pending_urls: [],
-        ...overrides,
-    };
-}
-
-// ── odds history ──────────────────────────────────────────────────────────
-
-export function makeOddsSnapshot(overrides: Partial<OddsSnapshot> = {}): OddsSnapshot {
-    return {
-        timestamp: '2026-09-24T12:00:00',
-        odds: { home: 1.9, draw: 3.4, away: 4.2 },
-        ...overrides,
-    };
-}
-
-export function makeOddsHistory(matchId = 1, overrides: Partial<OddsHistory> = {}): OddsHistory {
-    return {
-        match_id: matchId,
-        match_name: 'Arsenal vs Chelsea',
-        datetime: '2026-09-25T15:00:00',
-        snapshots: [makeOddsSnapshot()],
-        movement: { home: 'up', draw: 'stable', away: 'down' },
         ...overrides,
     };
 }

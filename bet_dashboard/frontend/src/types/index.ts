@@ -349,21 +349,6 @@ export interface WsEvent {
     live_data?: Record<string, { score: string; minute: string }>;
 }
 
-// ── Odds History ──────────────────────────────────────────────────────────────
-
-export interface OddsSnapshot {
-    timestamp: string;
-    odds: Record<string, number | null>;
-}
-
-export interface OddsHistory {
-    match_id: number;
-    match_name: string;
-    datetime: string;
-    snapshots: OddsSnapshot[];
-    movement: Record<string, OddsMovementDirection>;
-}
-
 // ── Config ──────────────────────────────────────────────────────────────────────
 
 export interface SourcesConfig {

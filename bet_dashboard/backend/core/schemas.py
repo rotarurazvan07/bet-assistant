@@ -165,24 +165,11 @@ class ServicesSettingsIn(BaseModel):
     generate_minute: int = 0
 
 
-# ── Odds History ──────────────────────────────────────────────────────────────
+# ── Odds Movement (issue #105: source-provided movement_change_pp) ───────────
 
 
-class OddsSnapshotOut(BaseModel):
-    """Response model for an odds snapshot."""
-
-    timestamp: str  # ISO datetime when snapshot was captured
-    odds: dict  # Full odds object {home, draw, away, over_25, under_25, ...}
 
 
-class OddsHistoryOut(BaseModel):
-    """Response model for odds history rows."""
-
-    match_id: int
-    match_name: str
-    datetime: str
-    snapshots: list[OddsSnapshotOut]
-    movement: dict  # {market: "up"|"down"|"stable"} for each odds field
 
 
 class OddsMovementSummary(BaseModel):

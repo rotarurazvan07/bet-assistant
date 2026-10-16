@@ -2,7 +2,7 @@
 
 Pins: chunk db consolidation, fuzzy dedup via MatchesManager, odds preservation,
 empty chunk handling, summary logging, runner-set validation.
-Note: crawl merge uses MatchesManager.merge_databases (NOT merge_with_history_preservation,
+Note: crawl merge uses MatchesManager.merge_databases (NOT merge_fresh_db,
 which is a backend-only path — see automation-summary divergence table).
 """
 

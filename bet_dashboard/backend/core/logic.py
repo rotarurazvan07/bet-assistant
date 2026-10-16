@@ -245,16 +245,6 @@ class AppLogic:
             return {}
         return self._matches_manager.calculate_movement_with_strength(odds_dict)
 
-    def get_odds_history(self, match_id: int) -> list[dict]:
-        """Get all odds snapshots for a match (from embedded history)."""
-        df = self.match_df
-        if df.empty or match_id < 0 or match_id >= len(df):
-            return []
-        odds_dict = df.iloc[match_id].get("odds")
-        if not odds_dict or not isinstance(odds_dict, dict):
-            return []
-        history = MatchesManager._extract_history_from_odds(odds_dict)
-        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
 
     def _do_generate(self) -> None:
         """Ticker daemon: generate slips for active profiles at the scheduled hour."""
@@ -417,7 +407,7 @@ class AppLogic:
 
         # Merge with history preservation
         try:
-            self._matches_manager.merge_with_history_preservation(
+            self._matches_manager.merge_fresh_db(
                 fresh_db_path=temp_path,
                 max_history=max_history,
                 local_tz=local_tz,

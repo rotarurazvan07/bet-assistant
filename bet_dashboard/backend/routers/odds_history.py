@@ -1,6 +1,6 @@
-"""Odds history API: snapshots and movements per match."""
+"""Odds movement API (issue #105: sourced from movement_change_pp)."""
 
-from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
+from core.schemas import OddsMovementSummary
 from fastapi import APIRouter, HTTPException, Request
 
 from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
@@ -71,43 +71,9 @@ def get_significant_movements(request: Request) -> dict:
     return result
 
 
-# ── Single-match endpoints ─────────────────────────────────────────────────
+# ── Single-match movement endpoint ─────────────────────────────────────────
 
 
-@router.get("/{match_id}", response_model=OddsHistoryOut)
-def get_match_odds_history(request: Request, match_id: int):
-    """Get full odds history for a specific match."""
-    logic = _get(request).logic
-
-    # Get match info from the database
-    df = logic.match_df
-    if df.empty:
-        raise HTTPException(status_code=404, detail="No matches available")
-
-    # Find the match by ID (rowid in SQLite)
-    # Note: match_id corresponds to the row index in the buffer
-    if match_id < 0 or match_id >= len(df):
-        raise HTTPException(status_code=404, detail=f"Match {match_id} not found")
-
-    match_row = df.iloc[match_id]
-    match_name = f"{match_row.get('home', '')} vs {match_row.get('away', '')}"
-    match_datetime = match_row.get("datetime", "")
-    if hasattr(match_datetime, "isoformat"):
-        match_datetime = match_datetime.isoformat()
-
-    # Get history and movement
-    history = logic.get_odds_history(match_id)
-    movement = logic.get_odds_movement(match_id)
-
-    snapshots = [OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history]
-
-    return OddsHistoryOut(
-        match_id=match_id,
-        match_name=match_name,
-        datetime=str(match_datetime),
-        snapshots=snapshots,
-        movement=movement,
-    )
 
 
 @router.get("/{match_id}/movement", response_model=OddsMovementSummary)

@@ -8,7 +8,7 @@ import { setupServer } from 'msw/node';
 import {
     makeMatchesPage, makeSlipsPage,
     makeAnalyticsData, makeServicesData, makeProfilesMap, makePreviewResult,
-    makeOddsHistory, makeOddsMovementSummary,
+    makeOddsMovementSummary,
 } from './factories';
 
 // Kept mutable so individual tests can override single handlers via
@@ -61,7 +61,6 @@ export const handlers = [
     })),
 
     // ── odds-history ───────────────────────────────────────────────────
-    http.get('/api/odds-history/:matchId', () => HttpResponse.json(makeOddsHistory(1))),
     http.get('/api/odds-history/:matchId/movement', () => HttpResponse.json(makeOddsMovementSummary())),
     http.get('/api/odds-history/movements/all', () => HttpResponse.json({
         '1': makeOddsMovementSummary(),

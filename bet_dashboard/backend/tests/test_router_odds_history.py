@@ -1,6 +1,6 @@
 """[P0] API tests for the odds_history router (issue #58).
 
-Covers: /{match_id} history + 404s, /{match_id}/movement, /movements/all,
+Covers: /{match_id}/movement, /movements/all,
 /movements/significant, empty-df paths, and the btts_yes/btts_no movement key
 fix in OddsMovementSummary.
 """
@@ -10,37 +10,6 @@ from conftest import FakeDashboardLogic, make_match_row, make_matches_df
 BASE = "/api/odds-history"
 
 
-class TestGetMatchOddsHistory:
-    """[P0] GET /api/odds-history/{match_id}"""
-
-    def test_history_response_shape(self, client) -> None:
-        r = client.get(f"{BASE}/0")
-        assert r.status_code == 200
-        data = r.json()
-        assert set(data) == {"match_id", "match_name", "datetime", "snapshots", "movement"}
-        assert data["match_id"] == 0
-        assert data["match_name"] == "Real Madrid vs Barcelona"
-        assert data["movement"]["home"] == "up"
-        assert data["movement"]["btts_yes"] == "up"
-
-    def test_history_snapshots_from_logic(self, client) -> None:
-        data = client.get(f"{BASE}/0").json()
-        assert len(data["snapshots"]) == 2
-        assert data["snapshots"][0]["timestamp"] == "2030-01-01T10:00:00"
-        assert data["snapshots"][0]["odds"] == {"home": 1.8, "draw": 3.5}
-
-    def test_history_negative_match_id_returns_404(self, client) -> None:
-        assert client.get(f"{BASE}/-1").status_code == 404
-
-    def test_history_out_of_range_match_id_returns_404(self, client) -> None:
-        assert client.get(f"{BASE}/99").status_code == 404
-        assert client.get(f"{BASE}/1").status_code == 404
-
-    def test_history_empty_df_returns_404(self, empty_client) -> None:
-        assert empty_client.get(f"{BASE}/0").status_code == 404
-
-    def test_history_non_numeric_id_returns_422(self, client) -> None:
-        assert client.get(f"{BASE}/abc").status_code == 422
 
 
 class TestGetMatchMovement:

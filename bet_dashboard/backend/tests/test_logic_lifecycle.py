@@ -192,8 +192,6 @@ class TestAppLogicLifecycle:
         assert captured == ["https://github.com/acme/bet-test/releases/download/latest-db/final_matches.db"]
         assert len(app_env.app.match_df) == 3
         assert app_env.app.match_df.iloc[0]["odds"]["home"] == 2.1  # fresh odds won
-        history = app_env.app.get_odds_history(0)
-        assert history == []  # issue #105: nothing preserved on pull
 
     def test_pull_matches_db_download_error_raises_runtime_error(self, app_env, monkeypatch) -> None:
         """[P1] URLError during download is wrapped into RuntimeError."""
@@ -415,18 +413,7 @@ class TestAppLogicLifecycle:
         assert movement["home"]["change_pct"] == 5.56
         assert movement["home"]["significant"] is True  # |+5.56| crosses the 5% threshold
 
-    def test_get_odds_history_formats_snapshots_without_ts_key(self, app_env) -> None:
-        """[P0] History snapshots expose timestamp + odds without the raw 'ts' key."""
-        history = app_env.app.get_odds_history(0)
-        assert len(history) == 1
-        assert history[0]["timestamp"] == "2030-01-01T10:00:00"
-        assert history[0]["odds"]["home"] == 1.8
-        assert "ts" not in history[0]["odds"]
 
-    def test_get_odds_history_invalid_index_returns_empty(self, app_env) -> None:
-        """[P2] Out-of-range ids return an empty list."""
-        assert app_env.app.get_odds_history(-1) == []
-        assert app_env.app.get_odds_history(5) == []
 
     # ── Ticker callbacks ────────────────────────────────────────────────────
 

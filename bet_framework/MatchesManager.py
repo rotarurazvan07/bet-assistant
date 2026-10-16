@@ -525,55 +525,9 @@ class MatchesManager(BufferedStorageManager):
 
     # ── Embedded Odds History ──────────────────────────────────────────────────
 
-    @staticmethod
-    def _extract_history_from_odds(odds_dict: dict | None) -> list[dict]:
-        """Extract the history array from an odds dict, or return empty list."""
-        if not odds_dict:
-            return []
-        return odds_dict.get("history", [])
 
-    @staticmethod
-    def _get_current_odds_snapshot(odds_dict: dict | None) -> dict:
-        """Extract current odds values (excluding history) for snapshot storage."""
-        if not odds_dict:
-            return {}
-        return {k: v for k, v in odds_dict.items() if k != "history" and v is not None}
 
-    @staticmethod
-    def _append_to_history(current_odds: dict, new_snapshot: dict, max_entries: int) -> dict:
-        """Append a snapshot to history array, trim to max_entries, return updated odds dict.
 
-        Args:
-            current_odds: The current odds dict (may contain history)
-            new_snapshot: Dict with timestamp 'ts' and market values
-            max_entries: Maximum number of history entries to keep
-        """
-        if not new_snapshot or not any(v for k, v in new_snapshot.items() if k != "ts"):
-            return current_odds
-
-        history = list(current_odds.get("history", []))
-        history.append(new_snapshot)
-
-        # Trim to max_entries (keep most recent)
-        if len(history) > max_entries:
-            history = history[-max_entries:]
-
-        result = {k: v for k, v in current_odds.items() if k != "history"}
-        result["history"] = history
-        return result
-
-    def get_odds_history_from_row(self, row_idx: int) -> list[dict]:
-        """Get odds history from a match row's embedded odds JSON."""
-        buf = self.ensure_buffer()
-        if buf.empty or row_idx < 0 or row_idx >= len(buf):
-            return []
-
-        odds_json = buf.iloc[row_idx].get("odds")
-        odds_dict = self.deserialize_json(odds_json) if odds_json else {}
-        history = self._extract_history_from_odds(odds_dict)
-
-        # Convert embedded format to API format
-        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
 
     def calculate_movement_from_odds(self, odds_dict: dict | None) -> dict:
         """Derive movement directions from the scraped movement_change_pp dict.
@@ -644,62 +598,10 @@ class MatchesManager(BufferedStorageManager):
         odds_dict = self.deserialize_json(odds_json) if odds_json else {}
         return self.calculate_movement_from_odds(odds_dict)
 
-    def _collect_future_matches(self, current_buf, today_start, tz) -> list:
-        """Collect current rows whose match datetime is not past, with their odds."""
-        future_matches = []
-        for _idx, row in current_buf.iterrows():
-            match = self._try_future_match_row(row, today_start, tz)
-            if match is not None:
-                future_matches.append(match)
-        return future_matches
 
-    def _try_future_match_row(self, row, today_start, tz):
-        """Build one future-match dict; None (debug-logged) when the row is malformed."""
-        try:
-            match_dt_str = row.get("datetime", "")
-            match_dt = datetime.fromisoformat(match_dt_str)
-            if match_dt.tzinfo is None:
-                match_dt = match_dt.replace(tzinfo=tz)
-            if match_dt < today_start:
-                return None
-            odds_dict = self.deserialize_json(row.get("odds")) if row.get("odds") else {}
-            return {
-                "home": row["home_team_name"],
-                "away": row["away_team_name"],
-                "datetime": match_dt,
-                "odds": odds_dict,
-            }
-        except Exception as exc:
-            logger.debug(f"Skipping row during history preservation: {exc}")
-            return None
 
-    def _transfer_match_history(self, fresh_manager, fresh_buf, match_data, timestamp, max_history) -> bool:
-        """Fuzzy-match one future match into the fresh buffer and append its odds history."""
-        found, fresh_idx = fresh_manager._find(match_data["home"], match_data["away"], match_data["datetime"])
-        if found is None or fresh_idx is None:
-            return False
 
-        snapshot = {"ts": timestamp}
-        snapshot.update(self._get_current_odds_snapshot(match_data["odds"]))
-
-        fresh_odds_json = fresh_buf.at[fresh_idx, "odds"]
-        fresh_odds = (
-            fresh_manager.deserialize_json(fresh_odds_json) if (fresh_odds_json and not pd.isna(fresh_odds_json)) else {}
-        )
-        fresh_odds = fresh_odds or {}
-
-        existing_history = self._extract_history_from_odds(match_data["odds"])
-
-        combined_odds = dict(fresh_odds)
-        combined_odds["history"] = existing_history
-
-        combined_odds = self._append_to_history(combined_odds, snapshot, max_history)
-
-        fresh_buf.at[fresh_idx, "odds"] = fresh_manager.serialize_json(combined_odds)
-        fresh_manager._dirty = True
-        return True
-
-    def merge_with_history_preservation(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
+    def merge_fresh_db(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
         """Replace current data with the freshly pulled database.
 
         Issue #105: odds movement now comes from the source-provided

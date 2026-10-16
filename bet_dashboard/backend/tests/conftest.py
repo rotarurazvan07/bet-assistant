@@ -173,10 +173,6 @@ class FakeDashboardLogic:
         self.df = df if df is not None else make_matches_df()
         self._slips = slips if slips is not None else [make_slip()]
         self._stats = make_stats()
-        self._odds_history = [
-            {"timestamp": "2030-01-01T10:00:00", "odds": {"home": 1.8, "draw": 3.5}},
-            {"timestamp": "2030-01-01T16:00:00", "odds": {"home": 1.9, "draw": 3.4}},
-        ]
         self._movement = {"home": "up", "draw": "down", "away": None, "btts_yes": "up", "btts_no": "down", "over_25": "stable"}
         self._movement_strength = {
             "home": {"direction": "up", "change_pct": 5.5, "significant": True},
@@ -237,10 +233,6 @@ class FakeDashboardLogic:
     def get_odds_movement_with_strength(self, match_id: int) -> dict:
         self.calls.append("get_odds_movement_with_strength")
         return {k: dict(v) for k, v in self._movement_strength.items()}
-
-    def get_odds_history(self, match_id: int) -> list:
-        self.calls.append("get_odds_history")
-        return [dict(h) for h in self._odds_history]
 
     def get_pending_urls(self) -> set:
         self.calls.append("get_pending_urls")
