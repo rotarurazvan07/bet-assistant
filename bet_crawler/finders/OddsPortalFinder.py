@@ -347,7 +347,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     home_team, away_team, match_date = identity
 
                     odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
-                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
+                    odds_btts_yes, odds_btts_no = self._scrape_tab_btts(session, thread_name)
                     odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
                     ou = self._scrape_tab_ou(session, thread_name)
 
@@ -365,8 +365,8 @@ class OddsPortalFinder(BaseMatchFinder):
                         under_35=ou[7],
                         over_45=ou[8],
                         under_45=ou[9],
-                        btts_y=odds_btts_y,
-                        btts_n=odds_btts_n,
+                        btts_yes=odds_btts_yes,
+                        btts_no=odds_btts_no,
                         dc_1x=odds_dc_1x,
                         dc_12=odds_dc_12,
                         dc_x2=odds_dc_x2,
@@ -605,15 +605,15 @@ class OddsPortalFinder(BaseMatchFinder):
 
     def _scrape_tab_btts(self, session, thread_name: str):
         """Scrape the BTTS tab; returns (yes, no) odds (None on miss/failure)."""
-        odds_btts_y = odds_btts_n = None
+        odds_btts_yes = odds_btts_no = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
             cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
             if len(cells) >= 2:
-                odds_btts_y, odds_btts_n = cells[0], cells[1]
+                odds_btts_yes, odds_btts_no = cells[0], cells[1]
         except Exception as e:
             logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, e)
-        return odds_btts_y, odds_btts_n
+        return odds_btts_yes, odds_btts_no
 
     def _scrape_tab_dc(self, session, thread_name: str):
         """Scrape the Double Chance tab; returns (1x, 12, x2) odds (None on miss/failure)."""

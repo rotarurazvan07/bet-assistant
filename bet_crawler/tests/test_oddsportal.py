@@ -180,8 +180,8 @@ class TestProcessUrlBatch:
         assert odds.home == 2.10
         assert odds.draw == 3.40
         assert odds.away == 3.75
-        assert odds.btts_y == 1.85
-        assert odds.btts_n == 1.95
+        assert odds.btts_yes == 1.85
+        assert odds.btts_no == 1.95
         assert odds.dc_1x == 1.25
         assert odds.dc_12 == 1.30
         assert odds.dc_x2 == 1.45
@@ -191,7 +191,7 @@ class TestProcessUrlBatch:
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) != (odds.home, odds.draw, odds.away)
-        assert (odds.btts_y, odds.btts_n) != (odds.home, odds.draw)
+        assert (odds.btts_yes, odds.btts_no) != (odds.home, odds.draw)
 
     def test_stale_1x2_cells_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
         """Live palace dumps: tab headers flip, first-row cells stay 1X2."""
@@ -222,7 +222,7 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
         odds = collector.first.odds
         assert odds.home == 2.10
-        assert odds.btts_y is None
+        assert odds.btts_yes is None
         assert odds.dc_1x is None
         assert odds.over_25 == 1.70
 
@@ -249,7 +249,7 @@ class TestProcessUrlBatch:
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
-        assert (odds.home, odds.btts_y, odds.dc_1x, odds.over_05) == (2.10, 1.85, 1.25, 1.10)
+        assert (odds.home, odds.btts_yes, odds.dc_1x, odds.over_05) == (2.10, 1.85, 1.25, 1.10)
 
     def test_live_shaped_market_tables_are_accepted(self, monkeypatch) -> None:
         """Live 2026-10-12 shape: glued 'claim bonus' bookmaker text, quarter lines,
@@ -283,7 +283,7 @@ class TestProcessUrlBatch:
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
-        assert (odds.home, odds.btts_y, odds.btts_n) == (2.10, 1.85, 1.95)
+        assert (odds.home, odds.btts_yes, odds.btts_no) == (2.10, 1.85, 1.95)
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.30, 1.45)
         assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (1.10, 8.00, 1.35, 3.10)
         assert (odds.over_25, odds.under_25, odds.over_35, odds.under_35) == (1.70, 2.10, 3.20, 1.34)
@@ -345,7 +345,7 @@ class TestProcessUrlBatch:
         m = collector.first
         assert m.home_team == "Arsenal"
         assert m.odds.home == 2.10
-        assert m.odds.btts_y is None
+        assert m.odds.btts_yes is None
         assert m.odds.dc_12 is None
         assert m.odds.over_25 is None
 

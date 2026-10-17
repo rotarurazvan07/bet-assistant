@@ -18,7 +18,8 @@ import pandas as pd
 import pytest
 
 from bet_framework.core.Match import Match, Odds, Score
-from bet_framework.MatchesManager import MatchesManager
+from bet_framework.core.market_config import MARKET_DEFINITIONS
+from bet_framework.MatchesManager import ODDS_MARKET_GROUPS, MatchesManager
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,13 @@ SIMILARITY_CONFIG = {
 }
 
 DT_BASE = datetime(2026, 4, 1, 15, 0, 0)
+
+
+def test_odds_validation_groups_match_canonical_catalog():
+    """Every sanity-checked odds key comes from the central market catalog."""
+    grouped_fields = {field for _, fields in ODDS_MARKET_GROUPS for field, _ in fields}
+    catalog_fields = {market.odds_key.removeprefix("odds_") for market in MARKET_DEFINITIONS}
+    assert grouped_fields == catalog_fields
 
 
 def make_match(

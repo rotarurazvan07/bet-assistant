@@ -147,8 +147,8 @@ class TestProcessUrlBatch:
         assert odds.home == 2.10
         assert odds.draw == 3.40
         assert odds.away == 3.75
-        assert odds.btts_y == 1.57
-        assert odds.btts_n == 2.34
+        assert odds.btts_yes == 1.57
+        assert odds.btts_no == 2.34
         assert odds.dc_1x == 1.67
         assert odds.dc_12 == 1.30
         assert odds.dc_x2 == 1.36
@@ -158,7 +158,7 @@ class TestProcessUrlBatch:
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) != (odds.home, odds.draw, odds.away)
-        assert (odds.btts_y, odds.btts_n) != (odds.home, odds.draw)
+        assert (odds.btts_yes, odds.btts_no) != (odds.home, odds.draw)
 
     def test_stale_1x2_averages_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
         """Live t+0: BTTS/DC click still shows 1X2 averages."""
@@ -187,7 +187,7 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
         odds = collector.first.odds
         assert odds.home == 2.10
-        assert odds.btts_y is None
+        assert odds.btts_yes is None
         assert odds.dc_1x is None
         assert odds.over_25 == 1.70
 

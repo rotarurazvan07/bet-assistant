@@ -500,7 +500,7 @@ class BetExplorerFinder(BaseMatchFinder):
                     hour, minute = map(int, time_part.split(":"))
                     match_date = datetime(year, month, day, hour, minute).replace(hour=0, minute=0, second=0, microsecond=0)
 
-                    odds_1 = odds_X = odds_2 = odds_btts_y = odds_btts_n = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
+                    odds_1 = odds_X = odds_2 = odds_btts_yes = odds_btts_no = odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
                     odds_over05 = odds_under05 = odds_over15 = odds_under15 = odds_over25 = odds_under25 = odds_over35 = (
                         odds_under35
                     ) = odds_over45 = odds_under45 = None
@@ -526,7 +526,7 @@ class BetExplorerFinder(BaseMatchFinder):
                             2,
                         )
                         avgs = self._average_decimals(soup)
-                        odds_btts_y, odds_btts_n = avgs[0], avgs[1]
+                        odds_btts_yes, odds_btts_no = avgs[0], avgs[1]
                     except Exception as e:
                         logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, e)
 
@@ -582,8 +582,8 @@ class BetExplorerFinder(BaseMatchFinder):
                         under_35=odds_under35,
                         over_45=odds_over45,
                         under_45=odds_under45,
-                        btts_y=odds_btts_y,
-                        btts_n=odds_btts_n,
+                        btts_yes=odds_btts_yes,
+                        btts_no=odds_btts_no,
                         dc_1x=odds_dc_1x,
                         dc_12=odds_dc_12,
                         dc_x2=odds_dc_x2,

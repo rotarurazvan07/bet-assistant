@@ -1,21 +1,18 @@
-"""
-Single source of truth for market configuration in the backend.
-Reorder entries here to change market order.
-"""
+"""Canonical market identifiers and data keys shared across the application."""
 
 from typing import NamedTuple
 
 
 class MarketDef(NamedTuple):
-    """Market definition with all required fields."""
+    """Market definition with all fields needed by the crawler and dashboard."""
 
-    market: str  # Market identifier (e.g., '1', 'X', 'Over 2.5')
-    cons_key: str  # Key for consensus column in DataFrame
-    odds_key: str  # Key for odds column in DataFrame
-    market_type: str  # Market type for categorization
+    market: str
+    cons_key: str
+    odds_key: str
+    market_type: str
 
 
-# Market definitions in order
+# Reorder entries here to change market order throughout the backend/framework.
 MARKET_DEFINITIONS = [
     MarketDef("1", "cons_home", "odds_home", "result"),
     MarketDef("X", "cons_draw", "odds_draw", "result"),
@@ -37,17 +34,8 @@ MARKET_DEFINITIONS = [
     MarketDef("X2", "cons_dc_x2", "odds_dc_x2", "double_chance"),
 ]
 
-# Set of allowed market identifiers for validation
-ALLOWED_MARKETS = {m.market for m in MARKET_DEFINITIONS}
-
-# List of all market identifiers in order
-ALL_MARKETS = [m.market for m in MARKET_DEFINITIONS]
-
-# Consensus column names
-CONSENSUS_COLUMNS = [m.cons_key for m in MARKET_DEFINITIONS]
-
-# Odds column names
-ODDS_COLUMNS = [m.odds_key for m in MARKET_DEFINITIONS]
-
-# Map market identifier to its definition
-MARKET_BY_ID = {m.market: m for m in MARKET_DEFINITIONS}
+ALLOWED_MARKETS = {market.market for market in MARKET_DEFINITIONS}
+ALL_MARKETS = [market.market for market in MARKET_DEFINITIONS]
+CONSENSUS_COLUMNS = [market.cons_key for market in MARKET_DEFINITIONS]
+ODDS_COLUMNS = [market.odds_key for market in MARKET_DEFINITIONS]
+MARKET_BY_ID = {market.market: market for market in MARKET_DEFINITIONS}

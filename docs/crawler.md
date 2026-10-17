@@ -70,10 +70,10 @@ graph TD
     BT --> PS
     FT --> PS
     FP --> PS
-    
+
     PS --> SC
     SC --> MR    MR --> MDB
-    
+
     MDB --> BA[Backend API]
     SDB --> BA
     CFG --> BA
@@ -132,7 +132,7 @@ python -m bet_crawler.crawl --mode merge \
 ```python
 class BaseMatchFinder:
     TIMEZONE: str | None = None  # Subclasses override
-    
+
     def __init__(self, add_match_callback, **runtime_settings):
         self.add_match_callback = add_match_callback
         self.contributes_odds = runtime_settings["contributes_odds"]
@@ -140,25 +140,25 @@ class BaseMatchFinder:
         self.num_days_ahead = runtime_settings["num_days_ahead"]
         self.local_timezone = runtime_settings["local_timezone"]
         self.skip_patterns = runtime_settings["skip_patterns"]
-    
+
     @abstractmethod
     def get_matches_urls(self): pass
-    
+
     @abstractmethod
     def get_matches(self, urls): pass
-    
+
     @abstractmethod
     def _parse_page(self, url, html): pass
-    
+
     def normalise_datetime(self, dt):
         # Convert from source timezone to local timezone
-    
+
     def add_match(self, match, force=False):
         # Skip patterns + date validation + callback
-    
+
     def skip_match_by_patterns(self, home, away):
         # Regex matching against skip_patterns
-    
+
     def validate_match_date(self, match_datetime):
         # today <= match_date <= today + num_days_ahead
 ```
@@ -274,8 +274,8 @@ class Odds:
     under_35: float = None
     over_45: float = None
     under_45: float = None
-    btts_y: float = None
-    btts_n: float = None
+    btts_yes: float = None
+    btts_no: float = None
     dc_1x: float = None
     dc_12: float = None
     dc_x2: float = None
@@ -321,7 +321,7 @@ class MatchesManager(BufferedStorageManager):
     def __init__(self, db_path, similarity_config=None):
         self.similarity_engine = SimilarityEngine(similarity_config) if similarity_config else None
         super().__init__(db_path, "matches")
-    
+
     def add_match(self, match: Match) -> int | None:
         # 1. Fuzzy match in buffer (±1 day)
         # 2. Exact match → update
@@ -329,12 +329,12 @@ class MatchesManager(BufferedStorageManager):
         # 4. Source collision guard
         # 5. Insert new or update existing
         # 6. Return buffer index
-    
+
     def merge_databases(self, chunks_dir):
         # Merge chunk DBs with fuzzy dedup
         # Log near-misses (40-65 similarity)
         # Validate odds implied probability (95-120%)
-    
+
     def merge_with_history_preservation(self, fresh_db_path, max_history=3, local_tz="UTC"):
         # Preserve odds history when merging fresh DB
         # Transfer existing history + append current snapshot
@@ -407,7 +407,7 @@ graph TD
     CL[cleanup-artifacts
     After UL
     Delete intermediate]
-    
+
     PA --> SA
     PL --> SL
     SA --> MR
