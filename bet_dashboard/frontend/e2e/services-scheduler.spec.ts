@@ -25,7 +25,9 @@ test.describe('services per-profile scheduler @desktop 1280x800', () => {
             await expect(page.getByRole('combobox', { name: `${name} hour` })).toBeVisible();
             await expect(page.getByRole('spinbutton', { name: `${name} units` })).toBeVisible();
         }
-        await expect(page.getByText('Today 09:30 (in 2h 30m)')).toBeVisible();
+        // Clock-tolerant: the backend computes "Today/Tomorrow HH:MM (in Xh YYm)"
+        // from the server's own clock, so a fixed delta string is flaky by design.
+        await expect(page.getByText(/^(Today|Tomorrow) 09:30 \(in \d+h \d{2}m\)$/)).toBeVisible();
         await expect(page.getByText('Disabled')).toHaveCount(2);
         // MUI StaticTimePicker is gone (#51 silently satisfied)
         await expect(page.locator('.MuiClock-root')).toHaveCount(0);
