@@ -50,11 +50,13 @@ def parse_schedule_block(raw: object) -> dict | None:
     if not isinstance(raw, dict):
         return None
     try:
-        hour = int(raw.get("hour", 0))
+        # Same documented 08:00 default as the legacy global mode
+        # (routers/services.py) so both modes never disagree on "unset".
+        hour = int(raw.get("hour", 8))
         minute = int(raw.get("minute", 0))
         units = float(raw["units"]) if raw.get("units") is not None else None
         payout = float(raw["target_payout"]) if raw.get("target_payout") is not None else None
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None

@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { pullDb } from '../api/data';
 import OnboardingTour from './OnboardingTour';
@@ -78,6 +78,9 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
     const [dateTo, setDateTo] = useState(() => getInitialDate('dateTo'));
     const [pulling, setPulling] = useState(false);
     const [helpOpen, setHelpOpen] = useState(false);
+    // M5: stable identity so a Layout re-render (WebSocket event) does not
+    // re-run the overlay's effect and yank focus back to the trigger.
+    const closeHelp = useCallback(() => setHelpOpen(false), []);
 
     // Workstream B (#47): global keyboard shortcut layer (Cmd/Ctrl combos).
     useKeyboardShortcuts();
@@ -235,7 +238,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             {/* AC-07: mount tour here (Router + Restart). Do not edit App.tsx. */}
             <OnboardingTour key={tourEpoch} />
             {/* Workstream B (#47): keyboard-shortcuts help overlay (Cmd/Ctrl + ?). */}
-            <ShortcutsOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+            <ShortcutsOverlay open={helpOpen} onClose={closeHelp} />
         </div>
     );
 }

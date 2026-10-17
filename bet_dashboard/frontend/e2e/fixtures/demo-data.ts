@@ -64,8 +64,12 @@ export const DEMO_SLIPS_PAGE = makeSlipsPage({
     profiles: ['low'],
 });
 
+// Same three profile names the CI track seeds into workspace/config/profiles
+// (setup/seed_e2e.py) — one profile set across both tracks (AGENTS.md rule).
 export const DEMO_PROFILES = makeProfilesMap({
     low: makeProfile({ units: 2.0 }),
+    medium: makeProfile({ units: 1.0 }),
+    high_risk: makeProfile({ units: 2.0 }),
 });
 
 // Per-profile auto-generation rows served by GET /api/services (Workstream B Part D).

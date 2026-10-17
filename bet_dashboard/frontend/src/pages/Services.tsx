@@ -6,7 +6,9 @@ import { TooltipIcon } from '../components/ui';
 import type { ProfileSchedulePayload, ServicesData } from '../types';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+// M3: every minute 0–59, so a legacy generate_minute like 47 always has a
+// matching option instead of rendering a blank select.
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
 // ── Row toggle (role=switch, design-system tokens, no new deps) ──────────────
 
@@ -43,8 +45,24 @@ function RowToggle({ enabled, onToggle, label }: {
 export default function Services() {
     const [data, setData] = useState<ServicesData | null>(null);
     const [rows, setRows] = useState<Record<string, ProfileSchedulePayload>>({});
+    // M4: raw text for the numeric inputs so clearing/typing never collapses to
+    // 0 or NaN mid-edit; parsed values commit to `rows` only when finite > 0.
+    const [drafts, setDrafts] = useState<Record<string, string>>({});
     const [status, setStatus] = useState('');
     const [saving, setSaving] = useState(false);
+
+    const unitText = (name: string) => drafts[`${name}:units`] ?? String(rows[name]?.units ?? '');
+    const payoutText = (name: string) => drafts[`${name}:payout`] ?? String(rows[name]?.target_payout ?? '');
+    const unitsInvalid = (name: string) => {
+        const t = unitText(name).trim();
+        if (t === '' || t === '—') return false; // untouched placeholder
+        return !Number.isFinite(Number(t)) || Number(t) <= 0;
+    };
+    const payoutInvalid = (name: string) => {
+        const t = payoutText(name).trim();
+        if (t === '') return false; // empty means "no target payout"
+        return !Number.isFinite(Number(t)) || Number(t) <= 0;
+    };
 
     const load = useCallback(async () => {
         try {
@@ -93,10 +111,32 @@ export default function Services() {
     }
 
     async function handleSave() {
+        // M4: validate before posting so a cleared/invalid units field shows a
+        // per-row error instead of an opaque 422 from the backend.
+        const bad = profileNames.filter(n => unitsInvalid(n) || payoutInvalid(n));
+        if (bad.length) {
+            setStatus(`⚠ Fix the highlighted ${bad.length > 1 ? 'rows' : 'row'} before saving`);
+            return;
+        }
         setSaving(true);
         try {
-            await saveServiceSettings({ profiles: rows });
+            // Commit validated drafts into rows: empty units keeps the loaded
+            // value; empty payout means "no target payout" (null).
+            const commit: Record<string, ProfileSchedulePayload> = {};
+            for (const name of profileNames) {
+                const row = rows[name];
+                const unitTxt = unitText(name).trim();
+                const payoutTxt = payoutText(name).trim();
+                commit[name] = {
+                    ...row,
+                    units: unitTxt === '' || unitTxt === '—' ? row.units : Number(unitTxt),
+                    target_payout: payoutTxt === '' ? null : Number(payoutTxt),
+                };
+            }
+            setRows(commit);
+            await saveServiceSettings({ profiles: commit });
             setStatus('✓ Schedules saved — per-profile generation updated');
+            setDrafts({});
             await load();
         } catch {
             setStatus('⚠ Save failed — check the values and retry');
@@ -241,9 +281,21 @@ export default function Services() {
                                                         aria-label={`${name} units`}
                                                         min={0.5}
                                                         step={0.5}
-                                                        value={row.units}
-                                                        onChange={e => updateRow(name, { units: Number(e.target.value) })}
+                                                        value={unitText(name)}
+                                                        onChange={e => {
+                                                            const t = e.target.value;
+                                                            setDrafts(prev => ({ ...prev, [`${name}:units`]: t }));
+                                                            const n = Number(t);
+                                                            if (t.trim() !== '' && Number.isFinite(n) && n > 0) {
+                                                                updateRow(name, { units: n });
+                                                            }
+                                                        }}
                                                     />
+                                                    {unitsInvalid(name) && (
+                                                        <span className="block font-mono text-[9px] mt-1" style={{ color: 'var(--loss)' }}>
+                                                            must be &gt; 0
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-2.5 pr-3">
                                                     <input
@@ -252,12 +304,25 @@ export default function Services() {
                                                         aria-label={`${name} target payout`}
                                                         min={0}
                                                         step={10}
-                                                        value={row.target_payout ?? ''}
+                                                        value={payoutText(name)}
                                                         placeholder="—"
-                                                        onChange={e => updateRow(name, {
-                                                            target_payout: e.target.value === '' ? null : Number(e.target.value),
-                                                        })}
+                                                        onChange={e => {
+                                                            const t = e.target.value;
+                                                            setDrafts(prev => ({ ...prev, [`${name}:payout`]: t }));
+                                                            const n = Number(t);
+                                                            updateRow(name, {
+                                                                target_payout:
+                                                                    t.trim() === '' || !Number.isFinite(n) || n <= 0
+                                                                        ? null
+                                                                        : n,
+                                                            });
+                                                        }}
                                                     />
+                                                    {payoutInvalid(name) && (
+                                                        <span className="block font-mono text-[9px] mt-1" style={{ color: 'var(--loss)' }}>
+                                                            must be &gt; 0
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-2.5">
                                                     <span className="font-mono text-[10px]" style={{ color: 'var(--text-secondary)' }}>

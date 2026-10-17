@@ -326,16 +326,6 @@ export interface ServiceInfo {
     last_time_generated?: string | null;
 }
 
-export interface ServiceInfo {
-    name: string; description: string;
-    enabled: boolean; alive: boolean;
-    hour: number | null;
-    minute: number | null;
-    interval_seconds: number | null;
-    next_run: string | null;
-    last_time_generated?: string | null;
-}
-
 // Per-profile scheduled slip generation (issue #41, Workstream B Part D).
 // `next_run` is computed server-side from the backend's clock; when absent the
 // client derives a "Today/Tomorrow HH:MM" label from generate_hour/minute.

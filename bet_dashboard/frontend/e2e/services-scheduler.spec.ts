@@ -8,7 +8,9 @@ import { installDemoApi, suppressTour } from './fixtures/mock-api';
 
 test.beforeEach(async ({ page }) => {
     await suppressTour(page);
-    await installDemoApi(page);
+    // Two-track rule: CI (E2E_BASE_URL set) uses the seeded docker stack; only
+    // the local Vite run gets the mock API.
+    if (!process.env.E2E_BASE_URL) await installDemoApi(page);
     await page.goto('/services');
     await expect(page.getByText('Per-profile Auto-Generation')).toBeVisible();
 });

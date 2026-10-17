@@ -49,47 +49,63 @@ export function useKeyboardShortcuts(): void {
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (!(e.metaKey || e.ctrlKey)) return;
+            const bare = !(e.metaKey || e.ctrlKey || e.altKey);
+            // L1: bare '?' also opens help (muscle memory) unless a modifier that
+            // belongs to another binding is held; everything else needs Cmd/Ctrl.
+            const bareHelp = bare && e.key === '?';
+            if (!bareHelp && !(e.metaKey || e.ctrlKey)) return;
             if (isEditable(e.target)) return;
             const path = location.pathname;
+            const has = (fn?: () => void) => typeof fn === 'function';
             switch (e.key.toLowerCase()) {
                 case 'r':
-                    e.preventDefault();
-                    shortcutRegistry.refresh?.();
+                    if (has(shortcutRegistry.refresh)) {
+                        e.preventDefault();
+                        shortcutRegistry.refresh();
+                    }
                     break;
                 case 'p':
-                    e.preventDefault();
-                    shortcutRegistry.pull?.();
+                    if (has(shortcutRegistry.pull)) {
+                        e.preventDefault();
+                        shortcutRegistry.pull();
+                    }
                     break;
                 case 'v':
-                    if (path === '/slips') {
+                    if (path === '/slips' && has(shortcutRegistry.validate)) {
                         e.preventDefault();
-                        shortcutRegistry.validate?.();
+                        shortcutRegistry.validate();
                     }
                     break;
                 case 'g':
-                    if (path === '/slips') {
+                    if (path === '/slips' && has(shortcutRegistry.generate)) {
                         e.preventDefault();
-                        shortcutRegistry.generate?.();
+                        shortcutRegistry.generate();
                     }
                     break;
                 case 'n': {
                     e.preventDefault();
                     navigate('/builder');
-                    setTimeout(() => {
-                        document.querySelector<HTMLElement>('[data-shortcut-target]')?.focus();
-                    }, 0);
+                    // L5: rAF with a short retry — setTimeout(0) can miss when the
+                    // route has not mounted its focus target yet.
+                    const focusTarget = (attempt = 0) => {
+                        const el = document.querySelector<HTMLElement>('[data-shortcut-target]');
+                        if (el) el.focus();
+                        else if (attempt < 5) requestAnimationFrame(() => focusTarget(attempt + 1));
+                    };
+                    focusTarget();
                     break;
                 }
                 case '/':
-                    if (path === '/') {
+                    if (path === '/' && has(shortcutRegistry.focusSearch)) {
                         e.preventDefault();
-                        shortcutRegistry.focusSearch?.();
+                        shortcutRegistry.focusSearch();
                     }
                     break;
                 case '?':
-                    e.preventDefault();
-                    shortcutRegistry.toggleHelp?.();
+                    if (has(shortcutRegistry.toggleHelp)) {
+                        e.preventDefault();
+                        shortcutRegistry.toggleHelp();
+                    }
                     break;
             }
         };

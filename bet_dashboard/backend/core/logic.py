@@ -306,7 +306,9 @@ class AppLogic:
             schedules = self._effective_profile_schedules()
             due_names = self._due_profile_names() if schedules else None
             if schedules and not due_names:
-                # Schedules configured but nothing due right now
+                # Schedules configured but nothing due right now — still refresh
+                # clients so Slips/Analytics stay current between scheduled runs.
+                self._broadcast_slips_updated()
                 return
             profiles = self._get_active_profiles(due_only=schedules is not None and bool(schedules))
             if due_names is not None:
@@ -818,11 +820,29 @@ class AppLogic:
         )
         return new_state
 
-    def save_service_settings(self, generate_hour: int, generate_minute: int = 0) -> None:
-        """Persist scheduler hour/minute settings to config."""
+    def save_service_settings(
+        self,
+        generate_hour: int,
+        generate_minute: int = 0,
+        profiles: dict[str, dict] | None = None,
+    ) -> None:
+        """Persist scheduler settings: legacy global time plus optional per-profile rows."""
         cfg = self._settings.get("services") or {}
         cfg["generate_hour"] = generate_hour
         cfg["generate_minute"] = generate_minute
+        if profiles is not None:
+            # H1: this is the ONLY writer of profiles_schedule — replace just the
+            # profile rows so unrelated keys (e.g. toggles) survive a save.
+            known = set(self._settings.get("profiles") or {})
+            rows = {
+                str(name): dict(row)
+                for name, row in profiles.items()
+                if isinstance(row, dict)
+            } if isinstance(profiles, dict) else {}
+            unknown = sorted(set(rows) - known)
+            if unknown:
+                raise ValueError(f"Unknown profile: {unknown[0]}")
+            cfg["profiles_schedule"] = rows
         self._settings.write("services", cfg)
         # Generator is already polling its interval; it will pick up the new time from settings via its predicate
 

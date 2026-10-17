@@ -336,6 +336,17 @@
   transition: height .2s ease;
 }
 
+/* L6: mobile sheet heights — vh fallback first, dvh upgrade second (engines
+   without dvh ignore the duplicate declaration rather than dropping the rule). */
+[data-slip-snap='50'] {
+  height: 50vh;
+  height: 50dvh;
+}
+[data-slip-snap='90'] {
+  height: 90vh;
+  height: 90dvh;
+}
+
 /* AC-01 (#39): on the mobile sheet paper, do not apply the desktop card geometry. */
 @media (max-width: 767.95px) {
   .floating-slip-panel {

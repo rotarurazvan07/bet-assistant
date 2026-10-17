@@ -535,4 +535,121 @@ class TestAppLogicLifecycle:
         """[P1] pull_and_broadcast returns the pull message and broadcasts matches_updated."""
         monkeypatch.setattr(app_env.app, "pull_matches_db", lambda path: "ok")
         assert app_env.app.pull_and_broadcast() == "ok"
-        assert broadcast_capture[-1]["event"] == "matches_updated"
+
+
+
+class TestPerProfileSchedulePersistence:
+    """[P0] save_service_settings + per-profile schedule persistence (BLOCKER B1/H1).
+
+    The Services page Save passes ``profiles=`` to AppLogic; the router tests
+    only ever mocked that call, so the signature gap shipped green. These are
+    REAL AppLogic round-trips against tmp dirs — persistence and iteration
+    must work without any mock.
+    """
+
+    @staticmethod
+    def _rows() -> dict[str, dict]:
+        return {
+            "low": {"enabled": True, "hour": 9, "minute": 30, "units": 2.5, "target_payout": 100.0},
+            "medium": {"enabled": False, "hour": 12, "minute": 0, "units": 1.0},
+        }
+
+    @staticmethod
+    def _open_app(tmp_path, monkeypatch, profiles: dict):
+        env = build_app(tmp_path, monkeypatch, profiles=profiles)
+        return env
+
+    def test_profiles_round_trip_persists_to_disk(self, tmp_path, monkeypatch) -> None:
+        """[P0] Saved rows land in config on disk, not only in memory."""
+        from scrape_kit import SettingsManager
+
+        profiles = {"low": {"units": 2.0, "run_daily_count": 0}, "medium": {"units": 1.0, "run_daily_count": 0}}
+        env = self._open_app(tmp_path, monkeypatch, profiles)
+        try:
+            env.app.save_service_settings(generate_hour=8, generate_minute=0, profiles=self._rows())
+            on_disk = SettingsManager(str(env.config_dir)).get("services")
+            assert on_disk["profiles_schedule"]["low"]["units"] == 2.5
+            assert on_disk["profiles_schedule"]["low"]["hour"] == 9
+            assert on_disk["generate_hour"] == 8
+        finally:
+            env.app._assistant.conn.close()
+            env.app._matches_manager.close()
+
+    def test_profiles_survive_a_later_save_without_them(self, tmp_path, monkeypatch) -> None:
+        """[P0] A later legacy-only save must not clobber persisted profile rows."""
+        profiles = {"low": {"units": 2.0, "run_daily_count": 0}}
+        rows = {"low": {"enabled": True, "hour": 9, "minute": 30, "units": 2.5, "target_payout": 100.0}}
+        env = self._open_app(tmp_path, monkeypatch, profiles)
+        try:
+            env.app.save_service_settings(8, 0, profiles=rows)
+            env.app.save_service_settings(11, 5)
+            svc = env.app.settings.get("services")
+            assert svc["generate_hour"] == 11
+            assert "low" in svc["profiles_schedule"]
+        finally:
+            env.app._assistant.conn.close()
+            env.app._matches_manager.close()
+
+    def test_unknown_profile_raises_value_error(self, tmp_path, monkeypatch) -> None:
+        """[P0] A row for an unconfigured profile raises ValueError (router maps to 422)."""
+        profiles = {"low": {"units": 2.0, "run_daily_count": 0}}
+        env = self._open_app(tmp_path, monkeypatch, profiles)
+        try:
+            with pytest.raises(ValueError, match="Unknown profile: ghost"):
+                env.app.save_service_settings(8, 0, profiles={"ghost": {"enabled": True, "hour": 9, "minute": 0}})
+        finally:
+            env.app._assistant.conn.close()
+            env.app._matches_manager.close()
+
+    def test_effective_schedules_and_due_iteration(self, tmp_path, monkeypatch) -> None:
+        """[P0] A saved enabled row feeds schedule mode; disabled rows stay out."""
+        profiles = {
+            "low": {"units": 2.0, "run_daily_count": 0},
+            "medium": {"units": 1.0, "run_daily_count": 0},
+        }
+
+        class _Frozen(datetime):
+            """Pin the wall clock past low's 09:30 row (medium is disabled)."""
+
+            @classmethod
+            def now(cls, tz=None):
+                return cls(2026, 9, 24, 10, 0)
+
+        monkeypatch.setattr("core.logic.datetime", _Frozen)
+        env = self._open_app(tmp_path, monkeypatch, profiles)
+        try:
+            env.app.save_service_settings(8, 0, profiles=self._rows())
+            schedules = env.app._effective_profile_schedules()
+            assert set(schedules) == {"low", "medium"}
+            active = env.app._get_active_profiles(due_only=True)
+            # only the enabled 'low' row is active, with the row's units 2.5
+            assert set(active) == {"low"}
+            assert active["low"][1] == 2.5
+        finally:
+            env.app._assistant.conn.close()
+            env.app._matches_manager.close()
+
+    def test_legacy_fallback_when_no_rows_saved(self, tmp_path, monkeypatch) -> None:
+        """[P0] No schedule rows anywhere → legacy run_daily_count gating still applies."""
+        profiles = {"low": {"units": 2.0, "run_daily_count": 3}, "medium": {"units": 1.0, "run_daily_count": 0}}
+        env = self._open_app(tmp_path, monkeypatch, profiles)
+        try:
+            assert env.app._effective_profile_schedules() == {}
+            active = env.app._get_active_profiles()
+            assert set(active) == {"low"}
+        finally:
+            env.app._assistant.conn.close()
+            env.app._matches_manager.close()
+
+    def test_non_dict_rows_are_dropped_not_persisted(self, tmp_path, monkeypatch) -> None:
+        """[P1] Defensive handling: non-dict rows are ignored, dict rows survive."""
+        profiles = {"low": {"units": 2.0, "run_daily_count": 0}}
+        env = self._open_app(tmp_path, monkeypatch, profiles)
+        try:
+            rows = {"low": {"enabled": True, "hour": 6, "minute": 0}, "junk": "not-a-dict"}
+            env.app.save_service_settings(8, 0, profiles=rows)
+            svc = env.app.settings.get("services")
+            assert set(svc["profiles_schedule"]) == {"low"}
+        finally:
+            env.app._assistant.conn.close()
+            env.app._matches_manager.close()

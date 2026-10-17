@@ -92,6 +92,8 @@ def get_services(request: Request):
 
     return {
         "services": services_out,
+        # Documented default generator time is 08:00, shared with per-profile
+        # schedule rows (config_helpers.parse_schedule_block) so both modes agree.
         "generate_hour": svc_cfg.get("generate_hour", 8),
         "generate_minute": svc_cfg.get("generate_minute", 0),
         "profiles_schedule": profiles_schedule_out,

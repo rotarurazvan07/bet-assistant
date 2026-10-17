@@ -71,17 +71,11 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
             return;
         }
+        // One handler for the pathname: opts.profiles always wins. M8: the old
+        // `if (opts.profiles)` second registration relied on Playwright's
+        // newest-route-first dispatch order — fragile shadowing.
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ profiles: opts.profiles ?? DEMO_PROFILES }) });
     });
-    if (opts.profiles) {
-        await page.route((url) => url.pathname === '/api/profiles', async (route) => {
-            await route.fulfill({
-                status: 200,
-                contentType: 'application/json',
-                body: JSON.stringify({ profiles: opts.profiles }),
-            });
-        });
-    }
 }
 
 /** AC-09: existing specs must not see first-visit tour. */

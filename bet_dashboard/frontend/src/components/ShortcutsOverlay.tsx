@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Unstable_TrapFocus from '@mui/material/Unstable_TrapFocus';
 import { SHORTCUTS } from '../hooks/useKeyboardShortcuts';
+import { isTourOpen } from './tourStorage';
 
 /**
  * Keyboard-shortcuts help overlay (issue #47 / Workstream B Part B).
@@ -12,20 +13,34 @@ import { SHORTCUTS } from '../hooks/useKeyboardShortcuts';
  */
 export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
     const restoreRef = useRef<HTMLElement | null>(null);
+    const wasOpenRef = useRef(false);
 
     useEffect(() => {
-        if (!open) return;
-        restoreRef.current = document.activeElement as HTMLElement | null;
+        // M5: capture the pre-open trigger once, and restore only on the
+        // open→closed transition — a re-render while open (WebSocket event)
+        // must not yank focus out of the trapped overlay.
+        if (open && !wasOpenRef.current) {
+            restoreRef.current = document.activeElement as HTMLElement | null;
+        }
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
+            // M6: this overlay is top-most only when the onboarding tour is
+            // closed; otherwise let the tour (or the layer below) own Escape.
+            if (isTourOpen()) return;
             e.stopPropagation();
             e.preventDefault();
             onClose();
         };
         window.addEventListener('keydown', onKey, true);
+        const wasOpen = wasOpenRef.current;
+        wasOpenRef.current = open;
         return () => {
             window.removeEventListener('keydown', onKey, true);
-            restoreRef.current?.focus?.();
+            const trigger = restoreRef.current;
+            if (wasOpen && !open && trigger instanceof HTMLElement && trigger.isConnected) {
+                trigger.focus();
+                restoreRef.current = null;
+            }
         };
     }, [open, onClose]);
 

@@ -36,12 +36,19 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
 
     // Workstream B (#47): remember the trigger that expanded the panel and
     // return focus to it when the panel minimizes or unmounts.
-    const triggerRef = useRef<Element | null>(null);
+    const triggerRef = useRef<HTMLElement | null>(null);
     useEffect(() => {
         if (isMinimized) return;
-        triggerRef.current = document.activeElement;
+        // L2: only a real control counts — activeElement is frequently <body>
+        // at expand time, and "restoring" focus there is a silent no-op.
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && active !== document.body) {
+            triggerRef.current = active;
+        }
         return () => {
-            if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
+            const trigger = triggerRef.current;
+            if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+            triggerRef.current = null;
         };
     }, [isMinimized]);
     const onPulseEnd = () => setPulseClass('');
@@ -107,6 +114,7 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
             aria-modal={false}
             aria-labelledby="slip-builder-title"
             tabIndex={-1}
+            data-slip-snap={isMobile ? snap : undefined}
             style={isMobile ? { height: snap === '90' ? '90dvh' : '50dvh' } : undefined}
         >
             {isMobile && (
