@@ -59,6 +59,11 @@ def create_app() -> FastAPI:
         allow_origins=[
             "http://localhost:5173",  # Vite dev
             "http://localhost:3000",
+            # CI e2e stack (setup/compose.e2e.yaml publishes nginx on 3002):
+            # the browser-side CORS check uses the page origin, and without
+            # this entry every /api XHR from :3002 is blocked — the Services
+            # scheduler rows (and landing click-through) never receive data.
+            "http://localhost:3002",
         ],
         allow_credentials=True,
         allow_methods=["*"],
