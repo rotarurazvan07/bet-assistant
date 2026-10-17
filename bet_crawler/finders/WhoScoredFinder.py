@@ -44,7 +44,7 @@ class WhoScoredFinder(BaseMatchFinder):
         scrape(
             urls,
             self._parse_page,
-            mode=ScrapeMode.FAST,
+            mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
 
@@ -56,7 +56,7 @@ class WhoScoredFinder(BaseMatchFinder):
         try:
             match_json = re.search(r"matchHeaderJson: JSON\.parse\(\'(.*?)\'\),", html)
             if not match_json:
-                logger.info(f"[{url}] WhoScored: Could not find matchHeaderJson block.")
+                logger.error(f"[{url}] WhoScored: Could not find matchHeaderJson block.")
                 return
 
             data = json.loads(match_json.group(1))
