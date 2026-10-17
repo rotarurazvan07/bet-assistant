@@ -3,7 +3,8 @@ import { fetchServices, saveServiceSettings, toggleService } from '../api/data';
 import EmptyState, { ServicesEmptyIcon } from '../components/EmptyState';
 import ServiceCard from '../components/ServiceCard';
 import { TooltipIcon } from '../components/ui';
-import type { ServicesData } from '../types';
+import client from '../api/client';
+import type { ProfileSchedule, ServicesData } from '../types';
 
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
@@ -100,6 +101,10 @@ export default function Services() {
     const [genHour, setGenHour] = useState(8);
     const [genMinute, setGenMinute] = useState(0);
     const [status, setStatus] = useState('');
+    // Per-profile auto-generation rows (issue #95). null = backend served the
+    // legacy shape only: the per-profile section stays hidden and nothing changes.
+    const [rows, setRows] = useState<ProfileSchedule[] | null>(null);
+    const [rowsSaved, setRowsSaved] = useState('');
 
     const load = useCallback(async () => {
         try {
@@ -107,6 +112,9 @@ export default function Services() {
             setData(d);
             setGenHour(d.generate_hour);
             setGenMinute(d.generate_minute);
+            setRows(d.profile_schedules
+                ? [...d.profile_schedules].sort((a, b) => a.order - b.order)
+                : null);
         } catch {
             // Network/API failure: keep the loading card rather than crash;
             // surface the failure in the status line (existing app pattern).
@@ -126,6 +134,32 @@ export default function Services() {
     async function handleToggle(name: string) {
         await toggleService(name);
         await load();
+    }
+
+    function patchRow(index: number, patch: Partial<ProfileSchedule>) {
+        setRows(cur => (cur ?? []).map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    }
+
+    function moveRow(index: number, direction: -1 | 1) {
+        setRows(cur => {
+            if (!cur) return cur;
+            const target = index + direction;
+            if (target < 0 || target >= cur.length) return cur;
+            const next = [...cur];
+            [next[index], next[target]] = [next[target], next[index]];
+            return next.map((row, i) => ({ ...row, order: i }));
+        });
+    }
+
+    async function saveProfileSchedules() {
+        if (!rows?.length) return;
+        try {
+            await client.post('/services/settings', { profile_schedules: rows });
+            setRowsSaved('✓ Profile schedules saved');
+            load();
+        } catch {
+            setRowsSaved('⚠ Failed to save profile schedules — check connection');
+        }
     }
 
     if (!data) return (
@@ -228,6 +262,85 @@ export default function Services() {
                         )}
                     </div>
                 </div>
+
+                {/* AC-7.6: per-profile auto-generation schedule (issue #95). Hidden
+                    when the backend serves the legacy shape only. */}
+                {rows && rows.length > 0 && (
+                    <div className="card p-4 lg:col-span-3 mt-5">
+                        <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
+                            style={{ color: 'var(--text-secondary)' }}>Per-Profile Scheduling</p>
+
+                        <div className="flex flex-col gap-2">
+                            {rows.map((row, i) => (
+                                <div key={row.name} className="flex items-center gap-3 flex-wrap">
+                                    <span className="font-mono text-[12px] w-28 truncate" title={row.name}
+                                        style={{ color: 'var(--text-bright)' }}>{row.name}</span>
+                                    <button
+                                        className={row.auto_generate ? 'btn-primary' : 'btn-ghost'}
+                                        aria-label={`${row.auto_generate ? 'Disable' : 'Enable'} auto-generation for ${row.name}`}
+                                        onClick={() => patchRow(i, { auto_generate: !row.auto_generate })}
+                                    >
+                                        {row.auto_generate ? 'Auto: on' : 'Auto: off'}
+                                    </button>
+                                    <select
+                                        aria-label={`Generation hour for ${row.name}`}
+                                        className="field w-20"
+                                        value={row.generate_hour}
+                                        onChange={(e) => patchRow(i, { generate_hour: Number(e.target.value) })}
+                                    >
+                                        {Array.from({ length: 24 }, (_, h) => (
+                                            <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
+                                        ))}
+                                    </select>
+                                    <span className="font-mono text-[12px]" style={{ color: 'var(--text-secondary)' }}>:</span>
+                                    <select
+                                        aria-label={`Generation minute for ${row.name}`}
+                                        className="field w-20"
+                                        value={row.generate_minute}
+                                        onChange={(e) => patchRow(i, { generate_minute: Number(e.target.value) })}
+                                    >
+                                        {Array.from({ length: 60 }, (_, m) => (
+                                            <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        aria-label={`Units for ${row.name}`}
+                                        className="field w-20" type="number" min={0}
+                                        value={row.units ?? ''}
+                                        onChange={(e) => patchRow(i, { units: e.target.value === '' ? 1.0 : Number(e.target.value) })}
+                                    />
+                                    <input
+                                        aria-label={`Target payout for ${row.name}`}
+                                        className="field w-28" type="number" min={0}
+                                        value={row.target_payout ?? ''}
+                                        onChange={(e) => patchRow(i, { target_payout: e.target.value === '' ? null : Number(e.target.value) })}
+                                    />
+                                    <div className="flex items-center gap-1 ml-auto">
+                                        <button
+                                            className="btn-ghost"
+                                            aria-label={`Move ${row.name} up`}
+                                            disabled={i === 0}
+                                            onClick={() => moveRow(i, -1)}
+                                        >↑</button>
+                                        <button
+                                            className="btn-ghost"
+                                            aria-label={`Move ${row.name} down`}
+                                            disabled={i === rows.length - 1}
+                                            onClick={() => moveRow(i, 1)}
+                                        >↓</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex items-center gap-3 pt-4 border-t mt-2" style={{ borderColor: 'var(--border)' }}>
+                            <button className="btn-primary" onClick={() => { void saveProfileSchedules(); }}>Save Profile Schedules</button>
+                            {rowsSaved && (
+                                <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{rowsSaved}</span>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

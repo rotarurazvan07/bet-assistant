@@ -78,21 +78,31 @@ def get_services(request: Request):
             "minute": minute,
             "interval_seconds": svc.interval,
             "next_run": next_run,
-            "last_time_generated": runtime_cfg.get("last_time_generated") if name == "generator" else None,
+            "last_time_generated": runtime_cfg.get("last_time_generated")
+            if name == "generator"
+            else None,
         }
 
     return {
         "services": services_out,
         "generate_hour": svc_cfg.get("generate_hour", 8),
         "generate_minute": svc_cfg.get("generate_minute", 0),
+        "profile_schedules": app.get_profile_schedules(),
         "server_time": now,
     }
 
 
 @router.post("/settings")
 def save_settings(request: Request, body: ServicesSettingsIn):
-    """Persist scheduler hour/minute settings."""
-    _get(request).save_service_settings(body.generate_hour, body.generate_minute)
+    """Persist scheduler hour/minute settings and per-profile schedules."""
+    app = _get(request)
+    if body.profile_schedules is not None:
+        rows = [row.model_dump() for row in body.profile_schedules]
+        app.save_profile_schedules(rows)
+        if body.generate_hour is not None:
+            app.save_service_settings(body.generate_hour, body.generate_minute or 0)
+        return {"profile_schedules": rows}
+    app.save_service_settings(body.generate_hour, body.generate_minute or 0)
     return {
         "generate_hour": body.generate_hour,
         "generate_minute": body.generate_minute,

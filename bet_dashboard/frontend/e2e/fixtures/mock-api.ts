@@ -4,7 +4,7 @@
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
 import type { SlipsPage, ProfilesMap } from '../../src/types';
-import { DEMO_MATCHES, DEMO_MATCHES_PAGE } from './demo-data';
+import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_PROFILES, DEMO_PROFILE_SCHEDULES } from './demo-data';
 
 function apiPath(pathname: string, exact: string): boolean {
     return pathname === exact || pathname.startsWith(`${exact}/`);
@@ -55,6 +55,34 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
                 last_pull: '2026-10-07T10:00:00',
                 matches_loaded: DEMO_MATCHES.length,
             }),
+        });
+    });
+    await page.route((url) => url.pathname === '/api/services', async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                services: {
+                    puller: { name: 'puller', description: 'Checks every 5 minutes', enabled: false, alive: false, hour: null, minute: null, interval_seconds: 300, next_run: 'Every 5 min', last_time_generated: null },
+                    generator: { name: 'generator', description: 'Checks every 5 minutes', enabled: true, alive: true, hour: 9, minute: 0, interval_seconds: 300, next_run: 'Today 09:00 (in 1h 0m)', last_time_generated: null },
+                    verifier: { name: 'verifier', description: 'Polls every 60 seconds', enabled: true, alive: true, hour: null, minute: null, interval_seconds: 60, next_run: 'Every 1 min', last_time_generated: null },
+                },
+                generate_hour: 9,
+                generate_minute: 0,
+                server_time: '2026-10-07T10:00:00',
+                profile_schedules: DEMO_PROFILE_SCHEDULES,
+            }),
+        });
+    });
+    await page.route((url) => url.pathname === '/api/profiles', async (route) => {
+        if (route.request().method() === 'POST') {
+            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'ok' }) });
+            return;
+        }
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ profiles: opts.profiles ?? DEMO_PROFILES }),
         });
     });
     if (opts.profiles) {

@@ -53,7 +53,7 @@ function renderPanel(cfgOverrides: Partial<BuilderConfig> = {}, leagues: string[
 describe('BuilderPanel', () => {
     it('renders all accordion section titles', () => {
         renderPanel();
-        for (const title of ['Bet Shape', 'Quality Gate', 'Markets', 'Tolerance & Stop', 'Scoring', 'Odds Movement', 'Advanced']) {
+        for (const title of ['Bet Shape', 'Odds & Limits', 'Quality & Consensus', 'Markets', 'Build Stop Rules', 'Selection Trade-offs', 'Odds Movement', 'Advanced']) {
             expect(screen.getByText(title)).toBeInTheDocument();
         }
     });
@@ -202,17 +202,20 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         expect(last.tolerance_factor).toBe(0.5);
     });
 
-    it('Scoring DualSliders fire quality_vs_balance and consensus_vs_sources', async () => {
+    it('Selection Trade-offs fire quality_vs_balance and consensus_vs_sources', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({ consensus_floor: 80 });
-        await user.click(screen.getByRole('button', { name: /Scoring/ }));
-        // sliders in DOM (T&S closed): QG floor(0), MinLegsFill(1),
-        // Distribution Logic(2), Agreement Logic(3)
-        const sliders = document.querySelectorAll('input[type="range"]');
-        fireEvent.change(sliders[2], { target: { value: '80' } });
+        await user.click(screen.getByRole('button', { name: /Selection Trade-offs/ }));
+        // find each TradeoffSlider by its accessible name (range input aria-label)
+        const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
+        const quality = sliders.find((s) => s.getAttribute('aria-label') === 'Quality vs Balance');
+        const agreement = sliders.find((s) => s.getAttribute('aria-label') === 'Sources vs Consensus');
+        expect(quality).toBeDefined();
+        expect(agreement).toBeDefined();
+        fireEvent.change(quality as HTMLInputElement, { target: { value: '80' } });
         let last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.quality_vs_balance).toBe(0.8);
-        fireEvent.change(sliders[3], { target: { value: '30' } });
+        fireEvent.change(agreement as HTMLInputElement, { target: { value: '30' } });
         last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.consensus_vs_sources).toBe(0.3);
     });
@@ -229,22 +232,23 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         expect(last.consensus_shrinkage_k).toBe(6);
     });
 
-    it('Quality Gate SliderRow (Consensus Floor) fires onChange', () => {
+    it('Quality & Consensus SliderRow (Consensus Floor) fires onChange', () => {
         const { onChange } = renderPanel({ consensus_floor: 70 });
         const sliders = document.querySelectorAll('input[type="range"]');
-        // Quality Gate is defaultOpen — its slider is the first in the DOM
+        // Quality & Consensus is defaultOpen — its slider is the first in the DOM
         fireEvent.change(sliders[0], { target: { value: '85' } });
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.consensus_floor).toBe(85);
     });
 
-    it('Agreement Logic disabled at consensus_floor 100 (DualSlider disabled)', async () => {
+    it('Agreement Logic disabled at consensus_floor 100 (TradeoffSlider disabled)', async () => {
         const user = userEvent.setup();
         renderPanel({ consensus_floor: 100 });
-        await user.click(screen.getByRole('button', { name: /Scoring/ }));
-        const sliders = document.querySelectorAll('input[type="range"]');
-        // Agreement Logic is sliders[3] (see Scoring test comment)
-        expect((sliders[3] as HTMLInputElement).disabled).toBe(true);
+        await user.click(screen.getByRole('button', { name: /Selection Trade-offs/ }));
+        const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
+        const agreement = sliders.find((s) => s.getAttribute('aria-label') === 'Sources vs Consensus');
+        expect(agreement).toBeDefined();
+        expect((agreement as HTMLInputElement).disabled).toBe(true);
     });
 });
 
