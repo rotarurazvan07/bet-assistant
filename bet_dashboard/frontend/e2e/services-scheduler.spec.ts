@@ -45,9 +45,15 @@ test.describe('services per-profile scheduler @desktop 1280x800', () => {
             posted = route.request().postDataJSON() as Record<string, unknown>;
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
         });
+        // Row state can be rebuilt by load() (post-save refetch); wait for the
+        // row's switch before interacting so a rebuild cannot eat the click.
+        await expect(page.getByRole('switch', { name: 'Auto-generate medium' })).toBeVisible({ timeout: 15000 });
         await page.getByRole('switch', { name: 'Auto-generate medium' }).click();
         await page.getByRole('combobox', { name: 'medium hour' }).selectOption('7');
-        await page.getByRole('button', { name: 'Save Settings' }).click();
+        // The scheduler owns the profiles map: scope the save to it so the
+        // generator-off empty state (seeded stack parks the toggle off) can
+        // never make this an ambiguous 'Save Settings' match.
+        await page.getByTestId('profile-scheduler').getByRole('button', { name: 'Save Settings' }).click();
         await expect(page.getByText(/Schedules saved/)).toBeVisible();
         const profiles = (posted?.profiles ?? {}) as Record<string, { enabled: boolean; hour: number; units: number; target_payout: number | null }>;
         expect(Object.keys(profiles).sort()).toEqual(['high_risk', 'low', 'medium']);
