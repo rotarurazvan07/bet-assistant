@@ -4,7 +4,7 @@
 // status line confirms save. MSW serves /api/services.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Services from '../Services';
@@ -142,5 +142,93 @@ describe('Services page', () => {
                 expect(screen.getAllByText(svc.description).length).toBeGreaterThan(0);
             }
         }
+    });
+});
+
+// ── Per-profile auto-generation scheduler (AC-7.6 / issue #95) ────────────────
+
+const ROWS = [
+    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, order: 0 },
+    { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: 2.0, target_payout: 50, order: 1 },
+    { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: 1.0, target_payout: null, order: 2 },
+];
+
+function serveRows(posts: Array<Record<string, unknown>>) {
+    server.use(
+        http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: ROWS }))),
+        http.post('/api/services/settings', async ({ request }) => {
+            posts.push(await request.json() as Record<string, unknown>);
+            return HttpResponse.json({ ok: true });
+        }),
+    );
+}
+
+describe('Services per-profile scheduler', () => {
+    it('renders one row per profile with controls, hidden for legacy payloads', async () => {
+        server.use(http.get('/api/services', () => HttpResponse.json(
+            makeServicesData({ profile_schedules: ROWS }),
+        )));
+        render(<Services />);
+        await screen.findByText('Automation Services');
+        expect(screen.getByText('Per-Profile Scheduling')).toBeInTheDocument();
+        for (const row of ROWS) {
+            expect(screen.getByTitle(row.name)).toBeInTheDocument();
+            expect(screen.getByLabelText(`Generation hour for ${row.name}`)).toBeInTheDocument();
+        }
+        // first row cannot move up; last row cannot move down
+        expect(screen.getByRole('button', { name: 'Move low up' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Move high_risk down' })).toBeDisabled();
+    });
+
+    it('hides the per-profile section when the backend serves no rows', async () => {
+        render(<Services />);
+        await screen.findByText('Automation Services');
+        expect(screen.queryByText('Per-Profile Scheduling')).not.toBeInTheDocument();
+    });
+
+    it('Save persists all rows in one POST after edits', async () => {
+        const user = userEvent.setup();
+        const posts: Array<Record<string, unknown>> = [];
+        serveRows(posts);
+        render(<Services />);
+        await screen.findByText('Per-Profile Scheduling');
+
+        await user.selectOptions(screen.getByRole('combobox', { name: 'Generation hour for medium' }), '14');
+        fireEvent.change(screen.getByLabelText('Units for medium'), { target: { value: '3' } });
+        await user.click(screen.getByRole('button', { name: 'Enable auto-generation for high_risk' }));
+
+        await user.click(screen.getByRole('button', { name: 'Save Profile Schedules' }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        const rows = posts[0].profile_schedules as Array<Record<string, number | string | boolean | null>>;
+        expect(rows).toHaveLength(3);
+        expect(rows[1]).toMatchObject({ name: 'medium', generate_hour: 14, units: 3 });
+        expect(rows[2]).toMatchObject({ name: 'high_risk', auto_generate: true });
+        // legacy global settings are not clobbered when rows are saved
+        expect(posts[0].generate_hour).toBeUndefined();
+    });
+
+    it('up/down reorder rows and the POST carries the new order', async () => {
+        const user = userEvent.setup();
+        const posts: Array<Record<string, unknown>> = [];
+        serveRows(posts);
+        render(<Services />);
+        await screen.findByText('Per-Profile Scheduling');
+        await user.click(screen.getByRole('button', { name: 'Move medium up' }));
+        await user.click(screen.getByRole('button', { name: 'Save Profile Schedules' }));
+        await waitFor(() => expect(posts).toHaveLength(1));
+        const rows = posts[0].profile_schedules as Array<Record<string, string>>;
+        expect(rows.map(r => r.name)).toEqual(['medium', 'low', 'high_risk']);
+    });
+
+    it('shows a failure status when the schedules POST fails', async () => {
+        const user = userEvent.setup();
+        server.use(
+            http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: ROWS }))),
+            http.post('/api/services/settings', () => HttpResponse.error()),
+        );
+        render(<Services />);
+        await screen.findByText('Per-Profile Scheduling');
+        await user.click(screen.getByRole('button', { name: 'Save Profile Schedules' }));
+        expect(await screen.findByText(/Failed to save profile schedules/)).toBeInTheDocument();
     });
 });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Autocomplete, TextField } from '@mui/material';
 import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
 import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
@@ -55,10 +56,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         const saved = localStorage.getItem(STORAGE_KEY);
         return saved ? JSON.parse(saved).units : 1.0;
     });
-    const [runDaily, setRunDaily] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).runDaily : 0;
-    });
 
     // New: Target Payout logic
     const [targetPayout, setTargetPayout] = useState(() => {
@@ -82,10 +79,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             cfg: { ...cfg, date_from: null, date_to: null },
             activeName,
             units,
-            runDaily,
             targetPayout
         }));
-    }, [cfg, activeName, units, runDaily, targetPayout]);
+    }, [cfg, activeName, units, targetPayout]);
 
     // Load profiles + excluded on mount
     useEffect(() => {
@@ -125,10 +121,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
 
     // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: fires ONLY on excluded_sources changes; other cfg fields flow through handleCfgChange
     useEffect(() => {
         triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
-    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]);
+    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: fires ONLY on excluded_sources; other cfg fields flow through handleCfgChange
 
     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
     useEffect(() => {
@@ -192,7 +187,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setCfg(next);
         setActiveName(name);
         setUnits(data.units ?? 1);
-        setRunDaily(data.run_daily_count ?? 0);
         setTargetPayout(data.target_payout ?? 0);
         triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
@@ -204,7 +198,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }
         // Profile accepts null dates (cycle-6 pin: runtime-only keys nulled on
         // disk) — null them explicitly instead of destructuring them out.
-        await saveProfile({ name: clean, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout, run_daily_count: runDaily });
+        await saveProfile({ name: clean, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout });
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
         setStatus(`✓ Profile '${clean}' saved`);
@@ -273,37 +267,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             border: '1px solid var(--border)',
                             boxShadow: 'var(--shadow-lg)',
                         }}>
-                        <div className="px-5 pt-5 pb-4"
-                            style={{ borderBottom: '1px solid var(--border)' }}>
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-sm">👤</span>
-                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
-                                    style={{ color: 'var(--text-secondary)' }}>Profiles</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                {Object.keys(profiles).map(name => (
-                                    <button key={name}
-                                        data-profile-chip
-                                        className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-lg transition-all duration-200"
-                                        style={{
-                                            background: activeName === name
-                                                ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
-                                                : 'var(--bg-card)',
-                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border)'}`,
-                                            color: activeName === name ? 'var(--text-bright)' : 'var(--text-secondary)',
-                                            boxShadow: activeName === name ? 'var(--accent-glow)' : 'none',
-                                        }}
-                                        onClick={() => loadProfile(name, profiles[name])}>
-                                        {name}
-                                    </button>
-                                ))}
-                                {!Object.keys(profiles).length && (
-                                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                                        No saved profiles yet
-                                    </span>
-                                )}
-                            </div>
-                        </div>
                         <div className="px-3 py-4">
                             <BuilderPanel
                                 cfg={cfg}
@@ -327,16 +290,42 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                     }}>
                     {/* AC-03: page heading in the management bar */}
                     <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Build</h1>
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <input className="field w-40" placeholder="profile name"
-                            value={activeName} onChange={e => setActiveName(e.target.value)} />
-                        <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
-                        <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
+                    <div className="flex items-start gap-3 flex-wrap">
+                        {/* Zone 1 — identity: pick a saved profile or type a new name */}
+                        <div className="flex items-center gap-2">
+                            <Autocomplete
+                                freeSolo
+                                sx={{
+                                    width: 220,
+                                    '& .MuiOutlinedInput-root': {
+                                        background: 'var(--bg-raised)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: 12,
+                                    },
+                                }}
+                                options={Object.keys(profiles)}
+                                value={activeName}
+                                inputValue={activeName}
+                                onInputChange={(_, next) => setActiveName(next ?? '')}
+                                onChange={(_, next) => {
+                                    if (typeof next === 'string' && profiles[next]) {
+                                        loadProfile(next, profiles[next]);
+                                    }
+                                }}
+                                renderInput={(params) => (
+                                    <TextField {...params} placeholder="profile name" />
+                                )}
+                            />
+                            <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
+                            <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
+                        </div>
 
-                        {/* Units & Target Payout */}
+                        {/* Zone 2 — stake sizing for MANUAL bets only. Slips produced by
+                            auto-generation use the units/target payout set in Services. */}
                         <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Units</span>
+                                <TooltipIcon text="Units for a MANUAL bet placed from this builder. Slips produced by auto-generation use the units configured on the Services page." align="right" />
                                 <input className="field w-16" type="number" min={0.1} step={0.1}
                                     disabled={targetPayout > 0}
                                     style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
@@ -349,15 +338,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                     placeholder="Off"
                                     value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
                             </div>
-                        </div>
-
-                        <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
-                        <button className="btn-ghost" onClick={handleClearExcluded}>Reset excluded</button>
-
-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Run Daily</span>
-                            <input className="field w-16" type="number" min={0} step={1}
-                                value={runDaily} onChange={e => setRunDaily(+e.target.value)} />
                         </div>
 
                         {status && (
@@ -396,6 +376,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             style={{ color: 'var(--text-secondary)' }}>
                             Live Preview — updates with every config change
                         </span>
+                        {/* Add to Slips lives with the legs it commits — hidden when
+                            the preview is empty (issue #41 note 7). */}
+                        {(preview?.legs?.length ?? 0) > 0 && (
+                            <button className="btn-success ml-auto" onClick={handleAddToSlips}>+ Add to Slips</button>
+                        )}
                         {loading && (
                             <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
                                 style={{
@@ -415,8 +400,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 primary={{
                                     label: 'Select a Preset',
                                     onClick: () => {
-                                        const first = document.querySelector<HTMLElement>('[data-profile-chip]');
-                                        const target = first ?? document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
+                                        const target = document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
                                         target?.focus();
                                         target?.scrollIntoView({ block: 'center' });
                                     },

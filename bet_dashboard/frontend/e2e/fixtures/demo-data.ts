@@ -2,6 +2,7 @@
 // setup/seed_e2e.py (CI e2e DB). Expand here first, then teach both tracks.
 // Reuses Vitest factories — no second Match type.
 import { makeMatch, makeMatchesPage, makeProfile, makeSlip, makeSlipsPage } from '../../src/test/factories';
+import type { ProfileSchedule } from '../../src/types';
 
 export const DEMO_MATCHES = [
     makeMatch({
@@ -64,4 +65,14 @@ export const DEMO_SLIPS_PAGE = makeSlipsPage({
     profiles: ['low'],
 });
 
-export const DEMO_PROFILES = { low: makeProfile() };
+export const DEMO_PROFILES = {
+    low: makeProfile(),
+    medium: makeProfile({ consensus_floor: 60.0 }),
+    high_risk: makeProfile({ consensus_floor: 40.0 }),
+};
+
+export const DEMO_PROFILE_SCHEDULES: ProfileSchedule[] = [
+    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, order: 0 },
+    { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: 2.0, target_payout: 50.0, order: 1 },
+    { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: 1.0, target_payout: null, order: 2 },
+];

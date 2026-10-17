@@ -1,6 +1,6 @@
 """Pydantic request/response models for the API."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from bet_framework.markets.enums import MarketKey, MarketType
 
@@ -93,6 +93,11 @@ class ProfileIn(BaseModel):
     units: float = 1.0
     target_payout: float | None = None
     run_daily_count: int = 0
+    # T4: auto-generation ordering and per-profile schedule
+    order: int = 0
+    auto_generate: bool = False
+    generate_hour: int | None = None
+    generate_minute: int | None = None
     # Advanced
     consensus_shrinkage_k: float | None = None
     min_source_edge: float | None = None
@@ -120,7 +125,9 @@ class ManualLegIn(BaseModel):
     consensus: float  # 0-100 percentage, required for scoring
     sources: int  # number of sources, required for scoring
     league: str | None = None
-    predictions: list[dict] | None = None  # Per-source predictions for source reliability tracking
+    predictions: list[dict] | None = (
+        None  # Per-source predictions for source reliability tracking
+    )
 
 
 class SlipIn(BaseModel):
@@ -160,11 +167,33 @@ class BetSlipOut(BaseModel):
 # ── Services ──────────────────────────────────────────────────────────────────
 
 
+class ProfileScheduleIn(BaseModel):
+    """Per-profile auto-generation schedule row (T4)."""
+
+    name: str
+    auto_generate: bool | None = None
+    generate_hour: int | None = None
+    generate_minute: int | None = None
+    units: float | None = None
+    target_payout: float | None = None
+    order: int | None = None
+
+
 class ServicesSettingsIn(BaseModel):
     """Payload for service scheduler settings."""
 
-    generate_hour: int
-    generate_minute: int = 0
+    generate_hour: int | None = None
+    generate_minute: int | None = None
+    profile_schedules: list[ProfileScheduleIn] | None = None
+
+    @model_validator(mode="after")
+    def _require_hour_without_profile_schedules(self) -> "ServicesSettingsIn":
+        """Legacy body (no profile_schedules) still requires generate_hour."""
+        if self.profile_schedules is None and self.generate_hour is None:
+            raise ValueError(
+                "generate_hour is required when profile_schedules is absent"
+            )
+        return self
 
 
 # ── Odds History ──────────────────────────────────────────────────────────────

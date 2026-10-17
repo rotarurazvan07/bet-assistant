@@ -6,7 +6,7 @@
 // request delivery under isolate:false (D43 lesson).
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -66,12 +66,13 @@ describe('SmartBuilder page', () => {
         expect(screen.getByRole('heading', { name: 'Build' })).toBeInTheDocument();
     });
 
-    it('renders profile sidebar + builder panel + preview grid', async () => {
+    it('renders builder panel + preview grid (header carries no reset/run-daily controls)', async () => {
         await renderAndHydrate();
-        expect(screen.getByText('Profiles')).toBeInTheDocument();
         expect(screen.getByText('Bet Shape')).toBeInTheDocument();
-        expect(screen.getByText('+ Add to Slips')).toBeInTheDocument();
-        expect(screen.getByText('Reset excluded')).toBeInTheDocument();
+        // AC 7.3/7.6: Reset excluded lives in the Excluded Matches panel only,
+        // and Run Daily moved to the Services page.
+        expect(screen.queryByText('Reset excluded')).not.toBeInTheDocument();
+        expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
     });
 
     it('config change triggers a NEW debounced preview (count increments)', async () => {
@@ -96,16 +97,15 @@ describe('SmartBuilder page', () => {
         expect(parsed.units).toBe(1);
     });
 
-    it('profile buttons render from fetchProfiles and load on click', async () => {
+    it('profile combobox lists saved profiles and loads the one you select', async () => {
         server.use(
             http.get('/api/profiles', () => HttpResponse.json({ profiles: { cautious: { target_odds: 4, units: 2, target_legs: 4 } } })),
         );
         const user = userEvent.setup();
         await renderAndHydrate();
-        const chip = await screen.findByText('cautious');
-        await user.click(chip);
-        const input = screen.getByPlaceholderText('profile name') as HTMLInputElement;
-        await waitFor(() => expect(input.value).toBe('cautious'), { timeout: 3000 });
+        const combobox = await screen.findByPlaceholderText('profile name');
+        await user.click(combobox);
+        await user.click(await screen.findByText('cautious'));
         await waitFor(() => expect(lastPreviewBody).toContain('"target_odds":4'), { timeout: 3000 });
     });
 
@@ -145,7 +145,10 @@ describe('SmartBuilder page', () => {
         renderBuilder();
         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
         expect(screen.getByText('No preview yet')).toBeInTheDocument();
-        await user.click(screen.getByText('+ Add to Slips'));
+        // AC 7.7: the preview's Add to Slips button is hidden with no legs; the
+        // empty state's secondary action still offers it and reports the same status.
+        expect(screen.queryByText('+ Add to Slips')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Add to Slips' }));
         expect(screen.getByText('No legs in preview.')).toBeInTheDocument();
     });
 
@@ -219,5 +222,39 @@ describe('SmartBuilder page', () => {
             const unitsInput = screen.getByDisplayValue('10') as HTMLInputElement;
             expect(unitsInput).toBeInTheDocument();
         }, { timeout: 3000 });
+    });
+
+    // ── Issue #41 UX rework: header zones, combobox, Add-to-Slips placement ──
+
+    it('typing a NEW name into the combobox then Save creates that profile', async () => {
+        const user = userEvent.setup();
+        let saved = 0;
+        server.use(
+            http.post('/api/profiles', () => {
+                saved += 1;
+                return HttpResponse.json({ status: 'ok' });
+            }),
+        );
+        await renderAndHydrate();
+        // role=combobox matches the BuilderPanel balance_decay <select> too —
+        // query the profile combobox by its placeholder instead.
+        const combobox = screen.getByPlaceholderText('profile name');
+        fireEvent.change(combobox, { target: { value: 'fresh_profile' } });
+        await user.click(screen.getByText('Save'));
+        expect(await screen.findByText(/Profile 'fresh_profile' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
+        expect(saved).toBe(1);
+    });
+
+    it('Add to Slips renders inside the live preview only when legs exist', async () => {
+        await renderAndHydrate();
+        // default PREVIEW factory has legs → the button is present next to the preview
+        expect(screen.getByText('+ Add to Slips')).toBeInTheDocument();
+        expect(screen.getByText('Live Preview — updates with every config change')).toBeInTheDocument();
+    });
+
+    it('localStorage payload carries no removed keys (runDaily gone)', async () => {
+        await renderAndHydrate();
+        const parsed = JSON.parse(localStorage.getItem('smart_builder_state') as string);
+        expect(parsed.runDaily).toBeUndefined();
     });
 });

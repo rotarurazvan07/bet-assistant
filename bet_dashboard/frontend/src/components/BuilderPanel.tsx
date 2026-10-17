@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { BaseCard } from './ui/BaseCard';
 import { BaseDataRow } from './ui/BaseDataRow';
 import { TooltipIcon } from './ui';
+import TradeoffSlider from './TradeoffSlider';
 import type { BuilderConfig } from '../types';
 import { ALL_MARKETS } from '../types';
 import { marketLabel } from '../config/marketConfig';
@@ -227,31 +228,6 @@ function InlineSlider({ value, min, max, step, format, onChange, showCenter = fa
     );
 }
 
-// ── Dual Slider ───────────────────────────────────────────────────────────────
-
-function DualSlider({ label, tip, left, right, value, onChange, disabled = false }: {
-    label: string; tip?: string; left: string; right: string; value: number; onChange: (v: number) => void;
-    disabled?: boolean;
-}) {
-    return (
-        <div className="py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-            {label && (
-                <div className="flex items-center gap-1 mb-2">
-                    <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    {tip && <TooltipIcon text={tip} align="right" />}
-                </div>
-            )}
-            <div className={`flex items-center gap-2 ${disabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
-                <span className="text-[10px] font-mono w-16 text-right shrink-0 font-bold opacity-60" style={{ color: 'var(--win)' }}>{left}</span>
-                <div className="flex-1">
-                    <SliderWithTicks min={0} max={100} step={5} value={value * 100} onChange={v => onChange(v / 100)} showCenter={true} dual={true} disabled={disabled} />
-                </div>
-                <span className="text-[10px] font-mono w-16 shrink-0 font-bold opacity-60" style={{ color: 'var(--accent)' }}>{right}</span>
-            </div>
-        </div>
-    );
-}
-
 // ── Main Panel ────────────────────────────────────────────────────────────────
 
 export default function BuilderPanel({ cfg, availableLeagues, availableSources, onChange }: Props) {
@@ -291,16 +267,41 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                 </NullableRow>
             </AccordionSection>
 
-            {/* ── Quality Gate ──────────────────────────────────────── */}
-            <AccordionSection title="Quality Gate" icon="🛡️" defaultOpen={true}>
-                <SliderRow label="Consensus Floor"
-                    tip="Minimum source agreement %. Picks below this are discarded."
-                    value={cfg.consensus_floor} min={50} max={100} step={1}
-                    format={v => `${v}%`} onChange={v => up('consensus_floor', v)} />
+            {/* ── Odds & Limits ─────────────────────────────────────── */}
+            <AccordionSection title="Odds & Limits" icon="🎯" defaultOpen={true}
+                tip="The odds window every leg must fall inside — the two odds-range knobs live together here.">
                 <Row label="Min Odds" tip="Minimum bookmaker odds. Filters near-certain outcomes.">
                     <input className="field w-20" type="number" min={1.01} max={10} step={0.01}
                         value={cfg.min_odds} onChange={e => up('min_odds', +e.target.value)} />
                 </Row>
+                <NullableRow label="Max Leg Odds"
+                    tip="Maximum odds for any single leg. Auto = 3.5."
+                    enabled={cfg.max_single_leg_odds !== null}
+                    onToggle={v => up('max_single_leg_odds', v ? 3.5 : null)}>
+                    <InlineSlider
+                        value={(cfg.max_single_leg_odds ?? 3.5) * 10}
+                        min={10} max={100} step={5}
+                        format={v => (v / 10).toFixed(1)}
+                        onChange={v => up('max_single_leg_odds', v / 10)} />
+                </NullableRow>
+            </AccordionSection>
+
+            {/* ── Quality & Consensus ────────────────────────────────── */}
+            <AccordionSection title="Quality & Consensus" icon="🛡️" defaultOpen={true}>
+                <SliderRow label="Consensus Floor"
+                    tip="Minimum source agreement %. Picks below this are discarded."
+                    value={cfg.consensus_floor} min={50} max={100} step={1}
+                    format={v => `${v}%`} onChange={v => up('consensus_floor', v)} />
+                <NullableRow label="Min Quality"
+                    tip="Minimum quality score to accept a pick. Auto = 0.20."
+                    enabled={cfg.min_pick_quality !== null}
+                    onToggle={v => up('min_pick_quality', v ? 0.2 : null)}>
+                    <InlineSlider
+                        value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)}
+                        min={0} max={100} step={5}
+                        format={v => (v / 100).toFixed(2)}
+                        onChange={v => up('min_pick_quality', v / 100)} />
+                </NullableRow>
             </AccordionSection>
 
             {/* ── Markets ──────────────────────────────────────────── */}
@@ -443,8 +444,9 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                 </AccordionSection>
             )}
 
-            {/* ── Tolerance & Stop ──────────────────────────────────── */}
-            <AccordionSection title="Tolerance & Stop" icon="⚡" defaultOpen={false}>
+            {/* ── Build Stop Rules ──────────────────────────────────── */}
+            <AccordionSection title="Build Stop Rules" icon="⚡" defaultOpen={false}
+                tip="How far each leg may drift from the ideal odds, and when the builder stops adding legs.">
                 <NullableRow label="Tolerance Factor"
                     tip="±% band around ideal per-leg odds. Tier 1 picks sit within this band."
                     enabled={cfg.tolerance_factor !== null}
@@ -454,6 +456,26 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                         min={5} max={80} step={1}
                         format={v => `${v}%`}
                         onChange={v => up('tolerance_factor', v / 100)} />
+                </NullableRow>
+                <NullableRow label="Lower Tolerance"
+                    tip="Max % drift allowed BELOW ideal per-leg odds. Overrides the global factor."
+                    enabled={cfg.tol_lower !== null}
+                    onToggle={v => up('tol_lower', v ? 0.2 : null)}>
+                    <InlineSlider
+                        value={Math.round((cfg.tol_lower ?? 0.2) * 100)}
+                        min={1} max={100} step={1}
+                        format={v => `${v}%`}
+                        onChange={v => up('tol_lower', v / 100)} />
+                </NullableRow>
+                <NullableRow label="Upper Tolerance"
+                    tip="Max % drift allowed ABOVE ideal per-leg odds. Overrides the global factor."
+                    enabled={cfg.tol_upper !== null}
+                    onToggle={v => up('tol_upper', v ? 0.15 : null)}>
+                    <InlineSlider
+                        value={Math.round((cfg.tol_upper ?? 0.15) * 100)}
+                        min={1} max={100} step={1}
+                        format={v => `${v}%`}
+                        onChange={v => up('tol_upper', v / 100)} />
                 </NullableRow>
                 <NullableRow label="Stop Threshold"
                     tip="Stop building when odds ≥ target × threshold AND enough legs are filled."
@@ -473,23 +495,27 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                     onChange={v => up('min_legs_fill_ratio', v / 100)} />
             </AccordionSection>
 
-            {/* ── Scoring ──────────────────────────────────────────── */}
+            {/* ── Selection Trade-offs ─────────────────────────────── */}
             <AccordionSection
-                title="Scoring"
+                title="Selection Trade-offs"
                 icon="📐"
-                tip="Balances quality vs balance and source agreement vs consensus. Adjust sliders to fine-tune selection behavior."
+                tip="Two sliders decide how the builder trades breadth against strength when it picks legs."
                 defaultOpen={false}
             >
-                <DualSlider
-                    label="Distribution Logic"
-                    tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality."
-                    left="Balance" right="Quality"
+                <TradeoffSlider
+                    label="Quality vs Balance"
+                    tip="Trade-off between how many legs are picked and how good each leg is. Left = more, safer legs (balance); Right = fewer, stronger legs (quality)."
+                    leftLabel="More picks, lower avg quality"
+                    rightLabel="Fewer picks, higher avg quality"
+                    centerLabel="Balanced"
                     value={cfg.quality_vs_balance}
                     onChange={v => up('quality_vs_balance', v)} />
-                <DualSlider
-                    label="Agreement Logic"
-                    tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources."
-                    left="Sources" right="Consensus"
+                <TradeoffSlider
+                    label="Sources vs Consensus"
+                    tip="How much a leg's score leans on how many sources back it versus how strongly they agree. Left = source count; Right = consensus strength."
+                    leftLabel="Trust many weak sources"
+                    rightLabel="Trust few strong sources"
+                    centerLabel="Source-count"
                     value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources}
                     disabled={cfg.consensus_floor === 100}
                     onChange={v => up('consensus_vs_sources', v)} />
@@ -564,36 +590,6 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                         <option value="gaussian">Gaussian</option>
                     </select>
                 </Row>
-                <NullableRow label="Min Quality"
-                    tip="Minimum quality score to accept a pick. Auto = 0.20."
-                    enabled={cfg.min_pick_quality !== null}
-                    onToggle={v => up('min_pick_quality', v ? 0.2 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)}
-                        min={0} max={100} step={5}
-                        format={v => (v / 100).toFixed(2)}
-                        onChange={v => up('min_pick_quality', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Lower Tolerance"
-                    tip="Max % drift allowed BELOW ideal per-leg odds. Overrides global factor."
-                    enabled={cfg.tol_lower !== null}
-                    onToggle={v => up('tol_lower', v ? 0.2 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.tol_lower ?? 0.2) * 100)}
-                        min={1} max={100} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('tol_lower', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Upper Tolerance"
-                    tip="Max % drift allowed ABOVE ideal per-leg odds. Overrides global factor."
-                    enabled={cfg.tol_upper !== null}
-                    onToggle={v => up('tol_upper', v ? 0.15 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.tol_upper ?? 0.15) * 100)}
-                        min={1} max={100} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('tol_upper', v / 100)} />
-                </NullableRow>
             </AccordionSection>
         </div>
     );

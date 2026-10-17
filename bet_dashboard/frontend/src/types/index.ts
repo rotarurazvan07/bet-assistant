@@ -127,7 +127,9 @@ export interface Profile {
     min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
     units: number;
     target_payout?: number | null;
-    run_daily_count: number;
+    // Scheduling moved to the Services page (issue #41 note 6 / #95); the Smart
+    // Builder no longer writes it, so profiles read from disk may omit it.
+    run_daily_count?: number;
     date_from?: null; date_to?: null; excluded_urls?: null;
     // Advanced
     consensus_shrinkage_k: number | null;
@@ -316,6 +318,18 @@ export interface AnalyticsData {
 
 // ── Services ──────────────────────────────────────────────────────────────────
 
+/** Per-profile auto-generation schedule (issue #95). Position drives the order
+ * in which the generator builds slips — the most important profile first. */
+export interface ProfileSchedule {
+    name: string;
+    auto_generate: boolean;
+    generate_hour: number;
+    generate_minute: number;
+    units: number;
+    target_payout: number | null;
+    order: number;
+}
+
 export interface ServiceInfo {
     name: string; description: string;
     enabled: boolean; alive: boolean;
@@ -331,6 +345,9 @@ export interface ServicesData {
     generate_hour: number;
     generate_minute: number;
     server_time: string;
+    /** Per-profile auto-generation schedule (issue #95). Optional: absent when
+     * the backend serves the legacy global shape only. */
+    profile_schedules?: ProfileSchedule[];
 }
 
 // ── WebSocket events ──────────────────────────────────────────────────────────

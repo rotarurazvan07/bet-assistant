@@ -13,7 +13,9 @@ _RUNTIME_ONLY: set[str] = {"date_from", "date_to", "excluded_urls"}
 
 def _yaml_to_config(data: dict) -> BetSlipConfig:
     """Convert a profile YAML dict to a BetSlipConfig, ignoring runtime-only keys."""
-    kwargs = {k: v for k, v in data.items() if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY}
+    kwargs = {
+        k: v for k, v in data.items() if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY
+    }
     return BetSlipConfig(**kwargs)
 
 
@@ -22,6 +24,10 @@ def _config_to_yaml_dict(
     units: float = 1.0,
     target_payout: float | None = None,
     run_daily_count: int = 0,
+    order: int | None = None,
+    auto_generate: bool | None = None,
+    generate_hour: int | None = None,
+    generate_minute: int | None = None,
 ) -> dict:
     """Convert a config object to a plain dict for YAML serialization."""
     d = asdict(cfg)
@@ -30,6 +36,15 @@ def _config_to_yaml_dict(
     d["units"] = units
     d["target_payout"] = target_payout
     d["run_daily_count"] = run_daily_count
+    # T4 scheduling/ordering keys are opt-in: only persisted when explicitly set
+    if order is not None:
+        d["order"] = order
+    if auto_generate is not None:
+        d["auto_generate"] = auto_generate
+    if generate_hour is not None:
+        d["generate_hour"] = generate_hour
+    if generate_minute is not None:
+        d["generate_minute"] = generate_minute
     return d
 
 
