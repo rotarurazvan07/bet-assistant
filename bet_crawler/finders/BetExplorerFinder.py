@@ -1,10 +1,8 @@
 """Match finder for betexplorer.com odds pages."""
 
-import contextlib
 import json
 import re
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
@@ -355,9 +353,26 @@ class BetExplorerFinder(BaseMatchFinder):
         logger.info("Total URLs found: %d", len(urls))
         return list(set(urls))
 
-    _TAB_SETTLE_S = 6
-    _TAB_POLL_S = 0.25
+    _BROWSER_TIMEOUT_MS = 60_000
     _DECIMAL = re.compile(r"^\d+\.\d+$")
+
+    def _configure_page_timeouts(self, session) -> None:
+        """Make browser navigation and action defaults match the 60-second policy."""
+        session.page.set_default_timeout(self._BROWSER_TIMEOUT_MS)
+        session.page.set_default_navigation_timeout(self._BROWSER_TIMEOUT_MS)
+
+    def _wait_for_selector(self, session, selector: str, *, state: str = "visible") -> None:
+        """Wait for a DOM control/content node before reading or interacting with it."""
+        session.page.wait_for_selector(selector, state=state, timeout=self._BROWSER_TIMEOUT_MS)
+
+    def _wait_for_function(self, session, expression: str) -> None:
+        """Wait up to one minute for the live page's DOM/data condition."""
+        session.page.wait_for_function(expression, timeout=self._BROWSER_TIMEOUT_MS)
+
+    def _click_selector(self, session, selector: str) -> bool:
+        """Wait for a click target, then let its DOM-settle wait run for up to one minute."""
+        self._wait_for_selector(session, selector)
+        return session.click(selector, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
 
     def _average_decimals(self, soup):
         """Decimal strings from oddsComparisonAll__average_text (skip CTA labels)."""
@@ -380,23 +395,29 @@ class BetExplorerFinder(BaseMatchFinder):
         1.67/1.30/1.36 only after ~1.5s. Reading immediately copies 1 and X.
         """
         title = selector.split('title="', 1)[1].split('"', 1)[0]
+        self._wait_for_selector(session, selector)
         before = self._average_decimals(BeautifulSoup(session.page.content(), "html.parser"))
-        assert session.click(selector), "Click failed"
-        deadline = time.monotonic() + self._TAB_SETTLE_S
+        assert session.click(selector, hard_cap_ms=self._BROWSER_TIMEOUT_MS), "Click failed"
+        condition = (
+            "() => {"
+            "const values = [...document.querySelectorAll('.oddsComparisonAll__average_text')]"
+            ".map(e => e.textContent.trim()).filter(v => /^\\d+\\.\\d+$/.test(v));"
+            f"const before = {json.dumps(before[:expected_n])};"
+            f"const count = {expected_n};"
+            "const changed = JSON.stringify(values.slice(0, count)) !== JSON.stringify(before);"
+            "const active = document.querySelector('#bettype_menu_best li.oddsComparison__activeLi');"
+            f"return values.length >= count && (changed || ({str(allow_same).lower()} && active?.getAttribute('title') === {json.dumps(title)}));"
+            "}"
+        )
+        self._wait_for_function(session, condition)
         soup = BeautifulSoup(session.page.content(), "html.parser")
-        while True:
-            avgs = self._average_decimals(soup)
-            changed = avgs[:expected_n] != before[:expected_n]
-            if len(avgs) >= expected_n and changed:
-                return soup
-            # 1X2 loads by default: accept it only while its own tab is active,
-            # so leftovers from a previous URL cannot pass as the current market.
-            if allow_same and len(avgs) >= expected_n and self._active_tab(soup) == title:
-                return soup
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f"{selector} averages did not settle")
-            time.sleep(self._TAB_POLL_S)
-            soup = BeautifulSoup(session.page.content(), "html.parser")
+        avgs = self._average_decimals(soup)
+        changed = avgs[:expected_n] != before[:expected_n]
+        if len(avgs) >= expected_n and (
+            changed or (allow_same and self._active_tab(soup) == title)
+        ):
+            return soup
+        raise TimeoutError(f"{selector} averages did not settle")
 
     def _ou_handicap_odds(self, soup):
         """data-odd cells per half-line handicap (0.50..4.50); {} off the O/U view."""
@@ -411,16 +432,18 @@ class BetExplorerFinder(BaseMatchFinder):
     def _wait_ou_handicaps(self, session):
         """Wait until all five half-line rows render (live 2026-10-12: ~1.5s after li#all)."""
         keys = ("0.50", "1.50", "2.50", "3.50", "4.50")
-        deadline = time.monotonic() + self._TAB_SETTLE_S
+        condition = (
+            "() => [\"0.50\", \"1.50\", \"2.50\", \"3.50\", \"4.50\"].every(key => {"
+            "const row = document.querySelector(`[data-all-handicap=\"${key}\"]`);"
+            "return row && row.querySelectorAll('.oddsComparisonAll__average_text[data-odd]').length >= 2;"
+            "})"
+        )
+        self._wait_for_function(session, condition)
         soup = BeautifulSoup(session.page.content(), "html.parser")
-        while True:
-            c = self._ou_handicap_odds(soup)
-            if all(len(c.get(k, [])) >= 2 for k in keys):
-                return c
-            if time.monotonic() >= deadline:
-                raise TimeoutError("Over/Under handicaps did not settle")
-            time.sleep(self._TAB_POLL_S)
-            soup = BeautifulSoup(session.page.content(), "html.parser")
+        c = self._ou_handicap_odds(soup)
+        if all(len(c.get(k, [])) >= 2 for k in keys):
+            return c
+        raise TimeoutError("Over/Under handicaps did not settle")
 
     def _process_url_batch(self, urls: list) -> None:
         """Process a batch of URLs in a single browser session (runs in its own thread)."""
@@ -433,27 +456,22 @@ class BetExplorerFinder(BaseMatchFinder):
             disable_resources=False,
             headless=True,
         ) as session:
+            self._configure_page_timeouts(session)
             for url in urls:
                 try:
                     try:
-                        session.fetch(url, wait_until="domcontentloaded", timeout=90000)
+                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
                     except Exception as fetch_err:
                         logger.warning(
                             "[%s] Fetch error (retrying fetch): %s",
                             thread_name,
                             fetch_err,
                         )
-                        time.sleep(4)
-                        with contextlib.suppress(Exception):
-                            session.fetch(url, wait_until="domcontentloaded", timeout=60000)
+                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
 
                     try:
-                        session.page.wait_for_selector(
-                            ".list-details__item__title",
-                            state="attached",
-                            timeout=30000,
-                        )
-                        session.page.wait_for_selector("#match-date", state="attached", timeout=30000)
+                        self._wait_for_selector(session, ".list-details__item__title")
+                        self._wait_for_selector(session, "#match-date")
                     except Exception:
                         logger.warning(
                             "[%s] Critical selectors not found, skipping: %s",
@@ -463,7 +481,7 @@ class BetExplorerFinder(BaseMatchFinder):
                         continue
 
                     try:
-                        session.page.wait_for_selector("#bettype_menu_best", state="attached", timeout=30000)
+                        self._wait_for_selector(session, "#bettype_menu_best")
                         logger.debug("[%s] Odds tab menu found", thread_name)
                     except Exception:
                         logger.warning(
@@ -524,8 +542,10 @@ class BetExplorerFinder(BaseMatchFinder):
 
                     try:
                         logger.info("[%s] Extracting Over/Under Odds", thread_name)
-                        assert session.click('#bettype_menu_best li[title="Over/Under"]'), "Click failed"
-                        assert session.click(".oddsComparison__ul.bestOddsComparison li#all"), "Click failed"
+                        ou_selector = '#bettype_menu_best li[title="Over/Under"]'
+                        all_selector = ".oddsComparison__ul.bestOddsComparison li#all"
+                        assert self._click_selector(session, ou_selector), "Click failed"
+                        assert self._click_selector(session, all_selector), "Click failed"
                         c = self._wait_ou_handicaps(session)
                         odds_over05, odds_under05 = (
                             c["0.50"][0].get("data-odd"),
