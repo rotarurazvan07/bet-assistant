@@ -16,6 +16,7 @@ export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: ()
     const wasOpenRef = useRef(false);
 
     useEffect(() => {
+        if (!open) return; // only intercept while this overlay is the open layer
         // M5: capture the pre-open trigger once, and restore only on the
         // open→closed transition — a re-render while open (WebSocket event)
         // must not yank focus out of the trapped overlay.

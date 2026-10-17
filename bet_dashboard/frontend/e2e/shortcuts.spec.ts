@@ -31,12 +31,17 @@ test.describe('keyboard shortcuts (#47)', () => {
 
     test('overlay is an ARIA modal and passes axe-core', async ({ page }) => {
         await page.goto('/');
+        // AppReady: Layout installs the shortcut registry in a mount effect, so a
+        // keypress fired the instant goto resolves can land before the registry
+        // exists and the combo is dropped. The nav link proves Layout mounted.
+        await expect(page.getByRole('link', { name: 'Build' })).toBeVisible();
         await page.keyboard.press('Control+?');
         await expect(page.getByRole('dialog', { name: 'Keyboard Shortcuts' })).toBeVisible();
         const results = await new AxeBuilder({ page })
             .include('[data-testid="shortcuts-overlay"]')
             .analyze();
         expect(results.violations).toEqual([]);
+
     });
 
     test('Ctrl/Cmd+G on /slips calls generate; off-slips it is a no-op', async ({ page }) => {
@@ -62,6 +67,9 @@ test.describe('keyboard shortcuts (#47)', () => {
             await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', timestamp: '2026-10-14T07:30:00' }) });
         });
         await page.goto('/');
+        // AppReady: same registry mounting gate as the overlay test above —
+        // Ctrl+P pressed before Layout's effect runs is silently ignored.
+        await expect(page.getByRole('link', { name: 'Build' })).toBeVisible();
         await page.keyboard.press('Control+p');
         await expect.poll(() => pullCalls, { timeout: 3000 }).toBe(1);
     });

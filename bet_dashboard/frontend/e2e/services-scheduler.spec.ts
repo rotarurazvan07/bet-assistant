@@ -13,6 +13,11 @@ test.beforeEach(async ({ page }) => {
     if (!process.env.E2E_BASE_URL) await installDemoApi(page);
     await page.goto('/services');
     await expect(page.getByText('Per-profile Auto-Generation')).toBeVisible();
+    // AppReady: the scheduler table renders only after BOTH GET /api/profiles
+    // and GET /api/services resolve. On the CI stack (cold uvicorn + nginx) the
+    // heading paints before those responses land, so waiting for it alone made
+    // every control lookup race the data — the 'no switch found' failures.
+    await expect(page.getByRole('switch', { name: 'Auto-generate low' })).toBeVisible();
 });
 
 
