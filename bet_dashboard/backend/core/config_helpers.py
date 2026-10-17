@@ -56,7 +56,7 @@ def parse_schedule_block(raw: object) -> dict | None:
         minute = int(raw.get("minute", 0))
         units = float(raw["units"]) if raw.get("units") is not None else None
         payout = float(raw["target_payout"]) if raw.get("target_payout") is not None else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None

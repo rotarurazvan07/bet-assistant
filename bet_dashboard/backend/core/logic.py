@@ -834,11 +834,11 @@ class AppLogic:
             # H1: this is the ONLY writer of profiles_schedule — replace just the
             # profile rows so unrelated keys (e.g. toggles) survive a save.
             known = set(self._settings.get("profiles") or {})
-            rows = {
-                str(name): dict(row)
-                for name, row in profiles.items()
-                if isinstance(row, dict)
-            } if isinstance(profiles, dict) else {}
+            rows = (
+                {str(name): dict(row) for name, row in profiles.items() if isinstance(row, dict)}
+                if isinstance(profiles, dict)
+                else {}
+            )
             unknown = sorted(set(rows) - known)
             if unknown:
                 raise ValueError(f"Unknown profile: {unknown[0]}")

@@ -537,7 +537,6 @@ class TestAppLogicLifecycle:
         assert app_env.app.pull_and_broadcast() == "ok"
 
 
-
 class TestPerProfileSchedulePersistence:
     """[P0] save_service_settings + per-profile schedule persistence (BLOCKER B1/H1).
 
