@@ -49,7 +49,7 @@ from bet_framework.MatchesManager import MatchesManager
 
 # -- Constants & helpers -----------------------------------------------------------
 
-CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "similarity_config.yaml"
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "similarity_config.yaml"
 
 DT_BASE = datetime(2026, 4, 1, 15, 0, 0)
 

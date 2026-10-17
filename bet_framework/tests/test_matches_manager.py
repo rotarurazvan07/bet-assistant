@@ -437,7 +437,7 @@ class TestScrapeKitPin:
     )
 
     def test_both_requirements_pin_v022(self):
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         for rel in self.REQUIREMENTS:
             path = os.path.join(root, rel)
             with open(path, encoding="utf-8") as fh:
@@ -446,7 +446,7 @@ class TestScrapeKitPin:
 
     def test_scrape_requirements_pandas_matches_scrape_kit_v022(self):
         # AC-02: scrape-kit v0.2.2 requires pandas==3.0.6; keep the scrape pin aligned.
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         path = os.path.join(root, "setup/requirements-scrape.txt")
         with open(path, encoding="utf-8") as fh:
             pins = [ln.strip() for ln in fh if ln.strip().startswith("pandas")]
