@@ -12,14 +12,14 @@ against tmp_path SQLite DBs — never workspace DBs.
 from types import SimpleNamespace
 
 import pytest
-
-from bet_framework.core.Slip import BetSlipConfig, LegOutcomeInfo
 from tests.logic_test_helpers import (
     build_app,
     make_candidate,
     make_leg_row,
     seed_slip,
 )
+
+from bet_framework.core.Slip import BetSlipConfig, LegOutcomeInfo
 
 
 def _slip_cfg(**overrides):

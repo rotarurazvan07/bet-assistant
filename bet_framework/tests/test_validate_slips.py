@@ -25,7 +25,7 @@ def ba(tmp_path):
 # ── Tests for _parse_match_result_html ──────────────────────────────────────
 
 
-def test_parse_normal_finished():
+def test_parse_normal_finished() -> None:
     """Verify FT result parsing with downloaded HTML."""
     html = f"<html><body>{SCORE_DIV}{STATUS_FINISHED}</body></html>"
     res = _parse_match_result_html(html, "http://test.url")
@@ -33,7 +33,7 @@ def test_parse_normal_finished():
     assert res.score == "2:1"
 
 
-def test_parse_future_match_ignores_stats():
+def test_parse_future_match_ignores_stats() -> None:
     """Verify that a future match (no status) ignores random X:Y patterns on the page."""
     html = '<html><body><span class="random-stat">4:3</span><div class="footer">Kickoff 20:00</div></body></html>'
     res = _parse_match_result_html(html, "http://test.future")
@@ -41,7 +41,7 @@ def test_parse_future_match_ignores_stats():
     assert res.score == ""  # Should NOT pick up the 4:3
 
 
-def test_parse_fuzzy_fallback():
+def test_parse_fuzzy_fallback() -> None:
     """Verify that score is found via fuzzy regex if class structure changes."""
     html = '<html><body><span class="random-new-class">3:2</span><div id="status-container">FT</div></body></html>'
     res = _parse_match_result_html(html, "http://test.url")
@@ -49,7 +49,7 @@ def test_parse_fuzzy_fallback():
     assert res.score == "3:2"
 
 
-def test_parse_live():
+def test_parse_live() -> None:
     """Verify LIVE result parsing."""
     html = f"<html><body>{SCORE_DIV}{STATUS_LIVE}</body></html>"
     res = _parse_match_result_html(html, "http://test.url")
@@ -60,7 +60,7 @@ def test_parse_live():
 # ── Tests for validate_slips ───────────────────────────────────────────────
 
 
-def test_validate_slips_integration(ba):
+def test_validate_slips_integration(ba) -> None:
     """Full integration test for the validation loop."""
     # 1. Setup DB with a pending slip
     legs = [
@@ -80,7 +80,7 @@ def test_validate_slips_integration(ba):
     # 2. Fake WebScraper scrape calling the callback
     html = f"<html><body>{SCORE_DIV}{STATUS_FINISHED}</body></html>"
 
-    def fake_scrape(urls, callback, **kwargs):
+    def fake_scrape(urls, callback, **kwargs) -> None:
         for url in urls:
             callback(url, html)
 
@@ -96,7 +96,7 @@ def test_validate_slips_integration(ba):
         assert rows[0]["status"] == Outcome.WON
 
 
-def test_validate_slips_skips_processed(ba):
+def test_validate_slips_skips_processed(ba) -> None:
     """Verify validate_slips only touches Pending/Live legs."""
     legs = [
         CandidateLeg(

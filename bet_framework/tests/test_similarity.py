@@ -74,7 +74,7 @@ TEAM_POOL = [
 class StubEngine:
     """Deterministic SimilarityEngine stand-in driven by a scoring function."""
 
-    def __init__(self, score_fn):
+    def __init__(self, score_fn) -> None:
         self.score_fn = score_fn
         self.calls = []
 
@@ -94,7 +94,7 @@ def make_match(home, away, dt=None, preds=None):
     )
 
 
-def make_chunk_db(path, matches):
+def make_chunk_db(path, matches) -> None:
     """Create a standalone chunk .db file compatible with MatchesManager merge."""
     conn = sqlite3.connect(str(path))
     conn.execute(
@@ -165,24 +165,24 @@ def mm_stub(tmp_path):
 
 
 class TestEngineConfiguration:
-    def test_real_config_threshold_and_cap(self, real_config, real_engine):
+    def test_real_config_threshold_and_cap(self, real_config, real_engine) -> None:
         assert real_config["threshold"] == 65
         assert real_config["weights"]["strong_mismatch_cap"] == 35.0
         assert real_engine.similarity_threshold == 65.0
         assert real_engine.strong_mismatch_cap == 35.0
 
-    def test_default_threshold_is_65(self):
+    def test_default_threshold_is_65(self) -> None:
         engine = SimilarityEngine({"acronyms": {}})
         assert engine.similarity_threshold == 65.0
         assert engine.strong_mismatch_cap == 35.0
 
-    def test_empty_config_raises_matching_error(self):
+    def test_empty_config_raises_matching_error(self) -> None:
         from scrape_kit import MatchingError
 
         with pytest.raises(MatchingError, match="Configuration is required"):
             SimilarityEngine({})
 
-    def test_threshold_comparison_is_strictly_greater(self, real_config):
+    def test_threshold_comparison_is_strictly_greater(self, real_config) -> None:
         # A pair scoring exactly at the threshold must NOT count as similar.
         engine = SimilarityEngine(real_config)  # fresh instance: no cached results
         _ok, score = engine.similarity("Liverpool FC", "Liverpool")
@@ -197,43 +197,43 @@ class TestEngineConfiguration:
 
 
 class TestAcronymsAndSynonyms:
-    def test_fc_prefix_is_stripped(self, real_engine):
+    def test_fc_prefix_is_stripped(self, real_engine) -> None:
         ok, _score = real_engine.similarity("FC Arsenal", "Arsenal")
         assert ok is True
 
-    def test_fc_suffix_is_stripped(self, real_engine):
+    def test_fc_suffix_is_stripped(self, real_engine) -> None:
         ok, _score = real_engine.similarity("Liverpool FC", "Liverpool")
         assert ok is True
 
-    def test_cf_suffix_is_stripped(self, real_engine):
+    def test_cf_suffix_is_stripped(self, real_engine) -> None:
         ok, _score = real_engine.similarity("Barcelona CF", "Barcelona")
         assert ok is True
 
-    def test_ac_prefix_is_stripped(self, real_engine):
+    def test_ac_prefix_is_stripped(self, real_engine) -> None:
         ok, _score = real_engine.similarity("AC Milan", "Milan")
         assert ok is True
 
-    def test_dotted_acronym_is_expanded(self, real_engine):
+    def test_dotted_acronym_is_expanded(self, real_engine) -> None:
         # "din." -> "dinamo" per the diacritic/acronym table.
         ok, _score = real_engine.similarity("Din. Zagreb", "Dinamo Zagreb")
         assert ok is True
 
-    def test_synonym_man_utd_expands_to_manchester_united(self, real_engine):
+    def test_synonym_man_utd_expands_to_manchester_united(self, real_engine) -> None:
         ok, score = real_engine.similarity("Man Utd", "Manchester United")
         assert ok is True
         assert score == pytest.approx(90.0)
 
-    def test_synonym_spurs_expands_to_tottenham(self, real_engine):
+    def test_synonym_spurs_expands_to_tottenham(self, real_engine) -> None:
         ok, score = real_engine.similarity("Spurs", "Tottenham Hotspur")
         assert ok is True
         assert score == pytest.approx(90.0)
 
-    def test_synonym_wolves_expands_to_wolverhampton(self, real_engine):
+    def test_synonym_wolves_expands_to_wolverhampton(self, real_engine) -> None:
         ok, score = real_engine.similarity("Wolves", "Wolverhampton Wanderers")
         assert ok is True
         assert score == pytest.approx(90.0)
 
-    def test_expansion_style_acronyms(self):
+    def test_expansion_style_acronyms(self) -> None:
         # Issue #70 names fc -> "football club" and utd -> "united" expansions.
         # The shipped config strips them instead; both semantics must work.
         cfg = {
@@ -261,36 +261,36 @@ class TestAcronymsAndSynonyms:
 
 
 class TestStrongTokenEnforcement:
-    def test_manchester_city_vs_united_capped(self, real_engine):
+    def test_manchester_city_vs_united_capped(self, real_engine) -> None:
         # strong = {city} vs {united}: disjoint -> capped below threshold.
         ok, score = real_engine.similarity("Manchester City", "Manchester United")
         assert ok is False
         assert score <= 35.0
 
-    def test_shared_weak_location_words_do_not_merge(self, real_engine):
+    def test_shared_weak_location_words_do_not_merge(self, real_engine) -> None:
         ok, score = real_engine.similarity("New York City", "New York Bulls")
         assert ok is False
         assert score <= 35.0
 
-    def test_single_word_clubs_never_merge(self, real_engine):
+    def test_single_word_clubs_never_merge(self, real_engine) -> None:
         ok, score = real_engine.similarity("Barcelona", "Valencia")
         assert ok is False
         assert score <= 35.0
 
-    def test_weak_real_prefix_does_not_rescue_mismatch(self, real_engine):
+    def test_weak_real_prefix_does_not_rescue_mismatch(self, real_engine) -> None:
         # "real" is a weak token; madrid vs sociedad are disjoint strong tokens.
         ok, score = real_engine.similarity("Real Madrid", "Real Sociedad")
         assert ok is False
         assert score <= 35.0
 
-    def test_cap_is_min_of_base_and_cap(self, real_engine):
+    def test_cap_is_min_of_base_and_cap(self, real_engine) -> None:
         # Cap behaves as a ceiling: score = min(base_score, 35.0).
         _ok1, capped = real_engine.similarity("Manchester City", "Manchester United")
         _ok2, lower = real_engine.similarity("Real Madrid", "Real Betis")
         assert capped == pytest.approx(35.0)
         assert lower <= 35.0
 
-    def test_disjoint_teams_score_below_threshold(self, real_engine):
+    def test_disjoint_teams_score_below_threshold(self, real_engine) -> None:
         ok, _score = real_engine.similarity("Totally Different", "Completely Other")
         assert ok is False
 
@@ -299,22 +299,22 @@ class TestStrongTokenEnforcement:
 
 
 class TestNormalization:
-    def test_diacritics_are_stripped(self, real_engine):
+    def test_diacritics_are_stripped(self, real_engine) -> None:
         ok, score = real_engine.similarity("Malmo FF", "Malmö FF")
         assert ok is True
         assert score == pytest.approx(99.2)
 
-    def test_typo_rescued_phonetically(self, real_engine):
+    def test_typo_rescued_phonetically(self, real_engine) -> None:
         ok, score = real_engine.similarity("Sevilla", "Sevlla")
         assert ok is True
         assert score > 65.0
 
-    def test_empty_strings_never_match(self, real_engine):
+    def test_empty_strings_never_match(self, real_engine) -> None:
         ok, score = real_engine.similarity("", "")
         assert ok is False
         assert score == 0.0
 
-    def test_identity_similarity_for_pool_teams(self, real_engine):
+    def test_identity_similarity_for_pool_teams(self, real_engine) -> None:
         for name in TEAM_POOL:
             ok, _score = real_engine.similarity(name, name)
             assert ok is True, name
@@ -326,7 +326,7 @@ class TestNormalization:
 class TestEngineProperties:
     @settings(deadline=None)
     @given(a=st.sampled_from(TEAM_POOL), b=st.sampled_from(TEAM_POOL))
-    def test_property_symmetry(self, real_engine, a, b):
+    def test_property_symmetry(self, real_engine, a, b) -> None:
         forward = real_engine.similarity(a, b)
         backward = real_engine.similarity(b, a)
         assert forward[0] == backward[0]
@@ -334,14 +334,14 @@ class TestEngineProperties:
 
     @settings(deadline=None)
     @given(a=st.sampled_from(TEAM_POOL), b=st.sampled_from(TEAM_POOL))
-    def test_property_score_range_and_threshold_consistency(self, real_engine, a, b):
+    def test_property_score_range_and_threshold_consistency(self, real_engine, a, b) -> None:
         ok, score = real_engine.similarity(a, b)
         assert 0.0 <= score <= 100.0
         assert ok == (score > real_engine.similarity_threshold)
 
     @settings(deadline=None)
     @given(a=st.sampled_from(TEAM_POOL))
-    def test_property_names_from_config_pool_match_themselves(self, real_engine, a):
+    def test_property_names_from_config_pool_match_themselves(self, real_engine, a) -> None:
         ok, score = real_engine.similarity(a, a)
         assert ok is True
         assert score > 65.0
@@ -351,7 +351,7 @@ class TestEngineProperties:
 
 
 class TestFindNearMisses:
-    def test_home_fail_mid_window_records_near_miss(self, mm_stub):
+    def test_home_fail_mid_window_records_near_miss(self, mm_stub) -> None:
         mm_stub.add_match(make_match("RowHome", "RowAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 50.0))
         found, idx = mm_stub._find("QueryHome", "QueryAway", DT_BASE)
@@ -364,14 +364,14 @@ class TestFindNearMisses:
         assert near.away_b == "RowAway"
         assert near.score == pytest.approx(50.0)
 
-    def test_home_fail_below_30_skips_near_miss_check(self, mm_stub):
+    def test_home_fail_below_30_skips_near_miss_check(self, mm_stub) -> None:
         mm_stub.add_match(make_match("RowHome", "RowAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 29.9))
         found, _idx = mm_stub._find("QueryHome", "QueryAway", DT_BASE)
         assert found is None
         assert mm_stub._near_misses == []
 
-    def test_home_score_exactly_30_enters_window_check(self, mm_stub):
+    def test_home_score_exactly_30_enters_window_check(self, mm_stub) -> None:
         # sc_h = 30 (>= 30 gate), sc_a = 50 -> combined 40 -> recorded (>= 40).
         mm_stub.add_match(make_match("RowHome", "RowAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 30.0) if b == "QueryHome" else (False, 50.0))
@@ -379,26 +379,26 @@ class TestFindNearMisses:
         assert len(mm_stub._near_misses) == 1
         assert mm_stub._near_misses[0].score == pytest.approx(40.0)
 
-    def test_combined_below_40_not_recorded(self, mm_stub):
+    def test_combined_below_40_not_recorded(self, mm_stub) -> None:
         mm_stub.add_match(make_match("RowHome", "RowAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 30.0) if b == "QueryHome" else (False, 49.0))
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)  # combined 39.5
         assert mm_stub._near_misses == []
 
-    def test_combined_exactly_65_not_recorded(self, mm_stub):
+    def test_combined_exactly_65_not_recorded(self, mm_stub) -> None:
         # Window is [40, 65): the upper bound is exclusive.
         mm_stub.add_match(make_match("RowHome", "RowAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 50.0) if b == "QueryHome" else (False, 80.0))
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)  # combined 65.0
         assert mm_stub._near_misses == []
 
-    def test_combined_just_below_65_recorded(self, mm_stub):
+    def test_combined_just_below_65_recorded(self, mm_stub) -> None:
         mm_stub.add_match(make_match("RowHome", "RowAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (False, 50.0) if b == "QueryHome" else (False, 79.8))
         mm_stub._find("QueryHome", "QueryAway", DT_BASE)  # combined 64.9
         assert len(mm_stub._near_misses) == 1
 
-    def test_away_fail_records_near_miss(self, mm_stub):
+    def test_away_fail_records_near_miss(self, mm_stub) -> None:
         mm_stub.add_match(make_match("RowHome", "RowAway"))
 
         def score(a, b):
@@ -412,7 +412,7 @@ class TestFindNearMisses:
         assert len(mm_stub._near_misses) == 1
         assert mm_stub._near_misses[0].score == pytest.approx(64.5)
 
-    def test_away_fail_above_window_not_recorded(self, mm_stub):
+    def test_away_fail_above_window_not_recorded(self, mm_stub) -> None:
         mm_stub.add_match(make_match("RowHome", "RowAway"))
 
         def score(a, b):
@@ -429,7 +429,7 @@ class TestFindNearMisses:
 
 
 class TestFindSelection:
-    def test_exact_match_wins_over_fuzzy(self, mm_stub):
+    def test_exact_match_wins_over_fuzzy(self, mm_stub) -> None:
         mm_stub.add_match(make_match("FuzzyHome", "FuzzyAway"))
         mm_stub.add_match(make_match("ExactHome", "ExactAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (True, 95.0))
@@ -438,7 +438,7 @@ class TestFindSelection:
         assert found["home_team_name"] == "ExactHome"
         assert idx == 1
 
-    def test_exact_match_short_circuits_before_fuzzy_rows(self, mm_stub):
+    def test_exact_match_short_circuits_before_fuzzy_rows(self, mm_stub) -> None:
         mm_stub.add_match(make_match("ExactHome", "ExactAway"))
         mm_stub.add_match(make_match("FuzzyHome", "FuzzyAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (True, 95.0))
@@ -448,7 +448,7 @@ class TestFindSelection:
         # Engine never consulted: exact match short-circuits the loop.
         assert mm_stub.similarity_engine.calls == []
 
-    def test_highest_average_fuzzy_score_wins(self, mm_stub):
+    def test_highest_average_fuzzy_score_wins(self, mm_stub) -> None:
         mm_stub.add_match(make_match("WeakHome", "WeakAway"))
         mm_stub.add_match(make_match("BestHome", "BestAway"))
 
@@ -460,7 +460,7 @@ class TestFindSelection:
         assert found["home_team_name"] == "BestHome"
         assert idx == 1
 
-    def test_no_engine_means_exact_matching_only(self, mm_stub):
+    def test_no_engine_means_exact_matching_only(self, mm_stub) -> None:
         mm_stub.add_match(make_match("Manchester United", "Chelsea"))
         found, _idx = mm_stub._find("Manchester United", "Chelsea", DT_BASE)
         assert found is not None  # exact still works
@@ -468,7 +468,7 @@ class TestFindSelection:
         assert missing is None  # fuzzy variants are NOT found without an engine
         assert mm_stub._near_misses == []  # near-miss logic requires the engine
 
-    def test_date_window_is_plus_minus_one_day(self, mm_stub):
+    def test_date_window_is_plus_minus_one_day(self, mm_stub) -> None:
         mm_stub.add_match(make_match("SameHome", "SameAway"))
         mm_stub.similarity_engine = StubEngine(lambda a, b: (True, 90.0))
         # Same day and +/- 1 day are inside the window.
@@ -485,7 +485,7 @@ class TestFindSelection:
 
 
 class TestDedupScenarios:
-    def test_add_match_merges_fuzzy_variants(self, mm_real):
+    def test_add_match_merges_fuzzy_variants(self, mm_real) -> None:
         mm_real.add_match(make_match("Manchester United", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm_real.add_match(make_match("Man Utd", "Chelsea", preds=[Score("src_b", 1, 0)]))
         buf = mm_real.ensure_buffer()
@@ -493,13 +493,13 @@ class TestDedupScenarios:
         preds = json.loads(buf.iloc[0]["predictions_scores"])
         assert len(preds) == 2
 
-    def test_add_match_keeps_disjoint_strong_tokens_separate(self, mm_real):
+    def test_add_match_keeps_disjoint_strong_tokens_separate(self, mm_real) -> None:
         mm_real.add_match(make_match("Manchester United", "Chelsea"))
         mm_real.add_match(make_match("Manchester City", "Chelsea"))
         buf = mm_real.ensure_buffer()
         assert len(buf) == 2  # city vs united: capped at 35, never merged
 
-    def test_cross_chunk_merge_dedups_fuzzy_variants(self, mm_real, tmp_path):
+    def test_cross_chunk_merge_dedups_fuzzy_variants(self, mm_real, tmp_path) -> None:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         make_chunk_db(
@@ -516,7 +516,7 @@ class TestDedupScenarios:
         preds = json.loads(buf.iloc[0]["predictions_scores"])
         assert len(preds) == 2
 
-    def test_cross_chunk_merge_keeps_different_clubs_separate(self, mm_real, tmp_path):
+    def test_cross_chunk_merge_keeps_different_clubs_separate(self, mm_real, tmp_path) -> None:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         make_chunk_db(chunk_dir / "chunk1.db", [make_match("Barcelona", "Valencia")])
@@ -525,7 +525,7 @@ class TestDedupScenarios:
         buf = mm_real.ensure_buffer()
         assert len(buf) == 2
 
-    def test_cross_chunk_merge_never_merges_capped_variants(self, mm_real, tmp_path):
+    def test_cross_chunk_merge_never_merges_capped_variants(self, mm_real, tmp_path) -> None:
         # Manchester City chunk must NOT fold into a Manchester United row.
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()

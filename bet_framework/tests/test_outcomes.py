@@ -28,20 +28,20 @@ from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
 
 
 class TestParseScore:
-    def test_regular_scores(self):
+    def test_regular_scores(self) -> None:
         assert parse_score("2:1") == (2, 1)
         assert parse_score("1:2") == (1, 2)
         assert parse_score("0:0") == (0, 0)
 
-    def test_high_scoring_and_multi_digit(self):
+    def test_high_scoring_and_multi_digit(self) -> None:
         assert parse_score("10:7") == (10, 7)
         assert parse_score("12:0") == (12, 0)
 
-    def test_identical_halves(self):
+    def test_identical_halves(self) -> None:
         assert parse_score("3:3") == (3, 3)
 
     @pytest.mark.parametrize("raw", ["1:0", "0:1", "4:2", "9:9", "15:3"])
-    def test_various_valid_scores(self, raw):
+    def test_various_valid_scores(self, raw) -> None:
         home, away = parse_score(raw)
         assert f"{home}:{away}" == raw
 
@@ -56,7 +56,7 @@ class TestParseScore:
             (":", pytest.raises(ValueError)),
         ],
     )
-    def test_invalid_formats_raise(self, raw, expected):
+    def test_invalid_formats_raise(self, raw, expected) -> None:
         with expected:
             parse_score(raw)
 
@@ -65,7 +65,7 @@ class TestParseScore:
         home=st.integers(min_value=0, max_value=30),
         away=st.integers(min_value=0, max_value=30),
     )
-    def test_property_round_trip(self, home, away):
+    def test_property_round_trip(self, home, away) -> None:
         assert parse_score(f"{home}:{away}") == (home, away)
 
 
@@ -77,7 +77,7 @@ class TestDetermineOutcomeResult:
         "home,away",
         [(2, 1), (3, 0), (1, 0), (5, 2)],
     )
-    def test_home_wins(self, home, away):
+    def test_home_wins(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
         assert determine_outcome(home, away, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
@@ -86,7 +86,7 @@ class TestDetermineOutcomeResult:
         "home,away",
         [(0, 1), (1, 3), (2, 5), (0, 7)],
     )
-    def test_away_wins(self, home, away):
+    def test_away_wins(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
         assert determine_outcome(home, away, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
@@ -95,12 +95,12 @@ class TestDetermineOutcomeResult:
         "home,away",
         [(0, 0), (1, 1), (3, 3), (2, 2)],
     )
-    def test_draws(self, home, away):
+    def test_draws(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
         assert determine_outcome(home, away, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
 
-    def test_full_three_by_three_grid(self):
+    def test_full_three_by_three_grid(self) -> None:
         scores = [(2, 1), (1, 1), (0, 2)]
         labels = [MarketLabel.HOME, MarketLabel.DRAW, MarketLabel.AWAY]
         expected = [
@@ -139,7 +139,7 @@ class TestDetermineOutcomeOverUnder:
         threshold,
         winning_total,
         losing_total,
-    ):
+    ) -> None:
         home, away = winning_total, 0
         assert determine_outcome(home, away, over_label, market_type) == Outcome.WON
 
@@ -155,7 +155,7 @@ class TestDetermineOutcomeOverUnder:
         threshold,
         winning_total,
         losing_total,
-    ):
+    ) -> None:
         home, away = losing_total, 0
         assert determine_outcome(home, away, over_label, market_type) == Outcome.LOST
 
@@ -171,7 +171,7 @@ class TestDetermineOutcomeOverUnder:
         threshold,
         winning_total,
         losing_total,
-    ):
+    ) -> None:
         home, away = losing_total, 0
         assert determine_outcome(home, away, under_label, market_type) == Outcome.WON
 
@@ -187,60 +187,60 @@ class TestDetermineOutcomeOverUnder:
         threshold,
         winning_total,
         losing_total,
-    ):
+    ) -> None:
         home, away = winning_total, 0
         assert determine_outcome(home, away, under_label, market_type) == Outcome.LOST
 
-    def test_goalless_game_settles_all_under_markets(self):
+    def test_goalless_game_settles_all_under_markets(self) -> None:
         for market_type, _over, under, _t, _w, _l in OVER_UNDER_CASES:
             assert determine_outcome(0, 0, under, market_type) == Outcome.WON
             assert determine_outcome(0, 0, _over, market_type) == Outcome.LOST
 
-    def test_six_goal_game_settles_all_over_markets(self):
+    def test_six_goal_game_settles_all_over_markets(self) -> None:
         for market_type, over, _under, _t, _w, _l in OVER_UNDER_CASES:
             assert determine_outcome(4, 2, over, market_type) == Outcome.WON
 
-    def test_goals_split_between_teams_count_for_totals(self):
+    def test_goals_split_between_teams_count_for_totals(self) -> None:
         # total = 3 regardless of distribution: over 2.5 wins, under 3.5 wins
         assert determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
         assert determine_outcome(1, 2, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
         assert determine_outcome(0, 3, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
         assert determine_outcome(3, 0, MarketLabel.UNDER_35, MarketType.OVER_UNDER_35) == Outcome.WON
 
-    def test_boundary_exactly_two_goals(self):
+    def test_boundary_exactly_two_goals(self) -> None:
         # total == 2: under 2.5 WON, over 1.5 WON, under 1.5 LOST, over 2.5 LOST
         assert determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
         assert determine_outcome(1, 1, MarketLabel.OVER_15, MarketType.OVER_UNDER_15) == Outcome.WON
         assert determine_outcome(1, 1, MarketLabel.UNDER_15, MarketType.OVER_UNDER_15) == Outcome.LOST
         assert determine_outcome(1, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
-    def test_boundary_exactly_one_goal(self):
+    def test_boundary_exactly_one_goal(self) -> None:
         # total == 1: under 1.5 WON, over 0.5 WON, under 0.5 LOST, over 1.5 LOST
         assert determine_outcome(1, 0, MarketLabel.UNDER_15, MarketType.OVER_UNDER_15) == Outcome.WON
         assert determine_outcome(1, 0, MarketLabel.OVER_05, MarketType.OVER_UNDER_05) == Outcome.WON
         assert determine_outcome(0, 1, MarketLabel.UNDER_05, MarketType.OVER_UNDER_05) == Outcome.LOST
         assert determine_outcome(1, 0, MarketLabel.OVER_15, MarketType.OVER_UNDER_15) == Outcome.LOST
 
-    def test_boundary_exactly_four_goals(self):
+    def test_boundary_exactly_four_goals(self) -> None:
         # total == 4: over 3.5 WON, under 4.5 WON, under 3.5 LOST, over 4.5 LOST
         assert determine_outcome(2, 2, MarketLabel.OVER_35, MarketType.OVER_UNDER_35) == Outcome.WON
         assert determine_outcome(3, 1, MarketLabel.UNDER_45, MarketType.OVER_UNDER_45) == Outcome.WON
         assert determine_outcome(4, 0, MarketLabel.UNDER_35, MarketType.OVER_UNDER_35) == Outcome.LOST
         assert determine_outcome(0, 4, MarketLabel.OVER_45, MarketType.OVER_UNDER_45) == Outcome.LOST
 
-    def test_boundary_exactly_five_goals(self):
+    def test_boundary_exactly_five_goals(self) -> None:
         # total == 5: over 4.5 WON, under 4.5 LOST
         assert determine_outcome(5, 0, MarketLabel.OVER_45, MarketType.OVER_UNDER_45) == Outcome.WON
         assert determine_outcome(2, 3, MarketLabel.UNDER_45, MarketType.OVER_UNDER_45) == Outcome.LOST
 
-    def test_default_threshold_branch_for_over_25_label(self):
+    def test_default_threshold_branch_for_over_25_label(self) -> None:
         # O/U 2.5 labels route to the default else-branch (threshold 2.5).
         assert determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
         assert determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
         assert determine_outcome(1, 0, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
         assert determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
-    def test_unknown_label_in_over_under_market_is_lost(self):
+    def test_unknown_label_in_over_under_market_is_lost(self) -> None:
         # Label not in any over/under tuple -> falls through both WON branches.
         assert determine_outcome(2, 1, "Weird Market", MarketType.OVER_UNDER_25) == Outcome.LOST
 
@@ -249,7 +249,7 @@ class TestDetermineOutcomeOverUnder:
         home=st.integers(min_value=0, max_value=12),
         away=st.integers(min_value=0, max_value=12),
     )
-    def test_property_over_under_are_complementary_at_25(self, home, away):
+    def test_property_over_under_are_complementary_at_25(self, home, away) -> None:
         total = home + away
         over = determine_outcome(home, away, MarketLabel.OVER_25, MarketType.OVER_UNDER_25)
         under = determine_outcome(home, away, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25)
@@ -268,7 +268,7 @@ class TestDetermineOutcomeBtts:
         "home,away",
         [(1, 1), (2, 3), (1, 5), (4, 2)],
     )
-    def test_btts_yes_wins_when_both_score(self, home, away):
+    def test_btts_yes_wins_when_both_score(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.WON
         assert determine_outcome(home, away, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.LOST
 
@@ -276,14 +276,14 @@ class TestDetermineOutcomeBtts:
         "home,away",
         [(0, 0), (2, 0), (0, 1), (3, 0)],
     )
-    def test_btts_no_wins_when_any_side_blank(self, home, away):
+    def test_btts_no_wins_when_any_side_blank(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
         assert determine_outcome(home, away, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.LOST
 
-    def test_goalless_draw_is_btts_no(self):
+    def test_goalless_draw_is_btts_no(self) -> None:
         assert determine_outcome(0, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
 
-    def test_unknown_btts_label_is_lost(self):
+    def test_unknown_btts_label_is_lost(self) -> None:
         assert determine_outcome(1, 1, "BTTS Maybe", MarketType.BTTS) == Outcome.LOST
         assert determine_outcome(1, 0, "BTTS Maybe", MarketType.BTTS) == Outcome.LOST
 
@@ -292,7 +292,7 @@ class TestDetermineOutcomeBtts:
         home=st.integers(min_value=0, max_value=10),
         away=st.integers(min_value=0, max_value=10),
     )
-    def test_property_btts_yes_wins_iff_both_positive(self, home, away):
+    def test_property_btts_yes_wins_iff_both_positive(self, home, away) -> None:
         expected = Outcome.WON if (home > 0 and away > 0) else Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.BTTS_YES, MarketType.BTTS) == expected
 
@@ -305,50 +305,50 @@ class TestDetermineOutcomeDoubleChance:
         "home,away",
         [(2, 1), (3, 3), (1, 0), (0, 0)],
     )
-    def test_dc_1x_wins_on_home_win_or_draw(self, home, away):
+    def test_dc_1x_wins_on_home_win_or_draw(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DC_1X, MarketType.DOUBLE_CHANCE) == Outcome.WON
 
     @pytest.mark.parametrize(
         "home,away",
         [(0, 2), (1, 3), (0, 1)],
     )
-    def test_dc_1x_loses_on_away_win(self, home, away):
+    def test_dc_1x_loses_on_away_win(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DC_1X, MarketType.DOUBLE_CHANCE) == Outcome.LOST
 
     @pytest.mark.parametrize(
         "home,away",
         [(2, 1), (0, 2), (1, 3), (4, 0)],
     )
-    def test_dc_12_wins_when_not_draw(self, home, away):
+    def test_dc_12_wins_when_not_draw(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DC_12, MarketType.DOUBLE_CHANCE) == Outcome.WON
 
     @pytest.mark.parametrize(
         "home,away",
         [(1, 1), (0, 0), (3, 3)],
     )
-    def test_dc_12_loses_on_draw(self, home, away):
+    def test_dc_12_loses_on_draw(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DC_12, MarketType.DOUBLE_CHANCE) == Outcome.LOST
 
     @pytest.mark.parametrize(
         "home,away",
         [(0, 2), (1, 1), (0, 0), (2, 5)],
     )
-    def test_dc_x2_wins_on_away_win_or_draw(self, home, away):
+    def test_dc_x2_wins_on_away_win_or_draw(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DC_X2, MarketType.DOUBLE_CHANCE) == Outcome.WON
 
     @pytest.mark.parametrize(
         "home,away",
         [(2, 1), (3, 0), (5, 2)],
     )
-    def test_dc_x2_loses_on_home_win(self, home, away):
+    def test_dc_x2_loses_on_home_win(self, home, away) -> None:
         assert determine_outcome(home, away, MarketLabel.DC_X2, MarketType.DOUBLE_CHANCE) == Outcome.LOST
 
-    def test_draw_satisfies_both_1x_and_x2(self):
+    def test_draw_satisfies_both_1x_and_x2(self) -> None:
         assert determine_outcome(2, 2, MarketLabel.DC_1X, MarketType.DOUBLE_CHANCE) == Outcome.WON
         assert determine_outcome(2, 2, MarketLabel.DC_X2, MarketType.DOUBLE_CHANCE) == Outcome.WON
         assert determine_outcome(2, 2, MarketLabel.DC_12, MarketType.DOUBLE_CHANCE) == Outcome.LOST
 
-    def test_all_three_outcomes_covered_by_dc_labels(self):
+    def test_all_three_outcomes_covered_by_dc_labels(self) -> None:
         # Any final score wins at least one of the three double-chance labels.
         for home, away in [(0, 0), (1, 0), (0, 1), (2, 2), (3, 1), (0, 4)]:
             results = {
@@ -357,7 +357,7 @@ class TestDetermineOutcomeDoubleChance:
             }
             assert Outcome.WON in results
 
-    def test_unknown_dc_label_is_lost(self):
+    def test_unknown_dc_label_is_lost(self) -> None:
         assert determine_outcome(1, 1, "1XX", MarketType.DOUBLE_CHANCE) == Outcome.LOST
 
     @settings(deadline=None)
@@ -365,7 +365,7 @@ class TestDetermineOutcomeDoubleChance:
         home=st.integers(min_value=0, max_value=10),
         away=st.integers(min_value=0, max_value=10),
     )
-    def test_property_dc_1x_wins_iff_home_ge_away(self, home, away):
+    def test_property_dc_1x_wins_iff_home_ge_away(self, home, away) -> None:
         expected = Outcome.WON if home >= away else Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.DC_1X, MarketType.DOUBLE_CHANCE) == expected
 
@@ -374,7 +374,7 @@ class TestDetermineOutcomeDoubleChance:
         home=st.integers(min_value=0, max_value=10),
         away=st.integers(min_value=0, max_value=10),
     )
-    def test_property_dc_12_wins_iff_scores_differ(self, home, away):
+    def test_property_dc_12_wins_iff_scores_differ(self, home, away) -> None:
         expected = Outcome.WON if home != away else Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.DC_12, MarketType.DOUBLE_CHANCE) == expected
 
@@ -383,7 +383,7 @@ class TestDetermineOutcomeDoubleChance:
         home=st.integers(min_value=0, max_value=10),
         away=st.integers(min_value=0, max_value=10),
     )
-    def test_property_dc_x2_wins_iff_away_ge_home(self, home, away):
+    def test_property_dc_x2_wins_iff_away_ge_home(self, home, away) -> None:
         expected = Outcome.WON if away >= home else Outcome.LOST
         assert determine_outcome(home, away, MarketLabel.DC_X2, MarketType.DOUBLE_CHANCE) == expected
 
@@ -392,25 +392,25 @@ class TestDetermineOutcomeDoubleChance:
 
 
 class TestDetermineOutcomePending:
-    def test_unknown_market_type_returns_pending(self):
+    def test_unknown_market_type_returns_pending(self) -> None:
         assert determine_outcome(2, 1, MarketLabel.HOME, "unknown_type") == Outcome.PENDING
 
-    def test_arbitrary_string_market_type_returns_pending(self):
+    def test_arbitrary_string_market_type_returns_pending(self) -> None:
         assert determine_outcome(2, 1, "Over 2.5", "some_random_market") == Outcome.PENDING
 
-    def test_empty_market_type_returns_pending(self):
+    def test_empty_market_type_returns_pending(self) -> None:
         assert determine_outcome(2, 1, MarketLabel.HOME, "") == Outcome.PENDING
 
-    def test_none_market_type_returns_pending(self):
+    def test_none_market_type_returns_pending(self) -> None:
         assert determine_outcome(2, 1, MarketLabel.HOME, None) == Outcome.PENDING
 
-    def test_enum_and_string_values_are_interchangeable(self):
+    def test_enum_and_string_values_are_interchangeable(self) -> None:
         # MarketType is a str Enum: raw value strings must route identically.
         assert determine_outcome(2, 1, MarketLabel.HOME, "result") == Outcome.WON
         assert determine_outcome(2, 1, "1", MarketType.RESULT) == Outcome.WON
         assert determine_outcome(2, 1, "1", "result") == Outcome.WON
 
-    def test_result_label_with_btts_market_type_is_lost(self):
+    def test_result_label_with_btts_market_type_is_lost(self) -> None:
         # Cross-market label mismatch settles as LOST, not PENDING.
         assert determine_outcome(2, 1, MarketLabel.HOME, MarketType.BTTS) == Outcome.LOST
 
@@ -419,7 +419,7 @@ class TestDetermineOutcomePending:
         home=st.integers(min_value=0, max_value=15),
         away=st.integers(min_value=0, max_value=15),
     )
-    def test_property_pending_only_for_unknown_types(self, home, away):
+    def test_property_pending_only_for_unknown_types(self, home, away) -> None:
         # Any real market type always settles WON or LOST for valid labels.
         known = [
             (MarketType.RESULT, MarketLabel.HOME),
