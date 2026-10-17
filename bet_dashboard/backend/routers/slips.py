@@ -1,11 +1,11 @@
 """Slips API: add, list, delete, validate and generate."""
 
-from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
+from bet_framework.core.market_config import ALLOWED_MARKETS
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.type_defs import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url

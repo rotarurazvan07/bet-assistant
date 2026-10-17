@@ -128,8 +128,8 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         away=mo_tag.contents[3].get_text() if mo_tag else None,
                         over_25=ou_tag.contents[1].get_text() if ou_tag else None,
                         under_25=ou_tag.contents[2].get_text() if ou_tag else None,
-                        btts_y=bt_tag.contents[1].get_text() if bt_tag else None,
-                        btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
+                        btts_yes=bt_tag.contents[1].get_text() if bt_tag else None,
+                        btts_no=bt_tag.contents[2].get_text() if bt_tag else None,
                     )
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None

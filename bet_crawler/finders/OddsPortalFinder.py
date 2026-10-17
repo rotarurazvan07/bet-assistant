@@ -1,10 +1,8 @@
 """Match finder for oddsportal.com match pages."""
 
-import contextlib
 import json
 import re
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
@@ -326,16 +324,16 @@ class OddsPortalFinder(BaseMatchFinder):
             disable_resources=False,
             headless=True,
         ) as session:
+            self._configure_page_timeouts(session)
             for url in urls:
                 try:
                     try:
-                        session.fetch(url, wait_until="domcontentloaded", timeout=90000)
+                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
                     except Exception as e:
                         logger.warning("[%s] Fetch error (retrying): %s", thread_name, e)
-                        time.sleep(4)
-                        with contextlib.suppress(Exception):
-                            session.fetch(url, wait_until="domcontentloaded", timeout=60000)
+                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
 
+                    self._wait_for_selector(session, 'script[type="application/ld+json"]', state="attached")
                     soup = BeautifulSoup(session.page.content(), "html.parser")
                     identity = self._parse_identity(soup)
                     if identity is None:
@@ -349,7 +347,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     home_team, away_team, match_date = identity
 
                     odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
-                    odds_btts_y, odds_btts_n = self._scrape_tab_btts(session, thread_name)
+                    odds_btts_yes, odds_btts_no = self._scrape_tab_btts(session, thread_name)
                     odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
                     ou = self._scrape_tab_ou(session, thread_name)
 
@@ -367,8 +365,8 @@ class OddsPortalFinder(BaseMatchFinder):
                         under_35=ou[7],
                         over_45=ou[8],
                         under_45=ou[9],
-                        btts_y=odds_btts_y,
-                        btts_n=odds_btts_n,
+                        btts_yes=odds_btts_yes,
+                        btts_no=odds_btts_no,
                         dc_1x=odds_dc_1x,
                         dc_12=odds_dc_12,
                         dc_x2=odds_dc_x2,
@@ -467,8 +465,25 @@ class OddsPortalFinder(BaseMatchFinder):
             )
         return None
 
-    _TAB_SETTLE_S = 6
-    _TAB_POLL_S = 0.25
+    _BROWSER_TIMEOUT_MS = 60_000
+
+    def _configure_page_timeouts(self, session) -> None:
+        """Make browser navigation and action defaults match the 60-second policy."""
+        session.page.set_default_timeout(self._BROWSER_TIMEOUT_MS)
+        session.page.set_default_navigation_timeout(self._BROWSER_TIMEOUT_MS)
+
+    def _wait_for_selector(self, session, selector: str, *, state: str = "visible") -> None:
+        """Wait for a DOM control/content node before reading or interacting with it."""
+        session.page.wait_for_selector(selector, state=state, timeout=self._BROWSER_TIMEOUT_MS)
+
+    def _wait_for_function(self, session, expression: str) -> None:
+        """Wait up to one minute for the live page's DOM/data condition."""
+        session.page.wait_for_function(expression, timeout=self._BROWSER_TIMEOUT_MS)
+
+    def _click_selector(self, session, selector: str, text: str | None = None) -> bool:
+        """Wait for a click target, then allow its DOM-settle wait up to one minute."""
+        self._wait_for_selector(session, selector)
+        return session.click(selector, text, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
 
     def _table_fingerprint(self, soup):
         """Headers + first-row decimals so a tab swap is detectable."""
@@ -514,21 +529,51 @@ class OddsPortalFinder(BaseMatchFinder):
         # live 2026-10-11: <li class="tab-item"><button><span>1X2</span>
         # live 2026-10-12: React's onClick sits on the inner <button>; a synthetic
         # click on the <li> bubbles past it and the table never flips.
+        button_selector = f'li.tab-item button:has-text("{tab_label}")'
+        li_selector = f'li.tab-item:has-text("{tab_label}")'
+        self._wait_for_selector(session, li_selector)
         before = self._table_fingerprint(BeautifulSoup(session.page.content(), "html.parser"))
-        if not session.click("li.tab-item button", tab_label):
-            assert session.click("li.tab-item", tab_label), "Click failed"
-        deadline = time.monotonic() + self._TAB_SETTLE_S
+        try:
+            self._wait_for_selector(session, button_selector)
+            clicked = session.click("li.tab-item button", tab_label, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
+        except Exception:
+            clicked = False
+        if not clicked:
+            assert self._click_selector(session, "li.tab-item", tab_label), "Click failed"
+        if expected_headers:
+            self._wait_for_function(session, self._tab_ready_js(expected_headers, before))
         try:
             soup = BeautifulSoup(session.page.content(), "html.parser")
         except Exception as err:
             raise TimeoutError(f"{tab_label} page closed: {err}") from err
-        while True:
-            if self._tab_ready(soup, expected_headers, before):
-                return soup
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f"{tab_label} table did not settle")
-            time.sleep(self._TAB_POLL_S)
-            soup = BeautifulSoup(session.page.content(), "html.parser")
+        if self._tab_ready(soup, expected_headers, before):
+            return soup
+        raise TimeoutError(f"{tab_label} table did not settle")
+
+    def _tab_ready_js(self, expected_headers, before) -> str:
+        """Build a browser-side mutation predicate matching the Python readiness check."""
+        prev_heads, prev_cells = before
+        prev = [c for c in prev_cells if c and _DECIMAL.match(str(c))]
+        already_on_market = bool(prev_heads) and all(h in prev_heads for h in expected_headers)
+        return (
+            "() => {"
+            "const table = document.querySelector('table.w-full.table-fixed');"
+            "if (!table) return false;"
+            "const heads = [...table.querySelectorAll('thead th')].map(e => e.textContent.trim());"
+            f"const expected = {json.dumps(list(expected_headers))};"
+            "if (!expected.every(h => heads.includes(h))) return false;"
+            "const row = table.querySelector('tbody tr');"
+            "if (!row) return false;"
+            "const values = [...row.querySelectorAll(':scope > td')].slice(1)"
+            ".map(e => e.textContent.trim()).filter(v => /^\\d+\\.\\d+$/.test(v));"
+            "if (!values.length) return false;"
+            f"const previous = {json.dumps(prev)};"
+            f"const alreadyOnMarket = {str(already_on_market).lower()};"
+            "return previous.length === 0 || alreadyOnMarket || "
+            "JSON.stringify(values.slice(0, Math.min(values.length, previous.length))) !== "
+            "JSON.stringify(previous.slice(0, Math.min(values.length, previous.length)));"
+            "}"
+        )
 
     def _first_bookmaker_odds(self, soup):
         """Decimal odds from the first bookmaker row of table.w-full.table-fixed."""
@@ -560,15 +605,15 @@ class OddsPortalFinder(BaseMatchFinder):
 
     def _scrape_tab_btts(self, session, thread_name: str):
         """Scrape the BTTS tab; returns (yes, no) odds (None on miss/failure)."""
-        odds_btts_y = odds_btts_n = None
+        odds_btts_yes = odds_btts_no = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
             cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
             if len(cells) >= 2:
-                odds_btts_y, odds_btts_n = cells[0], cells[1]
+                odds_btts_yes, odds_btts_no = cells[0], cells[1]
         except Exception as e:
             logger.warning("[%s] Failed to scrape BTTS odds: %s", thread_name, e)
-        return odds_btts_y, odds_btts_n
+        return odds_btts_yes, odds_btts_no
 
     def _scrape_tab_dc(self, session, thread_name: str):
         """Scrape the Double Chance tab; returns (1x, 12, x2) odds (None on miss/failure)."""

@@ -96,7 +96,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             # Extract odds
             market_map = {
                 "MATCH WINNER": ["home", "draw", "away"],
-                "BOTH TEAMS TO SCORE": ["btts_y", "btts_n"],
+                "BOTH TEAMS TO SCORE": ["btts_yes", "btts_no"],
                 "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
                 "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],
             }

@@ -23,8 +23,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from bet_framework.BetAssistant import BetAssistant
+from bet_framework.BetAssistant import MARKET_MAP, BetAssistant
 from bet_framework.core.consensus import calc_consensus
+from bet_framework.core.market_config import MARKET_DEFINITIONS
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
     apply_odds_movement_adjustment,
@@ -42,6 +43,17 @@ from bet_framework.core.scoring import (
 )
 from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
 from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
+
+
+def test_candidate_market_map_matches_canonical_catalog():
+    configured = {
+        (cons_key, odds_key, market.value)
+        for market_columns in MARKET_MAP.values()
+        for cons_key, odds_key, market in market_columns
+    }
+    canonical = {(market.cons_key, market.odds_key, market.market) for market in MARKET_DEFINITIONS}
+    assert configured == canonical
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,8 +80,8 @@ def make_matches_df(n=5, sources_per_match=3, with_odds=True, with_url=True):
                 "away": 5.00 + (i * 0.3),
                 "over": 1.80 + (i * 0.05),
                 "under": 2.00 + (i * 0.05),
-                "btts_y": 1.90 + (i * 0.1),
-                "btts_n": 1.90 + (i * 0.1),
+                "btts_yes": 1.90 + (i * 0.1),
+                "btts_no": 1.90 + (i * 0.1),
             }
 
         rows.append(
@@ -1448,8 +1460,8 @@ class TestSourceReliabilityTracking:
                         "away": 5.0,
                         "over_25": 1.8,
                         "under_25": 2.0,
-                        "btts_y": 1.9,
-                        "btts_n": 1.9,
+                        "btts_yes": 1.9,
+                        "btts_no": 1.9,
                     },
                     "result_url": "http://test",
                 }

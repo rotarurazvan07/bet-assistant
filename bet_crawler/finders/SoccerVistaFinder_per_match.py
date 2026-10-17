@@ -181,8 +181,8 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             "odds-link-under-3.5": "under_35",
             "odds-link-over-4.5": "over_45",
             "odds-link-under-4.5": "under_45",
-            "odds-link-yes": "btts_y",
-            "odds-link-no": "btts_n",
+            "odds-link-yes": "btts_yes",
+            "odds-link-no": "btts_no",
         }
 
         extracted_data = {}

@@ -162,10 +162,15 @@ class TestProcessUrlBatch:
         return fake_browser(monkeypatch, op, content_map, **(extra or {}))
 
     def test_full_odds_flow_adds_match_with_all_markets(self, monkeypatch) -> None:
-        self._session_map(monkeypatch)
+        session = self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
+        assert session.default_timeout == session.navigation_timeout == 60_000
+        assert all(call[2] == 60_000 for call in session.wait_for_selector_calls)
+        assert all(timeout == 60_000 for _, timeout in session.wait_for_function_calls)
+        assert all(kwargs["timeout"] == 60_000 for kwargs in session.fetch_kwargs)
+        assert all(kwargs["hard_cap_ms"] == 60_000 for kwargs in session.click_kwargs)
         m = collector.first
         assert m.home_team == "Arsenal"
         assert m.away_team == "Chelsea"
@@ -175,8 +180,8 @@ class TestProcessUrlBatch:
         assert odds.home == 2.10
         assert odds.draw == 3.40
         assert odds.away == 3.75
-        assert odds.btts_y == 1.85
-        assert odds.btts_n == 1.95
+        assert odds.btts_yes == 1.85
+        assert odds.btts_no == 1.95
         assert odds.dc_1x == 1.25
         assert odds.dc_12 == 1.30
         assert odds.dc_x2 == 1.45
@@ -186,11 +191,11 @@ class TestProcessUrlBatch:
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) != (odds.home, odds.draw, odds.away)
-        assert (odds.btts_y, odds.btts_n) != (odds.home, odds.draw)
+        assert (odds.btts_yes, odds.btts_no) != (odds.home, odds.draw)
 
     def test_stale_1x2_cells_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
         """Live palace dumps: tab headers flip, first-row cells stay 1X2."""
-        monkeypatch.setattr(OddsPortalFinder, "_TAB_SETTLE_S", 0)
+        monkeypatch.setattr(OddsPortalFinder, "_BROWSER_TIMEOUT_MS", 0)
         x2 = load_fixture("oddsportal", "match_1x2.html")
         stale_btts = x2.replace(">1</th>", ">Yes</th>").replace(">X</th>", ">No</th>")
         stale_dc = x2.replace(">1</th>", ">1X</th>").replace(">X</th>", ">12</th>").replace(">2</th>", ">X2</th>")
@@ -217,7 +222,7 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
         odds = collector.first.odds
         assert odds.home == 2.10
-        assert odds.btts_y is None
+        assert odds.btts_yes is None
         assert odds.dc_1x is None
         assert odds.over_25 == 1.70
 
@@ -235,16 +240,16 @@ class TestProcessUrlBatch:
         session = self._session_map(monkeypatch)
         real_click = session.click
 
-        def click_no_button(selector, label=None):
+        def click_no_button(selector, label=None, **kwargs):
             if selector == "li.tab-item button":
                 return False
-            return real_click(selector, label)
+            return real_click(selector, label, **kwargs)
 
         session.click = click_no_button
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
-        assert (odds.home, odds.btts_y, odds.dc_1x, odds.over_05) == (2.10, 1.85, 1.25, 1.10)
+        assert (odds.home, odds.btts_yes, odds.dc_1x, odds.over_05) == (2.10, 1.85, 1.25, 1.10)
 
     def test_live_shaped_market_tables_are_accepted(self, monkeypatch) -> None:
         """Live 2026-10-12 shape: glued 'claim bonus' bookmaker text, quarter lines,
@@ -278,7 +283,7 @@ class TestProcessUrlBatch:
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
-        assert (odds.home, odds.btts_y, odds.btts_n) == (2.10, 1.85, 1.95)
+        assert (odds.home, odds.btts_yes, odds.btts_no) == (2.10, 1.85, 1.95)
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.30, 1.45)
         assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (1.10, 8.00, 1.35, 3.10)
         assert (odds.over_25, odds.under_25, odds.over_35, odds.under_35) == (1.70, 2.10, 3.20, 1.34)
@@ -323,7 +328,7 @@ class TestProcessUrlBatch:
 
     def test_missing_market_tab_still_adds_match(self, monkeypatch) -> None:
         """AC-04: a market tab without its table leaves that market None."""
-        monkeypatch.setattr(OddsPortalFinder, "_TAB_SETTLE_S", 0)
+        monkeypatch.setattr(OddsPortalFinder, "_BROWSER_TIMEOUT_MS", 0)
         session = self._session_map(monkeypatch)
         identity_only = load_fixture("oddsportal", "match_base.html")
         x2 = load_fixture("oddsportal", "match_1x2.html")
@@ -340,7 +345,7 @@ class TestProcessUrlBatch:
         m = collector.first
         assert m.home_team == "Arsenal"
         assert m.odds.home == 2.10
-        assert m.odds.btts_y is None
+        assert m.odds.btts_yes is None
         assert m.odds.dc_12 is None
         assert m.odds.over_25 is None
 
