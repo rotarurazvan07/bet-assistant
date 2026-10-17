@@ -187,7 +187,7 @@ export default function Services() {
                         title="Generate Slips is off"
                         steps={['Enable Generate Slips service', 'Set schedule', 'Save']}
                         primary={{ label: 'Enable Generate Slips', onClick: () => { void handleToggle('generator'); } }}
-                        secondary={{ label: 'Save Settings', onClick: () => { void handleSave(); } }}
+                        secondary={{ label: 'Save schedule', onClick: () => { void handleSave(); } }}
                     />
                 </div>
             )}

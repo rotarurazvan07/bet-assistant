@@ -17,7 +17,8 @@ test.beforeEach(async ({ page }) => {
     // and GET /api/services resolve. On the CI stack (cold uvicorn + nginx) the
     // heading paints before those responses land, so waiting for it alone made
     // every control lookup race the data — the 'no switch found' failures.
-    await expect(page.getByRole('switch', { name: 'Auto-generate low' })).toBeVisible();
+    // 15s: the container's first /api round-trip can take seconds under load.
+    await expect(page.getByRole('switch', { name: 'Auto-generate low' })).toBeVisible({ timeout: 15000 });
 });
 
 
