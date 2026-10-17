@@ -182,15 +182,15 @@ def main() -> None:
     (CONFIG_DIR / "services.yaml").write_text(_SERVICES_YAML, encoding="utf-8")
 
     # One profile set across BOTH tracks: the Services scheduler derives its
-    # per-profile rows from GET /api/profiles. ensure_default_profiles() is a
-    # no-op once any *.yaml exists here, so seeding these three names keeps the
-    # CI stack serving exactly the demo-data.ts keys (low/medium/high_risk).
-    profiles_dir = CONFIG_DIR / "profiles"
-    profiles_dir.mkdir(parents=True, exist_ok=True)
+    # per-profile rows from GET /api/profiles. Write through scrape_kit's own
+    # SettingsManager — the exact call ensure_default_profiles() makes — so the
+    # app's settings nesting resolves these names at the top level instead of
+    # falling back to the built-in low_risk/medium_risk/... default set.
+    from scrape_kit import SettingsManager
+
+    settings = SettingsManager(str(CONFIG_DIR))
     for name, units in (("low", 2.0), ("medium", 1.0), ("high_risk", 2.0)):
-        (profiles_dir / f"{name}.yaml").write_text(
-            f"units: {units}\nrun_daily_count: 0\n", encoding="utf-8"
-        )
+        settings.write(name, {"units": units, "run_daily_count": 0}, subpath="profiles")
 
     # MatchesManager creates the `matches` schema on init; then write rows.
     MatchesManager(MATCHES_DB)
