@@ -14,11 +14,13 @@ test.beforeEach(async ({ page }) => {
     await page.goto('/services');
     await expect(page.getByText('Per-profile Auto-Generation')).toBeVisible();
     // AppReady: the scheduler table renders only after BOTH GET /api/profiles
-    // and GET /api/services resolve. On the CI stack (cold uvicorn + nginx) the
-    // heading paints before those responses land, so waiting for it alone made
-    // every control lookup race the data — the 'no switch found' failures.
-    // 15s: the container's first /api round-trip can take seconds under load.
-    await expect(page.getByRole('switch', { name: 'Auto-generate low' })).toBeVisible({ timeout: 15000 });
+    // and GET /api/services resolve. On the CI stack the heading paints before
+    // those responses land, and the FIRST browser's cold round-trip (uvicorn
+    // lazily importing its heavy deps on first router hit) can exceed the
+    // default 5s action timeout - chromium runs first with workers:1, which is
+    // why this gate failed there while later warm browsers passed. Gate on the
+    // rendered row with a budget that covers the cold first response.
+    await expect(page.getByRole('switch', { name: 'Auto-generate low' })).toBeVisible({ timeout: 30000 });
 });
 
 
