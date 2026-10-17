@@ -354,10 +354,7 @@ class BetAssistant(BaseStorageManager):
 
     def _flatten_odds(self, odds: dict) -> dict:
         """Flatten an odds dict into odds_* columns (None entries become 0.0)."""
-        return {
-            market.odds_key: (odds.get(market.odds_key.removeprefix("odds_")) or 0.0)
-            for market in MARKET_DEFINITIONS
-        }
+        return {market.odds_key: (odds.get(market.odds_key.removeprefix("odds_")) or 0.0) for market in MARKET_DEFINITIONS}
 
     # ── Match browsing ────────────────────────────────────────────────────────
 

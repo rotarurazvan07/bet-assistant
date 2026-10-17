@@ -2,8 +2,9 @@
 
 import math
 
-from bet_framework.core.market_config import CONSENSUS_COLUMNS, MARKET_DEFINITIONS
 from fastapi import APIRouter, Query, Request
+
+from bet_framework.core.market_config import CONSENSUS_COLUMNS, MARKET_DEFINITIONS
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 

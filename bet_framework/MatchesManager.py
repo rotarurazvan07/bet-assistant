@@ -12,8 +12,8 @@ from scrape_kit import (
     time_profiler,
 )
 
-from .core.Match import Match, Odds, Score, asdict
 from .core.market_config import MARKET_DEFINITIONS
+from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
 
