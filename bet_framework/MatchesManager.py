@@ -41,8 +41,8 @@ class OddsValidationIssue(NamedTuple):
 
 
 # Implied-probability thresholds (percent). A healthy complete market group
-# should sum to roughly 100-115% after converting decimal odds to probabilities.
-ODDS_VALID_LOW = 95.0
+# should sum to roughly 100-120% after converting decimal odds to probabilities.
+ODDS_VALID_LOW = 100.0
 ODDS_VALID_HIGH = 120.0
 _MARKET_GROUP_LABELS = {
     "result": "1X2",
@@ -54,25 +54,35 @@ _MARKET_GROUP_LABELS = {
     "over_under_35": "O/U 3.5",
     "over_under_45": "O/U 4.5",
 }
+# The three Double Chance selections overlap: each 1X2 outcome appears in two
+# selections, so their combined implied probability is approximately doubled.
+_MARKET_GROUP_IMPLIED_DIVISORS = {"double_chance": 2.0}
 _odds_groups: dict[str, list[tuple[str, str]]] = {}
 for _market_def in MARKET_DEFINITIONS:
     _field = _market_def.odds_key.removeprefix("odds_")
     _odds_groups.setdefault(_market_def.market_type, []).append((_field, _market_def.market))
-ODDS_MARKET_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
-    (_MARKET_GROUP_LABELS[market_type], fields) for market_type, fields in _odds_groups.items()
+ODDS_MARKET_GROUPS: list[tuple[str, str, list[tuple[str, str]]]] = [
+    (market_type, _MARKET_GROUP_LABELS[market_type], fields) for market_type, fields in _odds_groups.items()
 ]
-# Reverse lookup: field_name -> (group_label, group_fields)
-_FIELD_TO_GROUP: dict[str, tuple[str, list[tuple[str, str]]]] = {}
-for _gl, _gf in ODDS_MARKET_GROUPS:
+# Reverse lookup: field_name -> (market_type, group_label, group_fields)
+_FIELD_TO_GROUP: dict[str, tuple[str, str, list[tuple[str, str]]]] = {}
+for _mt, _gl, _gf in ODDS_MARKET_GROUPS:
     for _fn, _ in _gf:
-        _FIELD_TO_GROUP[_fn] = (_gl, _gf)
+        _FIELD_TO_GROUP[_fn] = (_mt, _gl, _gf)
 
 
-def _check_market_group(odds_dict: dict, fields: list[tuple[str, str]]) -> tuple[bool, float]:
+def _check_market_group(
+    odds_dict: dict,
+    fields: list[tuple[str, str]],
+    *,
+    implied_divisor: float = 1.0,
+) -> tuple[bool, float]:
     """Check if a complete market group passes implied-probability sanity.
 
     Returns (is_valid, implied_prob_pct).
     If any selection is missing, returns (True, 0.0) — incomplete groups are allowed.
+    ``implied_divisor`` normalizes overlapping selections before applying the
+    standard 100-120% range (Double Chance uses 2.0).
     """
     values: list[float] = []
     for field, _ in fields:
@@ -80,8 +90,9 @@ def _check_market_group(odds_dict: dict, fields: list[tuple[str, str]]) -> tuple
         if v is None or not isinstance(v, (int, float)) or v <= 0:
             return True, 0.0  # incomplete group — can't validate
         values.append(float(v))
-    implied = sum(1.0 / v for v in values) * 100.0
-    return ODDS_VALID_LOW <= implied <= ODDS_VALID_HIGH, implied
+    implied = sum(1.0 / v for v in values) * 100.0 / implied_divisor
+    valid = ODDS_VALID_LOW - 1e-9 <= implied <= ODDS_VALID_HIGH + 1e-9
+    return valid, implied
 
 
 def _is_empty(value) -> bool:
@@ -383,9 +394,13 @@ class MatchesManager(BufferedStorageManager):
             grp = _FIELD_TO_GROUP.get(field)
             if grp is None or grp[0] in checked_groups:
                 continue
-            group_label, group_fields = grp
-            checked_groups.add(group_label)
-            valid, implied = _check_market_group(merged, group_fields)
+            market_type, group_label, group_fields = grp
+            checked_groups.add(market_type)
+            valid, implied = _check_market_group(
+                merged,
+                group_fields,
+                implied_divisor=_MARKET_GROUP_IMPLIED_DIVISORS.get(market_type, 1.0),
+            )
             if not valid:
                 bad_keys = {f for f, _ in group_fields}
                 rejected_fields |= bad_keys & raw_patch.keys()
@@ -499,8 +514,12 @@ class MatchesManager(BufferedStorageManager):
                 continue
             home = row.get("home_team_name", "?")
             away = row.get("away_team_name", "?")
-            for group_label, fields in ODDS_MARKET_GROUPS:
-                valid, implied = _check_market_group(odds_dict, fields)
+            for market_type, group_label, fields in ODDS_MARKET_GROUPS:
+                valid, implied = _check_market_group(
+                    odds_dict,
+                    fields,
+                    implied_divisor=_MARKET_GROUP_IMPLIED_DIVISORS.get(market_type, 1.0),
+                )
                 if implied == 0.0:
                     continue  # incomplete group
                 if not valid:

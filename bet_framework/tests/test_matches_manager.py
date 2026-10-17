@@ -19,7 +19,7 @@ import pytest
 
 from bet_framework.core.market_config import MARKET_DEFINITIONS
 from bet_framework.core.Match import Match, Odds, Score
-from bet_framework.MatchesManager import ODDS_MARKET_GROUPS, MatchesManager
+from bet_framework.MatchesManager import ODDS_MARKET_GROUPS, MatchesManager, _check_market_group
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -35,9 +35,23 @@ DT_BASE = datetime(2026, 4, 1, 15, 0, 0)
 
 def test_odds_validation_groups_match_canonical_catalog():
     """Every sanity-checked odds key comes from the central market catalog."""
-    grouped_fields = {field for _, fields in ODDS_MARKET_GROUPS for field, _ in fields}
+    grouped_fields = {field for _, _, fields in ODDS_MARKET_GROUPS for field, _ in fields}
     catalog_fields = {market.odds_key.removeprefix("odds_") for market in MARKET_DEFINITIONS}
     assert grouped_fields == catalog_fields
+
+
+@pytest.mark.parametrize(
+    "price, expected_valid",
+    [(1.49, True), (1.25, True), (1.24, False), (1.51, False)],
+)
+def test_double_chance_implied_probability_is_normalized_to_1x2_scale(price, expected_valid):
+    fields = next(fields for _, label, fields in ODDS_MARKET_GROUPS if label == "Double Chance")
+    odds = {"dc_1x": price, "dc_12": price, "dc_x2": price}
+
+    valid, implied = _check_market_group(odds, fields, implied_divisor=2.0)
+
+    assert valid is expected_valid
+    assert implied == pytest.approx(150.0 / price)
 
 
 def make_match(
@@ -219,6 +233,40 @@ class TestAddMatch:
         odds = json.loads(buf.iloc[0]["odds"])
         assert odds["home"] == 1.5
         assert odds["draw"] == 3.0
+
+    def test_double_chance_odds_with_normal_overround_are_accepted(self, mm):
+        home, away = "Karlsruher SC", "Darmstadt"
+        mm.add_match(make_match(home, away))
+        mm.add_match(
+            make_match(
+                home,
+                away,
+                odds=Odds(
+                    home=2.2,
+                    draw=3.6,
+                    away=2.8,
+                    over_05=1.03,
+                    under_05=19.0,
+                    over_15=1.15,
+                    under_15=5.8,
+                    over_25=1.48,
+                    under_25=2.7,
+                    over_35=2.15,
+                    under_35=1.72,
+                    over_45=3.6,
+                    under_45=1.31,
+                    btts_yes=1.4,
+                    btts_no=2.7,
+                    dc_1x=1.40,
+                    dc_12=1.25,
+                    dc_x2=1.62,
+                ),
+            )
+        )
+
+        stored_odds = json.loads(mm.ensure_buffer().iloc[0]["odds"])
+        assert (stored_odds["dc_1x"], stored_odds["dc_12"], stored_odds["dc_x2"]) == (1.4, 1.25, 1.62)
+        assert mm._validate_all_odds() == []
 
     def test_normal_url_preserved_from_first_insert(self, mm):
         mm.add_match(
