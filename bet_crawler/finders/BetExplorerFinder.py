@@ -413,9 +413,7 @@ class BetExplorerFinder(BaseMatchFinder):
         soup = BeautifulSoup(session.page.content(), "html.parser")
         avgs = self._average_decimals(soup)
         changed = avgs[:expected_n] != before[:expected_n]
-        if len(avgs) >= expected_n and (
-            changed or (allow_same and self._active_tab(soup) == title)
-        ):
+        if len(avgs) >= expected_n and (changed or (allow_same and self._active_tab(soup) == title)):
             return soup
         raise TimeoutError(f"{selector} averages did not settle")
 
@@ -433,8 +431,8 @@ class BetExplorerFinder(BaseMatchFinder):
         """Wait until all five half-line rows render (live 2026-10-12: ~1.5s after li#all)."""
         keys = ("0.50", "1.50", "2.50", "3.50", "4.50")
         condition = (
-            "() => [\"0.50\", \"1.50\", \"2.50\", \"3.50\", \"4.50\"].every(key => {"
-            "const row = document.querySelector(`[data-all-handicap=\"${key}\"]`);"
+            '() => ["0.50", "1.50", "2.50", "3.50", "4.50"].every(key => {'
+            'const row = document.querySelector(`[data-all-handicap="${key}"]`);'
             "return row && row.querySelectorAll('.oddsComparisonAll__average_text[data-odd]').length >= 2;"
             "})"
         )

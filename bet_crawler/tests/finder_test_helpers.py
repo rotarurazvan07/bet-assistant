@@ -156,16 +156,16 @@ class FakeBrowserSession:
         content = self.content_map.get(self._current_url, "")
         return content(self.clicks) if callable(content) else content
 
-    def wait_for_selector(self, selector, state=None, timeout=None):
+    def wait_for_selector(self, selector, state=None, timeout=None) -> None:
         self.wait_for_selector_calls.append((selector, state, timeout))
 
-    def wait_for_function(self, expression, timeout=None):
+    def wait_for_function(self, expression, timeout=None) -> None:
         self.wait_for_function_calls.append((expression, timeout))
 
-    def set_default_timeout(self, timeout):
+    def set_default_timeout(self, timeout) -> None:
         self.default_timeout = timeout
 
-    def set_default_navigation_timeout(self, timeout):
+    def set_default_navigation_timeout(self, timeout) -> None:
         self.navigation_timeout = timeout
 
 
