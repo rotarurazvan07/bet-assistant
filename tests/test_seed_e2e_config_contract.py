@@ -8,8 +8,6 @@ keys as that file's section. A seed that wraps the block in a redundant
 and schedule row silently disappears (the PR #104 E2E root cause).
 """
 
-from __future__ import annotations
-
 import os
 import subprocess
 import sys
@@ -59,9 +57,7 @@ def test_seeded_services_yaml_is_not_double_nested(tmp_path: Path) -> None:
     """services.yaml must carry the flat block the app itself writes (logic.py)."""
     cfg, _ = _seed_config(tmp_path)
     raw = yaml.safe_load((cfg / "services.yaml").read_text(encoding="utf-8"))
-    assert "services" not in raw, (
-        "services.yaml wrapped in a 'services:' key - app reads None for every toggle/schedule row"
-    )
+    assert "services" not in raw, "services.yaml wrapped in a 'services:' key - app reads None for every toggle/schedule row"
     assert raw["generate_hour"] == 9
     assert raw["generate_minute"] == 0
     assert raw["toggles"] == {"puller": False, "generator": False, "verifier": False}
@@ -99,6 +95,7 @@ def test_seeded_profiles_and_schedule_agree_with_services_spec(tmp_path: Path) -
     assert schedule <= profiles, "schedule rows without a matching seeded profile never render"
 
     from core.logic import AppLogic
+
     from tests.logic_test_helpers import FakeTicker
 
     FakeTicker.instances.clear()
