@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import get_logger, log_context, log_event, source_key_for
 
 logger = get_logger(__name__)
 
@@ -61,6 +61,7 @@ class BaseMatchFinder:
         self.num_days_ahead = num_days_ahead
         self.local_timezone = local_timezone
         self.skip_patterns = tuple(skip_patterns)
+        self.log_counts = {"matches_added": 0, "matches_skipped": 0, "match_errors": 0}
 
     @abstractmethod
     def get_matches_urls(self):
@@ -76,6 +77,17 @@ class BaseMatchFinder:
     def _parse_page(self, url, html):
         """Parse a single scraped page. Used as callback for scrape_urls()."""
         raise NotImplementedError()
+
+    def _parse_page_with_log_context(self, url, html):
+        """Run a page parser with attribution even when scrape-kit invokes it on a worker thread."""
+        with log_context(
+            stage="scrape",
+            chunk_id=getattr(self, "_log_chunk_id", None),
+            source_key=source_key_for(self),
+            finder=self.__class__.__name__,
+            url=url,
+        ):
+            return self._parse_page(url, html)
 
     # ─────────────────────────── Datetime normalisation ───────────────────────
 
@@ -107,20 +119,71 @@ class BaseMatchFinder:
             if not force:
                 reason = self.skip_match_by_patterns(match.home_team, match.away_team)
                 if reason:
-                    logger.info(f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})")
+                    self.log_counts["matches_skipped"] += 1
+                    log_event(
+                        logger,
+                        event="match.skipped",
+                        outcome="info",
+                        reason_code="team_pattern_excluded",
+                        message=f"SKIPPED by pattern: {match.home_team} vs {match.away_team} ({reason})",
+                        match_id=f"{match.home_team}|{match.away_team}|{match.datetime}",
+                        url=match.result_url,
+                    )
                     return False
                 if match.datetime is not None and not self.validate_match_date(match.datetime):
-                    logger.info(f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})")
+                    self.log_counts["matches_skipped"] += 1
+                    log_event(
+                        logger,
+                        event="match.skipped",
+                        outcome="info",
+                        reason_code="outside_match_date_window",
+                        message=f"SKIPPED by date: {match.home_team} vs {match.away_team} ({match.datetime})",
+                        match_id=f"{match.home_team}|{match.away_team}|{match.datetime}",
+                        url=match.result_url,
+                    )
                     return False
                 if not self.contributes_odds:
                     match.odds = None  # ensure odds are not added by non-odds finders
-            logger.info(
-                f"ADDED: {match.predictions[0].source}: {match.home_team} vs {match.away_team} ({match.datetime}) {match.predictions[0].home}-{match.predictions[0].away}"
-            ) if match.predictions else logger.info(f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})")
             self.add_match_callback(match)
+            if match.predictions:
+                prediction = match.predictions[0]
+                logger.info(
+                    f"ADDED: {prediction.source}: {match.home_team} vs {match.away_team} "
+                    f"({match.datetime}) {prediction.home}-{prediction.away}"
+                )
+            else:
+                logger.info(f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})")
+            self.log_counts["matches_added"] += 1
+            log_event(
+                logger,
+                event="match.added",
+                outcome="success",
+                reason_code="match_callback_succeeded",
+                message=f"Added {match.home_team} vs {match.away_team}",
+                match_id=f"{match.home_team}|{match.away_team}|{match.datetime}",
+                url=match.result_url,
+            )
             return True
         except Exception as e:
-            logger.error(f"Error while adding match: {e}")
+            self.log_counts["match_errors"] += 1
+            match_id = (
+                f"{getattr(match, 'home_team', '')}|{getattr(match, 'away_team', '')}|"
+                f"{getattr(match, 'datetime', '')}"
+            )
+            logger.exception(
+                "Error while adding match %s vs %s",
+                getattr(match, "home_team", "<unknown>"),
+                getattr(match, "away_team", "<unknown>"),
+                extra={
+                    "event": "match.add.failed",
+                    "outcome": "error",
+                    "reason_code": "match_callback_or_validation_failed",
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "match_id": match_id,
+                    "url": getattr(match, "result_url", None),
+                },
+            )
             return False
 
     def skip_match_by_patterns(

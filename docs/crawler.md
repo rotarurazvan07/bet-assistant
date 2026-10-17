@@ -114,6 +114,24 @@ python -m bet_crawler.crawl --mode merge \
   --config_dir config
 ```
 
+## Scraper event logging
+
+The crawler retains its human-readable scrape-kit console logs and can also emit a separate, ANSI-free JSONL sidecar. Set `SCRAPE_EVENT_LOG_PATH` before starting the crawler; each line is one independent JSON object. The scraping GitHub Actions workflow writes `crawler-events.jsonl` and uploads it beside each existing job log artifact. Prepare-scrape continues to write only its task-matrix JSON to stdout.
+
+Every structured record includes `schema_version`, UTC `timestamp`, `severity`, `event`, `outcome`, `reason_code`, `logger`, `message`, and run/job/runner/stage/chunk/source/finder/URL/match attribution where available. Error records include exception type/message and traceback when logged inside an exception handler. Existing logs receive stable fallback classifications (`application.warning` / `application.error` and `unclassified_warning` / `unclassified_error`) until their call sites are migrated to a specific reason code.
+
+Severity policy:
+
+- `INFO`: progress, successful outcomes, expected ongoing/finished states, and intentional team-pattern/date-window exclusions.
+- `WARNING`: recoverable retries/degradation, malformed candidates or odds that are skipped, and unexpected empty/invalid source data.
+- `ERROR`: required page/match/source processing failures, exhausted source-discovery retries, and incomplete stage outcomes.
+
+Explicit events use dotted names such as `source.discovery.failed`, `match.skipped`, `source.scrape.failed`, and `stage.completed`. Consumers should use `event`, `outcome`, `reason_code`, and context fields rather than matching display text. `stage.completed` includes event warning/error totals, explicit counts and the `success`/`partial` outcome.
+
+The scraping workflow downloads all `logs-*` artifacts in `unify-logs`, keeps the relative artifact paths in `unified_log.txt`, and runs `bet_crawler.summarize_scrape_logs`. The script groups structured WARNING/ERROR/CRITICAL events by source, event, and reason; includes non-application legacy log records and job conclusions; and reports malformed JSONL lines as warnings. It writes `scrape-summary.md` to the GitHub Actions step summary and retains both Markdown and JSON reports with the raw unified log in `unified-logs`. Expected INFO skips are excluded, and the summary is diagnostic only; it does not independently change workflow success/failure.
+
+For `prepare-scrape`, stderr contains operational logs while stdout is reserved for the task matrix. The prepare job captures stdout for the matrix and always tees captured stderr to both the Actions console and `job_log.txt`, including on failure.
+
 
 
 ## Finder Architecture

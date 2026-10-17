@@ -1,6 +1,6 @@
 """Match finder for legitpredict.com predictions."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -38,7 +38,7 @@ class LegitPredictFinder(BaseMatchFinder):
         """Scrape all legitpredict URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -57,7 +57,9 @@ class LegitPredictFinder(BaseMatchFinder):
                 try:
                     tds = tr.find_all("td")
                     if len(tds) < 4:
-                        logger.info("SKIPPED [%s]: missing cells", url)
+                        log_event(logger, event="match.skipped", outcome="warning", reason_code="required_cells_missing",
+                                  level=30, message=f"Skipping LegitPredict row with missing cells: {url}",
+                                  source_key="legitpredict", url=url)
                         continue
                     home_team = tds[2].text.strip().split("VS")[0].strip()
                     away_team = tds[2].text.strip().split("VS")[1].strip()
@@ -65,7 +67,9 @@ class LegitPredictFinder(BaseMatchFinder):
                     time_parts = tds[0].text.strip().split(":")
                     # AC-10: skip unless both score parts and HH:MM parse
                     if len(score_parts) < 2 or len(time_parts) < 2:
-                        logger.info("SKIPPED [%s]: incomplete score/time", url)
+                        log_event(logger, event="match.skipped", outcome="warning", reason_code="score_or_time_incomplete",
+                                  level=30, message=f"Skipping LegitPredict row with incomplete score/time: {url}",
+                                  source_key="legitpredict", url=url)
                         continue
                     try:
                         home_score = int(score_parts[0])
@@ -73,7 +77,9 @@ class LegitPredictFinder(BaseMatchFinder):
                         hour = int(time_parts[0])
                         minute = int(time_parts[1])
                     except ValueError:
-                        logger.info("SKIPPED [%s]: unparsable score/time", url)
+                        log_event(logger, event="match.skipped", outcome="warning", reason_code="score_or_time_invalid",
+                                  level=30, message=f"Skipping LegitPredict row with invalid score/time: {url}",
+                                  source_key="legitpredict", url=url)
                         continue
                     score = Score(LEGITPREDICT_NAME, home_score, away_score)
 
@@ -82,8 +88,11 @@ class LegitPredictFinder(BaseMatchFinder):
                     self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
 
                 except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
+                            message=f"Skipping malformed LegitPredict candidate on {url}: {e}",
+                            source_key="legitpredict", url=url)
                     continue
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+                exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
+                        message=f"Failed to parse LegitPredict page {url}: {e}", source_key="legitpredict", url=url)

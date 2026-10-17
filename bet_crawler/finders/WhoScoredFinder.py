@@ -1,6 +1,6 @@
 """Match finder for whoscored.com (UTC timestamps, browser pages)."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -43,7 +43,7 @@ class WhoScoredFinder(BaseMatchFinder):
         """Fetch whoscored fixture URLs and parse them via scrape."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -56,7 +56,16 @@ class WhoScoredFinder(BaseMatchFinder):
         try:
             match_json = re.search(r"matchHeaderJson: JSON\.parse\(\'(.*?)\'\),", html)
             if not match_json:
-                logger.error(f"[{url}] WhoScored: Could not find matchHeaderJson block.")
+                log_event(
+                    logger,
+                    event="match.skipped",
+                    outcome="error",
+                    reason_code="match_header_json_missing",
+                    level=40,
+                    message=f"Skipping WhoScored page without matchHeaderJson: {url}",
+                    source_key="whoscored",
+                    url=url,
+                )
                 return
 
             data = json.loads(match_json.group(1))
@@ -88,8 +97,10 @@ class WhoScoredFinder(BaseMatchFinder):
                     )
                 )
             except Exception as e:
-                logger.error(f"SKIPPED [{url}] WhoScored: Error creating match object: {e}")
+                exception_event(logger, event="match.parse.failed", reason_code="match_object_creation_failed",
+                                message=f"Skipping malformed WhoScored match at {url}: {e}", source_key="whoscored", url=url)
                 return
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
+                            message=f"Failed to parse WhoScored page {url}: {e}", source_key="whoscored", url=url)
