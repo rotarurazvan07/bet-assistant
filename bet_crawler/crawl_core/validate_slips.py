@@ -3,7 +3,6 @@ validate_slips module for handling the validate-slips mode logic
 """
 
 from bet_crawler.crawler_logging import get_logger, log_event, reset_event_totals
-
 from bet_framework.BetAssistant import BetAssistant
 
 logger = get_logger(__name__)

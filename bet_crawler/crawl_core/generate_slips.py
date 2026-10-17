@@ -3,7 +3,6 @@ generate_slips module for handling the generate-slips mode logic
 """
 
 from bet_crawler.crawler_logging import get_logger, log_event, reset_event_totals
-
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
 

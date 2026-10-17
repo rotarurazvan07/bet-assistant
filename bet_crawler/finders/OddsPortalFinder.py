@@ -3,15 +3,14 @@
 import json
 import re
 import threading
-from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from datetime import datetime, timedelta, timezone
 
 from bs4 import BeautifulSoup
 from scrape_kit import browser, fetch
 
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
-
 from bet_framework.core.Match import Match, Odds
 
 from ._parallel import balanced_chunks
@@ -300,40 +299,71 @@ class OddsPortalFinder(BaseMatchFinder):
                     match_url = self._normalize_match_url(event.get("url"))
                     start_date_str = event.get("startDate")
                     if not match_url or not start_date_str:
-                        log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                                  reason_code="event_identity_missing", level=30,
-                                  message="Ignoring OddsPortal SportsEvent without a valid URL or startDate",
-                                  source_key="oddsportal", url=event.get("url"))
+                        log_event(
+                            logger,
+                            event="source.discovery.candidate_invalid",
+                            outcome="warning",
+                            reason_code="event_identity_missing",
+                            level=30,
+                            message="Ignoring OddsPortal SportsEvent without a valid URL or startDate",
+                            source_key="oddsportal",
+                            url=event.get("url"),
+                        )
                         continue
                     if not self._event_is_scheduled(event):
-                        log_event(logger, event="source.discovery.candidate_skipped", outcome="info",
-                                  reason_code="event_not_scheduled", level=20,
-                                  message="Ignoring non-scheduled OddsPortal event", source_key="oddsportal", url=match_url)
+                        log_event(
+                            logger,
+                            event="source.discovery.candidate_skipped",
+                            outcome="info",
+                            reason_code="event_not_scheduled",
+                            level=20,
+                            message="Ignoring non-scheduled OddsPortal event",
+                            source_key="oddsportal",
+                            url=match_url,
+                        )
                         continue
                     try:
                         match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
                     except (ValueError, TypeError, AttributeError) as exc:
-                        log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                                  reason_code="start_date_invalid", level=30,
-                                  message=f"Ignoring OddsPortal event with invalid startDate {start_date_str!r}: {exc}",
-                                  source_key="oddsportal", url=match_url,
-                                  error_type=type(exc).__name__, error_message=str(exc))
+                        log_event(
+                            logger,
+                            event="source.discovery.candidate_invalid",
+                            outcome="warning",
+                            reason_code="start_date_invalid",
+                            level=30,
+                            message=f"Ignoring OddsPortal event with invalid startDate {start_date_str!r}: {exc}",
+                            source_key="oddsportal",
+                            url=match_url,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                        )
                         continue
                     if today <= match_date <= max_date:
                         links.append(match_url)
                     else:
-                        log_event(logger, event="source.discovery.candidate_skipped", outcome="info",
-                                  reason_code="outside_date_window", level=20,
-                                  message=f"Ignoring OddsPortal event outside date window ({match_date})",
-                                  source_key="oddsportal", url=match_url)
+                        log_event(
+                            logger,
+                            event="source.discovery.candidate_skipped",
+                            outcome="info",
+                            reason_code="outside_date_window",
+                            level=20,
+                            message=f"Ignoring OddsPortal event outside date window ({match_date})",
+                            source_key="oddsportal",
+                            url=match_url,
+                        )
 
                 links = list(dict.fromkeys(links))
                 urls.extend(links)
                 logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:
-                exception_event(logger, event="source.discovery.failed", reason_code="league_fetch_failed",
-                                message=f"Failed to discover OddsPortal match URLs from {url}: {e}",
-                                source_key="oddsportal", url=url)
+                exception_event(
+                    logger,
+                    event="source.discovery.failed",
+                    reason_code="league_fetch_failed",
+                    message=f"Failed to discover OddsPortal match URLs from {url}: {e}",
+                    source_key="oddsportal",
+                    url=url,
+                )
                 continue
 
         logger.info("Total URLs found: %d", len(urls))
@@ -412,9 +442,14 @@ class OddsPortalFinder(BaseMatchFinder):
                         )
 
                 except Exception as e:  # per-row fault isolation: one bad page must not kill the batch
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"[{thread_name}] Failed to parse OddsPortal match {url}: {e}",
-                                    source_key="oddsportal", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"[{thread_name}] Failed to parse OddsPortal match {url}: {e}",
+                        source_key="oddsportal",
+                        url=url,
+                    )
                     continue
 
         logger.info("[%s] Batch complete", thread_name)
@@ -428,29 +463,46 @@ class OddsPortalFinder(BaseMatchFinder):
             try:
                 data = json.loads(raw)
             except (json.JSONDecodeError, TypeError) as exc:
-                log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                          reason_code="invalid_json_ld", level=30,
-                          message=f"Ignoring malformed OddsPortal JSON-LD: {exc}", source_key="oddsportal",
-                          error_type=type(exc).__name__, error_message=str(exc))
+                log_event(
+                    logger,
+                    event="source.discovery.candidate_invalid",
+                    outcome="warning",
+                    reason_code="invalid_json_ld",
+                    level=30,
+                    message=f"Ignoring malformed OddsPortal JSON-LD: {exc}",
+                    source_key="oddsportal",
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
                 continue
             if isinstance(data, list):
                 candidates = data
             elif isinstance(data, dict):
                 candidates = data.get("@graph", [data])
             else:
-                log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                          reason_code="json_ld_payload_not_object", level=30,
-                          message="Ignoring OddsPortal JSON-LD payload that is not an object or array",
-                          source_key="oddsportal")
+                log_event(
+                    logger,
+                    event="source.discovery.candidate_invalid",
+                    outcome="warning",
+                    reason_code="json_ld_payload_not_object",
+                    level=30,
+                    message="Ignoring OddsPortal JSON-LD payload that is not an object or array",
+                    source_key="oddsportal",
+                )
                 continue
             for event in candidates:
                 if isinstance(event, dict):
                     yield event
                 else:
-                    log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                              reason_code="event_candidate_not_object", level=30,
-                              message="Ignoring non-object OddsPortal JSON-LD candidate",
-                              source_key="oddsportal")
+                    log_event(
+                        logger,
+                        event="source.discovery.candidate_invalid",
+                        outcome="warning",
+                        reason_code="event_candidate_not_object",
+                        level=30,
+                        message="Ignoring non-object OddsPortal JSON-LD candidate",
+                        source_key="oddsportal",
+                    )
 
     def _event_is_scheduled(self, event: dict) -> bool:
         """True when eventStatus is missing or contains Scheduled."""
@@ -494,17 +546,32 @@ class OddsPortalFinder(BaseMatchFinder):
                 away = away.get("name")
             start = event.get("startDate")
             if not home or not away or not start:
-                log_event(logger, event="match.identity_missing", outcome="error", reason_code="sports_event_identity_missing",
-                          level=40, message="OddsPortal SportsEvent is missing a team or startDate",
-                          source_key="oddsportal", url=event.get("url"))
+                log_event(
+                    logger,
+                    event="match.identity_missing",
+                    outcome="error",
+                    reason_code="sports_event_identity_missing",
+                    level=40,
+                    message="OddsPortal SportsEvent is missing a team or startDate",
+                    source_key="oddsportal",
+                    url=event.get("url"),
+                )
                 continue
             try:
                 match_date = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
             except (ValueError, TypeError) as exc:
-                log_event(logger, event="match.identity_invalid", outcome="error", reason_code="sports_event_date_invalid",
-                          level=40, message=f"OddsPortal SportsEvent has invalid startDate {start!r}: {exc}",
-                          source_key="oddsportal", url=event.get("url"),
-                          error_type=type(exc).__name__, error_message=str(exc))
+                log_event(
+                    logger,
+                    event="match.identity_invalid",
+                    outcome="error",
+                    reason_code="sports_event_date_invalid",
+                    level=40,
+                    message=f"OddsPortal SportsEvent has invalid startDate {start!r}: {exc}",
+                    source_key="oddsportal",
+                    url=event.get("url"),
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
                 continue
             return (
                 str(home).strip(),
@@ -727,13 +794,20 @@ class OddsPortalFinder(BaseMatchFinder):
         )
 
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal") as executor:
-            futures = {executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)}
+            futures = {
+                executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)
+            }
             for future in as_completed(futures):
                 chunk_idx = futures[future]
                 try:
                     future.result()
                     logger.info("Worker %d finished successfully", chunk_idx)
                 except Exception as e:
-                    exception_event(logger, event="source.worker.failed", reason_code="worker_batch_failed",
-                                    message=f"OddsPortal worker {chunk_idx} failed: {e}",
-                                    source_key="oddsportal", worker=chunk_idx)
+                    exception_event(
+                        logger,
+                        event="source.worker.failed",
+                        reason_code="worker_batch_failed",
+                        message=f"OddsPortal worker {chunk_idx} failed: {e}",
+                        source_key="oddsportal",
+                        worker=chunk_idx,
+                    )

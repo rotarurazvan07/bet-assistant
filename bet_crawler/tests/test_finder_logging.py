@@ -12,9 +12,7 @@ def _records(path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
-def test_benign_shared_filters_are_structured_info_events(
-    tmp_path, monkeypatch
-) -> None:
+def test_benign_shared_filters_are_structured_info_events(tmp_path, monkeypatch) -> None:
     path = tmp_path / "events.jsonl"
     monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(path))
     configure_event_logging(str(path))
@@ -48,12 +46,8 @@ def test_eaglepredict_candidate_drops_are_warning_events(tmp_path, monkeypatch) 
     configure_event_logging(str(path))
     finder, _ = make_finder(EaglePredictFinder)
     try:
-        finder._parse_page(
-            None, "<html><body><p>Correct Score: unavailable</p></body></html>"
-        )
-        events = [
-            event for event in _records(path) if event["event"] == "match.skipped"
-        ]
+        finder._parse_page(None, "<html><body><p>Correct Score: unavailable</p></body></html>")
+        events = [event for event in _records(path) if event["event"] == "match.skipped"]
         assert events
         assert events[0]["severity"] == "WARNING"
         assert events[0]["reason_code"] == "score_not_found"
@@ -73,6 +67,4 @@ def _past_datetime(finder):
     from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
 
-    return datetime.now(ZoneInfo(finder.local_timezone)).replace(
-        tzinfo=None
-    ) - timedelta(days=1)
+    return datetime.now(ZoneInfo(finder.local_timezone)).replace(tzinfo=None) - timedelta(days=1)

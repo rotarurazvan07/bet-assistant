@@ -3,15 +3,14 @@
 import json
 import re
 import threading
-from contextvars import copy_context
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 from datetime import datetime, timedelta, timezone
 
 from bs4 import BeautifulSoup
 from scrape_kit import browser, fetch
 
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
-
 from bet_framework.core.Match import Match, Odds
 
 from ._parallel import balanced_chunks
@@ -328,10 +327,16 @@ class BetExplorerFinder(BaseMatchFinder):
 
                         for event in candidates:
                             if not isinstance(event, dict):
-                                log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                                          reason_code="event_candidate_not_object", level=30,
-                                          message=f"Ignoring non-object BetExplorer JSON-LD candidate on {url}",
-                                          source_key="betexplorer", url=url)
+                                log_event(
+                                    logger,
+                                    event="source.discovery.candidate_invalid",
+                                    outcome="warning",
+                                    reason_code="event_candidate_not_object",
+                                    level=30,
+                                    message=f"Ignoring non-object BetExplorer JSON-LD candidate on {url}",
+                                    source_key="betexplorer",
+                                    url=url,
+                                )
                                 continue
 
                             event_type = event.get("@type", [])
@@ -342,19 +347,31 @@ class BetExplorerFinder(BaseMatchFinder):
                             match_url = event.get("url")
                             start_date_str = event.get("startDate")
                             if not match_url or not start_date_str:
-                                log_event(logger, event="source.discovery.candidate_invalid", outcome="warning",
-                                          reason_code="event_identity_missing", level=30,
-                                          message="Ignoring BetExplorer SportsEvent without URL or startDate",
-                                          source_key="betexplorer", url=match_url)
+                                log_event(
+                                    logger,
+                                    event="source.discovery.candidate_invalid",
+                                    outcome="warning",
+                                    reason_code="event_identity_missing",
+                                    level=30,
+                                    message="Ignoring BetExplorer SportsEvent without URL or startDate",
+                                    source_key="betexplorer",
+                                    url=match_url,
+                                )
                                 continue
 
                             # eventStatus: assume Scheduled if missing, otherwise check for 'Scheduled'
                             status = str(event.get("eventStatus", "Scheduled"))
                             if "Scheduled" not in status:
-                                log_event(logger, event="source.discovery.candidate_skipped", outcome="info",
-                                          reason_code="event_not_scheduled", level=20,
-                                          message=f"Ignoring non-scheduled BetExplorer event ({status})",
-                                          source_key="betexplorer", url=match_url)
+                                log_event(
+                                    logger,
+                                    event="source.discovery.candidate_skipped",
+                                    outcome="info",
+                                    reason_code="event_not_scheduled",
+                                    level=20,
+                                    message=f"Ignoring non-scheduled BetExplorer event ({status})",
+                                    source_key="betexplorer",
+                                    url=match_url,
+                                )
                                 continue
                             try:
                                 match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
@@ -375,10 +392,16 @@ class BetExplorerFinder(BaseMatchFinder):
                             if today <= match_date <= max_date:
                                 links.append(match_url)
                             else:
-                                log_event(logger, event="source.discovery.candidate_skipped", outcome="info",
-                                          reason_code="outside_date_window", level=20,
-                                          message=f"Ignoring BetExplorer event outside date window ({match_date})",
-                                          source_key="betexplorer", url=match_url)
+                                log_event(
+                                    logger,
+                                    event="source.discovery.candidate_skipped",
+                                    outcome="info",
+                                    reason_code="outside_date_window",
+                                    level=20,
+                                    message=f"Ignoring BetExplorer event outside date window ({match_date})",
+                                    source_key="betexplorer",
+                                    url=match_url,
+                                )
                     except (json.JSONDecodeError, TypeError) as exc:
                         log_event(
                             logger,
@@ -398,9 +421,14 @@ class BetExplorerFinder(BaseMatchFinder):
                 urls.extend(links)
                 logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:
-                exception_event(logger, event="source.discovery.failed", reason_code="league_fetch_failed",
-                                message=f"Failed to discover BetExplorer match URLs from {url}: {e}",
-                                source_key="betexplorer", url=url)
+                exception_event(
+                    logger,
+                    event="source.discovery.failed",
+                    reason_code="league_fetch_failed",
+                    message=f"Failed to discover BetExplorer match URLs from {url}: {e}",
+                    source_key="betexplorer",
+                    url=url,
+                )
                 continue
 
         logger.info("Total URLs found: %d", len(urls))
@@ -677,9 +705,14 @@ class BetExplorerFinder(BaseMatchFinder):
                         self.add_match(match)
 
                 except Exception as e:
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"[{thread_name}] Failed to parse BetExplorer match {url}: {e}",
-                                    source_key="betexplorer", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"[{thread_name}] Failed to parse BetExplorer match {url}: {e}",
+                        source_key="betexplorer",
+                        url=url,
+                    )
                     continue
 
         logger.info("[%s] Batch complete", thread_name)
@@ -703,13 +736,20 @@ class BetExplorerFinder(BaseMatchFinder):
         )
 
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="betexp") as executor:
-            futures = {executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)}
+            futures = {
+                executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)
+            }
             for future in as_completed(futures):
                 chunk_idx = futures[future]
                 try:
                     future.result()
                     logger.info("Worker %d finished successfully", chunk_idx)
                 except Exception as e:
-                    exception_event(logger, event="source.worker.failed", reason_code="worker_batch_failed",
-                                    message=f"BetExplorer worker {chunk_idx} failed: {e}",
-                                    source_key="betexplorer", worker=chunk_idx)
+                    exception_event(
+                        logger,
+                        event="source.worker.failed",
+                        reason_code="worker_batch_failed",
+                        message=f"BetExplorer worker {chunk_idx} failed: {e}",
+                        source_key="betexplorer",
+                        worker=chunk_idx,
+                    )

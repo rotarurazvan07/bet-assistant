@@ -166,10 +166,7 @@ class BaseMatchFinder:
             return True
         except Exception as e:
             self.log_counts["match_errors"] += 1
-            match_id = (
-                f"{getattr(match, 'home_team', '')}|{getattr(match, 'away_team', '')}|"
-                f"{getattr(match, 'datetime', '')}"
-            )
+            match_id = f"{getattr(match, 'home_team', '')}|{getattr(match, 'away_team', '')}|{getattr(match, 'datetime', '')}"
             logger.exception(
                 "Error while adding match %s vs %s",
                 getattr(match, "home_team", "<unknown>"),

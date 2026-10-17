@@ -17,22 +17,21 @@ Usage examples:
 """
 
 import argparse
+import os
 import sys
 import threading
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from scrape_kit import SettingsManager, configure
 
-from bet_crawler.crawler_logging import get_logger, set_log_context
-
 from bet_crawler.crawl_core.generate_slips import generate_slips
 from bet_crawler.crawl_core.merge import merge
 from bet_crawler.crawl_core.prepare_scrape import prepare_scrape
 from bet_crawler.crawl_core.scrape import scrape
 from bet_crawler.crawl_core.validate_slips import validate_slips
+from bet_crawler.crawler_logging import get_logger, set_log_context
 
 logger = get_logger(__name__)
 
@@ -198,6 +197,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _install_uncaught_exception_logging() -> None:
     """Log uncaught CLI and worker-thread failures into the structured stream."""
+
     def main_exception_hook(exc_type, exc_value, traceback) -> None:
         if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
             sys.__excepthook__(exc_type, exc_value, traceback)

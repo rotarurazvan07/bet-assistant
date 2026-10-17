@@ -12,9 +12,7 @@ from bet_crawler.crawler_logging import (
 )
 
 
-def test_jsonl_event_schema_context_and_exception_details(
-    tmp_path, monkeypatch
-) -> None:
+def test_jsonl_event_schema_context_and_exception_details(tmp_path, monkeypatch) -> None:
     event_path = tmp_path / "crawler-events.jsonl"
     monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
     configure_event_logging(str(event_path))
@@ -48,10 +46,7 @@ def test_jsonl_event_schema_context_and_exception_details(
                     },
                 )
 
-        records = [
-            json.loads(line)
-            for line in event_path.read_text(encoding="utf-8").splitlines()
-        ]
+        records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
         assert len(records) == 2
         warning, error = records
         assert warning["schema_version"] == 1
@@ -76,9 +71,7 @@ def test_jsonl_event_schema_context_and_exception_details(
         disable_event_logging()
 
 
-def test_legacy_warning_and_error_get_fallback_classification(
-    tmp_path, monkeypatch
-) -> None:
+def test_legacy_warning_and_error_get_fallback_classification(tmp_path, monkeypatch) -> None:
     event_path = tmp_path / "legacy-events.jsonl"
     monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
     configure_event_logging(str(event_path))
@@ -91,10 +84,7 @@ def test_legacy_warning_and_error_get_fallback_classification(
         except RuntimeError:
             logger.error("Existing caught-error call")
 
-        records = [
-            json.loads(line)
-            for line in event_path.read_text(encoding="utf-8").splitlines()
-        ]
+        records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
         assert records[0]["event"] == "application.warning"
         assert records[0]["reason_code"] == "unclassified_warning"
         assert records[1]["event"] == "application.error"

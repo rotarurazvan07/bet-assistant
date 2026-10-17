@@ -188,9 +188,14 @@ class xGScoreFinder(BaseMatchFinder):
             logger.warning(
                 "Could not extract xGScore odds; keeping prediction without odds: %s",
                 e,
-                extra={"event": "match.odds_unavailable", "outcome": "warning",
-                       "reason_code": "odds_extraction_failed", "source_key": "xgscore",
-                       "error_type": type(e).__name__, "error_message": str(e)},
+                extra={
+                    "event": "match.odds_unavailable",
+                    "outcome": "warning",
+                    "reason_code": "odds_extraction_failed",
+                    "source_key": "xgscore",
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
             )
             # Return a "safe" default object if everything crashes
             return None
@@ -212,10 +217,17 @@ class xGScoreFinder(BaseMatchFinder):
                 try:
                     found_data[field_name] = float(match.group(1))
                 except (ValueError, TypeError) as exc:
-                    log_event(logger, event="match.odds_field_unavailable", outcome="warning",
-                              reason_code="odds_value_invalid", level=30,
-                              message=f"Could not parse xGScore odds value for {label}: {exc}",
-                              source_key="xgscore", error_type=type(exc).__name__, error_message=str(exc))
+                    log_event(
+                        logger,
+                        event="match.odds_field_unavailable",
+                        outcome="warning",
+                        reason_code="odds_value_invalid",
+                        level=30,
+                        message=f"Could not parse xGScore odds value for {label}: {exc}",
+                        source_key="xgscore",
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                    )
                     continue
 
         return found_data

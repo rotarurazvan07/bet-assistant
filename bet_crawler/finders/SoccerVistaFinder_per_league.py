@@ -182,11 +182,22 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                     )
 
                 except Exception as e:
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"Skipping malformed SoccerVista candidate on {url}: {e}",
-                                    source_key="soccervista", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed SoccerVista candidate on {url}: {e}",
+                        source_key="soccervista",
+                        url=url,
+                    )
                     continue
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse SoccerVista league page {url}: {e}", source_key="soccervista", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse SoccerVista league page {url}: {e}",
+                source_key="soccervista",
+                url=url,
+            )

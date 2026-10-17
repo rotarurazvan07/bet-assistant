@@ -99,6 +99,11 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 self.add_match(Match(home_team, away_team, match_date, [prediction], None, league=league))
 
             except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                message=f"Skipping FootballPredictions candidate on {url}: {e}",
-                                source_key="footballpredictions", url=url)
+                exception_event(
+                    logger,
+                    event="match.parse.failed",
+                    reason_code="candidate_parse_failed",
+                    message=f"Skipping FootballPredictions candidate on {url}: {e}",
+                    source_key="footballpredictions",
+                    url=url,
+                )

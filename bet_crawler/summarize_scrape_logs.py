@@ -1,7 +1,5 @@
 """Summarize structured crawler events and CI job logs from one scraping run."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import re
@@ -58,9 +56,7 @@ def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, s
     return events, malformed
 
 
-def _read_legacy_issues(
-    logs_dir: Path, structured_events: list[dict[str, Any]]
-) -> list[dict[str, Any]]:
+def _read_legacy_issues(logs_dir: Path, structured_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Read actionable text log records not already represented by JSONL."""
     structured_messages = {
         (
@@ -133,9 +129,7 @@ def _parse_legacy_line(
     }
 
 
-def summarize(
-    logs_dir: Path, job_outcomes: dict[str, str] | None = None
-) -> dict[str, Any]:
+def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dict[str, Any]:
     """Build a deterministic summary from downloaded artifacts and job results."""
     logs_dir = logs_dir.resolve()
     events, malformed = _read_events(logs_dir) if logs_dir.exists() else ([], [])
@@ -161,23 +155,11 @@ def summarize(
         for item in malformed
     )
 
-    outcomes = {
-        name: str(result).lower()
-        for name, result in sorted((job_outcomes or {}).items())
-    }
-    failed_jobs = {
-        name: result
-        for name, result in outcomes.items()
-        if result not in {"success", "skipped"}
-    }
+    outcomes = {name: str(result).lower() for name, result in sorted((job_outcomes or {}).items())}
+    failed_jobs = {name: result for name, result in outcomes.items() if result not in {"success", "skipped"}}
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for issue in issues:
-        source = str(
-            issue.get("source_key")
-            or issue.get("finder")
-            or issue.get("logger")
-            or "unknown"
-        )
+        source = str(issue.get("source_key") or issue.get("finder") or issue.get("logger") or "unknown")
         event_name = str(issue.get("event") or "unspecified")
         reason = str(issue.get("reason_code") or "unspecified")
         groups[(source, event_name, reason)].append(issue)
@@ -190,20 +172,14 @@ def summarize(
         "structured_events": len(events),
         "malformed_event_lines": malformed,
         "issue_count": len(issues),
-        "severity_counts": dict(
-            Counter(str(issue.get("severity", "UNKNOWN")).upper() for issue in issues)
-        ),
+        "severity_counts": dict(Counter(str(issue.get("severity", "UNKNOWN")).upper() for issue in issues)),
         "groups": [
             {
                 "source": source,
                 "event": event_name,
                 "reason_code": reason,
                 "count": len(records),
-                "severity_counts": dict(
-                    Counter(
-                        str(item.get("severity", "UNKNOWN")).upper() for item in records
-                    )
-                ),
+                "severity_counts": dict(Counter(str(item.get("severity", "UNKNOWN")).upper() for item in records)),
                 "samples": [
                     {
                         "severity": item.get("severity"),
@@ -222,8 +198,7 @@ def summarize(
         "stage_events": [
             event
             for event in events
-            if str(event.get("event", "")).startswith("stage.")
-            or str(event.get("event", "")).endswith(".completed")
+            if str(event.get("event", "")).startswith("stage.") or str(event.get("event", "")).endswith(".completed")
         ],
     }
 
@@ -233,9 +208,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
     lines = ["# Scrape run problem summary", ""]
     if summary["jobs"]:
         lines.extend(["## CI jobs", "", "| Job | Result |", "|---|---|"])
-        lines.extend(
-            f"| `{name}` | **{result}** |" for name, result in summary["jobs"].items()
-        )
+        lines.extend(f"| `{name}` | **{result}** |" for name, result in summary["jobs"].items())
         lines.append("")
 
     severity_counts = summary["severity_counts"]
@@ -254,10 +227,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
     if summary["failed_jobs"]:
         lines.extend(["## Failed or incomplete CI jobs", ""])
-        lines.extend(
-            f"- **{name}:** `{result}`"
-            for name, result in summary["failed_jobs"].items()
-        )
+        lines.extend(f"- **{name}:** `{result}`" for name, result in summary["failed_jobs"].items())
         lines.append("")
 
     if summary["groups"]:
@@ -270,14 +240,9 @@ def render_markdown(summary: dict[str, Any]) -> str:
             ]
         )
         for group in summary["groups"]:
-            levels = ", ".join(
-                f"{level}: {count}"
-                for level, count in sorted(group["severity_counts"].items())
-            )
+            levels = ", ".join(f"{level}: {count}" for level, count in sorted(group["severity_counts"].items()))
             sample = group["samples"][0] if group["samples"] else {}
-            message = (
-                str(sample.get("message") or "").replace("|", "\\|").replace("\n", " ")
-            )
+            message = str(sample.get("message") or "").replace("|", "\\|").replace("\n", " ")
             if len(message) > 220:
                 message = message[:217] + "..."
             url = sample.get("url")
@@ -293,14 +258,10 @@ def render_markdown(summary: dict[str, Any]) -> str:
         lines.extend(["## Problems", "", "No warning/error log events were found.", ""])
 
     if summary["stage_events"]:
-        lines.extend(
-            ["## Stage outcomes", "", "| Stage | Outcome | Counts |", "|---|---|---|"]
-        )
+        lines.extend(["## Stage outcomes", "", "| Stage | Outcome | Counts |", "|---|---|---|"])
         for event in summary["stage_events"]:
             counts = event.get("counts") or {}
-            count_text = ", ".join(
-                f"{key}={value}" for key, value in sorted(counts.items())
-            )
+            count_text = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
             lines.append(
                 f"| `{event.get('stage') or event.get('event')}` | "
                 f"**{event.get('outcome', 'unknown')}** | {count_text or '—'} |"
@@ -344,9 +305,7 @@ def main() -> int:
     markdown = render_markdown(summary)
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
-    args.output_json.write_text(
-        json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    args.output_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     args.output_markdown.write_text(markdown, encoding="utf-8")
     if args.step_summary:
         args.step_summary.parent.mkdir(parents=True, exist_ok=True)

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
+
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
@@ -150,17 +151,33 @@ class ScorePredictorFinder(BaseMatchFinder):
 
                 except ValueError as e:
                     # Handle individual match parsing errors
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_invalid",
-                                    message=f"Skipping ScorePredictor match on {url}: {e}",
-                                    source_key="scorepredictor", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_invalid",
+                        message=f"Skipping ScorePredictor match on {url}: {e}",
+                        source_key="scorepredictor",
+                        url=url,
+                    )
                     continue
                 except Exception as e:
                     # Handle any other unexpected errors for individual matches
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"Skipping ScorePredictor match on {url}: {e}",
-                                    source_key="scorepredictor", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping ScorePredictor match on {url}: {e}",
+                        source_key="scorepredictor",
+                        url=url,
+                    )
                     continue
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse ScorePredictor page {url}: {e}", source_key="scorepredictor", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse ScorePredictor page {url}: {e}",
+                source_key="scorepredictor",
+                url=url,
+            )

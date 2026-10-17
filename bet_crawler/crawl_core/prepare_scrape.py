@@ -111,8 +111,7 @@ def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int])
                                 reason_code="discovery_retry",
                                 level=30,
                                 message=(
-                                    f"URL discovery failed for {crawler.__class__.__name__} "
-                                    f"(attempt {attempt + 1}/3): {exc}"
+                                    f"URL discovery failed for {crawler.__class__.__name__} (attempt {attempt + 1}/3): {exc}"
                                 ),
                                 attempt=attempt + 1,
                                 max_attempts=3,
@@ -131,9 +130,7 @@ def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int])
     unique_domains = sorted({urlparse(u).netloc for u in urls if u})
     logger.info(f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}")
     event_totals = get_event_totals(stage="prepare-scrape")
-    partial = bool(
-        failed_sources or empty_sources or event_totals["errors"] or sources_with_warnings
-    )
+    partial = bool(failed_sources or empty_sources or event_totals["errors"] or sources_with_warnings)
     log_event(
         logger,
         event="stage.completed",
@@ -147,13 +144,7 @@ def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int])
             if sources_with_warnings
             else None
         ),
-        level=(
-            40
-            if failed_sources or event_totals["errors"]
-            else 30
-            if partial
-            else 20
-        ),
+        level=(40 if failed_sources or event_totals["errors"] else 30 if partial else 20),
         message="Prepare-scrape completed",
         stage="prepare-scrape",
         runner=runner,

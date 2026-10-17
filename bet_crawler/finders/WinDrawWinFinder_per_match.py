@@ -66,9 +66,16 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
             if "Voting Is Now Closed" in html:
-                log_event(logger, event="match.skipped", outcome="warning", reason_code="voting_closed",
-                          level=30, message=f"Skipping WinDrawWin match because voting is closed: {url}",
-                          source_key="windrawwin", url=url)
+                log_event(
+                    logger,
+                    event="match.skipped",
+                    outcome="warning",
+                    reason_code="voting_closed",
+                    level=30,
+                    message=f"Skipping WinDrawWin match because voting is closed: {url}",
+                    source_key="windrawwin",
+                    url=url,
+                )
                 return
             # Extract teams
             home_team, away_team = "Unknown", "Unknown"
@@ -140,5 +147,11 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             self.add_match(match)
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse WinDrawWin match page {url}: {e}", source_key="windrawwin", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse WinDrawWin match page {url}: {e}",
+                source_key="windrawwin",
+                url=url,
+            )

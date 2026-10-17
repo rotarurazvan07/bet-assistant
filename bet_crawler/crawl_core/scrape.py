@@ -14,7 +14,6 @@ from bet_crawler.crawler_logging import (
     reset_event_totals,
     source_key_for,
 )
-
 from bet_framework.MatchesManager import MatchesManager
 
 logger = get_logger(__name__)
@@ -125,16 +124,11 @@ def scrape(db_path: str, urls_str: str, crawler_factory, similarity_config: dict
             raise
 
     event_totals = get_event_totals(stage="scrape", chunk_id=chunk_id)
-    event_totals["sources_with_warnings"] = sum(
-        count > 0 for count in source_warning_counts.values()
-    )
+    event_totals["sources_with_warnings"] = sum(count > 0 for count in source_warning_counts.values())
     event_totals["matches_added"] = match_counts["matches_added"]
     event_totals["matches_skipped"] = match_counts["matches_skipped"]
     partial = bool(
-        failed_groups
-        or match_counts["match_errors"]
-        or event_totals["errors"]
-        or event_totals["sources_with_warnings"]
+        failed_groups or match_counts["match_errors"] or event_totals["errors"] or event_totals["sources_with_warnings"]
     )
     log_event(
         logger,
@@ -149,13 +143,7 @@ def scrape(db_path: str, urls_str: str, crawler_factory, similarity_config: dict
             if event_totals["sources_with_warnings"]
             else None
         ),
-        level=(
-            40
-            if failed_groups or match_counts["match_errors"] or event_totals["errors"]
-            else 30
-            if partial
-            else 20
-        ),
+        level=(40 if failed_groups or match_counts["match_errors"] or event_totals["errors"] else 30 if partial else 20),
         message="Scrape stage completed",
         stage="scrape",
         chunk_id=os.path.basename(db_path),

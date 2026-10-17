@@ -4,10 +4,9 @@ test_legitpredict.py
 
 import importlib
 import json
-
-from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 from datetime import date, timedelta
 
+from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 from bet_crawler.finders.LegitPredictFinder import LEGITPREDICT_NAME as NAME
 from bet_crawler.finders.LegitPredictFinder import LegitPredictFinder
 

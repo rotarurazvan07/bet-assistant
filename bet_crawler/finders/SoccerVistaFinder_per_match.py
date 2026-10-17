@@ -46,8 +46,13 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     logger.warning(
                         "Skipping SoccerVista league listing with missing tournament selector: %s",
                         link,
-                        extra={"event": "source.discovery.candidate_skipped", "outcome": "warning",
-                               "reason_code": "tournament_selector_missing", "source_key": "soccervista", "url": link},
+                        extra={
+                            "event": "source.discovery.candidate_skipped",
+                            "outcome": "warning",
+                            "reason_code": "tournament_selector_missing",
+                            "source_key": "soccervista",
+                            "url": link,
+                        },
                     )
 
         league_urls = [SOCCERVISTA_URL + url for url in league_urls]
@@ -76,9 +81,15 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                         "Skipping malformed SoccerVista JSON-LD candidate on %s: %s",
                         league_url,
                         e,
-                        extra={"event": "source.discovery.candidate_skipped", "outcome": "warning",
-                               "reason_code": "json_ld_parse_failed", "source_key": "soccervista", "url": league_url,
-                               "error_type": type(e).__name__, "error_message": str(e)},
+                        extra={
+                            "event": "source.discovery.candidate_skipped",
+                            "outcome": "warning",
+                            "reason_code": "json_ld_parse_failed",
+                            "source_key": "soccervista",
+                            "url": league_url,
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                        },
                     )
                     continue
 
@@ -120,8 +131,14 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             )
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse SoccerVista match page {url}: {e}", source_key="soccervista", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse SoccerVista match page {url}: {e}",
+                source_key="soccervista",
+                url=url,
+            )
 
     def _extract_match_metadata(self, soup):
         """Extract teams and kickoff datetime from a match anchor."""
@@ -188,8 +205,12 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
         else:
             logger.error(
                 "No correct score prediction found in the page",
-                extra={"event": "match.prediction_missing", "outcome": "error",
-                       "reason_code": "correct_score_prediction_missing", "source_key": "soccervista"},
+                extra={
+                    "event": "match.prediction_missing",
+                    "outcome": "error",
+                    "reason_code": "correct_score_prediction_missing",
+                    "source_key": "soccervista",
+                },
             )
             return None
 

@@ -7,6 +7,7 @@ from collections import defaultdict
 from urllib.parse import urlparse
 
 import pandas as pd
+
 from bet_crawler.crawler_logging import get_event_totals, get_logger, log_event, reset_event_totals
 
 logger = get_logger(__name__)
@@ -84,22 +85,13 @@ def _generate_merge_summary(
     missing_runner_sets = _validate_runner_sets(source_to_matches, chunk_files, runner_sets)
     _log_footer(db_path)
     event_totals = get_event_totals(stage="merge")
-    has_missing_data = bool(
-        missing_crawlers
-        or missing_runner_sets
-        or event_totals["warnings"]
-        or event_totals["errors"]
-    )
+    has_missing_data = bool(missing_crawlers or missing_runner_sets or event_totals["warnings"] or event_totals["errors"])
     log_event(
         logger,
         event="stage.completed",
         outcome="partial" if has_missing_data else "success",
         reason_code=(
-            "runner_set_missing_data"
-            if missing_runner_sets
-            else "crawler_sources_missing"
-            if missing_crawlers
-            else None
+            "runner_set_missing_data" if missing_runner_sets else "crawler_sources_missing" if missing_crawlers else None
         ),
         level=40 if missing_runner_sets or event_totals["errors"] else 30 if has_missing_data else 20,
         message="Merge stage completed",

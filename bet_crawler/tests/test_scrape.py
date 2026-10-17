@@ -126,7 +126,7 @@ class TestScrapeP0:
         configure_event_logging(str(event_path))
 
         class CountingCrawler(StubCrawler, BaseMatchFinder):
-            def __init__(self, callback):
+            def __init__(self, callback) -> None:
                 BaseMatchFinder.__init__(
                     self,
                     callback,
@@ -137,7 +137,7 @@ class TestScrapeP0:
                     skip_patterns=((r"\bU\d{2}\b", "Youth"),),
                 )
 
-            def get_matches(self, urls):
+            def get_matches(self, urls) -> None:
                 assert self.add_match(make_match(home="Arsenal U19")) is False
                 assert self.add_match(make_match(home="Eligible FC", dt=datetime.now(ZoneInfo("UTC")).replace(tzinfo=None)))
 

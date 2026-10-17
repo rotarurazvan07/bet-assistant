@@ -281,5 +281,10 @@ class ForebetFinder(BaseMatchFinder):
                 self.add_match(Match(home_team, away_team, match_date, predictions, odds, league=league))
 
             except Exception as e:
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"Skipping Forebet candidate: {e}", source_key="forebet")
+                exception_event(
+                    logger,
+                    event="match.parse.failed",
+                    reason_code="candidate_parse_failed",
+                    message=f"Skipping Forebet candidate: {e}",
+                    source_key="forebet",
+                )

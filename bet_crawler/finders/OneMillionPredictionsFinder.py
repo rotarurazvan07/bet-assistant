@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
@@ -95,9 +96,16 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         # AC-07: skip if split length < 2 or empty
                         parts = score_text.split(":")
                         if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
-                            log_event(logger, event="match.skipped", outcome="warning", reason_code="score_incomplete",
-                                      level=30, message=f"Skipping OneMillionPredictions row with incomplete score {score_text!r}",
-                                      source_key=ONE_MILLION_PREDICTIONS_NAME, url=url)
+                            log_event(
+                                logger,
+                                event="match.skipped",
+                                outcome="warning",
+                                reason_code="score_incomplete",
+                                level=30,
+                                message=f"Skipping OneMillionPredictions row with incomplete score {score_text!r}",
+                                source_key=ONE_MILLION_PREDICTIONS_NAME,
+                                url=url,
+                            )
                             continue
 
                         predictions = [
@@ -133,11 +141,21 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         )
 
                 except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                            message=f"Skipping malformed OneMillionPredictions candidate on {url}: {e}",
-                            source_key=ONE_MILLION_PREDICTIONS_NAME, url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed OneMillionPredictions candidate on {url}: {e}",
+                        source_key=ONE_MILLION_PREDICTIONS_NAME,
+                        url=url,
+                    )
 
         except Exception as e:
-                exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                        message=f"Failed to parse OneMillionPredictions page {url}: {e}",
-                        source_key=ONE_MILLION_PREDICTIONS_NAME, url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse OneMillionPredictions page {url}: {e}",
+                source_key=ONE_MILLION_PREDICTIONS_NAME,
+                url=url,
+            )

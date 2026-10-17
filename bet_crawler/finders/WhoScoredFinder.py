@@ -97,10 +97,22 @@ class WhoScoredFinder(BaseMatchFinder):
                     )
                 )
             except Exception as e:
-                exception_event(logger, event="match.parse.failed", reason_code="match_object_creation_failed",
-                                message=f"Skipping malformed WhoScored match at {url}: {e}", source_key="whoscored", url=url)
+                exception_event(
+                    logger,
+                    event="match.parse.failed",
+                    reason_code="match_object_creation_failed",
+                    message=f"Skipping malformed WhoScored match at {url}: {e}",
+                    source_key="whoscored",
+                    url=url,
+                )
                 return
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse WhoScored page {url}: {e}", source_key="whoscored", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse WhoScored page {url}: {e}",
+                source_key="whoscored",
+                url=url,
+            )

@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 
 from bs4 import BeautifulSoup, Tag
+
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
@@ -124,17 +125,31 @@ class VitibetFinder(BaseMatchFinder):
                     tokens = [] if score_div is None else score_div.text.strip().split(" : ")
                     # AC-09: skip if token is not a number
                     if len(tokens) < 2:
-                        log_event(logger, event="match.skipped", outcome="warning", reason_code="score_incomplete",
-                                  level=30, message=f"Skipping Vitibet row with incomplete score: {url}",
-                                  source_key="vitibet", url=url)
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="warning",
+                            reason_code="score_incomplete",
+                            level=30,
+                            message=f"Skipping Vitibet row with incomplete score: {url}",
+                            source_key="vitibet",
+                            url=url,
+                        )
                         continue
                     try:
                         home_score = float(tokens[0])
                         away_score = float(tokens[1])
                     except ValueError:
-                        log_event(logger, event="match.skipped", outcome="warning", reason_code="score_invalid",
-                                  level=30, message=f"Skipping Vitibet row with non-numeric score {score_div.text!r}",
-                                  source_key="vitibet", url=url)
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="warning",
+                            reason_code="score_invalid",
+                            level=30,
+                            message=f"Skipping Vitibet row with non-numeric score {score_div.text!r}",
+                            source_key="vitibet",
+                            url=url,
+                        )
                         continue
                     predictions = [Score(VITIBET_NAME, home_score, away_score)]
 
@@ -151,9 +166,21 @@ class VitibetFinder(BaseMatchFinder):
                     )
 
                 except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"Skipping malformed Vitibet candidate on {url}: {e}", source_key="vitibet", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed Vitibet candidate on {url}: {e}",
+                        source_key="vitibet",
+                        url=url,
+                    )
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse Vitibet page {url}: {e}", source_key="vitibet", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse Vitibet page {url}: {e}",
+                source_key="vitibet",
+                url=url,
+            )

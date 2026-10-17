@@ -136,10 +136,21 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                     self.add_match(Match(home_team, away_team, current_date, predictions, odds, league=league))
 
                 except Exception as e:
-                    exception_event(logger, event="match.parse.failed", reason_code="candidate_parse_failed",
-                                    message=f"Skipping malformed WinDrawWin candidate on {url}: {e}",
-                                    source_key="windrawwin", url=url)
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed WinDrawWin candidate on {url}: {e}",
+                        source_key="windrawwin",
+                        url=url,
+                    )
 
         except Exception as e:
-            exception_event(logger, event="source.page.failed", reason_code="page_parse_failed",
-                            message=f"Failed to parse WinDrawWin league page {url}: {e}", source_key="windrawwin", url=url)
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse WinDrawWin league page {url}: {e}",
+                source_key="windrawwin",
+                url=url,
+            )
