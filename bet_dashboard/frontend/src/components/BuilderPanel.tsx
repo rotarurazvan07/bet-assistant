@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react';
 import { BaseCard } from './ui/BaseCard';
 import { BaseDataRow } from './ui/BaseDataRow';
 import { TooltipIcon } from './ui';
-import { TradeoffSlider } from './TradeoffSlider';
 import type { BuilderConfig } from '../types';
 import { ALL_MARKETS } from '../types';
 
@@ -223,6 +222,31 @@ function InlineSlider({ value, min, max, step, format, onChange, showCenter = fa
                 style={{ color: 'var(--accent)' }}>
                 {fmt(value)}
             </span>
+        </div>
+    );
+}
+
+// ── Dual Slider ───────────────────────────────────────────────────────────────
+
+function DualSlider({ label, tip, left, right, value, onChange, disabled = false }: {
+    label: string; tip?: string; left: string; right: string; value: number; onChange: (v: number) => void;
+    disabled?: boolean;
+}) {
+    return (
+        <div className="py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            {label && (
+                <div className="flex items-center gap-1 mb-2">
+                    <span className="text-[11px] font-sans font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                    {tip && <TooltipIcon text={tip} align="right" />}
+                </div>
+            )}
+            <div className={`flex items-center gap-2 ${disabled ? 'opacity-40 grayscale pointer-events-none' : ''}`}>
+                <span className="text-[10px] font-mono w-16 text-right shrink-0 font-bold opacity-60" style={{ color: 'var(--win)' }}>{left}</span>
+                <div className="flex-1">
+                    <SliderWithTicks min={0} max={100} step={5} value={value * 100} onChange={v => onChange(v / 100)} showCenter={true} dual={true} disabled={disabled} />
+                </div>
+                <span className="text-[10px] font-mono w-16 shrink-0 font-bold opacity-60" style={{ color: 'var(--accent)' }}>{right}</span>
+            </div>
         </div>
     );
 }
@@ -500,24 +524,16 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                 tip="Two sliders decide how the builder trades breadth against strength when it picks legs."
                 defaultOpen={false}
             >
-                <TradeoffSlider
-                    label="Quality vs Balance"
-                    tip="Trade-off between how many legs are picked and how good each leg is. Left = more, safer legs (balance); Right = fewer, stronger legs (quality)."
-                    leftLabel="More picks, lower avg quality"
-                    rightLabel="Fewer picks, higher avg quality"
-                    leftMode="Balance-focused"
-                    rightMode="Quality-focused"
-                    centerLabel="Balanced"
+                <DualSlider
+                    label="Distribution Logic"
+                    tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality."
+                    left="Balance" right="Quality"
                     value={cfg.quality_vs_balance}
                     onChange={v => up('quality_vs_balance', v)} />
-                <TradeoffSlider
-                    label="Sources vs Consensus"
-                    tip="How much a leg's score leans on how many sources back it versus how strongly they agree. Left = source count; Right = consensus strength."
-                    leftLabel="Trust many weak sources"
-                    rightLabel="Trust few strong sources"
-                    leftMode="Source-count"
-                    rightMode="Consensus-driven"
-                    centerLabel="Balanced"
+                <DualSlider
+                    label="Agreement Logic"
+                    tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources."
+                    left="Sources" right="Consensus"
                     value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources}
                     disabled={cfg.consensus_floor === 100}
                     onChange={v => up('consensus_vs_sources', v)} />
