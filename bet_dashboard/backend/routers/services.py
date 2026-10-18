@@ -78,9 +78,7 @@ def get_services(request: Request):
             "minute": minute,
             "interval_seconds": svc.interval,
             "next_run": next_run,
-            "last_time_generated": runtime_cfg.get("last_time_generated")
-            if name == "generator"
-            else None,
+            "last_time_generated": runtime_cfg.get("last_time_generated") if name == "generator" else None,
         }
 
     return {
