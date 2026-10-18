@@ -313,18 +313,28 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
     // AC-3: '+' creates a profile copying the CURRENT builder config. Name is
     // the smallest unused new{N} — deterministic even after deletions.
+    const createBusy = useRef(false);
     async function handleCreateProfile() {
-        let n = 1;
-        while (`new${n}` in profiles) n += 1;
-        const name = `new${n}`;
-        const payload = { name, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout };
-        // ponytail: optimistic select from the payload we just sent — avoids a
-        // race where the refetch returns before the write lands.
-        await saveProfile(payload);
-        const updated = await fetchProfiles();
-        setProfiles(updated ?? {});
-        loadProfile(name, updated?.[name] ?? (payload as unknown as Profile));
-        setStatus(`✓ Profile '${name}' saved`);
+        // Two fast clicks would both read the same stale profiles map and
+        // both save 'new1' (POST overwrites same-name profiles) — guard the
+        // in-flight save so '+' is single-shot until the refetch lands.
+        if (createBusy.current) return;
+        createBusy.current = true;
+        try {
+            let n = 1;
+            while (`new${n}` in profiles) n += 1;
+            const name = `new${n}`;
+            const payload = { name, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout };
+            // ponytail: optimistic select from the payload we just sent — avoids a
+            // race where the refetch returns before the write lands.
+            await saveProfile(payload);
+            const updated = await fetchProfiles();
+            setProfiles(updated ?? {});
+            loadProfile(name, updated?.[name] ?? (payload as unknown as Profile));
+            setStatus(`✓ Profile '${name}' saved`);
+        } finally {
+            createBusy.current = false;
+        }
     }
 
     async function handleAddToSlips() {
@@ -526,8 +536,10 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                     label: 'Select a Preset',
                                     onClick: () => {
                                         // AC-1: combobox is gone — focus the first profile
-                                        // card so keyboard users land on the new control.
-                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] [role="button"]');
+                                        // card button so keyboard users land on the new
+                                        // control. Query a real <button> (the profile
+                                        // select control is native — no explicit role).
+                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] button');
                                         target?.focus();
                                         target?.scrollIntoView({ block: 'center' });
                                     },

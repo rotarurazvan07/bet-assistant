@@ -191,6 +191,29 @@ describe('SmartBuilder page', () => {
         expect(card).toHaveAttribute('aria-pressed', 'true');
     });
 
+    it('AC-3: rapid double-click on + never creates a duplicate name', async () => {
+        // Two clicks with the in-flight guard may still both save (that is
+        // legitimate: new1 then new2) — the invariant is that no name is
+        // written twice. Without the guard both clicks read the same stale
+        // profiles map and both POST 'new1'.
+        const user = userEvent.setup();
+        const savedNames: string[] = [];
+        server.use(
+            http.post('/api/profiles', async ({ request }) => {
+                const body = await request.json() as Record<string, unknown>;
+                savedNames.push(String(body.name));
+                profileMap[String(body.name)] = body as unknown as ReturnType<typeof makeProfile>;
+                return HttpResponse.json({ status: 'ok' });
+            }),
+        );
+        await renderAndHydrate();
+        await user.dblClick(screen.getByRole('button', { name: '+' }));
+        await waitFor(() => expect(savedNames.length).toBeGreaterThan(0), { timeout: 3000 });
+        // any names that did land must be unique
+        expect(new Set(savedNames).size).toBe(savedNames.length);
+        expect(savedNames.some(n => n !== 'new1' && n !== 'new2')).toBe(false);
+    });
+
     it('AC-3: + picks new2 when new1 already exists', async () => {
         const user = userEvent.setup();
         profileMap = { ...PROFILES, new1: makeProfile({ target_odds: 2 }) };
