@@ -54,7 +54,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     });
     const [units, setUnits] = useState(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).units : 1.0;
+        return saved ? (JSON.parse(saved).units ?? 1.0) : 1.0;
     });
 
     // New: Target Payout logic
@@ -85,6 +85,21 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
     // Load profiles + excluded on mount
     useEffect(() => {
+        // Legacy payloads kept a `runDaily` key that no longer exists in this
+        // page (moved to Services); drop it once so storage stays clean
+        // (AC-infra: removed keys are cleaned safely on load, review F16).
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved) as Record<string, unknown>;
+                if ('runDaily' in parsed) {
+                    delete parsed.runDaily;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                }
+            } catch {
+                // Corrupt payload: leave it for the writer to overwrite.
+            }
+        }
         fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
         fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
@@ -121,9 +136,12 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
 
     // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
+    const lastExcluded = useRef<string | null>(null);
     useEffect(() => {
+        if (lastExcluded.current === JSON.stringify(cfg.excluded_sources ?? null)) return;
+        lastExcluded.current = JSON.stringify(cfg.excluded_sources ?? null);
         triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
-    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: fires ONLY on excluded_sources; other cfg fields flow through handleCfgChange
+    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- cfg is read, not tracked: exclusion-only trigger with a change guard
 
     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
     useEffect(() => {
@@ -206,6 +224,13 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
 
     async function handleDeleteProfile() {
         if (!activeName || activeName === 'manual') return;
+        // Deleting a name that is not a saved profile would either 404 or
+        // remove the wrong file after a typo (review F9) — block and tell the
+        // user instead.
+        if (!(activeName in profiles)) {
+            setStatus(`'${activeName}' is not a saved profile`);
+            return;
+        }
         await deleteProfile(activeName);
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
@@ -316,6 +341,10 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                     <TextField {...params} placeholder="profile name" />
                                 )}
                             />
+                        </div>
+
+                        {/* Zone 3 — actions: persist / discard the profile above */}
+                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
                             <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
                             <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
                         </div>

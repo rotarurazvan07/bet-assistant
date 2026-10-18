@@ -91,8 +91,6 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
       className="relative inline-flex items-center"
       style={{ cursor: 'default' }}
       tabIndex={0}
-      role="button"
-      aria-label={text}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
       onFocus={() => setVisible(true)}

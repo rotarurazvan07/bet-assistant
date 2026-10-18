@@ -31,6 +31,20 @@ from bet_framework.core.Slip import CandidateLeg
 from bet_framework.MatchesManager import MatchesManager
 
 
+def _order_sort_key(value: Any) -> tuple[int, float]:
+    """Sort key for profile ``order`` values that must never raise.
+
+    Hand-edited profile YAML can hold "2" (string) or 2.5 (float) next to an
+    int, and a TypeError inside the generator ticker predicate would kill the
+    daemon thread (review F4). Numeric values sort first by their number;
+    anything unparseable sorts last, alphabetically.
+    """
+    try:
+        return (0, float(value))
+    except (TypeError, ValueError):
+        return (1, 0.0)
+
+
 def _units_std(settled, n_settled: int, avg_units: float) -> float:
     """Sample standard deviation of stakes (0.0 when fewer than two slips)."""
     if n_settled <= 1:
@@ -297,7 +311,7 @@ class AppLogic:
                 runtime = self._settings.get("runtime_state") or {}
                 runtime["last_time_generated"] = datetime.now().isoformat()
                 self._settings.write("runtime_state", runtime)
-            self._broadcast_slips_updated()
+                self._broadcast_slips_updated()
         except Exception as exc:
             print(f"[Generator] ERROR: {exc}")
 
@@ -343,37 +357,37 @@ class AppLogic:
         return stamps.get(name) != today_key
 
     def _is_profile_due(self, name: str, now: datetime | None = None) -> bool:
-        """Daemon due-check: only explicit per-profile windows gate a run.
+        """Daemon due-check.
 
-        Profiles without their own hour/minute (legacy or unknown) stay due
-        because the global daily guard was already consumed by the predicate.
+        Legacy profiles (no per-profile hour/minute) are gated by the same
+        once-per-day stamp as per-profile ones, so a profile invoked directly
+        (manual generation, tests) cannot regenerate twice in one day
+        (review F2).
         """
-        cfg = self._profile_cfg(name)
-        if cfg.get("generate_hour") is None or cfg.get("generate_minute") is None:
-            return True
-        return self._profile_schedule_met(name, cfg, now=now)
+        return self._profile_schedule_met(name, now=now)
 
     def _claim_profile_runs(self, profiles: dict) -> None:
-        """Persist today's per-profile run stamps for generated profiles."""
+        """Persist today's run stamps for every generated profile.
+
+        Stamping all profiles (not only per-profile ones) keeps the claim
+        symmetric with ``_is_profile_due`` so a legacy profile cannot
+        regenerate twice in a day (review F2).
+        """
         today_key = datetime.now().strftime("%Y-%m-%d")
         runtime = self._settings.get("runtime_state") or {}
         stamps = runtime.get("profile_last_generated") or {}
         for name in profiles:
-            cfg = self._profile_cfg(name)
-            if (
-                cfg.get("generate_hour") is not None
-                and cfg.get("generate_minute") is not None
-            ):
-                stamps[name] = today_key
-        if stamps:
-            runtime["profile_last_generated"] = stamps
-            self._settings.write("runtime_state", runtime)
+            stamps[name] = today_key
+        runtime["profile_last_generated"] = stamps
+        self._settings.write("runtime_state", runtime)
 
     def get_profile_schedules(self) -> list[dict]:
-        """Profile schedule rows for the Services UI (every saved profile)."""
-        svc_cfg = self._settings.get("services") or {}
-        legacy_hour = svc_cfg.get("generate_hour", 8)
-        legacy_minute = svc_cfg.get("generate_minute", 0)
+        """Profile schedule rows for the Services UI (every saved profile).
+
+        Persisted values only: a profile without its own order/window reports
+        ``None`` rather than a fabricated default, so a later Save cannot
+        materialize ``order: 0`` or pin a legacy window into YAML (review F3).
+        """
         rows = []
         for name, cfg in (self._settings.get("profiles") or {}).items():
             rows.append(
@@ -382,11 +396,11 @@ class AppLogic:
                     "auto_generate": bool(
                         cfg.get("auto_generate") or cfg.get("run_daily_count", 0) > 0
                     ),
-                    "generate_hour": cfg.get("generate_hour", legacy_hour),
-                    "generate_minute": cfg.get("generate_minute", legacy_minute),
+                    "generate_hour": cfg.get("generate_hour"),
+                    "generate_minute": cfg.get("generate_minute"),
                     "units": cfg.get("units", 1.0),
                     "target_payout": cfg.get("target_payout"),
-                    "order": cfg.get("order", 0),
+                    "order": cfg.get("order"),
                 }
             )
         return rows
@@ -411,7 +425,7 @@ class AppLogic:
                         "target_payout",
                         "order",
                     )
-                    if row.get(k) is not None
+                    if k in row
                 }
             )
             if row.get("run_daily_count") is not None:
@@ -964,7 +978,7 @@ class AppLogic:
         }
         ordered = sorted(
             (n for n, c in active.items() if c.get("order") is not None),
-            key=lambda n: active[n]["order"],
+            key=lambda n: _order_sort_key(active[n]["order"]),
         )
         unordered = [n for n, c in active.items() if c.get("order") is None]
         return {

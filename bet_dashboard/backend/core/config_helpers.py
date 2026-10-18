@@ -35,7 +35,11 @@ def _config_to_yaml_dict(
         d[k] = None
     d["units"] = units
     d["target_payout"] = target_payout
-    d["run_daily_count"] = run_daily_count
+    # run_daily_count is opt-in like the scheduling keys below: an omitted
+    # (None) value keeps whatever is already persisted instead of resetting
+    # a legacy auto-generation profile to 0.
+    if run_daily_count is not None:
+        d["run_daily_count"] = run_daily_count
     # T4 scheduling/ordering keys are opt-in: only persisted when explicitly set
     if order is not None:
         d["order"] = order

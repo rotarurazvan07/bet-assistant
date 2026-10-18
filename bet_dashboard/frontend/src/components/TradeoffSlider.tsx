@@ -10,6 +10,10 @@ export interface TradeoffSliderProps {
     leftLabel: string;
     rightLabel: string;
     centerLabel?: string;
+    /** Short position names shown instead of the end labels once the slider
+     * leaves the midpoint (AC-41a: e.g. "Balance-focused" / "Quality-focused"). */
+    leftMode?: string;
+    rightMode?: string;
     label: string;
     tip: string;
     value: number; // 0..1
@@ -17,12 +21,13 @@ export interface TradeoffSliderProps {
     disabled?: boolean;
 }
 
-export default function TradeoffSlider({
-    leftLabel, rightLabel, centerLabel = 'Balanced', label, tip, value, onChange, disabled = false,
+export function TradeoffSlider({
+    leftLabel, rightLabel, centerLabel = 'Balanced', leftMode, rightMode, label, tip, value, onChange, disabled = false,
 }: TradeoffSliderProps) {
-    // Away from the midpoint the visible label names the dominant end.
+    // Away from the midpoint the visible label names the dominant position;
+    // the descriptive end labels stay visible as the axis captions.
     const pct = value * 100;
-    const active = pct > 50 ? rightLabel : pct < 50 ? leftLabel : centerLabel;
+    const active = pct > 50 ? (rightMode ?? rightLabel) : pct < 50 ? (leftMode ?? leftLabel) : centerLabel;
 
     return (
         <div style={{ opacity: disabled ? 0.4 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>

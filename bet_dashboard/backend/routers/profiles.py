@@ -24,11 +24,20 @@ def list_profiles(request: Request):
 
 @router.post("")
 def save_profile(request: Request, body: ProfileIn):
-    """Persist a named builder profile."""
+    """Persist a named builder profile.
+
+    Scheduling/ordering keys (run_daily_count, order, auto_generate,
+    generate_hour, generate_minute) are tri-state in the payload: when the
+    caller omits them, the values already persisted for this profile are
+    carried over instead of being reset. That keeps a Smart Builder save from
+    silently wiping a schedule configured on the Services page (review F1).
+    """
     app = _get(request)
     name = "".join(c for c in body.name if c.isalnum() or c in ("_", "-")).lower()
     if not name:
         raise HTTPException(400, "Invalid profile name")
+
+    existing = (app.settings.get("profiles") or {}).get(name, {})
 
     # Use shared helper to convert ProfileIn to YAML dict
     data = _config_to_yaml_dict(
@@ -60,7 +69,24 @@ def save_profile(request: Request, body: ProfileIn):
         units=body.units,
         target_payout=body.target_payout,
         run_daily_count=body.run_daily_count,
+        order=body.order,
+        auto_generate=body.auto_generate,
+        generate_hour=body.generate_hour,
+        generate_minute=body.generate_minute,
     )
+    # Omitted scheduling keys keep their persisted values; unknown keys on
+    # disk are carried over so future additions are not dropped.
+    for key in (
+        "run_daily_count",
+        "order",
+        "auto_generate",
+        "generate_hour",
+        "generate_minute",
+    ):
+        if key not in data and key in existing:
+            data[key] = existing[key]
+    for key, value in existing.items():
+        data.setdefault(key, value)
     app.settings.write(name, data, subpath="profiles")
     return {"name": name, "data": data}
 
