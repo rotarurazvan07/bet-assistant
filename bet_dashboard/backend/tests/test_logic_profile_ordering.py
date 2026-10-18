@@ -8,6 +8,7 @@ per-profile filtering, and the services router profile_schedules contract.
 from datetime import datetime
 
 import pytest
+
 from tests.logic_test_helpers import build_app
 
 PROFILE = {
@@ -23,7 +24,7 @@ PROFILE = {
 }
 
 
-def _freeze(monkeypatch, year=2026, month=9, day=24, hour=9, minute=0):
+def _freeze(monkeypatch, year=2026, month=9, day=24, hour=9, minute=0) -> None:
     """Pin core.logic.datetime.now() to a fixed wall-clock time."""
 
     class Frozen(datetime):
@@ -42,7 +43,7 @@ def env(tmp_path, monkeypatch):
     built.app._matches_manager.close()
 
 
-def _save_profiles(app, profiles):
+def _save_profiles(app, profiles) -> None:
     """Write raw profile YAML dicts through the SettingsManager."""
     for name, cfg in profiles.items():
         app.settings.write(name, cfg, subpath="profiles")
@@ -53,9 +54,7 @@ class TestGetActiveProfilesOrdering:
 
     def test_legacy_run_daily_count_only(self, env) -> None:
         """[P0] Legacy run_daily_count>0 profiles stay active with same tuple shape."""
-        _save_profiles(
-            env.app, {"a": {**PROFILE, "run_daily_count": 2}, "b": {**PROFILE}}
-        )
+        _save_profiles(env.app, {"a": {**PROFILE, "run_daily_count": 2}, "b": {**PROFILE}})
         active = env.app._get_active_profiles()
         assert list(active) == ["a"]
         cfg, units, count, payout = active["a"]
@@ -84,9 +83,7 @@ class TestGetActiveProfilesOrdering:
 
     def test_auto_generate_active_without_run_daily_count(self, env) -> None:
         """[P0] auto_generate-only profiles are active and default to count 1."""
-        _save_profiles(
-            env.app, {"auto": {**PROFILE, "auto_generate": True}, "off": {**PROFILE}}
-        )
+        _save_profiles(env.app, {"auto": {**PROFILE, "auto_generate": True}, "off": {**PROFILE}})
         active = env.app._get_active_profiles()
         assert list(active) == ["auto"]
         assert active["auto"][2] == 1
@@ -185,9 +182,7 @@ class TestGeneratorPredicatePerProfile:
 class TestDoGeneratePerProfile:
     """[P0] _do_generate filters to due profiles and stamps per-profile runs."""
 
-    def test_due_profile_generates_and_stamps(
-        self, env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_due_profile_generates_and_stamps(self, env, monkeypatch, broadcast_capture) -> None:
         """[P0] The due profile generates a slip and gets a per-profile stamp."""
         from tests.logic_test_helpers import seed_matches_db
 
@@ -224,9 +219,7 @@ class TestDoGeneratePerProfile:
         assert "later" not in (runtime.get("profile_last_generated") or {})
         assert broadcast_capture[-1]["event"] == "slips_updated"
 
-    def test_nothing_due_generates_nothing(
-        self, env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_nothing_due_generates_nothing(self, env, monkeypatch, broadcast_capture) -> None:
         """[P0] When no profile is due nothing generates and no timestamps persist."""
         _save_profiles(
             env.app,
@@ -324,17 +317,13 @@ class TestProfileSchedulesAPI:
         assert stored["run_daily_count"] == 1  # untouched keys survive
         assert stored["target_odds"] == PROFILE["target_odds"]
 
-    def test_save_profile_schedules_clears_target_payout_with_explicit_null(
-        self, env
-    ) -> None:
+    def test_save_profile_schedules_clears_target_payout_with_explicit_null(self, env) -> None:
         """[P1] F5: an explicit null clears target_payout instead of being ignored."""
         _save_profiles(
             env.app,
             {"p": {**PROFILE, "auto_generate": True, "target_payout": 99.0}},
         )
-        env.app.save_profile_schedules(
-            [{"name": "p", "auto_generate": True, "target_payout": None}]
-        )
+        env.app.save_profile_schedules([{"name": "p", "auto_generate": True, "target_payout": None}])
         stored = env.app.settings.get("profiles")["p"]
         assert stored["target_payout"] is None
         assert stored["auto_generate"] is True
@@ -368,7 +357,5 @@ class TestOrderingRobustness:
         monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {})
         _freeze(monkeypatch, hour=9)
         env.app._do_generate()
-        stamps = (env.app.settings.get("runtime_state") or {}).get(
-            "profile_last_generated"
-        ) or {}
+        stamps = (env.app.settings.get("runtime_state") or {}).get("profile_last_generated") or {}
         assert stamps.get("legacy") == "2026-09-24"

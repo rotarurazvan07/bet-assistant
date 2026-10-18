@@ -13,9 +13,7 @@ _RUNTIME_ONLY: set[str] = {"date_from", "date_to", "excluded_urls"}
 
 def _yaml_to_config(data: dict) -> BetSlipConfig:
     """Convert a profile YAML dict to a BetSlipConfig, ignoring runtime-only keys."""
-    kwargs = {
-        k: v for k, v in data.items() if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY
-    }
+    kwargs = {k: v for k, v in data.items() if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY}
     return BetSlipConfig(**kwargs)
 
 

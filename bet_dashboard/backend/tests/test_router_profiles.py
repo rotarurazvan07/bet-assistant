@@ -6,9 +6,7 @@ BASE = "/api/profiles"
 class TestSaveProfileSchedulePreservation:
     """[P0] F1: a builder save must not wipe Services-configured scheduling."""
 
-    def test_omitted_scheduling_keys_keep_persisted_values(
-        self, client, fake_app
-    ) -> None:
+    def test_omitted_scheduling_keys_keep_persisted_values(self, client, fake_app) -> None:
         """[P0] Order/schedule/auto_generate/run_daily_count survive an omit."""
         fake_app.settings.get.return_value = {
             "safebet": {
@@ -98,9 +96,7 @@ class TestSaveProfile:
         assert data["data"]["units"] == 2.5
         assert data["data"]["run_daily_count"] == 3
 
-    def test_save_name_with_underscores_and_dashes_preserved(
-        self, client, fake_app
-    ) -> None:
+    def test_save_name_with_underscores_and_dashes_preserved(self, client, fake_app) -> None:
         client.post(BASE, json=self._body(name="Pro_2-Go"))
         assert fake_app.settings.write.call_args[0][0] == "pro_2-go"
 

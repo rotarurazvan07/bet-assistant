@@ -17,6 +17,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
+
 from tests.logic_test_helpers import (
     FakeHTTPResponse,
     FakeTicker,
@@ -109,9 +110,7 @@ class TestAppLogicLifecycle:
         assert isinstance(ts, str) and ts != "Unknown"
         assert len(ts) == len("2030-01-01 10:00")
 
-    def test_last_pull_timestamp_missing_db_returns_unknown(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_last_pull_timestamp_missing_db_returns_unknown(self, tmp_path, monkeypatch) -> None:
         """[P2] Missing matches DB yields 'Unknown' instead of raising."""
         env = build_app(tmp_path, monkeypatch, rows=[])
         try:
@@ -140,9 +139,7 @@ class TestAppLogicLifecycle:
         df.drop(df.index, inplace=True)
         assert len(app_env.app.match_df) == 3
 
-    def test_refresh_data_with_excluded_sources_recalculates_consensus(
-        self, app_env
-    ) -> None:
+    def test_refresh_data_with_excluded_sources_recalculates_consensus(self, app_env) -> None:
         """[P1] Excluding the dissenting source lifts home consensus to 100%."""
         df = app_env.app.refresh_data(excluded_sources=["windrawwin"])
         assert df.iloc[0]["sources"] == 3
@@ -179,9 +176,7 @@ class TestAppLogicLifecycle:
 
         return fake
 
-    def test_pull_matches_db_downloads_merges_and_refreshes(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_pull_matches_db_downloads_merges_and_refreshes(self, app_env, monkeypatch) -> None:
         """[P0] Pull downloads the release DB, preserves history, refreshes data."""
         fresh_db = app_env.tmp_path / "fresh.db"
         fresh_rows = []
@@ -201,18 +196,14 @@ class TestAppLogicLifecycle:
         result = app_env.app.pull_matches_db(app_env.matches_db)
 
         assert result == "Pull successful"
-        assert captured == [
-            "https://github.com/acme/bet-test/releases/download/latest-db/final_matches.db"
-        ]
+        assert captured == ["https://github.com/acme/bet-test/releases/download/latest-db/final_matches.db"]
         assert len(app_env.app.match_df) == 3
         assert app_env.app.match_df.iloc[0]["odds"]["home"] == 2.1  # fresh odds won
         history = app_env.app.get_odds_history(0)
         assert len(history) == 2  # 1 preserved + 1 appended snapshot
         assert history[0]["timestamp"] == "2030-01-01T10:00:00"
 
-    def test_pull_matches_db_download_error_raises_runtime_error(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_pull_matches_db_download_error_raises_runtime_error(self, app_env, monkeypatch) -> None:
         """[P1] URLError during download is wrapped into RuntimeError."""
 
         def boom(url, dest):
@@ -224,9 +215,7 @@ class TestAppLogicLifecycle:
 
     # ── Service toggles & settings ─────────────────────────────────────────
 
-    def test_toggle_service_disables_persists_and_broadcasts(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_toggle_service_disables_persists_and_broadcasts(self, app_env, broadcast_capture) -> None:
         """[P0] Toggle flips state, persists to services.yaml, broadcasts WS event."""
         app = app_env.app
         result = app.toggle_service("puller")
@@ -237,9 +226,7 @@ class TestAppLogicLifecycle:
         assert broadcast_capture[-1]["name"] == "puller"
         assert broadcast_capture[-1]["enabled"] is False
 
-    def test_toggle_service_reenables_on_second_toggle(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_toggle_service_reenables_on_second_toggle(self, app_env, broadcast_capture) -> None:
         """[P0] Toggling twice returns to enabled and persists True."""
         app = app_env.app
         app.toggle_service("verifier")
@@ -249,9 +236,7 @@ class TestAppLogicLifecycle:
         assert app.settings.get("services")["toggles"]["verifier"] is True
         assert broadcast_capture[-1]["enabled"] is True
 
-    def test_toggle_service_unknown_name_returns_false(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_toggle_service_unknown_name_returns_false(self, app_env, broadcast_capture) -> None:
         """[P1] Unknown service name returns False without config or broadcast."""
         result = app_env.app.toggle_service("nope")
         assert result is False
@@ -278,9 +263,7 @@ class TestAppLogicLifecycle:
     def _freeze_now(self, monkeypatch) -> None:
         monkeypatch.setattr("core.logic.datetime", self._Frozen)
 
-    def test_generator_predicate_false_before_target_time(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_generator_predicate_false_before_target_time(self, app_env, monkeypatch) -> None:
         """[P0] Before the configured generate time the predicate never fires."""
         app = app_env.app
         app.save_service_settings(12, 0)  # target 12:00; frozen now is 09:00
@@ -288,27 +271,21 @@ class TestAppLogicLifecycle:
         assert app._is_generator_hour_met() is False
         assert app._last_generator_run is None
 
-    def test_generator_predicate_true_on_first_call_after_target(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_generator_predicate_true_on_first_call_after_target(self, app_env, monkeypatch) -> None:
         """[P0] First evaluation after the target time fires once per day."""
         app = app_env.app
         self._freeze_now(monkeypatch)
         assert app._is_generator_hour_met() is True
         assert app._last_generator_run == "2026-09-24"
 
-    def test_generator_predicate_in_memory_guard_blocks_second_call(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_generator_predicate_in_memory_guard_blocks_second_call(self, app_env, monkeypatch) -> None:
         """[P0] The in-memory guard blocks a second run on the same day."""
         app = app_env.app
         self._freeze_now(monkeypatch)
         assert app._is_generator_hour_met() is True
         assert app._is_generator_hour_met() is False
 
-    def test_generator_predicate_respects_persisted_timestamp_same_day(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_generator_predicate_respects_persisted_timestamp_same_day(self, tmp_path, monkeypatch) -> None:
         """[P0] On restart a same-day persisted timestamp blocks the run and syncs the guard."""
         env = build_app(
             tmp_path,
@@ -325,9 +302,7 @@ class TestAppLogicLifecycle:
             app._assistant.conn.close()
             app._matches_manager.close()
 
-    def test_generator_predicate_persisted_yesterday_runs_again(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_generator_predicate_persisted_yesterday_runs_again(self, tmp_path, monkeypatch) -> None:
         """[P1] A persisted timestamp from yesterday does not block today's run."""
         env = build_app(
             tmp_path,
@@ -342,9 +317,7 @@ class TestAppLogicLifecycle:
             app._assistant.conn.close()
             app._matches_manager.close()
 
-    def test_generator_predicate_invalid_persisted_timestamp_runs(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_generator_predicate_invalid_persisted_timestamp_runs(self, tmp_path, monkeypatch) -> None:
         """[P2] A corrupt persisted timestamp is ignored; the run proceeds."""
         env = build_app(
             tmp_path,
@@ -374,52 +347,37 @@ class TestAppLogicLifecycle:
 
         monkeypatch.setattr("urllib.request.urlopen", fake)
 
-    def test_check_for_changes_head_request_new_etag_returns_true(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_check_for_changes_head_request_new_etag_returns_true(self, app_env, monkeypatch) -> None:
         """[P0] First HEAD with a new ETag reports change and stores the ETag."""
         captured: list = []
-        self._patch_urlopen(
-            monkeypatch, response=FakeHTTPResponse({"ETag": "v1"}), captured=captured
-        )
+        self._patch_urlopen(monkeypatch, response=FakeHTTPResponse({"ETag": "v1"}), captured=captured)
         monkeypatch.setenv("REPO", "acme/bet-test")
         assert app_env.app._check_for_changes() is True
         method, url = captured[0]
         assert method == "HEAD"
-        assert (
-            url
-            == "https://github.com/acme/bet-test/releases/download/latest-db/final_matches.db"
-        )
+        assert url == "https://github.com/acme/bet-test/releases/download/latest-db/final_matches.db"
         assert app_env.app._last_etag == "v1"
 
-    def test_check_for_changes_same_etag_returns_false(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_check_for_changes_same_etag_returns_false(self, app_env, monkeypatch) -> None:
         """[P0] An unchanged ETag means no download is needed."""
         self._patch_urlopen(monkeypatch, response=FakeHTTPResponse({"ETag": "v1"}))
         app_env.app._check_for_changes()
         assert app_env.app._check_for_changes() is False
 
-    def test_check_for_changes_changed_etag_returns_true(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_check_for_changes_changed_etag_returns_true(self, app_env, monkeypatch) -> None:
         """[P0] A changed ETag triggers a new download."""
         self._patch_urlopen(monkeypatch, response=FakeHTTPResponse({"ETag": "v2"}))
         app_env.app._last_etag = "v1"
         assert app_env.app._check_for_changes() is True
         assert app_env.app._last_etag == "v2"
 
-    def test_check_for_changes_missing_etag_header_always_downloads(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_check_for_changes_missing_etag_header_always_downloads(self, app_env, monkeypatch) -> None:
         """[P1] Without an ETag header every check reports a change."""
         self._patch_urlopen(monkeypatch, response=FakeHTTPResponse({}))
         assert app_env.app._check_for_changes() is True
         assert app_env.app._check_for_changes() is True
 
-    def test_check_for_changes_request_error_downloads_anyway(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_check_for_changes_request_error_downloads_anyway(self, app_env, monkeypatch) -> None:
         """[P1] HEAD failure falls back to attempting the download."""
         self._patch_urlopen(monkeypatch, error=OSError("boom"))
         assert app_env.app._check_for_changes() is True
@@ -437,9 +395,7 @@ class TestAppLogicLifecycle:
         """[P0] Movement equals MatchesManager calculation on the same embedded odds."""
         app = app_env.app
         odds = app.match_df.iloc[0]["odds"]
-        assert app.get_odds_movement(
-            0
-        ) == app._matches_manager.calculate_movement_from_odds(odds)
+        assert app.get_odds_movement(0) == app._matches_manager.calculate_movement_from_odds(odds)
         assert app.get_odds_movement(0)["home"] == "up"  # 1.8 → 1.9
 
     def test_get_odds_movement_invalid_index_returns_empty(self, app_env) -> None:
@@ -451,9 +407,7 @@ class TestAppLogicLifecycle:
         """[P1] With no matches loaded there is nothing to report."""
         assert bare_env.app.get_odds_movement(0) == {}
 
-    def test_get_odds_movement_row_without_odds_returns_empty(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_get_odds_movement_row_without_odds_returns_empty(self, tmp_path, monkeypatch) -> None:
         """[P1] A row whose odds failed to deserialize yields no movement."""
         env = build_app(tmp_path, monkeypatch, rows=[make_match_row_db(odds="null")])
         try:
@@ -484,9 +438,7 @@ class TestAppLogicLifecycle:
 
     # ── Ticker callbacks ────────────────────────────────────────────────────
 
-    def test_do_pull_pulls_and_broadcasts_matches_updated(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_do_pull_pulls_and_broadcasts_matches_updated(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P0] _do_pull downloads into the matches DB path, then broadcasts."""
         app = app_env.app
         calls: list = []
@@ -501,9 +453,7 @@ class TestAppLogicLifecycle:
         assert broadcast_capture[-1]["event"] == "matches_updated"
         assert broadcast_capture[-1]["timestamp"] == app.last_pull_timestamp
 
-    def test_do_pull_swallows_errors_without_broadcast(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_do_pull_swallows_errors_without_broadcast(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] A failing pull is logged, swallowed, and never broadcast."""
 
         def boom(path):
@@ -513,9 +463,7 @@ class TestAppLogicLifecycle:
         app_env.app._do_pull()  # must not raise
         assert not broadcast_capture
 
-    def test_do_generate_generates_slips_and_persists_timestamp(
-        self, tmp_path, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_do_generate_generates_slips_and_persists_timestamp(self, tmp_path, monkeypatch, broadcast_capture) -> None:
         """[P0] With an active daily profile the generator saves a slip and a timestamp."""
         profiles = {
             "p1": {
@@ -549,17 +497,13 @@ class TestAppLogicLifecycle:
             app._assistant.conn.close()
             app._matches_manager.close()
 
-    def test_do_generate_without_profiles_broadcasts_nothing(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_do_generate_without_profiles_broadcasts_nothing(self, app_env, broadcast_capture) -> None:
         """[P1] No active profiles → nothing generated and no needless broadcast."""
         app_env.app._do_generate()
         assert app_env.app.settings.get("runtime_state") is None
         assert not [c for c in broadcast_capture if c["event"] == "slips_updated"]
 
-    def test_do_generate_swallows_errors_without_broadcast(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_do_generate_swallows_errors_without_broadcast(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] A failing generate is logged, swallowed, and never broadcast.
 
         An active profile (run_daily_count>0) is required so generate_slips is
@@ -576,28 +520,18 @@ class TestAppLogicLifecycle:
         app_env.app._do_generate()
         assert not broadcast_capture
 
-    def test_do_verify_broadcasts_live_leg_data(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_do_verify_broadcasts_live_leg_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P0] _do_verify maps live legs to {match: score/minute} and broadcasts."""
         from bet_framework.core.Slip import LegOutcomeInfo
 
-        report = SimpleNamespace(
-            live=[
-                LegOutcomeInfo(
-                    leg_id=1, match_name="M 1", market="1", score="1:0", minute="23"
-                )
-            ]
-        )
+        report = SimpleNamespace(live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")])
         monkeypatch.setattr(app_env.app, "validate_slips", lambda: report)
         app_env.app._do_verify()
         payload = broadcast_capture[-1]
         assert payload["event"] == "slips_updated"
         assert payload["live_data"] == {"M 1": {"score": "1:0", "minute": "23"}}
 
-    def test_do_verify_swallows_errors_without_broadcast(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_do_verify_swallows_errors_without_broadcast(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] A failing verify is logged, swallowed, and never broadcast."""
 
         def boom():
@@ -607,9 +541,7 @@ class TestAppLogicLifecycle:
         app_env.app._do_verify()
         assert not broadcast_capture
 
-    def test_pull_and_broadcast_returns_message_and_broadcasts(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_pull_and_broadcast_returns_message_and_broadcasts(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] pull_and_broadcast returns the pull message and broadcasts matches_updated."""
         monkeypatch.setattr(app_env.app, "pull_matches_db", lambda path: "ok")
         assert app_env.app.pull_and_broadcast() == "ok"
