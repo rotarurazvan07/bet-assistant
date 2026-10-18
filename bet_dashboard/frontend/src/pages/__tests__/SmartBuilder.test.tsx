@@ -164,7 +164,7 @@ describe('SmartBuilder page', () => {
 
     it('AC-2: header Delete button is gone (X is the only delete path)', async () => {
         await renderAndHydrate();
-        expect(screen.queryByRole('button', { name: 'Delete', exact: true })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
     });
 
     // ── AC-3: '+' creates new{N} from the current config ────────────────────
@@ -256,7 +256,7 @@ describe('SmartBuilder page', () => {
         );
         await renderAndHydrate();
         await user.click(screen.getByRole('button', { name: 'bold' }));
-        await user.click(screen.getByRole('button', { name: 'Save', exact: true }));
+        await user.click(screen.getByRole('button', { name: 'Save' }));
         expect(await screen.findByText(/Profile 'bold' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
         expect(saved).toBe(1);
     });
