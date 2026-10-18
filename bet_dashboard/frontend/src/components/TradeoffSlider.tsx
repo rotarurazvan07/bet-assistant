@@ -63,3 +63,9 @@ export function TradeoffSlider({
         </div>
     );
 }
+
+// Default export alongside the named export: consumers use both styles
+// (`import TradeoffSlider from` and `import { TradeoffSlider } from`). A missing
+// default export breaks the default import at module scope — React renders it as
+// "Element type is invalid ... got: undefined".
+export default TradeoffSlider;
