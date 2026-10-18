@@ -135,7 +135,6 @@ describe('SmartBuilder page', () => {
     });
 
     it('Add to Slips with empty preview shows No legs status', async () => {
-        const user = userEvent.setup();
         server.use(
             http.post('/api/builder/preview', async () => {
                 previewCalls += 1;
@@ -145,11 +144,12 @@ describe('SmartBuilder page', () => {
         renderBuilder();
         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
         expect(screen.getByText('No preview yet')).toBeInTheDocument();
-        // AC 7.7: the preview's Add to Slips button is hidden with no legs; the
-        // empty state's secondary action still offers it and reports the same status.
+        // Empty preview: Add to Slips is hidden entirely (user rule: the
+        // button only exists when the preview holds chosen legs), so no dead
+        // 'No legs in preview.' status path is reachable from the UI.
         expect(screen.queryByText('+ Add to Slips')).not.toBeInTheDocument();
-        await user.click(screen.getByRole('button', { name: 'Add to Slips' }));
-        expect(screen.getByText('No legs in preview.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Add to Slips' })).not.toBeInTheDocument();
+        expect(screen.getByText('No preview yet')).toBeInTheDocument();
     });
 
     it('Add to Slips with valid legs POSTs and confirms with slip id', async () => {
