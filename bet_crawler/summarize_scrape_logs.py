@@ -17,6 +17,7 @@ _BARE_LEVEL_LINE = re.compile(
     re.IGNORECASE,
 )
 _ISSUE_LEVELS = {"WARNING", "ERROR", "CRITICAL"}
+_OUTCOME_PRIORITY = {"success": 0, "skipped": 0, "partial": 1, "error": 2, "failure": 2}
 
 
 def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
@@ -56,7 +57,9 @@ def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, s
     return events, malformed
 
 
-def _read_legacy_issues(logs_dir: Path, structured_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _read_legacy_issues(
+    logs_dir: Path, structured_events: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
     """Read actionable text log records not already represented by JSONL."""
     structured_messages = {
         (
@@ -129,7 +132,9 @@ def _parse_legacy_line(
     }
 
 
-def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dict[str, Any]:
+def summarize(
+    logs_dir: Path, job_outcomes: dict[str, str] | None = None
+) -> dict[str, Any]:
     """Build a deterministic summary from downloaded artifacts and job results."""
     logs_dir = logs_dir.resolve()
     events, malformed = _read_events(logs_dir) if logs_dir.exists() else ([], [])
@@ -155,11 +160,23 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
         for item in malformed
     )
 
-    outcomes = {name: str(result).lower() for name, result in sorted((job_outcomes or {}).items())}
-    failed_jobs = {name: result for name, result in outcomes.items() if result not in {"success", "skipped"}}
+    outcomes = {
+        name: str(result).lower()
+        for name, result in sorted((job_outcomes or {}).items())
+    }
+    failed_jobs = {
+        name: result
+        for name, result in outcomes.items()
+        if result not in {"success", "skipped"}
+    }
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for issue in issues:
-        source = str(issue.get("source_key") or issue.get("finder") or issue.get("logger") or "unknown")
+        source = str(
+            issue.get("source_key")
+            or issue.get("finder")
+            or issue.get("logger")
+            or "unknown"
+        )
         event_name = str(issue.get("event") or "unspecified")
         reason = str(issue.get("reason_code") or "unspecified")
         groups[(source, event_name, reason)].append(issue)
@@ -172,14 +189,20 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
         "structured_events": len(events),
         "malformed_event_lines": malformed,
         "issue_count": len(issues),
-        "severity_counts": dict(Counter(str(issue.get("severity", "UNKNOWN")).upper() for issue in issues)),
+        "severity_counts": dict(
+            Counter(str(issue.get("severity", "UNKNOWN")).upper() for issue in issues)
+        ),
         "groups": [
             {
                 "source": source,
                 "event": event_name,
                 "reason_code": reason,
                 "count": len(records),
-                "severity_counts": dict(Counter(str(item.get("severity", "UNKNOWN")).upper() for item in records)),
+                "severity_counts": dict(
+                    Counter(
+                        str(item.get("severity", "UNKNOWN")).upper() for item in records
+                    )
+                ),
                 "samples": [
                     {
                         "severity": item.get("severity"),
@@ -198,9 +221,110 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
         "stage_events": [
             event
             for event in events
-            if str(event.get("event", "")).startswith("stage.") or str(event.get("event", "")).endswith(".completed")
+            if str(event.get("event", "")) in {"stage.completed", "stage.failed"}
         ],
     }
+
+
+def _stage_job(event: dict[str, Any]) -> str:
+    """Return the CI job that produced a stage event when it can be identified."""
+    stage = str(event.get("stage") or event.get("event") or "unknown")
+    runner = event.get("runner")
+    if runner:
+        return f"{stage.removesuffix('-scrape')}-{runner}"
+
+    artifact = str(event.get("_artifact") or "").replace("\\", "/")
+    match = re.search(
+        r"(?:^|/)logs-(prepare|scrape)-(actions|local)(?:-|/|$)", artifact
+    )
+    if match:
+        return f"{match.group(1)}-{match.group(2)}"
+    return stage
+
+
+def _pipeline_health(stage_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aggregate real stage completions into the small, decision-oriented health view."""
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for event in stage_events:
+        grouped[_stage_job(event)].append(event)
+
+    health = []
+    for job, events in sorted(grouped.items()):
+        counts: Counter[str] = Counter()
+        outcomes = []
+        reasons: Counter[str] = Counter()
+        for event in events:
+            counts.update(
+                {
+                    key: value
+                    for key, value in (event.get("counts") or {}).items()
+                    if isinstance(value, int)
+                }
+            )
+            outcomes.append(str(event.get("outcome") or "unknown").lower())
+            if event.get("outcome") in {"partial", "error", "failure"} and event.get(
+                "reason_code"
+            ):
+                reasons[str(event["reason_code"])] += 1
+
+        outcome = max(
+            outcomes,
+            key=lambda value: _OUTCOME_PRIORITY.get(value, 1),
+            default="unknown",
+        )
+        health.append(
+            {
+                "job": job,
+                "stage": str(
+                    events[0].get("stage") or events[0].get("event") or "unknown"
+                ),
+                "outcome": outcome,
+                "runs": len(events),
+                "counts": dict(counts),
+                "reasons": dict(reasons),
+            }
+        )
+    return health
+
+
+def _health_work_and_output(item: dict[str, Any]) -> tuple[str, str]:
+    """Format stage-specific throughput without exposing every internal counter."""
+    counts = item["counts"]
+    stage = item["stage"]
+    if stage == "prepare-scrape":
+        return f"{counts.get('urls', 0)} URLs", "—"
+    if stage == "scrape":
+        return (
+            f"{counts.get('groups_completed', 0)}/{counts.get('groups_total', 0)} groups",
+            (
+                f"{counts.get('matches_added', 0)} added, {counts.get('matches_skipped', 0)} skipped"
+            ),
+        )
+    if stage == "merge":
+        return (
+            f"{counts.get('chunks', 0)} chunks",
+            f"{counts.get('matches', 0)} matches",
+        )
+    return "—", "—"
+
+
+def _health_attention(item: dict[str, Any]) -> str:
+    """Summarize only signals that warrant a reader's attention."""
+    counts = item["counts"]
+    signals = []
+    if item["outcome"] != "success":
+        signals.append(f"{item['runs']} {item['outcome']} run(s)")
+    for key in (
+        "errors",
+        "warnings",
+        "sources_failed",
+        "sources_with_warnings",
+        "crawlers_missing",
+        "runner_sets_missing",
+    ):
+        if counts.get(key, 0):
+            signals.append(f"{counts[key]} {key.replace('_', ' ')}")
+    return ", ".join(signals) or "—"
 
 
 def render_markdown(summary: dict[str, Any]) -> str:
@@ -208,7 +332,9 @@ def render_markdown(summary: dict[str, Any]) -> str:
     lines = ["# Scrape run problem summary", ""]
     if summary["jobs"]:
         lines.extend(["## CI jobs", "", "| Job | Result |", "|---|---|"])
-        lines.extend(f"| `{name}` | **{result}** |" for name, result in summary["jobs"].items())
+        lines.extend(
+            f"| `{name}` | **{result}** |" for name, result in summary["jobs"].items()
+        )
         lines.append("")
 
     severity_counts = summary["severity_counts"]
@@ -227,7 +353,10 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
     if summary["failed_jobs"]:
         lines.extend(["## Failed or incomplete CI jobs", ""])
-        lines.extend(f"- **{name}:** `{result}`" for name, result in summary["failed_jobs"].items())
+        lines.extend(
+            f"- **{name}:** `{result}`"
+            for name, result in summary["failed_jobs"].items()
+        )
         lines.append("")
 
     if summary["groups"]:
@@ -240,9 +369,14 @@ def render_markdown(summary: dict[str, Any]) -> str:
             ]
         )
         for group in summary["groups"]:
-            levels = ", ".join(f"{level}: {count}" for level, count in sorted(group["severity_counts"].items()))
+            levels = ", ".join(
+                f"{level}: {count}"
+                for level, count in sorted(group["severity_counts"].items())
+            )
             sample = group["samples"][0] if group["samples"] else {}
-            message = str(sample.get("message") or "").replace("|", "\\|").replace("\n", " ")
+            message = (
+                str(sample.get("message") or "").replace("|", "\\|").replace("\n", " ")
+            )
             if len(message) > 220:
                 message = message[:217] + "..."
             url = sample.get("url")
@@ -257,15 +391,37 @@ def render_markdown(summary: dict[str, Any]) -> str:
     else:
         lines.extend(["## Problems", "", "No warning/error log events were found.", ""])
 
-    if summary["stage_events"]:
-        lines.extend(["## Stage outcomes", "", "| Stage | Outcome | Counts |", "|---|---|---|"])
-        for event in summary["stage_events"]:
-            counts = event.get("counts") or {}
-            count_text = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
+    health = _pipeline_health(summary["stage_events"])
+    if health:
+        lines.extend(
+            [
+                "## Pipeline health",
+                "",
+                "| Job | Outcome | Work | Output | Attention |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for item in health:
+            work, output = _health_work_and_output(item)
             lines.append(
-                f"| `{event.get('stage') or event.get('event')}` | "
-                f"**{event.get('outcome', 'unknown')}** | {count_text or '—'} |"
+                f"| `{item['job']}` | **{item['outcome']}** | {work} | {output} | {_health_attention(item)} |"
             )
+        lines.append("")
+
+    degraded = [
+        item for item in health if item["outcome"] not in {"success", "skipped"}
+    ]
+    if degraded:
+        lines.extend(["## Incomplete or degraded work", ""])
+        for item in degraded:
+            reasons = (
+                ", ".join(
+                    f"`{reason}` ({count})"
+                    for reason, count in sorted(item["reasons"].items())
+                )
+                or "See problems by source and reason."
+            )
+            lines.append(f"- `{item['job']}`: {reasons}")
         lines.append("")
 
     lines.extend(
@@ -305,7 +461,9 @@ def main() -> int:
     markdown = render_markdown(summary)
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
-    args.output_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    args.output_json.write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     args.output_markdown.write_text(markdown, encoding="utf-8")
     if args.step_summary:
         args.step_summary.parent.mkdir(parents=True, exist_ok=True)

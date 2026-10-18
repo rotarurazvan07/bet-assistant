@@ -7,7 +7,9 @@ from bet_crawler.summarize_scrape_logs import render_markdown, summarize
 
 
 def _write_jsonl(path: Path, records: list[dict]) -> None:
-    path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
+    path.write_text(
+        "".join(json.dumps(item) + "\n" for item in records), encoding="utf-8"
+    )
 
 
 def test_summary_groups_actionable_events_and_keeps_benign_info_out(tmp_path) -> None:
@@ -67,6 +69,64 @@ def test_summary_groups_actionable_events_and_keeps_benign_info_out(tmp_path) ->
     assert "https://example.test/match" in markdown
 
 
+def test_pipeline_health_aggregates_stage_results_and_omits_source_completions(
+    tmp_path,
+) -> None:
+    artifacts = tmp_path / "logs-scrape-actions-actions-1.db"
+    artifacts.mkdir()
+    _write_jsonl(
+        artifacts / "crawler-events.jsonl",
+        [
+            {
+                "severity": "INFO",
+                "event": "source.scrape.completed",
+                "outcome": "success",
+                "source_key": "predictz",
+            },
+            {
+                "severity": "WARNING",
+                "event": "stage.completed",
+                "outcome": "partial",
+                "reason_code": "source_scrape_warnings",
+                "stage": "scrape",
+                "counts": {
+                    "groups_completed": 3,
+                    "groups_total": 3,
+                    "matches_added": 20,
+                    "matches_skipped": 4,
+                    "warnings": 2,
+                },
+            },
+            {
+                "severity": "INFO",
+                "event": "stage.completed",
+                "outcome": "success",
+                "stage": "scrape",
+                "counts": {
+                    "groups_completed": 2,
+                    "groups_total": 2,
+                    "matches_added": 10,
+                    "matches_skipped": 1,
+                },
+            },
+        ],
+    )
+
+    summary = summarize(tmp_path)
+    markdown = render_markdown(summary)
+
+    assert len(summary["stage_events"]) == 2
+    assert "## Pipeline health" in markdown
+    assert "`scrape-actions`" in markdown
+    assert "5/5 groups" in markdown
+    assert "30 added, 5 skipped" in markdown
+    assert "2 warnings" in markdown
+    assert "## Incomplete or degraded work" in markdown
+    assert "`source_scrape_warnings` (1)" in markdown
+    assert "source.scrape.completed" not in markdown
+    assert "## Stage outcomes" not in markdown
+
+
 def test_summary_reads_legacy_non_crawler_errors_without_double_counting(
     tmp_path,
 ) -> None:
@@ -100,8 +160,12 @@ def test_summary_reads_legacy_non_crawler_errors_without_double_counting(
 def test_malformed_jsonl_and_failed_ci_job_are_reported(tmp_path) -> None:
     artifact = tmp_path / "logs-prepare-local"
     artifact.mkdir()
-    (artifact / "crawler-events.jsonl").write_text('{"severity":"ERROR"\n', encoding="utf-8")
-    summary = summarize(artifact, {"prepare-local": "failure", "scrape-local": "skipped"})
+    (artifact / "crawler-events.jsonl").write_text(
+        '{"severity":"ERROR"\n', encoding="utf-8"
+    )
+    summary = summarize(
+        artifact, {"prepare-local": "failure", "scrape-local": "skipped"}
+    )
 
     assert summary["issue_count"] == 1
     assert summary["malformed_event_lines"]
@@ -145,7 +209,9 @@ def test_empty_artifact_directory_still_summarizes_job_conclusions(tmp_path) -> 
     assert "No warning/error log events" in markdown
 
 
-def test_legacy_crawler_logs_are_kept_when_that_job_has_no_jsonl_sidecar(tmp_path) -> None:
+def test_legacy_crawler_logs_are_kept_when_that_job_has_no_jsonl_sidecar(
+    tmp_path,
+) -> None:
     artifact = tmp_path / "logs-prepare-actions"
     artifact.mkdir()
     (artifact / "job_log.txt").write_text(
