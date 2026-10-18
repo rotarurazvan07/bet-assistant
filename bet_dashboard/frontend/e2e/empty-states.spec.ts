@@ -92,8 +92,13 @@ test('Build empty CTAs stay on /builder', async ({ page }) => {
     await expect(page.getByText('No preview yet')).toBeVisible();
     await page.getByRole('button', { name: 'Select a Preset' }).click();
     await expect(page).toHaveURL(/\/builder/);
-    await page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }).click();
-    await expect(page.getByText('No legs in preview.')).toBeVisible();
+    // Smart Builder rework (07a1de0): the Add-to-Slips CTA is hidden while the
+    // preview is empty — the old empty-state button opened a dead-end modal.
+    // Select-a-Preset keeps the user on /builder; the CTA appears in the
+    // preview header only once legs exist.
+    await expect(
+        page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }),
+    ).toHaveCount(0);
 });
 
 test('Track empty CTAs: Generate posts and Go to Build navigates', async ({ page }) => {
