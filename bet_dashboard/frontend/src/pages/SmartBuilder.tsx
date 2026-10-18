@@ -429,12 +429,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 primary={{
                                     label: 'Select a Preset',
                                     onClick: () => {
-                                        const target = document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
+                                        const target = document.querySelector<HTMLInputElement>('.MuiAutocomplete-input');
                                         target?.focus();
                                         target?.scrollIntoView({ block: 'center' });
                                     },
                                 }}
-                                secondary={{ label: 'Add to Slips', onClick: () => { void handleAddToSlips(); } }}
                             />
                         ) : (
                             <BetPreview

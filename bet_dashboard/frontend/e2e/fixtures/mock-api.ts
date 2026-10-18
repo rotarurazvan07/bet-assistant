@@ -4,7 +4,7 @@
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
 import type { SlipsPage, ProfilesMap } from '../../src/types';
-import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_PROFILES, DEMO_PROFILE_SCHEDULES } from './demo-data';
+import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_PREVIEW, DEMO_PROFILES, DEMO_PROFILE_SCHEDULES } from './demo-data';
 
 function apiPath(pathname: string, exact: string): boolean {
     return pathname === exact || pathname.startsWith(`${exact}/`);
@@ -17,6 +17,15 @@ export type DemoApiOpts = {
 
 export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promise<void> {
     const slipsGet = opts.slips ?? { slips: [], stats: null, profiles: [] };
+    const preview = opts.preview ?? DEMO_PREVIEW;
+    // Smart Builder live preview (two-track: DEMO_PREVIEW mirrors a real /api/preview response).
+    await page.route((url) => apiPath(url.pathname, '/api/preview'), async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(preview),
+        });
+    });
     await page.route((url) => apiPath(url.pathname, '/api/matches'), async (route) => {
         await route.fulfill({
             status: 200,
