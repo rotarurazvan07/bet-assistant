@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Autocomplete, TextField } from '@mui/material';
 import BuilderPanel from '../components/BuilderPanel';
 import { BetPreview } from '../components/BetComponents';
 import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
 import { FirstSlipToast } from '../components/OnboardingTour';
 import { markFirstSlip } from '../components/tourStorage';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
-import { TooltipIcon } from '../components/ui';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
@@ -35,6 +33,79 @@ const DEFAULT_CFG: BuilderConfig = {
 };
 
 interface Props { filters: GlobalFilters; refreshKey: number }
+
+// AC-4/AC-5/AC-6: stake sizing lives in the Add-to-Slips confirmation modal.
+// Same visual contract as SlipDetailModal (overlay + Escape + backdrop click).
+interface AddToSlipsModalProps {
+    legsCount: number;
+    totalOdds: number;
+    units: number;
+    targetPayout: number;
+    onUnitsChange: (units: number) => void;
+    onTargetPayoutChange: (payout: number) => void;
+    onConfirm: () => void;
+    onClose: () => void;
+}
+
+function AddToSlipsModal({
+    legsCount, totalOdds, units, targetPayout,
+    onUnitsChange, onTargetPayoutChange, onConfirm, onClose,
+}: AddToSlipsModalProps) {
+    // AC-7: Escape closes (matches SlipDetailModal overlay contract).
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
+
+    // AC-5: required units for a target payout = payout / total odds, 1dp.
+    const requiredUnits = targetPayout > 0 ? Math.round((targetPayout / (totalOdds || 1)) * 10) / 10 : null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+            <div role="dialog" aria-modal="true" aria-label="Add to Slips"
+                className="relative w-full max-w-md rounded-xl shadow-2xl"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                <div className="px-5 py-4 border-b flex items-center justify-between"
+                    style={{ borderColor: 'var(--border)' }}>
+                    <h2 className="text-lg font-display font-bold" style={{ color: 'var(--text-bright)' }}>
+                        Add to Slips
+                    </h2>
+                    <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                        {legsCount} legs @ {totalOdds.toFixed(2)}
+                    </span>
+                </div>
+                <div className="px-5 py-4 space-y-4">
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Units</span>
+                        <input className="field w-24" type="number" min={0.1} step={0.1}
+                            autoFocus
+                            disabled={targetPayout > 0}
+                            style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
+                            value={units} onChange={e => onUnitsChange(+e.target.value)} />
+                        {requiredUnits !== null && (
+                            <span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>
+                                → {requiredUnits}u
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
+                        <input className="field w-24" type="number" min={0} step={5}
+                            placeholder="Off"
+                            value={targetPayout || ''} onChange={e => onTargetPayoutChange(+e.target.value)} />
+                    </div>
+                </div>
+                <div className="px-5 py-4 border-t flex justify-end gap-2"
+                    style={{ borderColor: 'var(--border)' }}>
+                    <button className="btn-ghost" onClick={onClose}>Cancel</button>
+                    <button className="btn-success" onClick={onConfirm}>Add to Slips</button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const STORAGE_KEY = 'smart_builder_state';
 
@@ -71,6 +142,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [availableSources, setAvailableSources] = useState<string[]>([]);
     const [status, setStatus] = useState('');
     const [milestoneOpen, setMilestoneOpen] = useState(false);
+    // AC-5: Add to Slips confirmation modal owns Units/Target Payout (AC-4).
+    const [slipModalOpen, setSlipModalOpen] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Persist state to localStorage
@@ -222,20 +295,36 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setStatus(`✓ Profile '${clean}' saved`);
     }
 
-    async function handleDeleteProfile() {
-        if (!activeName || activeName === 'manual') return;
-        // Deleting a name that is not a saved profile would either 404 or
-        // remove the wrong file after a typo (review F9) — block and tell the
-        // user instead.
-        if (!(activeName in profiles)) {
-            setStatus(`'${activeName}' is not a saved profile`);
+    // AC-2: per-card delete. Name always comes from the card (never the
+    // active selection), so deleting a non-active profile keeps the builder
+    // untouched; deleting the ACTIVE profile falls back to 'manual'.
+    async function handleDeleteProfile(name: string) {
+        if (!name || name === 'manual') return;
+        if (!(name in profiles)) {
+            setStatus(`'${name}' is not a saved profile`);
             return;
         }
-        await deleteProfile(activeName);
+        await deleteProfile(name);
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
-        setActiveName('manual');
-        setStatus(`Deleted '${activeName}'`);
+        if (activeName === name) setActiveName('manual');
+        setStatus(`Deleted '${name}'`);
+    }
+
+    // AC-3: '+' creates a profile copying the CURRENT builder config. Name is
+    // the smallest unused new{N} — deterministic even after deletions.
+    async function handleCreateProfile() {
+        let n = 1;
+        while (`new${n}` in profiles) n += 1;
+        const name = `new${n}`;
+        const payload = { name, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout };
+        // ponytail: optimistic select from the payload we just sent — avoids a
+        // race where the refetch returns before the write lands.
+        await saveProfile(payload);
+        const updated = await fetchProfiles();
+        setProfiles(updated ?? {});
+        loadProfile(name, updated?.[name] ?? (payload as unknown as Profile));
+        setStatus(`✓ Profile '${name}' saved`);
     }
 
     async function handleAddToSlips() {
@@ -273,7 +362,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }));
 
         const id = await addSlip(activeName, manualLegs, units);
-        // AC-06: first successful addSlip (Build) counts as first slip.
+        // AC-06: confirm posts the slip and closes the modal.
+        setSlipModalOpen(false);
+        // AC-06 (story 41.96): first successful addSlip (Build) counts as first slip.
         if (markFirstSlip()) setMilestoneOpen(true);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
         triggerPreview(mergedCfg);
@@ -316,58 +407,62 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                     {/* AC-03: page heading in the management bar */}
                     <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Build</h1>
                     <div className="flex items-start gap-3 flex-wrap">
-                        {/* Zone 1 — identity: pick a saved profile or type a new name */}
-                        <div className="flex items-center gap-2">
-                            <Autocomplete
-                                freeSolo
-                                sx={{
-                                    width: 220,
-                                    '& .MuiOutlinedInput-root': {
-                                        background: 'var(--bg-raised)',
-                                        color: 'var(--text-primary)',
-                                        fontSize: 12,
-                                    },
+                        {/* AC-1: profile cards replace the combobox — every saved
+                            profile renders as a card; click selects+loads it. */}
+                        <div className="flex items-center gap-2 flex-wrap" data-testid="profile-cards">
+                            {Object.keys(profiles).map(name => (
+                                <div key={name}
+                                    className="inline-flex items-center rounded-lg transition-all duration-200"
+                                    style={{
+                                        background: activeName === name ? 'var(--accent-glow)' : 'var(--bg-raised)',
+                                        border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border)'}`,
+                                    }}>
+                                    {/* select the profile (AC-1) */}
+                                    <button
+                                        type="button"
+                                        aria-pressed={activeName === name}
+                                        onClick={() => loadProfile(name, profiles[name])}
+                                        className="px-3 py-2.5 text-sm font-sans font-semibold rounded-lg"
+                                        style={{
+                                            color: activeName === name ? 'var(--accent)' : 'var(--text-primary)',
+                                            cursor: 'pointer',
+                                            background: 'transparent',
+                                            border: 'none',
+                                        }}>
+                                        {name}
+                                    </button>
+                                    {/* AC-2: per-card X replaces the header Delete button */}
+                                    <button
+                                        type="button"
+                                        className="w-5 h-5 mr-1.5 flex items-center justify-center rounded"
+                                        style={{ color: 'var(--loss)' }}
+                                        title={`Delete profile '${name}'`}
+                                        aria-label={`Delete profile '${name}'`}
+                                        onClick={() => void handleDeleteProfile(name)}
+                                    >✕</button>
+                                </div>
+                            ))}
+                            {/* AC-3: trailing '+' creates a profile copying the current config */}
+                            <button
+                                className="rounded-lg px-3.5 py-2.5 text-sm font-bold transition-all duration-200"
+                                style={{
+                                    background: 'var(--bg-raised)',
+                                    border: '1px dashed var(--border)',
+                                    color: 'var(--accent)',
+                                    cursor: 'pointer',
                                 }}
-                                options={Object.keys(profiles)}
-                                value={activeName}
-                                inputValue={activeName}
-                                onInputChange={(_, next) => setActiveName(next ?? '')}
-                                onChange={(_, next) => {
-                                    if (typeof next === 'string' && profiles[next]) {
-                                        loadProfile(next, profiles[next]);
-                                    }
-                                }}
-                                renderInput={(params) => (
-                                    <TextField {...params} placeholder="profile name" />
-                                )}
-                            />
+                                title="Create a new profile from the current config"
+                                onClick={() => void handleCreateProfile()}
+                            >+</button>
                         </div>
 
-                        {/* Zone 3 — actions: persist / discard the profile above */}
+                        {/* Zone 3 — actions: persist the current config into the active profile */}
                         <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
                             <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
-                            <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
                         </div>
 
-                        {/* Zone 2 — stake sizing for MANUAL bets only. Slips produced by
-                            auto-generation use the units/target payout set in Services. */}
-                        <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Units</span>
-                                <TooltipIcon text="Units for a MANUAL bet placed from this builder. Slips produced by auto-generation use the units configured on the Services page." align="right" />
-                                <input className="field w-16" type="number" min={0.1} step={0.1}
-                                    disabled={targetPayout > 0}
-                                    style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
-                                    value={units} onChange={e => setUnits(+e.target.value)} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
-                                <TooltipIcon text="Automatically calculates units based on desired payout. Enter your target payout amount and the system will determine the required units to achieve it." align="right" />
-                                <input className="field w-20" type="number" min={0} step={5}
-                                    placeholder="Off"
-                                    value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
-                            </div>
-                        </div>
+                        {/* AC-4: Units and Target Payout moved out of the header into
+                            the Add to Slips confirmation modal (AC-5/AC-6). */}
 
                         {status && (
                             <span className="text-[11px] font-mono ml-auto px-3 py-1 rounded-lg"
@@ -405,10 +500,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             style={{ color: 'var(--text-secondary)' }}>
                             Live Preview — updates with every config change
                         </span>
-                        {/* Add to Slips lives with the legs it commits — hidden when
-                            the preview is empty (issue #41 note 7). */}
+                        {/* AC-5: Add to Slips OPENS the confirmation modal (Units +
+                            Target Payout live there, AC-4); confirm posts the slip
+                            (AC-6). Still hidden when the preview is empty. */}
                         {(preview?.legs?.length ?? 0) > 0 && (
-                            <button className="btn-success ml-auto" onClick={handleAddToSlips}>+ Add to Slips</button>
+                            <button className="btn-success ml-auto" onClick={() => setSlipModalOpen(true)}>+ Add to Slips</button>
                         )}
                         {loading && (
                             <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
@@ -429,7 +525,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                                 primary={{
                                     label: 'Select a Preset',
                                     onClick: () => {
-                                        const target = document.querySelector<HTMLInputElement>('.MuiAutocomplete-input');
+                                        // AC-1: combobox is gone — focus the first profile
+                                        // card so keyboard users land on the new control.
+                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] [role="button"]');
                                         target?.focus();
                                         target?.scrollIntoView({ block: 'center' });
                                     },
@@ -518,6 +616,18 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 )}
             </div>
         </div>
+        {slipModalOpen && (
+            <AddToSlipsModal
+                legsCount={preview?.legs?.length ?? 0}
+                totalOdds={preview?.total_odds ?? 1}
+                units={units}
+                targetPayout={targetPayout}
+                onUnitsChange={setUnits}
+                onTargetPayoutChange={setTargetPayout}
+                onConfirm={() => void handleAddToSlips()}
+                onClose={() => setSlipModalOpen(false)}
+            />
+        )}
         <FirstSlipToast open={milestoneOpen} onClose={() => setMilestoneOpen(false)} />
         </>
     );
