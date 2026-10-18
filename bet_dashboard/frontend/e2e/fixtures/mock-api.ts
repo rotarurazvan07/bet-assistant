@@ -18,8 +18,8 @@ export type DemoApiOpts = {
 export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promise<void> {
     const slipsGet = opts.slips ?? { slips: [], stats: null, profiles: [] };
     const preview = opts.preview ?? DEMO_PREVIEW;
-    // Smart Builder live preview (two-track: DEMO_PREVIEW mirrors a real /api/preview response).
-    await page.route((url) => apiPath(url.pathname, '/api/preview'), async (route) => {
+    // Smart Builder live preview (two-track: DEMO_PREVIEW mirrors a real /api/builder/preview response — the client posts to /builder/preview).
+    await page.route((url) => apiPath(url.pathname, '/api/builder/preview'), async (route) => {
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
