@@ -38,10 +38,10 @@ import os
 import shutil
 import sqlite3
 import sys
-
-import yaml
 from dataclasses import asdict
 from pathlib import Path
+
+import yaml
 
 # Container: /app (image WORKDIR). Local runs: repo root next to setup/.
 _APP_ROOT = os.environ.get("E2E_SEED_APP_ROOT", "/app")
@@ -50,7 +50,9 @@ sys.path.insert(
     0, _APP_ROOT if Path(_APP_ROOT, "bet_framework").is_dir() else _REPO_ROOT
 )
 
+from bet_dashboard.backend.core.config_helpers import _config_to_yaml_dict
 from bet_framework.core.Match import Odds, Score
+from bet_framework.core.Slip import BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
 
 MATCHES_DB = os.environ.get("MATCHES_DB_PATH", "/app/workspace/data/matches.db")
@@ -202,12 +204,26 @@ def main() -> None:
     (CONFIG_DIR / "services.yaml").write_text(_SERVICES_YAML, encoding="utf-8")
 
     # Per-profile schedules: the CI delivery of the same rows as demo-data.ts
-    # (SettingsManager nests profiles/<name>.yaml).
+    # (SettingsManager nests profiles/<name>.yaml). The YAML carries the FULL
+    # builder-profile shape (BetSlipConfig defaults + units/target_payout/
+    # run_daily_count) merged with that profile's schedule keys, exactly like
+    # the local track's DEMO_PROFILES (review F7 — one mocked database, two
+    # delivery paths).
     profiles_dir = CONFIG_DIR / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
     for row in _PROFILE_SCHEDULES:
+        profile = _config_to_yaml_dict(
+            BetSlipConfig(),
+            units=row["units"],
+            target_payout=row["target_payout"],
+            run_daily_count=1 if row["auto_generate"] else 0,
+            order=row["order"],
+            auto_generate=row["auto_generate"],
+            generate_hour=row["generate_hour"],
+            generate_minute=row["generate_minute"],
+        )
         (profiles_dir / f"{row['name']}.yaml").write_text(
-            yaml.safe_dump(row, sort_keys=False), encoding="utf-8"
+            yaml.safe_dump(profile, sort_keys=False), encoding="utf-8"
         )
 
     # MatchesManager creates the `matches` schema on init; then write rows.
@@ -247,9 +263,18 @@ def main() -> None:
         stored = yaml.safe_load(
             (profiles_dir / f"{row['name']}.yaml").read_text(encoding="utf-8")
         )
-        assert stored == row, (
-            f"profile schedule drift for {row['name']}: {stored} != {row}"
-        )
+        for key in (
+            "auto_generate",
+            "generate_hour",
+            "generate_minute",
+            "units",
+            "target_payout",
+            "order",
+        ):
+            assert stored.get(key) == row[key], (
+                f"profile schedule drift for {row['name']}: "
+                f"{key}={stored.get(key)} != {row[key]}"
+            )
 
     print(
         f"e2e seed OK: 3 demo matches + {len(_PROFILE_SCHEDULES)} profile schedules "

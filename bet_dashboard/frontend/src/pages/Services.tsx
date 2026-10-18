@@ -113,7 +113,11 @@ export default function Services() {
             setGenHour(d.generate_hour);
             setGenMinute(d.generate_minute);
             setRows(d.profile_schedules
-                ? [...d.profile_schedules].sort((a, b) => a.order - b.order)
+                ? [...d.profile_schedules].sort(
+                    // order may be null/non-numeric on hand-edited YAML (review F6):
+                    // coerce and tie-break by name so the rendered order is stable.
+                    (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name),
+                )
                 : null);
         } catch {
             // Network/API failure: keep the loading card rather than crash;

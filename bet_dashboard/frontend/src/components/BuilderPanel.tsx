@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 import { BaseCard } from './ui/BaseCard';
 import { BaseDataRow } from './ui/BaseDataRow';
 import { TooltipIcon } from './ui';
-import TradeoffSlider from './TradeoffSlider';
+import { TradeoffSlider } from './TradeoffSlider';
 import type { BuilderConfig } from '../types';
 import { ALL_MARKETS } from '../types';
 import { marketLabel } from '../config/marketConfig';
@@ -507,6 +507,8 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                     tip="Trade-off between how many legs are picked and how good each leg is. Left = more, safer legs (balance); Right = fewer, stronger legs (quality)."
                     leftLabel="More picks, lower avg quality"
                     rightLabel="Fewer picks, higher avg quality"
+                    leftMode="Balance-focused"
+                    rightMode="Quality-focused"
                     centerLabel="Balanced"
                     value={cfg.quality_vs_balance}
                     onChange={v => up('quality_vs_balance', v)} />
@@ -515,7 +517,9 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                     tip="How much a leg's score leans on how many sources back it versus how strongly they agree. Left = source count; Right = consensus strength."
                     leftLabel="Trust many weak sources"
                     rightLabel="Trust few strong sources"
-                    centerLabel="Source-count"
+                    leftMode="Source-count"
+                    rightMode="Consensus-driven"
+                    centerLabel="Balanced"
                     value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources}
                     disabled={cfg.consensus_floor === 100}
                     onChange={v => up('consensus_vs_sources', v)} />

@@ -245,9 +245,12 @@ class TestDoGeneratePerProfile:
 
         monkeypatch.setattr(env.app, "generate_slips", boom)
         _freeze(monkeypatch, hour=9)
+        before = len(broadcast_capture)
         env.app._do_generate()
         assert env.app.settings.get("runtime_state") is None
-        assert broadcast_capture[-1]["event"] == "slips_updated"
+        # F17: a no-op tick appends no slips_updated broadcast, so clients do
+        # not refetch slips for nothing.
+        assert len(broadcast_capture) == before
 
 
 class TestProfileSchedulesAPI:
@@ -277,19 +280,23 @@ class TestProfileSchedulesAPI:
         )
         rows = {r["name"]: r for r in env.app.get_profile_schedules()}
         assert {"legacy", "auto", "off"} <= set(rows)
+        # F3: GET reports persisted values only — a legacy profile has no
+        # per-profile window/order of its own, so the row carries None instead
+        # of a fabricated default that a later Save would materialize.
         assert rows["legacy"] == {
             "name": "legacy",
             "auto_generate": True,
-            "generate_hour": 8,
-            "generate_minute": 30,
+            "generate_hour": None,
+            "generate_minute": None,
             "units": 2.0,
             "target_payout": 50.0,
-            "order": 0,
+            "order": None,
         }
         assert rows["auto"]["generate_hour"] == 6
         assert rows["auto"]["generate_minute"] == 15
         assert rows["auto"]["order"] == 3
         assert rows["off"]["auto_generate"] is False
+        assert rows["off"]["order"] is None
 
     def test_save_profile_schedules_merges_without_dropping_keys(self, env) -> None:
         """[P0] POSTed rows merge into YAML and keep unrelated profile keys."""
@@ -317,8 +324,51 @@ class TestProfileSchedulesAPI:
         assert stored["run_daily_count"] == 1  # untouched keys survive
         assert stored["target_odds"] == PROFILE["target_odds"]
 
+    def test_save_profile_schedules_clears_target_payout_with_explicit_null(
+        self, env
+    ) -> None:
+        """[P1] F5: an explicit null clears target_payout instead of being ignored."""
+        _save_profiles(
+            env.app,
+            {"p": {**PROFILE, "auto_generate": True, "target_payout": 99.0}},
+        )
+        env.app.save_profile_schedules(
+            [{"name": "p", "auto_generate": True, "target_payout": None}]
+        )
+        stored = env.app.settings.get("profiles")["p"]
+        assert stored["target_payout"] is None
+        assert stored["auto_generate"] is True
+
     def test_save_profile_schedules_ignores_unknown_profile(self, env) -> None:
         """[P1] Rows for unknown profiles are skipped, existing data untouched."""
         _save_profiles(env.app, {"p": {**PROFILE, "run_daily_count": 1}})
         env.app.save_profile_schedules([{"name": "ghost", "auto_generate": True}])
         assert "ghost" not in env.app.settings.get("profiles")
+
+
+class TestOrderingRobustness:
+    """[P0] F4/F2: hand-edited YAML and legacy profiles survive the ticker."""
+
+    def test_mixed_order_types_do_not_raise(self, env) -> None:
+        """[P0] A quoted or float order alongside ints sorts instead of raising."""
+        _save_profiles(
+            env.app,
+            {
+                "a": {**PROFILE, "auto_generate": True, "order": "2"},
+                "b": {**PROFILE, "auto_generate": True, "order": 1},
+                "c": {**PROFILE, "auto_generate": True, "order": 3},
+            },
+        )
+        active = list(env.app._get_active_profiles())
+        assert active.index("b") < active.index("a") < active.index("c")
+
+    def test_legacy_profile_is_stamped_on_generate(self, env, monkeypatch) -> None:
+        """[P0] F2: a legacy (no per-profile window) profile is stamped too."""
+        _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
+        monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {})
+        _freeze(monkeypatch, hour=9)
+        env.app._do_generate()
+        stamps = (env.app.settings.get("runtime_state") or {}).get(
+            "profile_last_generated"
+        ) or {}
+        assert stamps.get("legacy") == "2026-09-24"

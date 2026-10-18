@@ -92,10 +92,13 @@ class ProfileIn(BaseModel):
     excluded_sources: list[str] | None = None
     units: float = 1.0
     target_payout: float | None = None
-    run_daily_count: int = 0
-    # T4: auto-generation ordering and per-profile schedule
-    order: int = 0
-    auto_generate: bool = False
+    # None = "not provided" → keep whatever is already persisted (legacy
+    # run_daily_count / per-profile schedule set on the Services page survive
+    # a Smart Builder save instead of being reset to 0).
+    run_daily_count: int | None = None
+    # T4: auto-generation ordering and per-profile schedule (tri-state: keep when omitted)
+    order: int | None = None
+    auto_generate: bool | None = None
     generate_hour: int | None = None
     generate_minute: int | None = None
     # Advanced
