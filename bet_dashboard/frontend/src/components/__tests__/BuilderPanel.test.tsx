@@ -50,6 +50,18 @@ function renderPanel(cfgOverrides: Partial<BuilderConfig> = {}, leagues: string[
 }
 
 
+// DualSlider (restored from pre-#41 design): label + tooltip row, then the
+// SliderWithTicks range input flanked by left/right caption spans. The range
+// input carries no aria-label, so locate it through the label span's row.
+function dualSliderInput(label: string): HTMLInputElement | undefined {
+    const span = Array.from(document.querySelectorAll('span')).find(
+        (s) => s.textContent === label
+    );
+    if (!span) return undefined;
+    const row = span.closest('div[style*="border-bottom"]') ?? span.parentElement;
+    return (row?.querySelector('input[type="range"]') as HTMLInputElement | undefined) ?? undefined;
+}
+
 describe('BuilderPanel', () => {
     it('renders all accordion section titles', () => {
         renderPanel();
@@ -233,12 +245,12 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         const user = userEvent.setup();
         const { onChange } = renderPanel({ consensus_floor: 80 });
         await user.click(screen.getByRole('button', { name: /Selection Trade-offs/ }));
-        // find each TradeoffSlider by its accessible name (range input aria-label)
-        const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
-        const quality = sliders.find((s) => s.getAttribute('aria-label') === 'Quality vs Balance');
-        const agreement = sliders.find((s) => s.getAttribute('aria-label') === 'Sources vs Consensus');
-        expect(quality).toBeDefined();
-        expect(agreement).toBeDefined();
+        // DualSlider renders SliderWithTicks (range input, no aria-label) between
+        // its left/right caption spans — locate each row by its label text.
+        const quality = dualSliderInput('Distribution Logic');
+        const agreement = dualSliderInput('Agreement Logic');
+        expect(quality, 'Distribution Logic DualSlider not found').toBeDefined();
+        expect(agreement, 'Agreement Logic DualSlider not found').toBeDefined();
         fireEvent.change(quality as HTMLInputElement, { target: { value: '80' } });
         let last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.quality_vs_balance).toBe(0.8);
@@ -268,13 +280,12 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         expect(last.consensus_floor).toBe(85);
     });
 
-    it('Agreement Logic disabled at consensus_floor 100 (TradeoffSlider disabled)', async () => {
+    it('Agreement Logic disabled at consensus_floor 100 (DualSlider disabled)', async () => {
         const user = userEvent.setup();
         renderPanel({ consensus_floor: 100 });
         await user.click(screen.getByRole('button', { name: /Selection Trade-offs/ }));
-        const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
-        const agreement = sliders.find((s) => s.getAttribute('aria-label') === 'Sources vs Consensus');
-        expect(agreement).toBeDefined();
+        const agreement = dualSliderInput('Agreement Logic');
+        expect(agreement, 'Agreement Logic DualSlider not found').toBeDefined();
         expect((agreement as HTMLInputElement).disabled).toBe(true);
     });
 });
