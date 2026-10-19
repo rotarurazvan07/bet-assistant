@@ -6,13 +6,11 @@ load_runtime/load_profile config plumbing, argparse mode validation.
 """
 
 import os
-
 import shutil
 
 import pytest
 import yaml
 from scrape_kit import SettingsManager, configure
-
 
 from bet_crawler.crawl import CrawlerFactory, CrawlerRuntimeSettings, build_parser, load_profile, load_runtime
 
