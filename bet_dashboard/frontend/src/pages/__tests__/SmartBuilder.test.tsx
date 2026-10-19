@@ -1,13 +1,10 @@
-// SmartBuilder page — story 41-96 rework contract:
-//   AC-1  all saved profiles render as cards; click loads into the builder
-//   AC-2  each card has a top-corner X that DELETEs that profile (header
-//         Delete button gone)
-//   AC-3  trailing '+' creates new{N} copying the CURRENT cfg, saves via
-//         POST /api/profiles and selects it
-//   AC-4  Units / Target Payout live in the Add-to-Slips modal, NOT header
-//   AC-5  '+ Add to Slips' OPENS the confirmation modal
-//   AC-6  modal confirm POSTs /api/slips and closes
-//   AC-7  Escape/Cancel/backdrop close the modal without posting
+// SmartBuilder page — profile-cards rework contract:
+//   AC-1  heading reads 'Profiles' + 'Profiles: <name> active' indicator
+//   AC-2  first profile is selected by default (no 'manual' state)
+//   AC-3  config changes AUTO-SAVE to the active profile (no Save button)
+//   AC-4  deleting the active profile re-selects the first remaining one
+//   AC-5  Add-to-Slips modal: Units / Target Payout are mutually exclusive
+//         with cross calculated previews, 0.1 steps, blocking behaviour
 // Existing pins kept: 350ms debounce, localStorage payload, excluded cards,
 // refreshKey, real timers (fake timers broke MSW delivery — D43 lesson).
 
@@ -20,8 +17,7 @@ import SmartBuilder from '../SmartBuilder';
 import { server } from '../../test/handlers';
 import { makeCandidateLeg, makePreviewResult, makeProfile } from '../../test/factories';
 
-// Order-robust shared stub (final-gate fix): SmartBuilder renders
-// AnalyticsDashboard → recharts. Registering the IDENTICAL factory in every
+// Order-robust shared stub: registering the IDENTICAL factory in every
 // recharts-consuming file makes the run order-independent.
 vi.mock('recharts', async () => (await import('../../test/recharts-stub')).rechartsStub);
 
@@ -36,6 +32,7 @@ let previewCalls = 0;
 let lastPreviewBody = '';
 let slipPosts = 0;
 let deleted: string[] = [];
+let savedPosts: Array<Record<string, unknown>> = [];
 let profileMap: Record<string, ReturnType<typeof makeProfile>> = { ...PROFILES };
 
 beforeEach(() => {
@@ -44,6 +41,7 @@ beforeEach(() => {
     lastPreviewBody = '';
     slipPosts = 0;
     deleted = [];
+    savedPosts = [];
     profileMap = { ...PROFILES };
     server.use(
         http.post('/api/builder/preview', async ({ request }) => {
@@ -54,6 +52,7 @@ beforeEach(() => {
         http.get('/api/profiles', () => HttpResponse.json({ profiles: { ...profileMap } })),
         http.post('/api/profiles', async ({ request }) => {
             const body = await request.json() as Record<string, unknown>;
+            savedPosts.push(body);
             profileMap[String(body.name)] = body as unknown as ReturnType<typeof makeProfile>;
             return HttpResponse.json({ status: 'ok' });
         }),
@@ -89,14 +88,14 @@ describe('SmartBuilder page', () => {
     it('mounts and fires the debounced preview after 350ms', async () => {
         await renderAndHydrate();
         expect(screen.getByText('Live Preview — updates with every config change')).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: 'Build' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
     });
 
     it('config change triggers a NEW debounced preview (count increments)', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         const before = previewCalls;
-        const oddsInput = screen.getAllByDisplayValue('3')[0];
+        const oddsInput = screen.getAllByDisplayValue('4')[0];
         await user.clear(oddsInput);
         await user.type(oddsInput, '5');
         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
@@ -107,168 +106,128 @@ describe('SmartBuilder page', () => {
         const saved = localStorage.getItem('smart_builder_state');
         expect(saved).not.toBeNull();
         const parsed = JSON.parse(saved as string);
-        expect(parsed.cfg.target_odds).toBe(3);
+        expect(parsed.cfg.target_odds).toBe(4);
         expect(parsed.cfg.date_from).toBeNull();
         expect(parsed.cfg.date_to).toBeNull();
-        expect(parsed.activeName).toBe('manual');
-        expect(parsed.units).toBe(1);
+        // first profile auto-selected, no 'manual'
+        expect(parsed.activeName).toBe('cautious');
+        expect(parsed.units).toBe(2);
     });
 
-    // ── AC-1: profile cards replace the combobox ────────────────────────────
+    // ── AC-1/AC-2: heading, active indicator, default selection ─────────────
 
-    it('AC-1: renders every saved profile as a card (no combobox)', async () => {
+    it('AC-1: heading reads Profiles and shows the active indicator', async () => {
         await renderAndHydrate();
-        expect(screen.getByRole('button', { name: 'cautious' })).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'bold' })).toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('profile name')).not.toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
+        expect(screen.getByText('Profiles: cautious active')).toBeInTheDocument();
+    });
+
+    it('AC-2: the first profile is selected by default (no manual state)', async () => {
+        await renderAndHydrate();
+        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('AC-1: clicking a card loads its config into the builder', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         const before = previewCalls;
-        await user.click(screen.getByRole('button', { name: 'cautious' }));
+        await user.click(screen.getByRole('button', { name: 'bold' }));
         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
-        expect(lastPreviewBody).toContain('"target_odds":4');
+        expect(lastPreviewBody).toContain('"target_odds":8');
+        expect(screen.getByText('Profiles: bold active')).toBeInTheDocument();
     });
 
-    it('AC-1/7.3: header no longer carries Reset excluded or Run Daily', async () => {
+    it('AC-1: header no longer carries Reset excluded or Run Daily', async () => {
         await renderAndHydrate();
         expect(screen.queryByText('Reset excluded')).not.toBeInTheDocument();
         expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
     });
 
-    // ── AC-2: per-card X delete ─────────────────────────────────────────────
+    // ── AC-4: per-card delete re-selects the first remaining profile ────────
 
-    it('AC-2: X DELETEs that profile and falls back to manual when it was active', async () => {
+    it('AC-4: deleting the ACTIVE profile re-selects the first remaining one', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
-        await user.click(screen.getByRole('button', { name: 'cautious' }));
+        expect(screen.getByText('Profiles: cautious active')).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
         await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
         expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'cautious' })).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'bold' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('AC-2: X on a NON-active profile deletes it and keeps the active one', async () => {
+    it('AC-4: X on a NON-active profile deletes it and keeps the active one', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(screen.getByRole('button', { name: 'bold' }));
         await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
         await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
-        // bold survived and stayed selected (aria-pressed marker)
         expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
         expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
-    it('AC-2: header Delete button is gone (X is the only delete path)', async () => {
+    // ── AC-3: auto-save replaces the Save button ────────────────────────────
+
+    it('AC-3: there is no Save button — config changes auto-save to the profile', async () => {
+        const user = userEvent.setup();
         await renderAndHydrate();
-        expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+        const before = savedPosts.length;
+        const oddsInput = screen.getAllByDisplayValue('4')[0];
+        await user.clear(oddsInput);
+        await user.type(oddsInput, '6');
+        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
+        expect(savedPosts[savedPosts.length - 1].name).toBe('cautious');
+        expect(await screen.findByText("✓ Saved to 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
-    // ── AC-3: '+' creates new{N} from the current config ────────────────────
-
-    it('AC-3: + saves the current cfg as new1 and selects it', async () => {
+    it('AC-3: switching a profile does not re-save the previous config', async () => {
         const user = userEvent.setup();
-        let savedBody: Record<string, unknown> = {};
-        server.use(
-            http.post('/api/profiles', async ({ request }) => {
-                savedBody = await request.json() as Record<string, unknown>;
-                profileMap['new1'] = savedBody as unknown as ReturnType<typeof makeProfile>;
-                return HttpResponse.json({ status: 'ok' });
-            }),
-        );
         await renderAndHydrate();
-        await user.click(screen.getByRole('button', { name: '+' }));
-        await waitFor(() => expect(savedBody.name).toBe('new1'), { timeout: 3000 });
-        // current cfg copied (default target_odds 3, units 1)
-        expect(savedBody.target_odds).toBe(3);
-        expect(savedBody.units).toBe(1);
-        expect(await screen.findByText(/Profile 'new1' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
-        // selected: new card exists and is pressed
+        const before = savedPosts.length;
+        await user.click(screen.getByRole('button', { name: 'bold' }));
+        await new Promise(r => setTimeout(r, 900));
+        expect(savedPosts.length).toBe(before);
+    });
+
+    // ── '+' creates new{N} from the current config ──────────────────────────
+
+    it('+ saves the current cfg as new1 and selects it', async () => {
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        await user.click(screen.getByRole('button', { name: 'Create new profile' }));
+        await waitFor(() => expect(savedPosts.some(p => p.name === 'new1')).toBe(true), { timeout: 3000 });
         const card = await screen.findByRole('button', { name: 'new1' }, { timeout: 3000 });
         expect(card).toHaveAttribute('aria-pressed', 'true');
+        expect(await screen.findByText("✓ Saved to 'new1'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
-    it('AC-3: rapid double-click on + never creates a duplicate name', async () => {
-        // Two clicks with the in-flight guard may still both save (that is
-        // legitimate: new1 then new2) — the invariant is that no name is
-        // written twice. Without the guard both clicks read the same stale
-        // profiles map and both POST 'new1'.
+    it('rapid double-click on + never creates a duplicate name', async () => {
         const user = userEvent.setup();
-        const savedNames: string[] = [];
-        server.use(
-            http.post('/api/profiles', async ({ request }) => {
-                const body = await request.json() as Record<string, unknown>;
-                savedNames.push(String(body.name));
-                profileMap[String(body.name)] = body as unknown as ReturnType<typeof makeProfile>;
-                return HttpResponse.json({ status: 'ok' });
-            }),
-        );
         await renderAndHydrate();
-        await user.dblClick(screen.getByRole('button', { name: '+' }));
-        await waitFor(() => expect(savedNames.length).toBeGreaterThan(0), { timeout: 3000 });
-        // any names that did land must be unique
-        expect(new Set(savedNames).size).toBe(savedNames.length);
-        expect(savedNames.some(n => n !== 'new1' && n !== 'new2')).toBe(false);
+        await user.dblClick(screen.getByRole('button', { name: 'Create new profile' }));
+        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(0), { timeout: 3000 });
+        const names = savedPosts.map(p => String(p.name));
+        expect(new Set(names).size).toBe(names.length);
+        expect(names.every(n => n === 'new1' || n === 'new2')).toBe(true);
     });
 
-    it('AC-3: + picks new2 when new1 already exists', async () => {
+    it('+ picks new2 when new1 already exists', async () => {
         const user = userEvent.setup();
         profileMap = { ...PROFILES, new1: makeProfile({ target_odds: 2 }) };
-        let savedName = '';
-        server.use(
-            http.post('/api/profiles', async ({ request }) => {
-                const body = await request.json() as Record<string, unknown>;
-                savedName = String(body.name);
-                profileMap[savedName] = body as unknown as ReturnType<typeof makeProfile>;
-                return HttpResponse.json({ status: 'ok' });
-            }),
-        );
         await renderAndHydrate();
-        await user.click(screen.getByRole('button', { name: '+' }));
-        await waitFor(() => expect(savedName).toBe('new2'), { timeout: 3000 });
-        expect(await screen.findByText(/Profile 'new2' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Create new profile' }));
+        await waitFor(() => expect(savedPosts.some(p => p.name === 'new2')).toBe(true), { timeout: 3000 });
     });
 
-    // ── AC-4: sizing moved out of the header into the modal ────────────────
-
-    it('AC-4: Units/Target Payout are NOT in the top header', async () => {
-        await renderAndHydrate();
-        // Header labels existed above the preview before this story; the
-        // modal renders them (asserted separately) — here they must be absent
-        // while no modal is open.
-        expect(screen.queryByText('Units')).not.toBeInTheDocument();
-        expect(screen.queryByText('Target Payout')).not.toBeInTheDocument();
-    });
-
-    it('Save still POSTs the active profile', async () => {
-        const user = userEvent.setup();
-        let saved = 0;
-        server.use(
-            http.post('/api/profiles', async ({ request }) => {
-                const body = await request.json() as Record<string, unknown>;
-                saved += 1;
-                profileMap[String(body.name)] = body as unknown as ReturnType<typeof makeProfile>;
-                return HttpResponse.json({ status: 'ok' });
-            }),
-        );
-        await renderAndHydrate();
-        await user.click(screen.getByRole('button', { name: 'bold' }));
-        await user.click(screen.getByRole('button', { name: 'Save' }));
-        expect(await screen.findByText(/Profile 'bold' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
-        expect(saved).toBe(1);
-    });
-
-    // ── AC-5/6/7: Add to Slips confirmation modal ──────────────────────────
+    // ── AC-5: Add-to-Slips confirmation modal — mutual exclusivity ──────────
 
     it('AC-5: + Add to Slips opens the confirmation modal with Units + Target Payout', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
         const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
-        expect(within(dialog).getByText('Units')).toBeInTheDocument();
         expect(within(dialog).getByText('Target Payout')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: 'Add to Slips' })).toBeInTheDocument();
     });
@@ -303,7 +262,16 @@ describe('SmartBuilder page', () => {
         expect(slipPosts).toBe(0);
     });
 
-    it('AC-5: Target Payout in the modal computes units from total odds', async () => {
+    it('AC-5: both inputs use 0.1 steps', async () => {
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
+        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
+        expect(within(dialog).getByLabelText('Units')).toHaveAttribute('step', '0.1');
+        expect(within(dialog).getByLabelText('Target Payout')).toHaveAttribute('step', '0.1');
+    });
+
+    it('AC-5: writing Target Payout disables Units and previews computed units', async () => {
         const user = userEvent.setup();
         server.use(
             http.post('/api/builder/preview', async () => {
@@ -314,12 +282,36 @@ describe('SmartBuilder page', () => {
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
         const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
-        const payoutInput = within(dialog).getByPlaceholderText('Off');
+        const payoutInput = within(dialog).getByLabelText('Target Payout');
         await user.clear(payoutInput);
         await user.type(payoutInput, '25');
-        // 25 / 2.5 = 10 units — the modal shows the computed readout
+        // 25 / 2.5 = 10 units — computed into the now-disabled Units input
         await waitFor(() => {
-            expect(within(dialog).getByText('→ 10u')).toBeInTheDocument();
+            const unitsInput = within(dialog).getByLabelText('Units') as HTMLInputElement;
+            expect(unitsInput.disabled).toBe(true);
+            expect(Number(unitsInput.value)).toBe(10);
+        }, { timeout: 3000 });
+    });
+
+    it('AC-5: writing Units disables Target Payout and previews computed payout', async () => {
+        const user = userEvent.setup();
+        server.use(
+            http.post('/api/builder/preview', async () => {
+                previewCalls += 1;
+                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
+            }),
+        );
+        await renderAndHydrate();
+        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
+        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
+        const unitsInput = within(dialog).getByLabelText('Units');
+        await user.clear(unitsInput);
+        await user.type(unitsInput, '4');
+        // 4 × 2.5 = 10 payout — computed into the now-disabled Target Payout input
+        await waitFor(() => {
+            const payoutInput = within(dialog).getByLabelText('Target Payout') as HTMLInputElement;
+            expect(payoutInput.disabled).toBe(true);
+            expect(Number(payoutInput.value)).toBe(10);
         }, { timeout: 3000 });
     });
 

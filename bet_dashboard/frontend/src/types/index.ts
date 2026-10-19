@@ -325,8 +325,9 @@ export interface ProfileSchedule {
     auto_generate: boolean;
     generate_hour: number;
     generate_minute: number;
-    units: number;
+    units: number | null;
     target_payout: number | null;
+    run_daily_count: number;
     order: number;
 }
 

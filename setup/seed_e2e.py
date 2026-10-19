@@ -153,6 +153,7 @@ _PROFILE_SCHEDULES = [
         "generate_minute": 30,
         "units": 1.0,
         "target_payout": None,
+        "run_daily_count": 1,
         "order": 0,
     },
     {
@@ -160,8 +161,9 @@ _PROFILE_SCHEDULES = [
         "auto_generate": True,
         "generate_hour": 10,
         "generate_minute": 0,
-        "units": 2.0,
+        "units": None,
         "target_payout": 50.0,
+        "run_daily_count": 2,
         "order": 1,
     },
     {
@@ -169,8 +171,9 @@ _PROFILE_SCHEDULES = [
         "auto_generate": False,
         "generate_hour": 12,
         "generate_minute": 15,
-        "units": 1.0,
+        "units": None,
         "target_payout": None,
+        "run_daily_count": 0,
         "order": 2,
     },
 ]
@@ -216,7 +219,7 @@ def main() -> None:
             BetSlipConfig(),
             units=row["units"],
             target_payout=row["target_payout"],
-            run_daily_count=1 if row["auto_generate"] else 0,
+            run_daily_count=row["run_daily_count"],
             order=row["order"],
             auto_generate=row["auto_generate"],
             generate_hour=row["generate_hour"],
@@ -269,6 +272,7 @@ def main() -> None:
             "generate_minute",
             "units",
             "target_payout",
+            "run_daily_count",
             "order",
         ):
             assert stored.get(key) == row[key], (

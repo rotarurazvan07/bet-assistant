@@ -174,11 +174,14 @@ class AppLogic:
     # ── TickerService callbacks ───────────────────────────────────────────────
 
     def _is_generator_hour_met(self) -> bool:
-        """Predicate: any active profile's daily window is due (per-profile or global)."""
-        now = datetime.now()
-        today_key = now.strftime("%Y-%m-%d")
+        """Predicate: any active profile's own daily window is due.
 
-        # Per-profile windows first (T4): fire as soon as one of them is due
+        There is no global schedule time anymore: a profile without its own
+        generate_hour/generate_minute never fires (per-profile windows only).
+        """
+        now = datetime.now()
+
+        # Per-profile windows: fire as soon as one active profile is due.
         profiles_raw = self._settings.get("profiles") or {}
         for name in self._get_active_profiles():
             cfg = profiles_raw.get(name) or {}
@@ -186,38 +189,7 @@ class AppLogic:
             if hour is not None and minute is not None and self._profile_schedule_met(name, cfg, now=now):
                 return True
 
-        # Get target hour and minute from current settings
-        svc_cfg = self._settings.get("services") or {}
-        target_hour = int(svc_cfg.get("generate_hour", 8))
-        target_minute = int(svc_cfg.get("generate_minute", 0))
-
-        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
-
-        # If the scheduled time hasn't arrived yet, nothing to do
-        if now < target_time:
-            return False
-
-        # Check in-memory guard first (fastest path during normal operation)
-        if self._last_generator_run == today_key:
-            return False
-
-        # On restart, _last_generator_run is None — fall back to persisted timestamp.
-        # If last_time_generated is from today and the scheduled time has already
-        # passed, we treat generation as already done for today.
-        runtime_cfg = self._settings.get("runtime_state") or {}
-        last_generated = runtime_cfg.get("last_time_generated")
-        if last_generated:
-            try:
-                last_dt = datetime.fromisoformat(last_generated)
-                if last_dt.strftime("%Y-%m-%d") == today_key:
-                    # Already ran today — sync in-memory guard and skip
-                    self._last_generator_run = today_key
-                    return False
-            except ValueError, TypeError:
-                pass
-
-        self._last_generator_run = today_key
-        return True
+        return False
 
     def _check_for_changes(self) -> bool:
         """HEAD request to check if GitHub release has changed via ETag."""
@@ -318,13 +290,9 @@ class AppLogic:
         now = now or datetime.now()
         today_key = now.strftime("%Y-%m-%d")
         hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
-        per_profile = hour is not None and minute is not None
-        if not per_profile:
-            svc_cfg = self._settings.get("services") or {}
-            hour, minute = (
-                svc_cfg.get("generate_hour", 8),
-                svc_cfg.get("generate_minute", 0),
-            )
+        # No global fallback: a profile without its own window never fires.
+        if hour is None or minute is None:
+            return False
         target = now.replace(
             hour=int(hour) if hour is not None else 8,
             minute=int(minute or 0),
@@ -378,6 +346,7 @@ class AppLogic:
                     "generate_minute": cfg.get("generate_minute"),
                     "units": cfg.get("units", 1.0),
                     "target_payout": cfg.get("target_payout"),
+                    "run_daily_count": cfg.get("run_daily_count") or (1 if (cfg.get("auto_generate") or cfg.get("run_daily_count")) else 0),
                     "order": cfg.get("order"),
                 }
             )
@@ -401,6 +370,7 @@ class AppLogic:
                         "generate_minute",
                         "units",
                         "target_payout",
+                        "run_daily_count",
                         "order",
                     )
                     if k in row

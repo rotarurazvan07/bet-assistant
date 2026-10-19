@@ -1,108 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchServices, saveServiceSettings, toggleService } from '../api/data';
+import { fetchServices, toggleService } from '../api/data';
 import EmptyState, { ServicesEmptyIcon } from '../components/EmptyState';
 import ServiceCard from '../components/ServiceCard';
 import { TooltipIcon } from '../components/ui';
 import client from '../api/client';
 import type { ProfileSchedule, ServicesData } from '../types';
 
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { StaticTimePicker } from '@mui/x-date-pickers/StaticTimePicker';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
-import dayjs from 'dayjs';
-
-// Custom theme mapping the high-fidelity CSS variable tokens
-const muiDarkTheme = createTheme({
-    palette: {
-        mode: 'dark',
-        background: {
-            default: '#131C2E', // var(--bg-raised)
-            paper: '#18243A',   // var(--bg-card)
-        },
-        primary: {
-            main: '#7C3AED',    // var(--purple)
-        },
-        text: {
-            primary: '#C9D6F0',   // var(--text-primary)
-            secondary: '#b8c1d3', // var(--text-secondary)
-        },
-    },
-    typography: {
-        fontFamily: "'JetBrains Mono', 'Inter', monospace",
-        fontSize: 12,
-    },
-    components: {
-        MuiPickersLayout: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#131C2E',
-                    color: '#C9D6F0',
-                    border: '1px solid rgba(255, 255, 255, 0.07)',
-                    borderRadius: '12px',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
-                    overflow: 'hidden',
-                },
-            },
-        },
-        MuiPickersToolbar: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#18243A',
-                    borderRight: '1px solid rgba(255, 255, 255, 0.07)',
-                    '& .MuiTypography-root': {
-                        fontFamily: "'Outfit', sans-serif",
-                    },
-                },
-            },
-        },
-        MuiClock: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#131C2E',
-                },
-            },
-        },
-        MuiClockPointer: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#7C3AED',
-                },
-                thumb: {
-                    backgroundColor: '#7C3AED',
-                    borderColor: '#7C3AED',
-                },
-            },
-        },
-        MuiClockNumber: {
-            styleOverrides: {
-                root: {
-                    fontFamily: "'JetBrains Mono', monospace",
-                    color: '#b8c1d3',
-                    '&.Mui-selected': {
-                        color: '#ffffff',
-                    },
-                },
-            },
-        },
-        MuiClockAmPmSelectedCircle: {
-            styleOverrides: {
-                root: {
-                    backgroundColor: '#7C3AED',
-                },
-            },
-        },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any,
-});
-
 export default function Services() {
     const [data, setData] = useState<ServicesData | null>(null);
-    const [genHour, setGenHour] = useState(8);
-    const [genMinute, setGenMinute] = useState(0);
-    const [status, setStatus] = useState('');
-    // Per-profile auto-generation rows (issue #95). null = backend served the
-    // legacy shape only: the per-profile section stays hidden and nothing changes.
+    // Per-profile auto-generation rows: null = backend served the legacy
+    // shape only, the per-profile section stays hidden and nothing changes.
     const [rows, setRows] = useState<ProfileSchedule[] | null>(null);
     const [rowsSaved, setRowsSaved] = useState('');
 
@@ -110,30 +17,21 @@ export default function Services() {
         try {
             const d = await fetchServices();
             setData(d);
-            setGenHour(d.generate_hour);
-            setGenMinute(d.generate_minute);
             setRows(d.profile_schedules
                 ? [...d.profile_schedules].sort(
-                    // order may be null/non-numeric on hand-edited YAML (review F6):
-                    // coerce and tie-break by name so the rendered order is stable.
+                    // order may be null/non-numeric on hand-edited YAML: coerce
+                    // and tie-break by name so the rendered order is stable.
                     (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name),
                 )
                 : null);
         } catch {
-            // Network/API failure: keep the loading card rather than crash;
-            // surface the failure in the status line (existing app pattern).
-            setStatus('⚠ Failed to load services — check connection');
+            // Network/API failure: keep the loading card rather than crash.
+            setData(null);
         }
     }, []);
 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { load(); }, [load]);
-
-    async function handleSave() {
-        await saveServiceSettings(genHour, genMinute);
-        setStatus('✓ Settings saved — schedules recalculated');
-        load();
-    }
 
     async function handleToggle(name: string) {
         await toggleService(name);
@@ -142,6 +40,18 @@ export default function Services() {
 
     function patchRow(index: number, patch: Partial<ProfileSchedule>) {
         setRows(cur => (cur ?? []).map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    }
+
+    // Units and Target Payout are mutually exclusive: writing one blocks the
+    // other. Typing in units clears the payout; typing a payout keeps units
+    // stored but the units input becomes read-only via the disabled flag.
+    function patchUnits(index: number, raw: string) {
+        const units = raw === '' ? 0 : Number(raw);
+        patchRow(index, { units, target_payout: units > 0 ? null : (rows?.[index]?.target_payout ?? null) });
+    }
+
+    function patchPayout(index: number, raw: string) {
+        patchRow(index, { target_payout: raw === '' ? null : Number(raw) });
     }
 
     function moveRow(index: number, direction: -1 | 1) {
@@ -174,9 +84,7 @@ export default function Services() {
                 </h1>
             </div>
             <div className="card text-center py-16">
-                <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    Loading services…
-                </p>
+                <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>Loading services…</p>
             </div>
         </div>
     );
@@ -194,21 +102,20 @@ export default function Services() {
                 </span>
             </div>
 
-            {/* AC-06: guidance only when generator exists and is off. Loader stays loader. */}
+            {/* Guidance only when the generator exists and is off. */}
             {data.services?.generator && !data.services.generator.enabled && (
                 <div className="mb-5">
                     <EmptyState
                         icon={<ServicesEmptyIcon />}
                         title="Generate Slips is off"
-                        steps={['Enable Generate Slips service', 'Set schedule', 'Save']}
+                        steps={['Enable Generate Slips service', 'Set a per-profile schedule', 'Save Profile Schedules']}
                         primary={{ label: 'Enable Generate Slips', onClick: () => { void handleToggle('generator'); } }}
-                        secondary={{ label: 'Save Settings', onClick: () => { void handleSave(); } }}
+                        secondary={{ label: 'Save Profile Schedules', onClick: () => { void saveProfileSchedules(); } }}
                     />
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
+            <div className="grid grid-cols-1 gap-5">
                 {/* Service cards */}
                 {Object.values(data.services ?? {}).map(svc => (
                     <ServiceCard
@@ -218,123 +125,132 @@ export default function Services() {
                     />
                 ))}
 
-                {/* Scheduler settings */}
-                <div className="card p-4 lg:col-span-3">
-                    <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
-                        style={{ color: 'var(--text-secondary)' }}>Scheduled Time</p>
-
-                    <div className="grid grid-cols-1 gap-6 mb-4">
-
-                        {/* Generate Slips hour */}
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-4">
-                                <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
-                                    Generate Slips
-                                    <TooltipIcon text="Creates betting slips based on builder configurations and predictions. Runs daily at the scheduled time." align="right" />
-                                </span>
-                            </div>
-
-                            <div className="flex justify-center lg:justify-start">
-                                <ThemeProvider theme={muiDarkTheme}>
-                                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                                        <StaticTimePicker
-                                            ampm={false}
-                                            orientation="landscape"
-                                            value={dayjs().hour(genHour).minute(genMinute).second(0)}
-                                            onChange={(newValue) => {
-                                                if (newValue) {
-                                                    setGenHour(newValue.hour());
-                                                    setGenMinute(newValue.minute());
-                                                }
-                                            }}
-                                            slotProps={{
-                                                actionBar: {
-                                                    actions: []
-                                                }
-                                            }}
-                                        />
-                                    </LocalizationProvider>
-                                </ThemeProvider>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-                        <button className="btn-primary" onClick={handleSave}>Save Settings</button>
-                        {status && (
-                            <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{status}</span>
-                        )}
-                    </div>
-                </div>
-
-                {/* AC-7.6: per-profile auto-generation schedule (issue #95). Hidden
-                    when the backend serves the legacy shape only. */}
+                {/* Per-profile auto-generation schedule: the only scheduling
+                    surface. The global schedule time is gone — each profile
+                    runs at its own row time with no fallback. */}
                 {rows && rows.length > 0 && (
-                    <div className="card p-4 lg:col-span-3 mt-5">
-                        <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
-                            style={{ color: 'var(--text-secondary)' }}>Per-Profile Scheduling</p>
+                    <div className="card p-4 lg:col-span-3">
+                        <div className="flex items-center gap-1.5 mb-4">
+                            <p className="font-mono text-[10px] tracking-widest uppercase"
+                                style={{ color: 'var(--text-secondary)' }}>Per-Profile Scheduling</p>
+                            <TooltipIcon
+                                text="Each profile generates at its own time. Units and Target Payout are mutually exclusive — fill one, the other is blocked. Daily run count caps how many slips that profile builds per day."
+                                align="right"
+                            />
+                        </div>
 
-                        <div className="flex flex-col gap-2">
-                            {rows.map((row, i) => (
-                                <div key={row.name} className="flex items-center gap-3 flex-wrap">
-                                    <span className="font-mono text-[12px] w-28 truncate" title={row.name}
-                                        style={{ color: 'var(--text-bright)' }}>{row.name}</span>
-                                    <button
-                                        className={row.auto_generate ? 'btn-primary' : 'btn-ghost'}
-                                        aria-label={`${row.auto_generate ? 'Disable' : 'Enable'} auto-generation for ${row.name}`}
-                                        onClick={() => patchRow(i, { auto_generate: !row.auto_generate })}
-                                    >
-                                        {row.auto_generate ? 'Auto: on' : 'Auto: off'}
-                                    </button>
-                                    <select
-                                        aria-label={`Generation hour for ${row.name}`}
-                                        className="field w-20"
-                                        value={row.generate_hour}
-                                        onChange={(e) => patchRow(i, { generate_hour: Number(e.target.value) })}
-                                    >
-                                        {Array.from({ length: 24 }, (_, h) => (
-                                            <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse">
+                                <thead>
+                                    <tr className="text-left">
+                                        {['Profile', 'Time', 'Daily', 'Auto', 'Units', 'Target Payout', 'Order'].map(h => (
+                                            <th key={h} className="pb-2 pr-3 font-mono text-[10px] tracking-wider uppercase font-normal"
+                                                style={{ color: 'var(--text-secondary)' }}>{h}</th>
                                         ))}
-                                    </select>
-                                    <span className="font-mono text-[12px]" style={{ color: 'var(--text-secondary)' }}>:</span>
-                                    <select
-                                        aria-label={`Generation minute for ${row.name}`}
-                                        className="field w-20"
-                                        value={row.generate_minute}
-                                        onChange={(e) => patchRow(i, { generate_minute: Number(e.target.value) })}
-                                    >
-                                        {Array.from({ length: 60 }, (_, m) => (
-                                            <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
-                                        ))}
-                                    </select>
-                                    <input
-                                        aria-label={`Units for ${row.name}`}
-                                        className="field w-20" type="number" min={0}
-                                        value={row.units ?? ''}
-                                        onChange={(e) => patchRow(i, { units: e.target.value === '' ? 1.0 : Number(e.target.value) })}
-                                    />
-                                    <input
-                                        aria-label={`Target payout for ${row.name}`}
-                                        className="field w-28" type="number" min={0}
-                                        value={row.target_payout ?? ''}
-                                        onChange={(e) => patchRow(i, { target_payout: e.target.value === '' ? null : Number(e.target.value) })}
-                                    />
-                                    <div className="flex items-center gap-1 ml-auto">
-                                        <button
-                                            className="btn-ghost"
-                                            aria-label={`Move ${row.name} up`}
-                                            disabled={i === 0}
-                                            onClick={() => moveRow(i, -1)}
-                                        >↑</button>
-                                        <button
-                                            className="btn-ghost"
-                                            aria-label={`Move ${row.name} down`}
-                                            disabled={i === rows.length - 1}
-                                            onClick={() => moveRow(i, 1)}
-                                        >↓</button>
-                                    </div>
-                                </div>
-                            ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.map((row, i) => {
+                                        const payoutOn = row.target_payout != null && row.target_payout > 0;
+                                        const unitsOn = !payoutOn && (row.units ?? 0) > 0;
+                                        return (
+                                            <tr key={row.name} className="border-t" style={{ borderColor: 'var(--border)' }}>
+                                                <td className="py-2 pr-3">
+                                                    <span className="font-mono text-[12px]" title={row.name}
+                                                        style={{ color: 'var(--text-bright)' }}>{row.name}</span>
+                                                </td>
+                                                <td className="py-2 pr-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <select
+                                                            aria-label={`Generation hour for ${row.name}`}
+                                                            className="field w-20"
+                                                            value={row.generate_hour}
+                                                            onChange={(e) => patchRow(i, { generate_hour: Number(e.target.value) })}
+                                                        >
+                                                            {Array.from({ length: 24 }, (_, h) => (
+                                                                <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
+                                                            ))}
+                                                        </select>
+                                                        <span className="font-mono text-[12px]" style={{ color: 'var(--text-secondary)' }}>:</span>
+                                                        <select
+                                                            aria-label={`Generation minute for ${row.name}`}
+                                                            className="field w-20"
+                                                            value={row.generate_minute}
+                                                            onChange={(e) => patchRow(i, { generate_minute: Number(e.target.value) })}
+                                                        >
+                                                            {Array.from({ length: 60 }, (_, m) => (
+                                                                <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </td>
+                                                <td className="py-2 pr-3">
+                                                    <input
+                                                        aria-label={`Daily run count for ${row.name}`}
+                                                        className="field w-20"
+                                                        type="number"
+                                                        min={0}
+                                                        step={1}
+                                                        value={row.run_daily_count ?? 0}
+                                                        onChange={(e) => patchRow(i, { run_daily_count: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                                    />
+                                                </td>
+                                                <td className="py-2 pr-3">
+                                                    <button
+                                                        className={row.auto_generate ? 'btn-primary' : 'btn-ghost'}
+                                                        aria-label={`${row.auto_generate ? 'Disable' : 'Enable'} auto-generation for ${row.name}`}
+                                                        onClick={() => patchRow(i, { auto_generate: !row.auto_generate })}
+                                                    >
+                                                        {row.auto_generate ? 'On' : 'Off'}
+                                                    </button>
+                                                </td>
+                                                <td className="py-2 pr-3">
+                                                    <input
+                                                        aria-label={`Units for ${row.name}`}
+                                                        className="field w-20"
+                                                        type="number"
+                                                        min={0}
+                                                        step={0.1}
+                                                        disabled={payoutOn}
+                                                        style={{ opacity: payoutOn ? 0.5 : 1, cursor: payoutOn ? 'not-allowed' : 'text' }}
+                                                        value={row.units ?? ''}
+                                                        onChange={(e) => patchUnits(i, e.target.value)}
+                                                    />
+                                                </td>
+                                                <td className="py-2 pr-3">
+                                                    <input
+                                                        aria-label={`Target payout for ${row.name}`}
+                                                        className="field w-24"
+                                                        type="number"
+                                                        min={0}
+                                                        step={0.1}
+                                                        disabled={unitsOn}
+                                                        style={{ opacity: unitsOn ? 0.5 : 1, cursor: unitsOn ? 'not-allowed' : 'text' }}
+                                                        value={row.target_payout ?? ''}
+                                                        onChange={(e) => patchPayout(i, e.target.value)}
+                                                    />
+                                                </td>
+                                                <td className="py-2">
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            className="btn-ghost"
+                                                            aria-label={`Move ${row.name} up`}
+                                                            disabled={i === 0}
+                                                            onClick={() => moveRow(i, -1)}
+                                                        >↑</button>
+                                                        <button
+                                                            className="btn-ghost"
+                                                            aria-label={`Move ${row.name} down`}
+                                                            disabled={i === rows.length - 1}
+                                                            onClick={() => moveRow(i, 1)}
+                                                        >↓</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
 
                         <div className="flex items-center gap-3 pt-4 border-t mt-2" style={{ borderColor: 'var(--border)' }}>
