@@ -5,10 +5,14 @@ real finder construction safety (offline ctor), skip-pattern injection,
 load_runtime/load_profile config plumbing, argparse mode validation.
 """
 
+import os
+
+import shutil
+
 import pytest
 import yaml
-import os
 from scrape_kit import SettingsManager, configure
+
 
 from bet_crawler.crawl import CrawlerFactory, CrawlerRuntimeSettings, build_parser, load_profile, load_runtime
 
@@ -148,6 +152,24 @@ class TestStatusRetriesP1:
         body = SettingsManager(os.path.join(root, "config")).get("scraper_config")
         assert body is not None
         assert body["status_retries"] == {429: 10, 503: 10}
+
+    def test_status_retries_value_lands_not_shadowed_by_defaults(self, tmp_path) -> None:
+        """Configured values replace the built-in budgets for their status: a sentinel
+        429 budget of 7 must show up in the merged map (if the built-in default ever
+        equals the configured value, this catches the shadowing) while the built-in
+        403 entry stays intact."""
+        shutil.copyfile(
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config", "scraper_config.yaml"
+            ),
+            tmp_path / "scraper_config.yaml",
+        )
+        text = (tmp_path / "scraper_config.yaml").read_text(encoding="utf-8")
+        (tmp_path / "scraper_config.yaml").write_text(text.replace("  429: 10", "  429: 7"), encoding="utf-8")
+        fetcher = configure(str(tmp_path))
+        assert fetcher._configured_status_retries == {429: 7, 503: 10}
+        assert fetcher.status_retries[429] == 7
+        assert fetcher.status_retries[403] is None
 
 
 class TestLoadProfileP1:
