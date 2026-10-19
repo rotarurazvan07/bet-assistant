@@ -346,7 +346,8 @@ class AppLogic:
                     "generate_minute": cfg.get("generate_minute"),
                     "units": cfg.get("units", 1.0),
                     "target_payout": cfg.get("target_payout"),
-                    "run_daily_count": cfg.get("run_daily_count") or (1 if (cfg.get("auto_generate") or cfg.get("run_daily_count")) else 0),
+                    "run_daily_count": cfg.get("run_daily_count")
+                    or (1 if (cfg.get("auto_generate") or cfg.get("run_daily_count")) else 0),
                     "order": cfg.get("order"),
                 }
             )
