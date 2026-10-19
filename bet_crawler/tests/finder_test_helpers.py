@@ -105,7 +105,7 @@ class FakeBrowserSession:
     """Patch target for scrape_kit browser() sessions.
 
     Supports the three usage patterns in the codebase:
-    - session.fetch(url) -> str HTML             (WhoScored discovery; scrape-kit@v0.2.2)
+    - session.fetch(url) -> str HTML             (WhoScored discovery; scrape-kit@v0.3.0)
     - session.execute_script(...)                (xGScore discovery)
     - session.page.content() + session.click(sel, label) (OddsPortal/BetExplorer)
 

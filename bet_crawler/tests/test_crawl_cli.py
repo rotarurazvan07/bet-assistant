@@ -7,6 +7,8 @@ load_runtime/load_profile config plumbing, argparse mode validation.
 
 import pytest
 import yaml
+import os
+from scrape_kit import SettingsManager, configure
 
 from bet_crawler.crawl import CrawlerFactory, CrawlerRuntimeSettings, build_parser, load_profile, load_runtime
 
@@ -132,6 +134,20 @@ class TestLoadRuntimeP1:
         assert f.runtime_settings.local_timezone == "Europe/Berlin"
         assert f.runtime_settings.skip_patterns == (("\\bW\\b", "Women's team"),)
         assert f.runner_keys("test") == ["delta"]
+
+
+class TestStatusRetriesP1:
+    def test_repo_config_declares_status_retries(self) -> None:
+        """scraper_config.yaml declares per-HTTP-status retry budgets (scrape-kit v0.3.0):
+        429/503 budgets of 10 parse without SettingsError, keep int keys, and merge over
+        the built-in 403 default instead of replacing it."""
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        fetcher = configure(os.path.join(root, "config"))
+        assert fetcher._configured_status_retries == {429: 10, 503: 10}
+        assert fetcher.status_retries == {403: None, 429: 10, 503: 10}
+        body = SettingsManager(os.path.join(root, "config")).get("scraper_config")
+        assert body is not None
+        assert body["status_retries"] == {429: 10, 503: 10}
 
 
 class TestLoadProfileP1:

@@ -476,15 +476,15 @@ class TestResetMatchesDb:
 
 
 class TestScrapeKitPin:
-    """Lock scrape-kit to v0.2.2 on every install path."""
+    """Lock scrape-kit to v0.3.0 on every install path."""
 
-    PIN = "git+https://github.com/rotarurazvan07/scrape-kit.git@v0.2.2"
+    PIN = "git+https://github.com/rotarurazvan07/scrape-kit.git@v0.3.0"
     REQUIREMENTS = (
         "bet_dashboard/backend/requirements.txt",
         "setup/requirements-scrape.txt",
     )
 
-    def test_both_requirements_pin_v022(self) -> None:
+    def test_both_requirements_pin_v030(self) -> None:
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         for rel in self.REQUIREMENTS:
             path = os.path.join(root, rel)
@@ -492,8 +492,8 @@ class TestScrapeKitPin:
                 lines = [ln.strip() for ln in fh if "scrape-kit" in ln and not ln.lstrip().startswith("#")]
             assert lines == [self.PIN], f"{rel} scrape-kit refs={lines}"
 
-    def test_scrape_requirements_pandas_matches_scrape_kit_v022(self) -> None:
-        # AC-02: scrape-kit v0.2.2 requires pandas==3.0.6; keep the scrape pin aligned.
+    def test_scrape_requirements_pandas_matches_scrape_kit_v030(self) -> None:
+        # AC-02: scrape-kit v0.3.0 requires pandas==3.0.6; keep the scrape pin aligned.
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         path = os.path.join(root, "setup/requirements-scrape.txt")
         with open(path, encoding="utf-8") as fh:
