@@ -135,15 +135,10 @@ test('Analytics empty CTAs navigate to Track and Build', async ({ page }) => {
 
 test('Services empty CTAs enable generator and save', async ({ page }) => {
     let toggled = 0;
-    let saved = 0;
     await mockServicesGeneratorOff(page);
     await page.route('**/api/services/generator/toggle', async (route) => {
         toggled += 1;
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'generator', enabled: true }) });
-    });
-    await page.route('**/api/services/settings', async (route) => {
-        saved += 1;
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
     });
     await page.goto('/services');
     await expect(page.getByText('Generate Slips is off')).toBeVisible();
