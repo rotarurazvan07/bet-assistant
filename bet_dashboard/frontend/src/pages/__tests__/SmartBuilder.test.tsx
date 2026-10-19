@@ -1,5 +1,5 @@
 // SmartBuilder page — profile-cards rework contract:
-//   AC-1  heading reads 'Profiles' + 'Profiles: <name> active' indicator
+//   AC-1  heading reads 'Profiles' (active profile shown by the card highlight)
 //   AC-2  first profile is selected by default (no 'manual' state)
 //   AC-3  config changes AUTO-SAVE to the active profile (no Save button)
 //   AC-4  deleting the active profile re-selects the first remaining one
@@ -116,10 +116,10 @@ describe('SmartBuilder page', () => {
 
     // ── AC-1/AC-2: heading, active indicator, default selection ─────────────
 
-    it('AC-1: heading reads Profiles and shows the active indicator', async () => {
+    it('AC-1: heading reads Profiles with no active-name indicator text', async () => {
         await renderAndHydrate();
         expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
-        expect(screen.getByText('Profiles: cautious active')).toBeInTheDocument();
+        expect(screen.queryByText(/^Profiles: .* active$/)).not.toBeInTheDocument();
     });
 
     it('AC-2: the first profile is selected by default (no manual state)', async () => {
@@ -135,7 +135,7 @@ describe('SmartBuilder page', () => {
         await user.click(screen.getByRole('button', { name: 'bold' }));
         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
         expect(lastPreviewBody).toContain('"target_odds":8');
-        expect(screen.getByText('Profiles: bold active')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('AC-1: header no longer carries Reset excluded or Run Daily', async () => {
@@ -149,7 +149,7 @@ describe('SmartBuilder page', () => {
     it('AC-4: deleting the ACTIVE profile re-selects the first remaining one', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
-        expect(screen.getByText('Profiles: cautious active')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true')
         await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
         await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
         expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
@@ -223,13 +223,18 @@ describe('SmartBuilder page', () => {
 
     // ── AC-5: Add-to-Slips confirmation modal — mutual exclusivity ──────────
 
-    it('AC-5: + Add to Slips opens the confirmation modal with Units + Target Payout', async () => {
+    it('AC-5: + Add to Slips opens the modal with BOTH inputs empty (no Off placeholder)', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
         const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
         expect(within(dialog).getByText('Target Payout')).toBeInTheDocument();
         expect(within(dialog).getByRole('button', { name: 'Add to Slips' })).toBeInTheDocument();
+        expect((within(dialog).getByLabelText('Units') as HTMLInputElement).value).toBe('');
+        expect((within(dialog).getByLabelText('Target Payout') as HTMLInputElement).value).toBe('');
+        expect(within(dialog).getByLabelText('Units')).not.toBeDisabled();
+        expect(within(dialog).getByLabelText('Target Payout')).not.toBeDisabled();
+        expect(within(dialog).getByLabelText('Target Payout')).not.toHaveAttribute('placeholder');
     });
 
     it('AC-6: confirm POSTs the slip and closes the modal', async () => {

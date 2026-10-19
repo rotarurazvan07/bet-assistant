@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchServices, toggleService } from '../api/data';
 import EmptyState, { ServicesEmptyIcon } from '../components/EmptyState';
 import ServiceCard from '../components/ServiceCard';
@@ -12,6 +12,10 @@ export default function Services() {
     // shape only, the per-profile section stays hidden and nothing changes.
     const [rows, setRows] = useState<ProfileSchedule[] | null>(null);
     const [rowsSaved, setRowsSaved] = useState('');
+    // Auto-save to disk on change (same pattern as the builder tab): only a
+    // real row edit sets this flag — loading rows never rewrites disk.
+    const dirtyRef = useRef(false);
+    const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const load = useCallback(async () => {
         try {
@@ -33,12 +37,32 @@ export default function Services() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { load(); }, [load]);
 
+    // Auto-save rows (debounced 600ms) — the manual Save button is gone.
+    useEffect(() => {
+        if (!rows?.length || !dirtyRef.current) return;
+        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        saveDebounceRef.current = setTimeout(async () => {
+            dirtyRef.current = false;
+            try {
+                await client.post('/services/settings', { profile_schedules: rows });
+                setRowsSaved('✓ Profile schedules saved');
+            } catch {
+                dirtyRef.current = true;
+                setRowsSaved('⚠ Failed to save profile schedules — will retry on next change');
+            }
+        }, 600);
+        return () => {
+            if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        };
+    }, [rows]);
+
     async function handleToggle(name: string) {
         await toggleService(name);
         await load();
     }
 
     function patchRow(index: number, patch: Partial<ProfileSchedule>) {
+        dirtyRef.current = true;
         setRows(cur => (cur ?? []).map((row, i) => (i === index ? { ...row, ...patch } : row)));
     }
 
@@ -55,6 +79,7 @@ export default function Services() {
     }
 
     function moveRow(index: number, direction: -1 | 1) {
+        dirtyRef.current = true;
         setRows(cur => {
             if (!cur) return cur;
             const target = index + direction;
@@ -63,17 +88,6 @@ export default function Services() {
             [next[index], next[target]] = [next[target], next[index]];
             return next.map((row, i) => ({ ...row, order: i }));
         });
-    }
-
-    async function saveProfileSchedules() {
-        if (!rows?.length) return;
-        try {
-            await client.post('/services/settings', { profile_schedules: rows });
-            setRowsSaved('✓ Profile schedules saved');
-            load();
-        } catch {
-            setRowsSaved('⚠ Failed to save profile schedules — check connection');
-        }
     }
 
     if (!data) return (
@@ -108,15 +122,14 @@ export default function Services() {
                     <EmptyState
                         icon={<ServicesEmptyIcon />}
                         title="Generate Slips is off"
-                        steps={['Enable Generate Slips service', 'Set a per-profile schedule', 'Save Profile Schedules']}
+                        steps={['Enable Generate Slips service', 'Set a per-profile schedule', 'Changes save automatically']}
                         primary={{ label: 'Enable Generate Slips', onClick: () => { void handleToggle('generator'); } }}
-                        secondary={{ label: 'Save Profile Schedules', onClick: () => { void saveProfileSchedules(); } }}
                     />
                 </div>
             )}
 
-            <div className="grid grid-cols-1 gap-5">
-                {/* Service cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Service cards — each a third of the row on wide screens */}
                 {Object.values(data.services ?? {}).map(svc => (
                     <ServiceCard
                         key={svc.name}
@@ -127,16 +140,20 @@ export default function Services() {
 
                 {/* Per-profile auto-generation schedule: the only scheduling
                     surface. The global schedule time is gone — each profile
-                    runs at its own row time with no fallback. */}
+                    runs at its own row time with no fallback. Edits auto-save
+                    to disk (same debounce pattern as the builder tab). */}
                 {rows && rows.length > 0 && (
                     <div className="card p-4 lg:col-span-3">
                         <div className="flex items-center gap-1.5 mb-4">
                             <p className="font-mono text-[10px] tracking-widest uppercase"
                                 style={{ color: 'var(--text-secondary)' }}>Per-Profile Scheduling</p>
                             <TooltipIcon
-                                text="Each profile generates at its own time. Units and Target Payout are mutually exclusive — fill one, the other is blocked. Daily run count caps how many slips that profile builds per day."
+                                text="Each profile generates at its own time. Units and Target Payout are mutually exclusive — fill one, the other is blocked. Daily run count caps how many slips that profile builds per day. Changes save automatically."
                                 align="right"
                             />
+                            {rowsSaved && (
+                                <span className="ml-auto text-[11px] font-mono" style={{ color: 'var(--win)' }}>{rowsSaved}</span>
+                            )}
                         </div>
 
                         <div className="overflow-x-auto">
@@ -251,13 +268,6 @@ export default function Services() {
                                     })}
                                 </tbody>
                             </table>
-                        </div>
-
-                        <div className="flex items-center gap-3 pt-4 border-t mt-2" style={{ borderColor: 'var(--border)' }}>
-                            <button className="btn-primary" onClick={() => { void saveProfileSchedules(); }}>Save Profile Schedules</button>
-                            {rowsSaved && (
-                                <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{rowsSaved}</span>
-                            )}
                         </div>
                     </div>
                 )}

@@ -58,11 +58,13 @@ function AddToSlipsModal({
         return () => window.removeEventListener('keydown', handleEscape);
     }, [onClose]);
 
-    // Which field the user is driving: 'units' | 'payout' | null (nothing typed
-    // yet). Opening on a profile with a payout keeps payout mode so its
-    // computed-units preview shows. Typing into a field claims the mode;
-    // clearing the field releases it back to neutral.
-    const [mode, setMode] = useState<'units' | 'payout' | null>(() => (targetPayout > 0 ? 'payout' : null));
+    // Both inputs start EMPTY on open (no placeholder text). Typing a number
+    // in one field claims it: the other field becomes disabled and shows the
+    // live calculated preview. Clearing the field releases it back to empty
+    // and re-enables the other input. One field is active at a time.
+    const [mode, setMode] = useState<'units' | 'payout' | null>(null);
+    const [unitsText, setUnitsText] = useState('');
+    const [payoutText, setPayoutText] = useState('');
 
     const payoutActive = mode === 'payout';
     const unitsActive = mode === 'units';
@@ -105,8 +107,13 @@ function AddToSlipsModal({
                                 cursor: payoutActive ? 'not-allowed' : 'text',
                                 color: payoutActive ? 'var(--text-secondary)' : undefined,
                             }}
-                            value={payoutActive ? String(previewUnits) : (units || '')}
-                            onChange={e => { onUnitsChange(+e.target.value); setMode(e.target.value === '' ? null : 'units'); }} />
+                            value={payoutActive ? String(previewUnits) : unitsText}
+                            onChange={e => {
+                                const v = e.target.value;
+                                setUnitsText(v);
+                                setMode(v === '' ? null : 'units');
+                                onUnitsChange(v === '' ? 1 : +v);
+                            }} />
                         {payoutActive && (
                             <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
                         )}
@@ -119,15 +126,19 @@ function AddToSlipsModal({
                             type="number"
                             min={0}
                             step={0.1}
-                            placeholder={payoutActive ? undefined : 'Off'}
                             disabled={unitsActive}
                             style={{
                                 opacity: unitsActive ? 0.5 : 1,
                                 cursor: unitsActive ? 'not-allowed' : 'text',
                                 color: unitsActive ? 'var(--text-secondary)' : undefined,
                             }}
-                            value={unitsActive ? String(previewPayout) : (targetPayout || '')}
-                            onChange={e => { onTargetPayoutChange(+e.target.value); setMode(e.target.value === '' ? null : 'payout'); }} />
+                            value={unitsActive ? String(previewPayout) : payoutText}
+                            onChange={e => {
+                                const v = e.target.value;
+                                setPayoutText(v);
+                                setMode(v === '' ? null : 'payout');
+                                onTargetPayoutChange(v === '' ? 0 : +v);
+                            }} />
                         {unitsActive && (
                             <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
                         )}
@@ -455,8 +466,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }
 
-    const hasProfiles = Object.keys(profiles).length > 0;
-
     return (
         <>
         <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 min-h-screen">
@@ -490,14 +499,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         border: '1px solid var(--border)',
                         backdropFilter: 'blur(10px)',
                     }}>
-                    <div className="flex items-baseline gap-3 flex-wrap">
-                        <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Profiles</h1>
-                        {hasProfiles && (
-                            <span className="text-[11px] font-mono" style={{ color: 'var(--accent)' }}>
-                                Profiles: {activeName} active
-                            </span>
-                        )}
-                    </div>
+                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Profiles</h1>
                     <div className="flex items-start gap-3 flex-wrap mt-2">
                         {/* Profile cards: every saved profile renders as a card;
                             click selects+loads it; edits auto-save to it. */}
