@@ -72,9 +72,9 @@ export const DEMO_PROFILES = {
 };
 
 export const DEMO_PROFILE_SCHEDULES: ProfileSchedule[] = [
-    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, order: 0 },
-    { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: 2.0, target_payout: 50.0, order: 1 },
-    { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: 1.0, target_payout: null, order: 2 },
+    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, run_daily_count: 1, order: 0 },
+    { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50.0, run_daily_count: 2, order: 1 },
+    { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: null, target_payout: null, run_daily_count: 0, order: 2 },
 ];
 
 // Smart Builder live-preview legs for the demo API. Matches share identity with

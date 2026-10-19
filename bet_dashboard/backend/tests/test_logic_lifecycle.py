@@ -271,43 +271,89 @@ class TestAppLogicLifecycle:
         assert app._is_generator_hour_met() is False
         assert app._last_generator_run is None
 
-    def test_generator_predicate_true_on_first_call_after_target(self, app_env, monkeypatch) -> None:
-        """[P0] First evaluation after the target time fires once per day."""
-        app = app_env.app
-        self._freeze_now(monkeypatch)
-        assert app._is_generator_hour_met() is True
-        assert app._last_generator_run == "2026-09-24"
-
-    def test_generator_predicate_in_memory_guard_blocks_second_call(self, app_env, monkeypatch) -> None:
-        """[P0] The in-memory guard blocks a second run on the same day."""
-        app = app_env.app
-        self._freeze_now(monkeypatch)
-        assert app._is_generator_hour_met() is True
-        assert app._is_generator_hour_met() is False
-
-    def test_generator_predicate_respects_persisted_timestamp_same_day(self, tmp_path, monkeypatch) -> None:
-        """[P0] On restart a same-day persisted timestamp blocks the run and syncs the guard."""
+    def test_generator_predicate_true_on_first_call_after_target(self, tmp_path, monkeypatch) -> None:
+        """[P0] First evaluation inside the profile's own window fires."""
         env = build_app(
             tmp_path,
             monkeypatch,
-            runtime_state={"last_time_generated": "2026-09-24T08:30:00"},
+            profiles={
+                "due": {
+                    "auto_generate": True,
+                    "generate_hour": 8,
+                    "generate_minute": 0,
+                    "units": 1.0,
+                },
+            },
+        )
+        app = env.app
+        try:
+            self._freeze_now(monkeypatch)
+            assert app._is_generator_hour_met() is True
+        finally:
+            app._assistant.conn.close()
+            app._matches_manager.close()
+
+    def test_generator_predicate_in_memory_guard_blocks_second_call(self, tmp_path, monkeypatch) -> None:
+        """[P0] The per-profile once-per-day guard blocks a second run."""
+        env = build_app(
+            tmp_path,
+            monkeypatch,
+            profiles={
+                "due": {
+                    "auto_generate": True,
+                    "generate_hour": 8,
+                    "generate_minute": 0,
+                    "units": 1.0,
+                },
+            },
+        )
+        app = env.app
+        try:
+            self._freeze_now(monkeypatch)
+            assert app._is_generator_hour_met() is True
+            app._claim_profile_runs({"due": (None, 1.0, 1, None)})
+            assert app._is_generator_hour_met() is False
+        finally:
+            app._assistant.conn.close()
+            app._matches_manager.close()
+
+    def test_generator_predicate_respects_persisted_timestamp_same_day(self, tmp_path, monkeypatch) -> None:
+        """[P0] On restart a same-day per-profile stamp blocks that profile."""
+        env = build_app(
+            tmp_path,
+            monkeypatch,
+            profiles={
+                "due": {
+                    "auto_generate": True,
+                    "generate_hour": 8,
+                    "generate_minute": 0,
+                    "units": 1.0,
+                },
+            },
+            runtime_state={"profile_last_generated": {"due": "2026-09-24"}},
         )
         app = env.app
         try:
             self._freeze_now(monkeypatch)
             assert app._is_generator_hour_met() is False
-            assert app._last_generator_run == "2026-09-24"
-            assert app._is_generator_hour_met() is False  # guard now blocks
         finally:
             app._assistant.conn.close()
             app._matches_manager.close()
 
     def test_generator_predicate_persisted_yesterday_runs_again(self, tmp_path, monkeypatch) -> None:
-        """[P1] A persisted timestamp from yesterday does not block today's run."""
+        """[P1] A per-profile stamp from yesterday does not block today's run."""
         env = build_app(
             tmp_path,
             monkeypatch,
-            runtime_state={"last_time_generated": "2026-09-23T08:30:00"},
+            profiles={
+                "due": {
+                    "auto_generate": True,
+                    "generate_hour": 8,
+                    "generate_minute": 0,
+                    "units": 1.0,
+                },
+            },
+            runtime_state={"profile_last_generated": {"due": "2026-09-23"}},
         )
         app = env.app
         try:
@@ -318,11 +364,19 @@ class TestAppLogicLifecycle:
             app._matches_manager.close()
 
     def test_generator_predicate_invalid_persisted_timestamp_runs(self, tmp_path, monkeypatch) -> None:
-        """[P2] A corrupt persisted timestamp is ignored; the run proceeds."""
+        """[P2] A corrupt per-profile stamp is ignored; the run proceeds."""
         env = build_app(
             tmp_path,
             monkeypatch,
-            runtime_state={"last_time_generated": "garbage"},
+            profiles={
+                "due": {
+                    "auto_generate": True,
+                    "generate_hour": 8,
+                    "generate_minute": 0,
+                    "units": 1.0,
+                },
+            },
+            runtime_state={"profile_last_generated": {"due": "garbage-not-a-date"}},
         )
         app = env.app
         try:

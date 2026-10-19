@@ -177,6 +177,7 @@ class ProfileScheduleIn(BaseModel):
     generate_minute: int | None = None
     units: float | None = None
     target_payout: float | None = None
+    run_daily_count: int | None = None
     order: int | None = None
 
 

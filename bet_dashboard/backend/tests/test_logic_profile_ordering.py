@@ -119,14 +119,15 @@ class TestProfileScheduleMet:
         _freeze(monkeypatch, hour=9)
         assert env.app._profile_schedule_met("p", cfg) is True
 
-    def test_legacy_fallback_uses_global_window(self, env, monkeypatch) -> None:
-        """[P0] Without per-profile times the global services window applies."""
+    def test_no_per_profile_window_never_met(self, env, monkeypatch) -> None:
+        """[P0] No global fallback: a profile without its own window never fires."""
         env.app.save_service_settings(8, 0)
         _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
         _freeze(monkeypatch, hour=7)
         assert env.app._profile_schedule_met("legacy") is False
         _freeze(monkeypatch, hour=9)
-        assert env.app._profile_schedule_met("legacy") is True
+        assert env.app._profile_schedule_met("legacy") is False
+        assert env.app._is_generator_hour_met() is False
 
     def test_daily_guard_blocks_second_run(self, env, monkeypatch) -> None:
         """[P0] A per-profile stamp for today blocks a second run today."""
@@ -169,13 +170,11 @@ class TestGeneratorPredicatePerProfile:
         _freeze(monkeypatch, hour=9)
         assert env.app._is_generator_hour_met() is True
 
-    def test_legacy_only_unchanged_semantics(self, env, monkeypatch) -> None:
-        """[P0] Legacy-only setups keep the global window + once-per-day guard."""
+    def test_legacy_only_no_window_never_fires(self, env, monkeypatch) -> None:
+        """[P0] Legacy-only setups (no per-profile window) never fire."""
         env.app.save_service_settings(8, 0)
         _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
         _freeze(monkeypatch, hour=9)
-        assert env.app._is_generator_hour_met() is True
-        assert env.app._last_generator_run == "2026-09-24"
         assert env.app._is_generator_hour_met() is False
 
 
@@ -283,6 +282,7 @@ class TestProfileSchedulesAPI:
             "generate_minute": None,
             "units": 2.0,
             "target_payout": 50.0,
+            "run_daily_count": 1,
             "order": None,
         }
         assert rows["auto"]["generate_hour"] == 6
@@ -351,11 +351,14 @@ class TestOrderingRobustness:
         active = list(env.app._get_active_profiles())
         assert active.index("b") < active.index("a") < active.index("c")
 
-    def test_legacy_profile_is_stamped_on_generate(self, env, monkeypatch) -> None:
-        """[P0] F2: a legacy (no per-profile window) profile is stamped too."""
-        _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
+    def test_windowed_profile_is_stamped_on_generate(self, env, monkeypatch) -> None:
+        """[P0] A profile with its own window is stamped on generate."""
+        _save_profiles(
+            env.app,
+            {"due": {**PROFILE, "run_daily_count": 1, "generate_hour": 8, "generate_minute": 0}},
+        )
         monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {})
         _freeze(monkeypatch, hour=9)
         env.app._do_generate()
         stamps = (env.app.settings.get("runtime_state") or {}).get("profile_last_generated") or {}
-        assert stamps.get("legacy") == "2026-09-24"
+        assert stamps.get("due") == "2026-09-24"
