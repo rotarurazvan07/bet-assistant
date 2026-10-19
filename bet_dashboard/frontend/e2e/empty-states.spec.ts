@@ -88,9 +88,9 @@ test('Discover empty CTAs: Pull posts /api/pull and Adjust Filters opens drawer'
 
 test('Build empty CTAs stay on /builder', async ({ page }) => {
     await page.goto('/builder');
-    await expect(page.getByRole('heading', { name: 'Build' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible();
     await expect(page.getByText('No preview yet')).toBeVisible();
-    await page.getByRole('button', { name: 'Select a Preset' }).click();
+    await page.getByRole('button', { name: 'Select a Profile' }).click();
     await expect(page).toHaveURL(/\/builder/);
     // Smart Builder rework (07a1de0): the Add-to-Slips CTA is hidden while the
     // preview is empty — the old empty-state button opened a dead-end modal.
@@ -144,7 +144,7 @@ test('Services empty CTAs enable generator and save', async ({ page }) => {
     await expect(page.getByText('Generate Slips is off')).toBeVisible();
     await page.getByRole('button', { name: 'Enable Generate Slips' }).click();
     await expect.poll(() => toggled).toBe(1);
-    await page.getByRole('region', { name: 'Generate Slips is off' }).getByRole('button', { name: 'Save Settings' }).click();
+    await page.getByRole('region', { name: 'Generate Slips is off' }).getByRole('button', { name: 'Save Profile Schedules' }).click();
     await expect.poll(() => saved).toBe(1);
 });
 
