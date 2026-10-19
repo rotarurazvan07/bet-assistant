@@ -107,7 +107,6 @@ describe('Services page', () => {
         render(<Services />);
         expect(await screen.findByText('Generate Slips is off')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Enable Generate Slips' })).toBeInTheDocument();
-        expect(screen.getAllByRole('button', { name: 'Save Profile Schedules' }).length).toBeGreaterThan(0);
         await user.click(screen.getByRole('button', { name: 'Enable Generate Slips' }));
         await waitFor(() => expect(toggles).toBe(1));
     });
@@ -167,24 +166,25 @@ describe('Services per-profile scheduler', () => {
         expect(screen.queryByText('Per-Profile Scheduling')).not.toBeInTheDocument();
     });
 
-    it('Save persists all rows in one POST after edits', async () => {
+    it('no Save button — an edit auto-saves all rows in one POST (600ms debounce)', async () => {
         const user = userEvent.setup();
         const posts: Array<Record<string, unknown>> = [];
         serveRows(posts);
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
+        expect(screen.queryByRole('button', { name: 'Save Profile Schedules' })).not.toBeInTheDocument();
 
         await user.selectOptions(screen.getByRole('combobox', { name: 'Generation hour for medium' }), '14');
         fireEvent.change(screen.getByLabelText('Daily run count for medium'), { target: { value: '3' } });
         await user.click(screen.getByRole('button', { name: 'Enable auto-generation for high_risk' }));
 
-        await user.click(screen.getByRole('button', { name: 'Save Profile Schedules' }));
-        await waitFor(() => expect(posts).toHaveLength(1));
+        // debounced: no POST before the timer, then one POST with all rows
+        expect(posts).toHaveLength(0);
+        await waitFor(() => expect(posts).toHaveLength(1), { timeout: 3000 });
         const rows = posts[0].profile_schedules as Array<Record<string, number | string | boolean | null>>;
         expect(rows).toHaveLength(3);
         expect(rows[1]).toMatchObject({ name: 'medium', generate_hour: 14, run_daily_count: 3 });
         expect(rows[2]).toMatchObject({ name: 'high_risk', auto_generate: true });
-        // legacy global settings are not sent when rows are saved
         expect(posts[0].generate_hour).toBeUndefined();
     });
 
@@ -207,20 +207,19 @@ describe('Services per-profile scheduler', () => {
         expect(screen.getByLabelText('Daily run count for low')).toHaveAttribute('step', '1');
     });
 
-    it('up/down reorder rows and the POST carries the new order', async () => {
+    it('up/down reorder rows and the auto-save POST carries the new order', async () => {
         const user = userEvent.setup();
         const posts: Array<Record<string, unknown>> = [];
         serveRows(posts);
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
         await user.click(screen.getByRole('button', { name: 'Move medium up' }));
-        await user.click(screen.getByRole('button', { name: 'Save Profile Schedules' }));
-        await waitFor(() => expect(posts).toHaveLength(1));
+        await waitFor(() => expect(posts).toHaveLength(1), { timeout: 3000 });
         const rows = posts[0].profile_schedules as Array<Record<string, string>>;
         expect(rows.map(r => r.name)).toEqual(['medium', 'low', 'high_risk']);
     });
 
-    it('shows a failure status when the schedules POST fails', async () => {
+    it('shows a failure status when the auto-save POST fails', async () => {
         const user = userEvent.setup();
         server.use(
             http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: ROWS }))),
@@ -228,7 +227,7 @@ describe('Services per-profile scheduler', () => {
         );
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
-        await user.click(screen.getByRole('button', { name: 'Save Profile Schedules' }));
+        await user.click(screen.getByRole('button', { name: 'Enable auto-generation for high_risk' }));
         expect(await screen.findByText(/Failed to save profile schedules/)).toBeInTheDocument();
     });
 });
