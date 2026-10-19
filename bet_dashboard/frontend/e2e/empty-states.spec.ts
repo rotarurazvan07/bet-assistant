@@ -147,10 +147,10 @@ test('Services empty CTAs enable generator and save', async ({ page }) => {
     });
     await page.goto('/services');
     await expect(page.getByText('Generate Slips is off')).toBeVisible();
+    // Round-2 rework: no Save button exists — the toggle itself is the only
+    // action the empty state offers; schedule edits auto-save (unit-tested).
     await page.getByRole('button', { name: 'Enable Generate Slips' }).click();
     await expect.poll(() => toggled).toBe(1);
-    await page.getByRole('region', { name: 'Generate Slips is off' }).getByRole('button', { name: 'Save Profile Schedules' }).click();
-    await expect.poll(() => saved).toBe(1);
 });
 
 test('EmptyState regions pass axe-core', async ({ page }) => {
