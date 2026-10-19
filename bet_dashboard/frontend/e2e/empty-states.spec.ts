@@ -66,6 +66,11 @@ async function mockServicesGeneratorOff(page: import('@playwright/test').Page) {
                 generate_hour: 9,
                 generate_minute: 0,
                 server_time: '2026-09-24T12:00:00',
+                // The real backend always serves profile rows (get_profile_schedules);
+                // the per-profile table and its Save CTA depend on them.
+                profile_schedules: [
+                    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, run_daily_count: 1, order: 0 },
+                ],
             }),
         });
     });
