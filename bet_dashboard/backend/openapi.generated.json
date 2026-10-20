@@ -1,0 +1,2114 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "bet-assistant",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/matches": {
+      "get": {
+        "tags": [
+          "matches"
+        ],
+        "summary": "Get Matches",
+        "description": "Get paginated list of matches with optional filtering and sorting.\n\nArgs:\n    request: FastAPI request object.\n    page: Page number (1-indexed).\n    page_size: Number of matches per page.\n    search: Search term for team names.\n    date_from: Filter matches from this date (ISO format).\n    date_to: Filter matches to this date (ISO format).\n    sort_by: Field to sort by.\n    sort_dir: Sort direction (asc/desc).\n    min_consensus: Minimum consensus percentage.\n    min_odds: Minimum odds value.\n    only_significant_movement: Only show matches with significant odds movement.\n    excluded_sources: Comma-separated list of sources to exclude.\n\nReturns:\n    Paginated response with matches list and metadata.",
+        "operationId": "get_matches_api_matches_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 40,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Search"
+            }
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "datetime",
+              "title": "Sort By"
+            }
+          },
+          {
+            "name": "sort_dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "asc",
+              "title": "Sort Dir"
+            }
+          },
+          {
+            "name": "min_consensus",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Consensus"
+            }
+          },
+          {
+            "name": "min_odds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 50.0,
+                  "minimum": 1.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Odds"
+            }
+          },
+          {
+            "name": "only_significant_movement",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Only Significant Movement"
+            }
+          },
+          {
+            "name": "excluded_sources",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Excluded Sources"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/builder/preview": {
+      "post": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Preview",
+        "description": "Run the builder preview for a config and return candidate legs.",
+        "operationId": "preview_api_builder_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BetSlipConfigIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/builder/excluded": {
+      "get": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Get Excluded",
+        "description": "Return manually excluded matches with reasons.",
+        "operationId": "get_excluded_api_builder_excluded_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Add Excluded",
+        "description": "Add a match URL to manual exclusions.",
+        "operationId": "add_excluded_api_builder_excluded_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcludeUrlIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Clear Excluded",
+        "description": "Clear all manual exclusions.",
+        "operationId": "clear_excluded_api_builder_excluded_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/builder/excluded/details": {
+      "get": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Get Excluded Details",
+        "description": "Get detailed info about manually excluded matches only.",
+        "operationId": "get_excluded_details_api_builder_excluded_details_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/builder/excluded/remove": {
+      "post": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Remove Excluded",
+        "description": "Remove a match URL from manual exclusions.",
+        "operationId": "remove_excluded_api_builder_excluded_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExcludeUrlIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/builder/leagues": {
+      "get": {
+        "tags": [
+          "builder"
+        ],
+        "summary": "Get Leagues",
+        "description": "Return distinct leagues available to the builder.",
+        "operationId": "get_leagues_api_builder_leagues_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips": {
+      "post": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Add Slip",
+        "description": "Persist a manually-built slip and return its id.",
+        "operationId": "add_slip_api_slips_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlipIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Get Slips",
+        "description": "Return filtered slips with stats and profiles.",
+        "operationId": "get_slips_api_slips_get",
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "hide_settled",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hide Settled"
+            }
+          },
+          {
+            "name": "live_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Live Only"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Profiles"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips/validate_manual": {
+      "post": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Validate Manual",
+        "description": "Validate a list of manual leg payloads without creating a slip.\nReturns per-leg validation results and an overall `all_valid` flag.",
+        "operationId": "validate_manual_api_slips_validate_manual_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/ManualLegIn"
+                },
+                "type": "array",
+                "title": "Legs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips/{slip_id}": {
+      "delete": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Delete Slip",
+        "description": "Delete a slip by id.",
+        "operationId": "delete_slip_api_slips__slip_id__delete",
+        "parameters": [
+          {
+            "name": "slip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Slip Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips/validate": {
+      "post": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Validate Slips",
+        "description": "Validate pending slips; return checked/settled/live counts.",
+        "operationId": "validate_slips_api_slips_validate_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips/generate": {
+      "post": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Generate Slips",
+        "description": "Generate slips for active profiles and return counts.",
+        "operationId": "generate_slips_api_slips_generate_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "List Profiles",
+        "description": "Return all saved builder profiles.",
+        "operationId": "list_profiles_api_profiles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Save Profile",
+        "description": "Persist a named builder profile.",
+        "operationId": "save_profile_api_profiles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/profiles/{name}": {
+      "delete": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Delete Profile",
+        "description": "Delete a named builder profile.",
+        "operationId": "delete_profile_api_profiles__name__delete",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Get Analytics",
+        "description": "Return the full analytics payload for the given filters.",
+        "operationId": "get_analytics_api_analytics_get",
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Profiles"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services": {
+      "get": {
+        "tags": [
+          "services"
+        ],
+        "summary": "Get Services",
+        "description": "Return service info plus scheduler settings.",
+        "operationId": "get_services_api_services_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/settings": {
+      "post": {
+        "tags": [
+          "services"
+        ],
+        "summary": "Save Settings",
+        "description": "Persist scheduler hour/minute settings.",
+        "operationId": "save_settings_api_services_settings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicesSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/services/{name}/toggle": {
+      "post": {
+        "tags": [
+          "services"
+        ],
+        "summary": "Toggle Service",
+        "description": "Toggle a named service and return its new state.",
+        "operationId": "toggle_service_api_services__name__toggle_post",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/odds-history/movements/all": {
+      "get": {
+        "tags": [
+          "odds-history"
+        ],
+        "summary": "Get All Movements",
+        "description": "Get movement summary for all future matches.",
+        "operationId": "get_all_movements_api_odds_history_movements_all_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/OddsMovementSummary"
+                  },
+                  "type": "object",
+                  "title": "Response Get All Movements Api Odds History Movements All Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/odds-history/movements/significant": {
+      "get": {
+        "tags": [
+          "odds-history"
+        ],
+        "summary": "Get Significant Movements",
+        "description": "Movement data with strength metrics, filtered to significant only.",
+        "operationId": "get_significant_movements_api_odds_history_movements_significant_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Significant Movements Api Odds History Movements Significant Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/odds-history/{match_id}": {
+      "get": {
+        "tags": [
+          "odds-history"
+        ],
+        "summary": "Get Match Odds History",
+        "description": "Get full odds history for a specific match.",
+        "operationId": "get_match_odds_history_api_odds_history__match_id__get",
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Match Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OddsHistoryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/odds-history/{match_id}/movement": {
+      "get": {
+        "tags": [
+          "odds-history"
+        ],
+        "summary": "Get Match Movement",
+        "description": "Get just the movement summary for a match.",
+        "operationId": "get_match_movement_api_odds_history__match_id__movement_get",
+        "parameters": [
+          {
+            "name": "match_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Match Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OddsMovementSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pull": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Pull Db",
+        "description": "Trigger an upstream DB pull and return the result envelope.",
+        "operationId": "pull_db_api_pull_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/status": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Status",
+        "description": "Return last-pull time and loaded match count.",
+        "operationId": "get_status_api_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/sources": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Sources Config",
+        "description": "Get all unique sources from RUNNER_SETS in scraper_config.yaml",
+        "operationId": "get_sources_config_api_config_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BetSlipConfigIn": {
+        "properties": {
+          "target_odds": {
+            "type": "number",
+            "title": "Target Odds",
+            "default": 3.0
+          },
+          "target_legs": {
+            "type": "integer",
+            "title": "Target Legs",
+            "default": 3
+          },
+          "max_legs_overflow": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Legs Overflow"
+          },
+          "consensus_floor": {
+            "type": "number",
+            "title": "Consensus Floor",
+            "default": 50.0
+          },
+          "min_odds": {
+            "type": "number",
+            "title": "Min Odds",
+            "default": 1.05
+          },
+          "tolerance_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance Factor"
+          },
+          "stop_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Threshold"
+          },
+          "min_legs_fill_ratio": {
+            "type": "number",
+            "title": "Min Legs Fill Ratio",
+            "default": 0.7
+          },
+          "quality_vs_balance": {
+            "type": "number",
+            "title": "Quality Vs Balance",
+            "default": 0.5
+          },
+          "consensus_vs_sources": {
+            "type": "number",
+            "title": "Consensus Vs Sources",
+            "default": 0.5
+          },
+          "included_markets": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included Markets"
+          },
+          "included_leagues": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included Leagues"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "excluded_sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Sources"
+          },
+          "consensus_shrinkage_k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consensus Shrinkage K"
+          },
+          "min_source_edge": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Source Edge"
+          },
+          "max_single_leg_odds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Single Leg Odds"
+          },
+          "tol_lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tol Lower"
+          },
+          "tol_upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tol Upper"
+          },
+          "balance_decay": {
+            "type": "string",
+            "title": "Balance Decay",
+            "default": "linear"
+          },
+          "min_pick_quality": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Pick Quality"
+          },
+          "odds_movement_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odds Movement Weight"
+          },
+          "odds_movement_strength_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odds Movement Strength Min"
+          }
+        },
+        "type": "object",
+        "title": "BetSlipConfigIn",
+        "description": "Builder config payload for preview requests."
+      },
+      "ExcludeUrlIn": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "ExcludeUrlIn",
+        "description": "URL payload for exclusion endpoints."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ManualLegIn": {
+        "properties": {
+          "match_name": {
+            "type": "string",
+            "title": "Match Name"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market"
+          },
+          "market_type": {
+            "type": "string",
+            "title": "Market Type"
+          },
+          "odds": {
+            "type": "number",
+            "title": "Odds"
+          },
+          "result_url": {
+            "type": "string",
+            "title": "Result Url"
+          },
+          "datetime": {
+            "type": "string",
+            "title": "Datetime"
+          },
+          "consensus": {
+            "type": "number",
+            "title": "Consensus"
+          },
+          "sources": {
+            "type": "integer",
+            "title": "Sources"
+          },
+          "league": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "League"
+          },
+          "predictions": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predictions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "match_name",
+          "market",
+          "market_type",
+          "odds",
+          "result_url",
+          "datetime",
+          "consensus",
+          "sources"
+        ],
+        "title": "ManualLegIn",
+        "description": "One manually-built leg in an add-slip payload."
+      },
+      "OddsHistoryOut": {
+        "properties": {
+          "match_id": {
+            "type": "integer",
+            "title": "Match Id"
+          },
+          "match_name": {
+            "type": "string",
+            "title": "Match Name"
+          },
+          "datetime": {
+            "type": "string",
+            "title": "Datetime"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/OddsSnapshotOut"
+            },
+            "type": "array",
+            "title": "Snapshots"
+          },
+          "movement": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Movement"
+          }
+        },
+        "type": "object",
+        "required": [
+          "match_id",
+          "match_name",
+          "datetime",
+          "snapshots",
+          "movement"
+        ],
+        "title": "OddsHistoryOut",
+        "description": "Response model for odds history rows."
+      },
+      "OddsMovementSummary": {
+        "properties": {
+          "home": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home"
+          },
+          "draw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draw"
+          },
+          "away": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Away"
+          },
+          "over_05": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over 05"
+          },
+          "under_05": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Under 05"
+          },
+          "over_15": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over 15"
+          },
+          "under_15": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Under 15"
+          },
+          "over_25": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over 25"
+          },
+          "under_25": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Under 25"
+          },
+          "over_35": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over 35"
+          },
+          "under_35": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Under 35"
+          },
+          "over_45": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Over 45"
+          },
+          "under_45": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Under 45"
+          },
+          "btts_yes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Btts Yes"
+          },
+          "btts_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Btts No"
+          },
+          "dc_1x": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc 1X"
+          },
+          "dc_12": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc 12"
+          },
+          "dc_x2": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dc X2"
+          }
+        },
+        "type": "object",
+        "title": "OddsMovementSummary",
+        "description": "Per-market odds movement directions and strengths."
+      },
+      "OddsSnapshotOut": {
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "odds": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Odds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timestamp",
+          "odds"
+        ],
+        "title": "OddsSnapshotOut",
+        "description": "Response model for an odds snapshot."
+      },
+      "ProfileIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "target_odds": {
+            "type": "number",
+            "title": "Target Odds",
+            "default": 3.0
+          },
+          "target_legs": {
+            "type": "integer",
+            "title": "Target Legs",
+            "default": 3
+          },
+          "max_legs_overflow": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Legs Overflow"
+          },
+          "consensus_floor": {
+            "type": "number",
+            "title": "Consensus Floor",
+            "default": 50.0
+          },
+          "min_odds": {
+            "type": "number",
+            "title": "Min Odds",
+            "default": 1.05
+          },
+          "tolerance_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tolerance Factor"
+          },
+          "stop_threshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Threshold"
+          },
+          "min_legs_fill_ratio": {
+            "type": "number",
+            "title": "Min Legs Fill Ratio",
+            "default": 0.7
+          },
+          "quality_vs_balance": {
+            "type": "number",
+            "title": "Quality Vs Balance",
+            "default": 0.5
+          },
+          "consensus_vs_sources": {
+            "type": "number",
+            "title": "Consensus Vs Sources",
+            "default": 0.5
+          },
+          "included_markets": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included Markets"
+          },
+          "included_leagues": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included Leagues"
+          },
+          "excluded_sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Sources"
+          },
+          "units": {
+            "type": "number",
+            "title": "Units",
+            "default": 1.0
+          },
+          "target_payout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Payout"
+          },
+          "run_daily_count": {
+            "type": "integer",
+            "title": "Run Daily Count",
+            "default": 0
+          },
+          "consensus_shrinkage_k": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consensus Shrinkage K"
+          },
+          "min_source_edge": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Source Edge"
+          },
+          "max_single_leg_odds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Single Leg Odds"
+          },
+          "tol_lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tol Lower"
+          },
+          "tol_upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tol Upper"
+          },
+          "balance_decay": {
+            "type": "string",
+            "title": "Balance Decay",
+            "default": "linear"
+          },
+          "min_pick_quality": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Pick Quality"
+          },
+          "odds_movement_weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odds Movement Weight"
+          },
+          "odds_movement_strength_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Odds Movement Strength Min"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProfileIn",
+        "description": "Payload for saving a named builder profile."
+      },
+      "ServicesSettingsIn": {
+        "properties": {
+          "generate_hour": {
+            "type": "integer",
+            "title": "Generate Hour"
+          },
+          "generate_minute": {
+            "type": "integer",
+            "title": "Generate Minute",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "generate_hour"
+        ],
+        "title": "ServicesSettingsIn",
+        "description": "Payload for service scheduler settings."
+      },
+      "SlipIn": {
+        "properties": {
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "default": "manual"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/ManualLegIn"
+            },
+            "type": "array",
+            "title": "Legs"
+          },
+          "units": {
+            "type": "number",
+            "title": "Units",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "legs"
+        ],
+        "title": "SlipIn",
+        "description": "Payload for adding a slip (profile, legs, units)."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "MarketKey": {
+        "type": "string",
+        "enum": [
+          "1",
+          "X",
+          "2",
+          "Over 2.5",
+          "Under 2.5",
+          "BTTS Yes",
+          "BTTS No",
+          "Over 0.5",
+          "Under 0.5",
+          "Over 1.5",
+          "Under 1.5",
+          "Over 3.5",
+          "Under 3.5",
+          "Over 4.5",
+          "Under 4.5",
+          "1X",
+          "12",
+          "X2"
+        ],
+        "title": "MarketKey",
+        "description": "Canonical market identity keys (frozen values)."
+      },
+      "MarketType": {
+        "type": "string",
+        "enum": [
+          "result",
+          "over_under_25",
+          "over_under_15",
+          "over_under_05",
+          "over_under_35",
+          "over_under_45",
+          "btts",
+          "double_chance"
+        ],
+        "title": "MarketType",
+        "description": "Canonical market category routing keys (frozen values)."
+      }
+    }
+  }
+}

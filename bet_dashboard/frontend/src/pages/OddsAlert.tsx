@@ -3,7 +3,7 @@ import { getSignificantMovements } from '../api/oddsHistory';
 import { fetchMatches } from '../api/matches';
 import { OddsMovementIndicator } from '../components/OddsMovementIndicator';
 import type { MarketMovementDetail, Match } from '../types';
-import { MARKET_COLUMNS } from '../config/marketConfig';
+import { MARKET_COLUMNS, strippedKey } from '../config/marketConfig';
 
 interface MovementMatch {
     match_id: string;
@@ -26,7 +26,7 @@ const PAGE_SIZE = 40;
 
 const MARKET_LABELS: Record<string, string> = {};
 MARKET_COLUMNS.forEach(col => {
-    const key = col.oddsKey.replace('odds_', '');
+    const key = strippedKey(col.oddsKey);
     MARKET_LABELS[key] = col.label;
 });
 

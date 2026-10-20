@@ -1,14 +1,33 @@
+import type { components } from '../types/api.generated';
+
+// Canonical unions generated from the backend OpenAPI schema (single source:
+// bet_framework.marksets enums). Identity lives in Python; order lives here.
+type MarketKey = components['schemas']['MarketKey'];
+type MarketType = components['schemas']['MarketType'];
+
 /**
- * Single source of truth for market column configuration.
- * Reorder entries here to change column order in the betting tips table.
+ * Presentation order + label overrides ONLY. Identity (market keys, column
+ * keys, market types) is owned by the canonical backend catalog and mirrored
+ * here through generated types (src/types/api.generated.ts); this file is the
+ * only place display order lives. Reordering columns cannot affect backend
+ * behavior - bind strictly by key.
  */
 
 export interface MarketColumn {
-    market: string;        // Market identifier (e.g., '1', 'X', 'Over 2.5')
+    market: MarketKey;     // Canonical market identity (generated union)
     label: string;         // Display label in table header
     consKey: string;       // Key for consensus value in Match object
     oddsKey: string;       // Key for odds value in Match object
-    marketType: string;    // Market type for backend (e.g., 'result', 'over_under_25')
+    marketType: MarketType; // Canonical market type (generated union)
+}
+
+/**
+ * Strip the 'odds_' prefix from an odds column key (movement payload keys).
+ * The single location of this convention on the frontend - the backend side
+ * lives in bet_framework.marks.keys.stripped_key.
+ */
+export function strippedKey(oddsKey: string): string {
+    return oddsKey.startsWith('odds_') ? oddsKey.slice('odds_'.length) : oddsKey;
 }
 
 /**
