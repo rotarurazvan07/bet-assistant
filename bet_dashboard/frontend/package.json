@@ -13,8 +13,8 @@
         "test:ui": "vitest --ui",
         "test:e2e": "playwright test",
         "typecheck": "tsc -b",
-        "codegen:markets": "python ../backend/export_openapi.py && npx openapi-typescript ../backend/openapi.generated.json -o src/types/api.generated.ts && python -m bet_framework.markets.contract src/test/fixtures/markets-contract.snapshot.json",
-        "codegen:markets:check": "python ../backend/export_openapi.py /tmp/openapi.check.json && python -m bet_framework.markets.contract /tmp/snapshot.check.json && diff -q /tmp/openapi.check.json ../backend/openapi.generated.json && npx openapi-typescript ../backend/openapi.generated.json -o /tmp/api.check.ts && diff -q /tmp/api.check.ts src/types/api.generated.ts && diff -q /tmp/snapshot.check.json src/test/fixtures/markets-contract.snapshot.json && echo 'market contract artifacts in sync'"
+        "codegen:markets": "PYTHONPATH=../.. python ../backend/export_openapi.py && PYTHONPATH=../.. npx openapi-typescript ../backend/openapi.generated.json -o src/types/api.generated.ts && PYTHONPATH=../.. python -m bet_framework.markets.contract src/test/fixtures/markets-contract.snapshot.json",
+        "codegen:markets:check": "PYTHONPATH=../.. python ../backend/export_openapi.py /tmp/openapi.check.json && PYTHONPATH=../.. python -m bet_framework.markets.contract /tmp/snapshot.check.json && diff -q /tmp/openapi.check.json ../backend/openapi.generated.json && npx openapi-typescript ../backend/openapi.generated.json -o /tmp/api.check.ts && diff -q /tmp/api.check.ts src/types/api.generated.ts && diff -q /tmp/snapshot.check.json src/test/fixtures/markets-contract.snapshot.json && echo 'market contract artifacts in sync'"
     },
     "dependencies": {
         "@emotion/react": "^11.14.0",

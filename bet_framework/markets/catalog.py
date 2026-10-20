@@ -122,6 +122,12 @@ MARKET_BY_KEY: dict[str, MarketSpec] = {spec.key: spec for spec in MARKET_CATALO
 MARKET_BY_CRAWLER_FIELD: dict[str, MarketSpec] = {
     spec.crawler_field: spec for spec in MARKET_CATALOG
 }
+# Stripped odds key -> Odds-dataclass field: odds-history/DB snapshots are keyed
+# by crawler fields ('btts_y'); this map is why the PR #106 spelling divergence
+# ('btts_y' vs 'btts_yes') cannot recur.
+MARKET_BY_STRIPPED_KEY: dict[str, MarketSpec] = {
+    spec.odds_key.removeprefix("odds_"): spec for spec in MARKET_CATALOG
+}
 
 
 def market_by_key(market: str) -> MarketSpec:

@@ -78,42 +78,14 @@ from bet_framework.markets.keys import stripped_key
 logger = get_logger(__name__)
 
 # (cons_col, odds_col, display_label)
-MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {
-    MarketType.RESULT: [
-        ("cons_home", "odds_home", MarketLabel.HOME),
-        ("cons_draw", "odds_draw", MarketLabel.DRAW),
-        ("cons_away", "odds_away", MarketLabel.AWAY),
-    ],
-    MarketType.OVER_UNDER_25: [
-        ("cons_over_25", "odds_over_25", MarketLabel.OVER_25),
-        ("cons_under_25", "odds_under_25", MarketLabel.UNDER_25),
-    ],
-    MarketType.OVER_UNDER_15: [
-        ("cons_over_15", "odds_over_15", MarketLabel.OVER_15),
-        ("cons_under_15", "odds_under_15", MarketLabel.UNDER_15),
-    ],
-    MarketType.BTTS: [
-        ("cons_btts_yes", "odds_btts_yes", MarketLabel.BTTS_YES),
-        ("cons_btts_no", "odds_btts_no", MarketLabel.BTTS_NO),
-    ],
-    MarketType.OVER_UNDER_05: [
-        ("cons_over_05", "odds_over_05", MarketLabel.OVER_05),
-        ("cons_under_05", "odds_under_05", MarketLabel.UNDER_05),
-    ],
-    MarketType.OVER_UNDER_35: [
-        ("cons_over_35", "odds_over_35", MarketLabel.OVER_35),
-        ("cons_under_35", "odds_under_35", MarketLabel.UNDER_35),
-    ],
-    MarketType.OVER_UNDER_45: [
-        ("cons_over_45", "odds_over_45", MarketLabel.OVER_45),
-        ("cons_under_45", "odds_under_45", MarketLabel.UNDER_45),
-    ],
-    MarketType.DOUBLE_CHANCE: [
-        ("cons_dc_1x", "odds_dc_1x", MarketLabel.DC_1X),
-        ("cons_dc_12", "odds_dc_12", MarketLabel.DC_12),
-        ("cons_dc_x2", "odds_dc_x2", MarketLabel.DC_X2),
-    ],
-}
+# Key-indexed by MarketType, derived from the canonical catalog
+# (bet_framework/markets/catalog.py) — never a hand-written literal matrix.
+MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {}
+for _spec in MARKET_CATALOG:
+    MARKET_MAP.setdefault(MarketType(_spec.market_type), []).append(
+        (_spec.cons_key, _spec.odds_key, MarketLabel(_spec.key))
+    )
+
 
 
 def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:

@@ -1,7 +1,7 @@
 import type { components } from '../types/api.generated';
 
 // Canonical unions generated from the backend OpenAPI schema (single source:
-// bet_framework.marksets enums). Identity lives in Python; order lives here.
+// bet_framework.markets enums). Identity lives in Python; order lives here.
 type MarketKey = components['schemas']['MarketKey'];
 type MarketType = components['schemas']['MarketType'];
 
@@ -24,7 +24,7 @@ export interface MarketColumn {
 /**
  * Strip the 'odds_' prefix from an odds column key (movement payload keys).
  * The single location of this convention on the frontend - the backend side
- * lives in bet_framework.marks.keys.stripped_key.
+ * lives in bet_framework.markets.keys.stripped_key.
  */
 export function strippedKey(oddsKey: string): string {
     return oddsKey.startsWith('odds_') ? oddsKey.slice('odds_'.length) : oddsKey;

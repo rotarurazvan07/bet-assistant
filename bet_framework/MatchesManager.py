@@ -13,7 +13,7 @@ from scrape_kit import (
 )
 
 from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
-from bet_framework.markets.keys import stripped_key
+from bet_framework.markets.keys import lookup_key, stripped_key
 
 from .core.Match import Match, Odds, Score, asdict
 
@@ -673,8 +673,12 @@ class MatchesManager(BufferedStorageManager):
         movement: dict[str, str | None] = {}
 
         for market in markets:
-            first_val = first_odds.get(market)
-            current_val = current.get(market)
+            # Odds-history snapshots are keyed by Odds-dataclass fields
+            # ('btts_y'); the response key stays the stripped spelling
+            # ('btts_yes') - the two-word difference was the PR #106 class.
+            field = lookup_key(market)
+            first_val = first_odds.get(field)
+            current_val = current.get(field)
 
             if first_val is None or current_val is None:
                 movement[market] = None
@@ -706,8 +710,12 @@ class MatchesManager(BufferedStorageManager):
         has_enough_history = len(history) >= 2
         result: dict = {}
         for market in markets:
-            first_val = first_odds.get(market)
-            current_val = current.get(market)
+            # Odds-history snapshots are keyed by Odds-dataclass fields
+            # ('btts_y'); the response key stays the stripped spelling
+            # ('btts_yes') - the two-word difference was the PR #106 class.
+            field = lookup_key(market)
+            first_val = first_odds.get(field)
+            current_val = current.get(field)
             if first_val is None or current_val is None:
                 result[market] = {
                     "direction": None,
