@@ -118,11 +118,45 @@ def test_snapshot_emitter_matches_definitions(tmp_path: Path) -> None:
     assert written == snapshot
 
 
-@pytest.mark.parametrize("key", EXPECTED_ODDS_KEYS)
-def test_stripped_key_convention(key: str) -> None:
+EXPECTED_ODDS_TO_STRIPPED = {
+    "odds_home": "home",
+    "odds_draw": "draw",
+    "odds_away": "away",
+    "odds_over_25": "over_25",
+    "odds_under_25": "under_25",
+    "odds_over_05": "over_05",
+    "odds_under_05": "under_05",
+    "odds_over_15": "over_15",
+    "odds_under_15": "under_15",
+    "odds_over_35": "over_35",
+    "odds_under_35": "under_35",
+    "odds_over_45": "over_45",
+    "odds_under_45": "under_45",
+    "odds_btts_yes": "btts_yes",
+    "odds_btts_no": "btts_no",
+    "odds_dc_1x": "dc_1x",
+    "odds_dc_12": "dc_12",
+    "odds_dc_x2": "dc_x2",
+}
+
+
+@pytest.mark.parametrize("odds_key_value", sorted(EXPECTED_ODDS_TO_STRIPPED))
+def test_stripped_key_convention(odds_key_value: str) -> None:
+    """Explicit frozen mapping - not a re-implementation of the function under test."""
     from bet_framework.markets.keys import stripped_key
 
-    assert stripped_key(key) == key.removeprefix("odds_")
+    assert stripped_key(odds_key_value) == EXPECTED_ODDS_TO_STRIPPED[odds_key_value]
+
+
+def test_lookup_key_translates_history_field_names() -> None:
+    """Movement lookups hit Odds-dataclass fields ('btts_y'), not stripped keys."""
+    from bet_framework.markets.keys import lookup_key
+
+    assert lookup_key("btts_yes") == "btts_y"
+    assert lookup_key("btts_no") == "btts_n"
+    assert lookup_key("over_25") == "over_25"
+    with pytest.raises(KeyError):
+        lookup_key("not_a_market")
 
 
 def test_crawler_field_mapping_frozen() -> None:

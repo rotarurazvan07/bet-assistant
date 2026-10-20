@@ -315,7 +315,7 @@ jobs:
           done <<< "$REQUIREMENTS_FILES"
 
           # Install audit tools
-          pip install bandit pip-audit radon vulture mypy interrogate
+          pip install bandit pip-audit radon vulture mypy interrogate semgrep
 
           # NOTE: no PYTHONPATH export here. Exporting PYTHONPATH=$SRC_DIR
           # (which contains bet_framework/) made every module importable BOTH
@@ -372,6 +372,21 @@ jobs:
             echo "BLOCKING: semgrep found $SEMGREP_FINDINGS finding(s) — fix before merge."
             exit 1
           fi
+
+      - name: Canonical market-key burn-down gate (AC-09)
+        id: market-keys-ratchet
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Fails CLOSED: new canonical market-key literals beyond
+          # .semgrep/baseline.json block the PR, and the baseline may only
+          # shrink (ratchet). The checked-in script evaluates a semgrep report
+          # produced with the repo rule (path identity + stripped line text,
+          # so line renumbers never re-classify grandfathered findings).
+          semgrep --config .semgrep/no-raw-market-literals.yml --json --metrics=off $SRC_DIR tests > market-keys-report.json || true
+          python3 .semgrep/check_burn_down.py market-keys-report.json | tee market-keys-gate.txt
+          python3 - << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          print(open("market-keys-gate.txt").read())
+          PY
 
       - name: mypy — static type checking
         id: mypy
@@ -655,7 +670,10 @@ jobs:
         # the committed versions: frontend/backend contract drift never lands.
         working-directory: bet_dashboard/frontend
         run: |
-          python3 -m pip install -r ../backend/requirements.txt
+          # export_openapi.py imports only fastapi/pydantic (routers are DB-free
+          # at import time), so the drift check does not pull the full backend
+          # stack (pandas/scrape-kit) into the frontend job.
+          python3 -m pip install -q fastapi pydantic
           npm run codegen:markets:check
 
       - name: Type check
