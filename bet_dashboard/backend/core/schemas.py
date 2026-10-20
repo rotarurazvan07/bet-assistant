@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel
 
+from bet_framework.markets.enums import MarketKey, MarketType
+
 # ── Builder ───────────────────────────────────────────────────────────────────
 
 
@@ -46,8 +48,8 @@ class CandidateLegOut(BaseModel):
 
     match_name: str
     datetime: str | None = None
-    market: str
-    market_type: str  # Must match the market category (result, over_under_2.5, btts)
+    market: MarketKey
+    market_type: MarketType
     consensus: float
     odds: float
     result_url: str | None = None
@@ -134,8 +136,8 @@ class BetLegOut(BaseModel):
 
     match_name: str
     datetime: str | None = None
-    market: str
-    market_type: str | None = None
+    market: MarketKey
+    market_type: MarketType | None = None
     odds: float
     status: str
     result_url: str | None = None

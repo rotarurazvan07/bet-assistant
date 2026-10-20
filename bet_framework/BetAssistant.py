@@ -1209,7 +1209,7 @@ class BetAssistant(BaseStorageManager):
                 if dt:
                     try:
                         leg_dt = datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         leg_dt = dt
 
                 # Parse predictions JSON

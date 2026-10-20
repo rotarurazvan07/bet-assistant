@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 
 from bet_framework.core.Slip import BetSlipConfig
+from bet_framework.markets.compat import coerce_key, coerce_type
 
 router = APIRouter(prefix="/api/builder", tags=["builder"])
 
@@ -67,12 +68,8 @@ def preview(request: Request, body: BetSlipConfigIn):
                 else str(leg.datetime)
                 if leg.datetime
                 else None,
-                "market": leg.market.value if hasattr(leg.market, "value") else str(leg.market),
-                "market_type": leg.market_type.value
-                if hasattr(leg.market_type, "value")
-                else str(leg.market_type)
-                if leg.market_type
-                else None,
+                "market": coerce_key(leg.market),
+                "market_type": coerce_type(leg.market_type) if leg.market_type else None,
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,

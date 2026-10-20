@@ -196,34 +196,39 @@ def _predict_outcome_from_score(home_goals: int, away_goals: int, market_label: 
     """Predict outcome for a market based on a score prediction."""
     total_goals = home_goals + away_goals
 
-    if market_type == "result":
+    def _result() -> str:
         if home_goals > away_goals:
             return "HOME"
-        elif home_goals == away_goals:
+        if home_goals == away_goals:
             return "DRAW"
-        else:
-            return "AWAY"
-    elif market_type == "over_under_25":
-        return "OVER_25" if total_goals > 2.5 else "UNDER_25"
-    elif market_type == "over_under_15":
-        return "OVER_15" if total_goals > 1.5 else "UNDER_15"
-    elif market_type == "over_under_05":
-        return "OVER_05" if total_goals > 0.5 else "UNDER_05"
-    elif market_type == "over_under_35":
-        return "OVER_35" if total_goals > 3.5 else "UNDER_35"
-    elif market_type == "over_under_45":
-        return "OVER_45" if total_goals > 4.5 else "UNDER_45"
-    elif market_type == "btts":
-        return "BTTS_YES" if home_goals > 0 and away_goals > 0 else "BTTS_NO"
-    elif market_type == "double_chance":
+        return "AWAY"
+
+    def _double_chance() -> str:
         if home_goals > away_goals:
             return "DC_1X"
-        elif home_goals == away_goals:
+        if home_goals == away_goals:
             return "DC_X2"
-        else:
-            return "DC_12"
+        return "DC_12"
 
-    return "UNKNOWN"
+    def _over_under(threshold: float, suffix: str) -> str:
+        return f"OVER_{suffix}" if total_goals > threshold else f"UNDER_{suffix}"
+
+    # Dispatch table keyed by canonical MarketType values - replaces the
+    # if/elif ladder that replicated the enum by hand. Return values are the
+    # exact historical suffix strings (OVER_25/UNDER_25/...).
+    handlers = {
+        "result": _result,
+        "over_under_25": lambda: _over_under(2.5, "25"),
+        "over_under_15": lambda: _over_under(1.5, "15"),
+        "over_under_05": lambda: _over_under(0.5, "05"),
+        "over_under_35": lambda: _over_under(3.5, "35"),
+        "over_under_45": lambda: _over_under(4.5, "45"),
+        "btts": lambda: "BTTS_YES" if home_goals > 0 and away_goals > 0 else "BTTS_NO",
+        "double_chance": _double_chance,
+    }
+
+    handler = handlers.get(market_type)
+    return handler() if handler else "UNKNOWN"
 
 
 def _source_market_correlation(slips) -> dict:
@@ -265,7 +270,7 @@ def _source_market_correlation(slips) -> dict:
 
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
-            except ValueError, AttributeError:
+            except (ValueError, AttributeError):
                 continue
 
             market_label = str(leg.market)
@@ -343,7 +348,7 @@ def _source_breakdown(slips) -> list[dict]:
 
             try:
                 actual_home, actual_away = map(int, final_score.split(":"))
-            except ValueError, AttributeError:
+            except (ValueError, AttributeError):
                 continue
 
             # Determine actual outcome for this leg's market
