@@ -1,0 +1,110 @@
+{
+  "1": {
+    "cons_key": "cons_home",
+    "label": "1",
+    "market_type": "result",
+    "odds_key": "odds_home"
+  },
+  "12": {
+    "cons_key": "cons_dc_12",
+    "label": "12",
+    "market_type": "double_chance",
+    "odds_key": "odds_dc_12"
+  },
+  "1X": {
+    "cons_key": "cons_dc_1x",
+    "label": "1X",
+    "market_type": "double_chance",
+    "odds_key": "odds_dc_1x"
+  },
+  "2": {
+    "cons_key": "cons_away",
+    "label": "2",
+    "market_type": "result",
+    "odds_key": "odds_away"
+  },
+  "BTTS No": {
+    "cons_key": "cons_btts_no",
+    "label": "BTTS No",
+    "market_type": "btts",
+    "odds_key": "odds_btts_no"
+  },
+  "BTTS Yes": {
+    "cons_key": "cons_btts_yes",
+    "label": "BTTS Yes",
+    "market_type": "btts",
+    "odds_key": "odds_btts_yes"
+  },
+  "Over 0.5": {
+    "cons_key": "cons_over_05",
+    "label": "Over 0.5",
+    "market_type": "over_under_05",
+    "odds_key": "odds_over_05"
+  },
+  "Over 1.5": {
+    "cons_key": "cons_over_15",
+    "label": "Over 1.5",
+    "market_type": "over_under_15",
+    "odds_key": "odds_over_15"
+  },
+  "Over 2.5": {
+    "cons_key": "cons_over_25",
+    "label": "Over 2.5",
+    "market_type": "over_under_25",
+    "odds_key": "odds_over_25"
+  },
+  "Over 3.5": {
+    "cons_key": "cons_over_35",
+    "label": "Over 3.5",
+    "market_type": "over_under_35",
+    "odds_key": "odds_over_35"
+  },
+  "Over 4.5": {
+    "cons_key": "cons_over_45",
+    "label": "Over 4.5",
+    "market_type": "over_under_45",
+    "odds_key": "odds_over_45"
+  },
+  "Under 0.5": {
+    "cons_key": "cons_under_05",
+    "label": "Under 0.5",
+    "market_type": "over_under_05",
+    "odds_key": "odds_under_05"
+  },
+  "Under 1.5": {
+    "cons_key": "cons_under_15",
+    "label": "Under 1.5",
+    "market_type": "over_under_15",
+    "odds_key": "odds_under_15"
+  },
+  "Under 2.5": {
+    "cons_key": "cons_under_25",
+    "label": "Under 2.5",
+    "market_type": "over_under_25",
+    "odds_key": "odds_under_25"
+  },
+  "Under 3.5": {
+    "cons_key": "cons_under_35",
+    "label": "Under 3.5",
+    "market_type": "over_under_35",
+    "odds_key": "odds_under_35"
+  },
+  "Under 4.5": {
+    "cons_key": "cons_under_45",
+    "label": "Under 4.5",
+    "market_type": "over_under_45",
+    "odds_key": "odds_under_45"
+  },
+  "X": {
+    "cons_key": "cons_draw",
+    "label": "X",
+    "market_type": "result",
+    "odds_key": "odds_draw"
+  },
+  "X2": {
+    "cons_key": "cons_dc_x2",
+    "label": "X2",
+    "market_type": "double_chance",
+    "odds_key": "odds_dc_x2"
+  }
+}
