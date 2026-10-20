@@ -332,7 +332,9 @@ jobs:
       - name: Install semgrep (via official action)
         uses: semgrep/semgrep-action@v1
         with:
-          config: p/auto
+          # p/auto security/bug patterns + the canonical market-key rule
+          # (baseline-mode burn-down, see .semgrep/).
+          config: p/auto .semgrep/
         continue-on-error: true
 
       - name: semgrep — pattern-based security & bug detection
@@ -344,7 +346,18 @@ jobs:
           try:
               with open('semgrep-report.json') as f:
                   data = json.load(f)
-                  print(len(data.get('results', [])))
+                  results = data.get('results', [])
+              # Canonical market-key burn-down gate: findings recorded in
+              # .semgrep/baseline.json are grandfathered (ratchet: the baseline
+              # may only shrink, never grow); everything else blocks.
+              try:
+                  with open('.semgrep/baseline.json') as bf:
+                      baseline = json.load(bf).get('findings', [])
+              except (FileNotFoundError, json.JSONDecodeError):
+                  baseline = []
+              baselined = {(f.get('path'), int(f.get('start', 0))) for f in baseline}
+              new = [r for r in results if (r.get('path'), int(r.get('start', {}).get('line', 0))) not in baselined]
+              print(len(new))
           except:
               print('0')
           " 2>/dev/null || echo "0")
@@ -354,6 +367,7 @@ jobs:
           echo "semgrep_findings=${SEMGREP_FINDINGS}" >> "$GITHUB_OUTPUT"
           # BLOCKING (gate-hardening): semgrep sits at 0 findings — locked so
           # security pattern findings can never re-enter silently.
+          # Canonical market-key literals beyond the committed baseline also block.
           if [ "${SEMGREP_FINDINGS:-0}" -gt 0 ] 2>/dev/null; then
             echo "BLOCKING: semgrep found $SEMGREP_FINDINGS finding(s) — fix before merge."
             exit 1
@@ -634,6 +648,15 @@ jobs:
       - name: Install frontend dependencies
         working-directory: bet_dashboard/frontend
         run: npm ci
+
+      - name: Market contract codegen drift check (AC-07/AC-11)
+        # Regenerates the canonical market artifacts (OpenAPI schema + TS types
+        # + frontend snapshot fixture) and fails when any of them differs from
+        # the committed versions: frontend/backend contract drift never lands.
+        working-directory: bet_dashboard/frontend
+        run: |
+          python3 -m pip install -r ../backend/requirements.txt
+          npm run codegen:markets:check
 
       - name: Type check
         working-directory: bet_dashboard/frontend
