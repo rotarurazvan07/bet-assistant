@@ -72,6 +72,7 @@ from bet_framework.core.Slip import (
 )
 from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
 from bet_framework.core.utils import coerce_datetime_str, is_valid_url
+from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.keys import stripped_key
 
 logger = get_logger(__name__)
@@ -390,24 +391,7 @@ class BetAssistant(BaseStorageManager):
         return row_data
 
     _ODDS_KEY_MAP = {
-        "home": "home",
-        "draw": "draw",
-        "away": "away",
-        "over_15": "over_15",
-        "under_15": "under_15",
-        "over_25": "over_25",
-        "under_25": "under_25",
-        "btts_yes": "btts_y",
-        "btts_no": "btts_n",
-        "over_05": "over_05",
-        "under_05": "under_05",
-        "over_35": "over_35",
-        "under_35": "under_35",
-        "over_45": "over_45",
-        "under_45": "under_45",
-        "dc_1x": "dc_1x",
-        "dc_12": "dc_12",
-        "dc_x2": "dc_x2",
+        spec.odds_key.removeprefix("odds_"): spec.crawler_field for spec in MARKET_CATALOG
     }
 
     def _flatten_odds(self, odds: dict) -> dict:

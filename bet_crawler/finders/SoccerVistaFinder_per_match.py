@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.markets.catalog import MARKET_BY_KEY
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -41,7 +42,12 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             soup = BeautifulSoup(html, "html.parser")
             if html:
                 try:
-                    league_urls += [opt["value"] for opt in soup.find("select", id="tournamentPage").find_all("option")]
+                    league_urls += [
+                        opt["value"]
+                        for opt in soup.find("select", id="tournamentPage").find_all(
+                            "option"
+                        )
+                    ]
                 except AttributeError:
                     logger.info(f"Can't parse: {link}")
 
@@ -61,12 +67,15 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     import json
 
                     data = json.loads(script.string)
-                    if isinstance(data, dict) and data.get("@type") == ["Event", "SportsEvent"]:
+                    if isinstance(data, dict) and data.get("@type") == [
+                        "Event",
+                        "SportsEvent",
+                    ]:
                         url = data.get("url").replace("/fr/", "/")
                         if url:
                             matches_url.append(url)
                             # matches_url.append(SOCCERVISTA_URL + url)
-                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
+                except Exception as e:
                     logger.debug(f"Failed to parse JSON-LD script: {e}")
                     continue
 
@@ -123,20 +132,24 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                 event_type = data.get("@type", "")
 
                 # Check if it's a SportsEvent (handling both string and list types)
-                if "SportsEvent" in (event_type if isinstance(event_type, list) else [event_type]):
+                if "SportsEvent" in (
+                    event_type if isinstance(event_type, list) else [event_type]
+                ):
                     home_team = data.get("homeTeam", {}).get("name")
                     away_team = data.get("awayTeam", {}).get("name")
                     start_date = next(
                         (
                             json.loads(s.string)["startDate"]
                             for s in soup.find_all("script", type="application/ld+json")
-                            if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                            if s.string
+                            and "SportsEvent" in s.string
+                            and "startDate" in s.string
                         ),
                         None,
                     )
-                    match_datetime = datetime.strptime(start_date, "%Y-%m-%dT%H:%M").replace(
-                        tzinfo=None, hour=0, minute=0, second=0, microsecond=0
-                    )
+                    match_datetime = datetime.strptime(
+                        start_date, "%Y-%m-%dT%H:%M"
+                    ).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
 
                     break
             except json.JSONDecodeError, TypeError:
@@ -146,7 +159,9 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
 
     def _extract_predictions(self, soup):
         """Extract source score predictions from the page."""
-        script_text = " ".join(script.string for script in soup.find_all("script") if script.string)
+        script_text = " ".join(
+            script.string for script in soup.find_all("script") if script.string
+        )
         script_text = script_text.replace("\\u0022", '"')
 
         correct_score_match = re.search(
@@ -181,8 +196,8 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             "odds-link-under-3.5": "under_35",
             "odds-link-over-4.5": "over_45",
             "odds-link-under-4.5": "under_45",
-            "odds-link-yes": "btts_y",
-            "odds-link-no": "btts_n",
+            "odds-link-yes": MARKET_BY_KEY["BTTS Yes"].crawler_field,
+            "odds-link-no": MARKET_BY_KEY["BTTS No"].crawler_field,
         }
 
         extracted_data = {}
@@ -194,9 +209,13 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     value = element.get_text(strip=True)
                     if value and value != "-":
                         extracted_data[attr_name] = value
-            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                logger.error(f"Error extracting {attr_name} for class {class_name}: {e}")
+            except Exception as e:
+                logger.error(
+                    f"Error extracting {attr_name} for class {class_name}: {e}"
+                )
                 continue
         valid_field_names = {f.name for f in fields(Odds)}
-        final_payload = {k: v for k, v in extracted_data.items() if k in valid_field_names}
+        final_payload = {
+            k: v for k, v in extracted_data.items() if k in valid_field_names
+        }
         return Odds(**final_payload)

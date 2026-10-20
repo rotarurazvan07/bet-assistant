@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.markets.catalog import MARKET_BY_KEY
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -32,7 +33,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        start = (
+            next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        )
         league_urls = []
         for tr in all_trs[start:]:
             anchors = tr.find_all("a")
@@ -79,7 +82,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                 (
                     json.loads(s.string)["startDate"]
                     for s in soup.find_all("script", type="application/ld+json")
-                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                    if s.string
+                    and "SportsEvent" in s.string
+                    and "startDate" in s.string
                 ),
                 None,
             )
@@ -96,7 +101,10 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             # Extract odds
             market_map = {
                 "MATCH WINNER": ["home", "draw", "away"],
-                "BOTH TEAMS TO SCORE": ["btts_y", "btts_n"],
+                "BOTH TEAMS TO SCORE": [
+                    MARKET_BY_KEY["BTTS Yes"].crawler_field,
+                    MARKET_BY_KEY["BTTS No"].crawler_field,
+                ],
                 "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
                 "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],
             }
@@ -113,8 +121,10 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                         for i, attr in enumerate(attr_names):
                             try:
                                 odds_data[attr] = float(links[i].get_text(strip=True))
-                            except (ValueError, TypeError):  # noqa: PERF203 - intentional per-item fault isolation: one malformed odds cell must not kill the parse
-                                logger.error(f"Could not parse odds for {attr} in {url}")
+                            except (ValueError, TypeError):
+                                logger.error(
+                                    f"Could not parse odds for {attr} in {url}"
+                                )
                                 continue
 
             # 3. Create the object in "one shot" if we found any data
@@ -122,7 +132,13 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             odds = Odds(**odds_data) if odds_data else None
 
             # Create the Match object
-            match = Match(home_team=home_team, away_team=away_team, datetime=date_time, predictions=predictions, odds=odds)
+            match = Match(
+                home_team=home_team,
+                away_team=away_team,
+                datetime=date_time,
+                predictions=predictions,
+                odds=odds,
+            )
 
             self.add_match(match)
 

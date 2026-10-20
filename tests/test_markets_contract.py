@@ -123,3 +123,46 @@ def test_stripped_key_convention(key: str) -> None:
     from bet_framework.markets.keys import stripped_key
 
     assert stripped_key(key) == key.removeprefix("odds_")
+
+
+def test_crawler_field_mapping_frozen() -> None:
+    """AC-08: the canonical <-> Odds-dataclass field map is frozen.
+
+    'btts_y'/'btts_n' (Odds dataclass fields) vs 'btts_yes'/'btts_no'
+    (stripped odds keys) is the exact PR #106 divergence class - the map that
+    joins them now lives in exactly one file.
+    """
+    from bet_framework.markets.catalog import MARKET_BY_CRAWLER_FIELD, MARKET_CATALOG
+
+    crawler_fields = {spec.crawler_field for spec in MARKET_CATALOG}
+    assert crawler_fields == {
+        "home",
+        "draw",
+        "away",
+        "over_05",
+        "under_05",
+        "over_15",
+        "under_15",
+        "over_25",
+        "under_25",
+        "over_35",
+        "under_35",
+        "over_45",
+        "under_45",
+        "btts_y",
+        "btts_n",
+        "dc_1x",
+        "dc_12",
+        "dc_x2",
+    }
+    # The two do-or-die rows: identical key semantics, different spellings.
+    assert MARKET_BY_CRAWLER_FIELD["btts_y"].key == "BTTS Yes"
+    assert MARKET_BY_CRAWLER_FIELD["btts_y"].odds_key.removeprefix("odds_") == "btts_yes"
+    assert MARKET_BY_CRAWLER_FIELD["btts_n"].key == "BTTS No"
+
+
+def test_snapshot_excludes_crawler_field(tmp_path: Path) -> None:
+    """Snapshot shape stays {label, market_type, cons_key, odds_key} (frontend contract)."""
+    snapshot = emit(tmp_path / "snapshot.json")
+    for row in snapshot.values():
+        assert set(row) == {"label", "market_type", "cons_key", "odds_key"}
