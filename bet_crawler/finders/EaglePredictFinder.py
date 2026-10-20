@@ -1,6 +1,8 @@
 """Match finder for eaglepredict.com predictions."""
 
-from scrape_kit import fetch, get_logger
+from scrape_kit import fetch
+
+from bet_crawler.crawler_logging import get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -61,6 +63,15 @@ class EaglePredictFinder(BaseMatchFinder):
 
             score_match = re.search(r"(\d+)\s*-\s*(\d+)", text)
             if not score_match:
+                log_event(
+                    logger,
+                    event="match.skipped",
+                    outcome="warning",
+                    reason_code="score_not_found",
+                    level=30,
+                    message="Skipping EaglePredict candidate: correct score could not be parsed",
+                    candidate=text,
+                )
                 continue
 
             self._emit_scored_match(node, score_match, current_date, seen)
@@ -69,22 +80,70 @@ class EaglePredictFinder(BaseMatchFinder):
         """Resolve one scored node to a match and emit it (skips on any gap)."""
         container = self._find_match_container(node)
         if not container:
+            log_event(
+                logger,
+                event="match.skipped",
+                outcome="warning",
+                reason_code="match_container_missing",
+                level=30,
+                message="Skipping EaglePredict candidate: match container missing",
+                candidate=str(node).strip(),
+            )
             return
 
         teams = self._extract_teams(container)
         if len(teams) < 2:
+            log_event(
+                logger,
+                event="match.skipped",
+                outcome="warning",
+                reason_code="teams_missing",
+                level=30,
+                message="Skipping EaglePredict candidate: fewer than two teams found",
+                candidate=str(node).strip(),
+            )
             return
 
         home, away = teams
 
         local_time = self._extract_time(container)
         if not (current_date and local_time):
+            log_event(
+                logger,
+                event="match.skipped",
+                outcome="warning",
+                reason_code="date_or_time_missing",
+                level=30,
+                message=f"Skipping EaglePredict candidate {home} vs {away}: date or time missing",
+            )
             return
 
-        dt = self._build_datetime(current_date, local_time)
+        try:
+            dt = self._build_datetime(current_date, local_time)
+        except (ValueError, TypeError) as exc:
+            log_event(
+                logger,
+                event="match.skipped",
+                outcome="warning",
+                reason_code="invalid_datetime",
+                level=30,
+                message=f"Skipping EaglePredict candidate {home} vs {away}: invalid date/time ({exc})",
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+            )
+            return
 
         key = (home.lower(), away.lower(), dt)
         if key in seen:
+            log_event(
+                logger,
+                event="match.skipped",
+                outcome="warning",
+                reason_code="duplicate_match",
+                level=30,
+                message=f"Skipping duplicate EaglePredict candidate {home} vs {away} ({dt})",
+                match_id=f"{home}|{away}|{dt}",
+            )
             return
         seen.add(key)
 
@@ -112,7 +171,19 @@ class EaglePredictFinder(BaseMatchFinder):
         m = re.match(r"\w{3}\s*-\s*(\d{1,2})\s+(\w{3})\s+(\d{4})", text)
         if m:
             d, mth, y = m.groups()
-            return (int(y), months[mth], int(d))
+            month = months.get(mth.title())
+            if month is None:
+                log_event(
+                    logger,
+                    event="source.date_heading.invalid",
+                    outcome="warning",
+                    reason_code="unknown_month_name",
+                    level=30,
+                    message=f"Ignoring unrecognized EaglePredict date heading: {text}",
+                    heading=text,
+                )
+                return None
+            return (int(y), month, int(d))
         return None
 
     def _find_match_container(self, node) -> any:

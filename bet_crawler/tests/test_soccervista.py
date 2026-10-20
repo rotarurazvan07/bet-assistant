@@ -70,7 +70,7 @@ class TestSoccerVistaPerMatch:
         assert m.odds.draw == 3.40
         assert m.odds.away == 3.75
         assert m.odds.over_25 == 1.70
-        assert m.odds.btts_y == 1.85
+        assert m.odds.btts_yes == 1.85
         assert m.result_url == url
 
     def test_missing_prediction_raises_no_match(self) -> None:

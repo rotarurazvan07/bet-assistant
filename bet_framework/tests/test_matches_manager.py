@@ -17,8 +17,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
+from bet_framework.core.market_config import MARKET_DEFINITIONS
 from bet_framework.core.Match import Match, Odds, Score
-from bet_framework.MatchesManager import MatchesManager
+from bet_framework.MatchesManager import ODDS_MARKET_GROUPS, MatchesManager, _check_market_group
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,27 @@ SIMILARITY_CONFIG = {
 }
 
 DT_BASE = datetime(2026, 4, 1, 15, 0, 0)
+
+
+def test_odds_validation_groups_match_canonical_catalog() -> None:
+    """Every sanity-checked odds key comes from the central market catalog."""
+    grouped_fields = {field for _, _, fields in ODDS_MARKET_GROUPS for field, _ in fields}
+    catalog_fields = {market.odds_key.removeprefix("odds_") for market in MARKET_DEFINITIONS}
+    assert grouped_fields == catalog_fields
+
+
+@pytest.mark.parametrize(
+    "price, expected_valid",
+    [(1.49, True), (1.25, True), (1.24, False), (1.51, False)],
+)
+def test_double_chance_implied_probability_is_normalized_to_1x2_scale(price, expected_valid) -> None:
+    fields = next(fields for _, label, fields in ODDS_MARKET_GROUPS if label == "Double Chance")
+    odds = {"dc_1x": price, "dc_12": price, "dc_x2": price}
+
+    valid, implied = _check_market_group(odds, fields, implied_divisor=2.0)
+
+    assert valid is expected_valid
+    assert implied == pytest.approx(150.0 / price)
 
 
 def make_match(
@@ -51,7 +73,7 @@ def make_match(
     )
 
 
-def make_chunk_db(path, matches):
+def make_chunk_db(path, matches) -> None:
     """Create a standalone chunk .db file compatible with MatchesManager merge."""
     conn = sqlite3.connect(str(path))
     conn.execute("""
@@ -140,23 +162,23 @@ def populated_mm(tmp_path):
 
 
 class TestInit:
-    def test_normal_creates_db_file(self, tmp_path):
+    def test_normal_creates_db_file(self, tmp_path) -> None:
         path = str(tmp_path / "init_test.db")
         mm = MatchesManager(path, similarity_config=SIMILARITY_CONFIG)
         assert os.path.exists(path)
         mm.close()
 
-    def test_normal_with_similarity_engine(self, tmp_path):
+    def test_normal_with_similarity_engine(self, tmp_path) -> None:
         mm = MatchesManager(str(tmp_path / "sim.db"), similarity_config=SIMILARITY_CONFIG)
         assert mm.similarity_engine is not None
         mm.close()
 
-    def test_normal_without_similarity_engine(self, tmp_path):
+    def test_normal_without_similarity_engine(self, tmp_path) -> None:
         mm = MatchesManager(str(tmp_path / "nosim.db"), similarity_config=None)
         assert mm.similarity_engine is None
         mm.close()
 
-    def test_edge_empty_db_has_matches_table(self, mm):
+    def test_edge_empty_db_has_matches_table(self, mm) -> None:
         rows = mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='table' AND name='matches'")
         assert len(rows) == 1
 
@@ -165,14 +187,14 @@ class TestInit:
 
 
 class TestAddMatch:
-    def test_normal_inserts_single_match(self, mm):
+    def test_normal_inserts_single_match(self, mm) -> None:
         idx = mm.add_match(make_match("Home", "Away"))
         assert idx is not None
         buf = mm.ensure_buffer()
         assert len(buf) == 1
         assert buf.iloc[0]["home_team_name"] == "Home"
 
-    def test_normal_inserts_match_with_predictions(self, mm):
+    def test_normal_inserts_match_with_predictions(self, mm) -> None:
         match = make_match("H", "A", preds=[Score("src1", 2, 1), Score("src2", 0, 0)])
         mm.add_match(match)
         buf = mm.ensure_buffer()
@@ -180,7 +202,7 @@ class TestAddMatch:
         assert len(preds) == 2
         assert preds[0]["source"] == "src1"
 
-    def test_normal_inserts_match_with_odds(self, mm):
+    def test_normal_inserts_match_with_odds(self, mm) -> None:
         match = make_match("H", "A", odds=Odds(home=1.5, draw=3.2, away=4.0))
         mm.add_match(match)
         buf = mm.ensure_buffer()
@@ -188,13 +210,13 @@ class TestAddMatch:
         assert odds["home"] == 1.5
         assert odds["draw"] == 3.2
 
-    def test_normal_inserts_match_with_url(self, mm):
+    def test_normal_inserts_match_with_url(self, mm) -> None:
         match = make_match("H", "A", url="https://example.com/match/1")
         mm.add_match(match)
         buf = mm.ensure_buffer()
         assert buf.iloc[0]["result_url"] == "https://example.com/match/1"
 
-    def test_normal_merges_predictions_for_same_match(self, mm):
+    def test_normal_merges_predictions_for_same_match(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_b", 1, 0)]))
         buf = mm.ensure_buffer()
@@ -203,7 +225,7 @@ class TestAddMatch:
         sources = {p["source"] for p in preds}
         assert sources == {"src_a", "src_b"}
 
-    def test_normal_merges_odds_for_same_match(self, mm):
+    def test_normal_merges_odds_for_same_match(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", odds=Odds(home=1.5)))
         mm.add_match(make_match("Arsenal", "Chelsea", odds=Odds(draw=3.0)))
         buf = mm.ensure_buffer()
@@ -212,7 +234,41 @@ class TestAddMatch:
         assert odds["home"] == 1.5
         assert odds["draw"] == 3.0
 
-    def test_normal_url_preserved_from_first_insert(self, mm):
+    def test_double_chance_odds_with_normal_overround_are_accepted(self, mm) -> None:
+        home, away = "Karlsruher SC", "Darmstadt"
+        mm.add_match(make_match(home, away))
+        mm.add_match(
+            make_match(
+                home,
+                away,
+                odds=Odds(
+                    home=2.2,
+                    draw=3.6,
+                    away=2.8,
+                    over_05=1.03,
+                    under_05=19.0,
+                    over_15=1.15,
+                    under_15=5.8,
+                    over_25=1.48,
+                    under_25=2.7,
+                    over_35=2.15,
+                    under_35=1.72,
+                    over_45=3.6,
+                    under_45=1.31,
+                    btts_yes=1.4,
+                    btts_no=2.7,
+                    dc_1x=1.40,
+                    dc_12=1.25,
+                    dc_x2=1.62,
+                ),
+            )
+        )
+
+        stored_odds = json.loads(mm.ensure_buffer().iloc[0]["odds"])
+        assert (stored_odds["dc_1x"], stored_odds["dc_12"], stored_odds["dc_x2"]) == (1.4, 1.25, 1.62)
+        assert mm._validate_all_odds() == []
+
+    def test_normal_url_preserved_from_first_insert(self, mm) -> None:
         mm.add_match(
             make_match(
                 "Arsenal",
@@ -233,7 +289,7 @@ class TestAddMatch:
         # First URL is preserved, second is not overwritten
         assert buf.iloc[0]["result_url"] == "https://first.com"
 
-    def test_normal_updates_datetime_precision(self, mm):
+    def test_normal_updates_datetime_precision(self, mm) -> None:
         # First add with midnight (date-only), then with precise time
         dt_midnight = datetime(2026, 4, 1, 0, 0, 0)
         dt_precise = datetime(2026, 4, 1, 15, 30, 0)
@@ -242,7 +298,7 @@ class TestAddMatch:
         buf = mm.ensure_buffer()
         assert "15:30" in buf.iloc[0]["datetime"]
 
-    def test_edge_exact_source_collision_skips_duplicate_prediction(self, mm):
+    def test_edge_exact_source_collision_skips_duplicate_prediction(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 3, 0)]))
         buf = mm.ensure_buffer()
@@ -253,7 +309,7 @@ class TestAddMatch:
         assert len(src_a_preds) == 1
         assert src_a_preds[0]["home"] == 2.0
 
-    def test_edge_exact_source_collision_merges_new_sources(self, mm):
+    def test_edge_exact_source_collision_merges_new_sources(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 3, 0), Score("src_b", 1, 1)]))
         buf = mm.ensure_buffer()
@@ -262,7 +318,7 @@ class TestAddMatch:
         preds = json.loads(buf.iloc[0]["predictions_scores"])
         assert preds == [{"source": "src_a", "home": 2.0, "away": 1.0}, {"source": "src_b", "home": 1.0, "away": 1.0}]
 
-    def test_edge_exact_source_collision_updates_missing_url_without_duplicate(self, mm):
+    def test_edge_exact_source_collision_updates_missing_url_without_duplicate(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(
             make_match(
@@ -279,7 +335,7 @@ class TestAddMatch:
         preds = json.loads(buf.iloc[0]["predictions_scores"])
         assert preds == [{"source": "src_a", "home": 2.0, "away": 1.0}]
 
-    def test_edge_fuzzy_source_collision_inserts_separate_row(self, mm):
+    def test_edge_fuzzy_source_collision_inserts_separate_row(self, mm) -> None:
         mm.add_match(make_match("Arsenal FC", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(
             make_match(
@@ -299,7 +355,7 @@ class TestAddMatch:
         assert first_preds == [{"source": "src_a", "home": 2.0, "away": 1.0}]
         assert second_preds == [{"source": "src_a", "home": 3.0, "away": 0.0}]
 
-    def test_edge_case_changed_source_collision_inserts_separate_row(self, mm):
+    def test_edge_case_changed_source_collision_inserts_separate_row(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("src_a", 2, 1)]))
         mm.add_match(
             make_match(
@@ -315,19 +371,19 @@ class TestAddMatch:
         assert buf.iloc[0]["result_url"] is None
         assert buf.iloc[1]["result_url"] == "https://example.com/result"
 
-    def test_edge_no_predictions_no_odds(self, mm):
+    def test_edge_no_predictions_no_odds(self, mm) -> None:
         match = make_match("H", "A", preds=[], odds=None)
         idx = mm.add_match(match)
         assert idx is not None
 
-    def test_edge_similar_team_names_merge(self, mm):
+    def test_edge_similar_team_names_merge(self, mm) -> None:
         """Teams with fuzzy-similar names should be merged."""
         mm.add_match(make_match("Arsenal FC", "Chelsea", preds=[Score("s1", 1, 0)]))
         mm.add_match(make_match("Arsenal", "Chelsea", preds=[Score("s2", 2, 1)]))
         buf = mm.ensure_buffer()
         assert len(buf) == 1  # merged via similarity
 
-    def test_edge_different_dates_not_merged(self, mm):
+    def test_edge_different_dates_not_merged(self, mm) -> None:
         """Matches on different dates should not be merged."""
         dt1 = datetime(2026, 4, 1, 15, 0)
         dt2 = datetime(2026, 4, 10, 15, 0)
@@ -336,7 +392,7 @@ class TestAddMatch:
         buf = mm.ensure_buffer()
         assert len(buf) == 2  # different dates
 
-    def test_error_returns_none_on_exception(self, mm):
+    def test_error_returns_none_on_exception(self, mm) -> None:
         """add_match should not raise — returns None on error."""
         # Pass something that will cause an internal error
         result = mm.add_match(Match(None, None, None, None, None))
@@ -347,12 +403,12 @@ class TestAddMatch:
 
 
 class TestFetchMatches:
-    def test_normal_returns_dataframe(self, populated_mm):
+    def test_normal_returns_dataframe(self, populated_mm) -> None:
         df = populated_mm.fetch_matches()
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 3
 
-    def test_normal_has_expected_columns(self, populated_mm):
+    def test_normal_has_expected_columns(self, populated_mm) -> None:
         df = populated_mm.fetch_matches()
         for col in [
             "home_name",
@@ -364,22 +420,22 @@ class TestFetchMatches:
         ]:
             assert col in df.columns
 
-    def test_normal_scores_deserialized_as_lists(self, populated_mm):
+    def test_normal_scores_deserialized_as_lists(self, populated_mm) -> None:
         df = populated_mm.fetch_matches()
         for scores in df["scores"]:
             assert isinstance(scores, list)
 
-    def test_normal_datetime_is_python_datetime(self, populated_mm):
+    def test_normal_datetime_is_python_datetime(self, populated_mm) -> None:
         df = populated_mm.fetch_matches()
         for dt in df["datetime"]:
             assert isinstance(dt, datetime)
 
-    def test_edge_empty_db_returns_empty_dataframe(self, mm):
+    def test_edge_empty_db_returns_empty_dataframe(self, mm) -> None:
         df = mm.fetch_matches()
         assert isinstance(df, pd.DataFrame)
         assert df.empty
 
-    def test_edge_match_with_no_scores_returns_empty_list(self, mm):
+    def test_edge_match_with_no_scores_returns_empty_list(self, mm) -> None:
         mm.add_match(make_match("A", "B", preds=[]))
         df = mm.fetch_matches()
         assert df.iloc[0]["scores"] == []
@@ -389,23 +445,23 @@ class TestFetchMatches:
 
 
 class TestResetMatchesDb:
-    def test_normal_clears_all_matches(self, populated_mm):
+    def test_normal_clears_all_matches(self, populated_mm) -> None:
         populated_mm.reset_matches_db()
         buf = populated_mm.ensure_buffer()
         assert len(buf) == 0
 
-    def test_normal_can_add_after_reset(self, populated_mm):
+    def test_normal_can_add_after_reset(self, populated_mm) -> None:
         populated_mm.reset_matches_db()
         populated_mm.add_match(make_match("New", "Match"))
         buf = populated_mm.ensure_buffer()
         assert len(buf) == 1
 
-    def test_edge_reset_empty_db_is_noop(self, mm):
+    def test_edge_reset_empty_db_is_noop(self, mm) -> None:
         mm.reset_matches_db()  # should not raise
         buf = mm.ensure_buffer()
         assert len(buf) == 0
 
-    def test_normal_reset_empties_disk_and_clears_dirty(self, populated_mm):
+    def test_normal_reset_empties_disk_and_clears_dirty(self, populated_mm) -> None:
         populated_mm.flush()
         populated_mm.reset_matches_db()
         rows = populated_mm.fetch_rows("SELECT COUNT(*) AS n FROM matches")
@@ -414,31 +470,31 @@ class TestResetMatchesDb:
         indexes = populated_mm.fetch_rows("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='matches'")
         assert {row[0] for row in indexes} >= {"idx_datetime", "idx_home_team", "idx_away_team"}
 
-    def test_regression_reset_does_not_call_removed_clear_database(self, mm):
+    def test_regression_reset_does_not_call_removed_clear_database(self, mm) -> None:
         assert not hasattr(mm, "clear_database")
         mm.reset_matches_db()
 
 
 class TestScrapeKitPin:
-    """Lock scrape-kit to v0.2.2 on every install path."""
+    """Lock scrape-kit to v0.3.0 on every install path."""
 
-    PIN = "git+https://github.com/rotarurazvan07/scrape-kit.git@v0.2.2"
+    PIN = "git+https://github.com/rotarurazvan07/scrape-kit.git@v0.3.0"
     REQUIREMENTS = (
         "bet_dashboard/backend/requirements.txt",
         "setup/requirements-scrape.txt",
     )
 
-    def test_both_requirements_pin_v022(self):
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    def test_both_requirements_pin_v030(self) -> None:
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         for rel in self.REQUIREMENTS:
             path = os.path.join(root, rel)
             with open(path, encoding="utf-8") as fh:
                 lines = [ln.strip() for ln in fh if "scrape-kit" in ln and not ln.lstrip().startswith("#")]
             assert lines == [self.PIN], f"{rel} scrape-kit refs={lines}"
 
-    def test_scrape_requirements_pandas_matches_scrape_kit_v022(self):
-        # AC-02: scrape-kit v0.2.2 requires pandas==3.0.6; keep the scrape pin aligned.
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    def test_scrape_requirements_pandas_matches_scrape_kit_v030(self) -> None:
+        # AC-02: scrape-kit v0.3.0 requires pandas==3.0.6; keep the scrape pin aligned.
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         path = os.path.join(root, "setup/requirements-scrape.txt")
         with open(path, encoding="utf-8") as fh:
             pins = [ln.strip() for ln in fh if ln.strip().startswith("pandas")]
@@ -449,25 +505,25 @@ class TestScrapeKitPin:
 
 
 class TestFlush:
-    def test_normal_dirty_buffer_persists_to_disk(self, mm):
+    def test_normal_dirty_buffer_persists_to_disk(self, mm) -> None:
         mm.add_match(make_match("Flush", "Test"))
         mm.flush()
         # Read from disk directly
         rows = mm.fetch_rows("SELECT * FROM matches WHERE home_team_name = ?", ("Flush",))
         assert len(rows) == 1
 
-    def test_normal_flush_clears_dirty_flag(self, mm):
+    def test_normal_flush_clears_dirty_flag(self, mm) -> None:
         mm.add_match(make_match("A", "B"))
         assert mm._dirty is True
         mm.flush()
         assert mm._dirty is False
 
-    def test_edge_flush_when_not_dirty_is_noop(self, mm):
+    def test_edge_flush_when_not_dirty_is_noop(self, mm) -> None:
         mm.ensure_buffer()
         mm._dirty = False
         mm.flush()  # should not raise
 
-    def test_edge_flush_preserves_indexes(self, mm):
+    def test_edge_flush_preserves_indexes(self, mm) -> None:
         mm.add_match(make_match("A", "B"))
         mm.flush()
         # Verify indexes still exist
@@ -481,57 +537,57 @@ class TestFlush:
 
 
 class TestFind:
-    def test_normal_finds_exact_match(self, mm):
+    def test_normal_finds_exact_match(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea"))
         found, idx = mm._find("Arsenal", "Chelsea", DT_BASE)
         assert found is not None
         assert idx is not None
 
-    def test_normal_finds_similar_match(self, mm):
+    def test_normal_finds_similar_match(self, mm) -> None:
         mm.add_match(make_match("Manchester United", "Liverpool"))
         found, idx = mm._find("Manchester United FC", "Liverpool", DT_BASE)
         assert found is not None
 
-    def test_normal_returns_none_for_different_team(self, mm):
+    def test_normal_returns_none_for_different_team(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea"))
         found, idx = mm._find("Barcelona", "Real Madrid", DT_BASE)
         assert found is None
         assert idx is None
 
-    def test_edge_date_window_within_one_day(self, mm):
+    def test_edge_date_window_within_one_day(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", dt=DT_BASE))
         # Same day offset
         found, _ = mm._find("Arsenal", "Chelsea", DT_BASE + timedelta(hours=5))
         assert found is not None
 
-    def test_edge_date_too_far_returns_none(self, mm):
+    def test_edge_date_too_far_returns_none(self, mm) -> None:
         mm.add_match(make_match("Arsenal", "Chelsea", dt=DT_BASE))
         found, _ = mm._find("Arsenal", "Chelsea", DT_BASE + timedelta(days=5))
         assert found is None
 
-    def test_edge_empty_buffer_returns_none(self, mm):
+    def test_edge_empty_buffer_returns_none(self, mm) -> None:
         found, idx = mm._find("Any", "Team", DT_BASE)
         assert found is None
 
-    def test_edge_no_similarity_engine_exact_match_works(self, mm_no_sim):
+    def test_edge_no_similarity_engine_exact_match_works(self, mm_no_sim) -> None:
         """Without similarity engine, exact matches still work (case-insensitive)."""
         mm_no_sim.add_match(make_match("Arsenal", "Chelsea"))
         found, idx = mm_no_sim._find("Arsenal", "Chelsea", DT_BASE)
         assert found is not None  # exact match works without engine
         assert found["home_team_name"] == "Arsenal"
 
-    def test_edge_no_similarity_engine_fuzzy_fails(self, mm_no_sim):
+    def test_edge_no_similarity_engine_fuzzy_fails(self, mm_no_sim) -> None:
         """Without similarity engine, fuzzy matching doesn't work."""
         mm_no_sim.add_match(make_match("Arsenal", "Chelsea"))
         found, _ = mm_no_sim._find("Arsenaal", "Chelseea", DT_BASE)  # typos
         assert found is None  # no engine → fuzzy cannot find
 
-    def test_edge_fuzzy_row_score_none_engine_returns_none(self, mm_no_sim):
+    def test_edge_fuzzy_row_score_none_engine_returns_none(self, mm_no_sim) -> None:
         """NONE_ENGINE: _fuzzy_row_score must not AttributeError when engine is missing."""
         assert mm_no_sim.similarity_engine is None
         assert mm_no_sim._fuzzy_row_score("Arsenal", "Chelsea", "Arsenal", "Chelsea") is None
 
-    def test_edge_add_match_skips_update_when_idx_none(self, mm):
+    def test_edge_add_match_skips_update_when_idx_none(self, mm) -> None:
         """UPDATE_IDX: found-without-idx must not call _update_existing_match."""
         mm.add_match(make_match("Arsenal", "Chelsea"))
         mm._find = lambda *a, **k: ({"home_team_name": "Arsenal"}, None)
@@ -542,7 +598,7 @@ class TestFind:
 
 
 class TestMergeDatabases:
-    def test_normal_merges_single_chunk(self, mm, tmp_path):
+    def test_normal_merges_single_chunk(self, mm, tmp_path) -> None:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         make_chunk_db(
@@ -553,7 +609,7 @@ class TestMergeDatabases:
         buf = mm.ensure_buffer()
         assert len(buf) == 1
 
-    def test_normal_merges_multiple_chunks(self, mm, tmp_path):
+    def test_normal_merges_multiple_chunks(self, mm, tmp_path) -> None:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         # Use distinct team names that won't fuzzy-match each other
@@ -574,7 +630,7 @@ class TestMergeDatabases:
         buf = mm.ensure_buffer()
         assert len(buf) == 3
 
-    def test_normal_merges_predictions_from_different_chunks(self, mm, tmp_path):
+    def test_normal_merges_predictions_from_different_chunks(self, mm, tmp_path) -> None:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         make_chunk_db(
@@ -592,14 +648,14 @@ class TestMergeDatabases:
         sources = {p["source"] for p in preds}
         assert sources == {"src_a", "src_b"}
 
-    def test_edge_empty_directory_is_noop(self, mm, tmp_path):
+    def test_edge_empty_directory_is_noop(self, mm, tmp_path) -> None:
         empty_dir = tmp_path / "empty_chunks"
         empty_dir.mkdir()
         mm.merge_databases(str(empty_dir))
         buf = mm.ensure_buffer()
         assert len(buf) == 0
 
-    def test_edge_chunk_with_odds(self, mm, tmp_path):
+    def test_edge_chunk_with_odds(self, mm, tmp_path) -> None:
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
         make_chunk_db(
@@ -611,7 +667,7 @@ class TestMergeDatabases:
         odds = json.loads(buf.iloc[0]["odds"])
         assert odds["home"] == 1.5
 
-    def test_edge_chunk_with_empty_odds(self, mm, tmp_path):
+    def test_edge_chunk_with_empty_odds(self, mm, tmp_path) -> None:
         """MERGE_NO_ODDS: empty/falsey odds merge without TypeError."""
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
@@ -626,7 +682,7 @@ class TestMergeDatabases:
 
 
 class TestMatchesManagerScenarios:
-    def test_scenario_full_lifecycle_add_flush_fetch(self, mm):
+    def test_scenario_full_lifecycle_add_flush_fetch(self, mm) -> None:
         """Add matches → flush → fetch_matches → verify DataFrame integrity."""
         mm.add_match(
             make_match(
@@ -654,7 +710,7 @@ class TestMatchesManagerScenarios:
         assert len(arsenal_row["scores"]) == 1
         assert arsenal_row["result_url"] == "https://example.com/1"
 
-    def test_scenario_multi_source_merge_dedup(self, mm, tmp_path):
+    def test_scenario_multi_source_merge_dedup(self, mm, tmp_path) -> None:
         """3 chunks with overlapping matches — ensure dedup and source merging."""
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
@@ -673,7 +729,7 @@ class TestMatchesManagerScenarios:
         sources = {p["source"] for p in preds}
         assert sources == {"soccervista", "forebet", "predictz"}
 
-    def test_scenario_reset_then_merge_fresh(self, mm, tmp_path):
+    def test_scenario_reset_then_merge_fresh(self, mm, tmp_path) -> None:
         """Pre-populate, reset, merge fresh data, verify only new data."""
         mm.add_match(make_match("Old", "Match"))
         mm.flush()
@@ -690,7 +746,7 @@ class TestMatchesManagerScenarios:
         assert len(buf) == 1
         assert buf.iloc[0]["home_team_name"] == "Fresh"
 
-    def test_scenario_large_batch_merge(self, mm, tmp_path):
+    def test_scenario_large_batch_merge(self, mm, tmp_path) -> None:
         """Merge a chunk with many matches to test performance/correctness."""
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()
@@ -708,7 +764,7 @@ class TestMatchesManagerScenarios:
         buf = mm.ensure_buffer()
         assert len(buf) == 50
 
-    def test_scenario_fuzzy_merge_across_chunks(self, mm, tmp_path):
+    def test_scenario_fuzzy_merge_across_chunks(self, mm, tmp_path) -> None:
         """Two chunks with slightly different team name spellings should merge."""
         chunk_dir = tmp_path / "chunks"
         chunk_dir.mkdir()

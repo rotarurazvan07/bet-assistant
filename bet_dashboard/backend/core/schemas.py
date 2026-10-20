@@ -47,7 +47,7 @@ class CandidateLegOut(BaseModel):
     match_name: str
     datetime: str | None = None
     market: str
-    market_type: str  # Must match the market category (result, over_under_2.5, btts)
+    market_type: str  # Must match a market_type value from bet_framework.core.market_config
     consensus: float
     odds: float
     result_url: str | None = None

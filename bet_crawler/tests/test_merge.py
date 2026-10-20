@@ -6,12 +6,14 @@ Note: crawl merge uses MatchesManager.merge_databases (NOT merge_with_history_pr
 which is a backend-only path — see automation-summary divergence table).
 """
 
+import json
 import os
 
 import pytest
 import yaml
 
 from bet_crawler.crawl_core.merge import merge
+from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 from bet_framework.MatchesManager import MatchesManager
 
 from .conftest import make_chunk_db, make_match
@@ -103,6 +105,24 @@ class TestMergeP0:
 
 
 class TestMergeSummaryP1:
+    def test_merge_completion_reports_missing_sources_as_partial(self, tmp_path, monkeypatch) -> None:
+        chunks = tmp_path / "chunks"
+        chunks.mkdir()
+        make_chunk_db(chunks / "actions-1.db", [make_match(home="Alpha FC", url="https://a.com/1")])
+        final = tmp_path / "final.db"
+        event_path = tmp_path / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+        try:
+            merge(str(final), str(chunks), SIM, {"a": {}, "ghost": {}}, {"actions": ["a"]})
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            completed = [record for record in records if record["event"] == "stage.completed"][-1]
+            assert completed["outcome"] == "partial"
+            assert completed["severity"] == "WARNING"
+            assert completed["counts"]["crawlers_missing"] == 1
+        finally:
+            disable_event_logging()
+
     def test_missing_crawler_logs_warning(self, tmp_path, caplog) -> None:
         """Configured crawler with zero matches appears as MISSING in summary."""
         chunks = tmp_path / "chunks"

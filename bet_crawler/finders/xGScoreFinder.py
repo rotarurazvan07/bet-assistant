@@ -2,7 +2,9 @@
 
 import re
 
-from scrape_kit import browser, get_logger
+from scrape_kit import browser
+
+from bet_crawler.crawler_logging import get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -60,7 +62,18 @@ class xGScoreFinder(BaseMatchFinder):
                     logger.info("Could not find 'Week' button; using default view")
                     time.sleep(2)
             except Exception as e:
-                logger.info(f"Click error: {e}")
+                logger.warning(
+                    "Failed to switch xGScore to Week view; using the current view: %s",
+                    e,
+                    extra={
+                        "event": "source.view_fallback",
+                        "outcome": "warning",
+                        "reason_code": "week_view_click_failed",
+                        "source_key": "xgscore",
+                        "error_type": type(e).__name__,
+                        "error_message": str(e),
+                    },
+                )
 
             html = session.page.content() or ""
 
@@ -70,6 +83,15 @@ class xGScoreFinder(BaseMatchFinder):
         for anchor in matches_anchors:
             href_tag = anchor.find("a", class_="xgs-category-forecast-fixture_teams")
             if href_tag is None or not href_tag.get("href"):
+                log_event(
+                    logger,
+                    event="source.discovery.candidate_skipped",
+                    outcome="warning",
+                    reason_code="fixture_link_missing",
+                    level=30,
+                    message="Skipping xGScore fixture without a match link",
+                    source_key="xgscore",
+                )
                 continue
             matches_urls.append("https://xgscore.io" + href_tag.get("href"))
         logger.info(f"Found {len(matches_urls)} matches.")
@@ -79,7 +101,7 @@ class xGScoreFinder(BaseMatchFinder):
         """Execute browser scripts to load xgscore data and emit matches."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -96,8 +118,26 @@ class xGScoreFinder(BaseMatchFinder):
                 match_datetime = datetime.strptime(re.search(r"[A-Z][a-z]+ \d+, \d+", date_str).group(), "%B %d, %Y").replace(
                     hour=0, minute=0
                 )
-            except Exception:
-                logger.info("Match finished")  # AC-12: finished is skip, not ERROR
+            except (AttributeError, ValueError, TypeError) as exc:
+                date_element = soup.find("div", class_="xgs-game-header_datetime")
+                date_text = date_element.get_text(" ", strip=True) if date_element else ""
+                if "finished" in date_text.casefold():
+                    logger.info("Match finished")  # Expected non-actionable state.
+                else:
+                    logger.warning(
+                        "Skipping xGScore match with unparseable/missing date %r at %s: %s",
+                        date_text,
+                        url,
+                        exc,
+                        extra={
+                            "event": "match.skipped",
+                            "outcome": "warning",
+                            "reason_code": "match_date_unparseable",
+                            "source_key": "xgscore",
+                            "url": url,
+                            "error_type": type(exc).__name__,
+                        },
+                    )
                 return
 
             home, away = re.search(r"Correct Score:\s*(\d+)-(\d+)", html).groups()
@@ -110,7 +150,19 @@ class xGScoreFinder(BaseMatchFinder):
             self.add_match(Match(home_team, away_team, match_datetime, predictions, odds))
 
         except Exception as e:
-            logger.error(f"SKIPPED: Parse error - {e}")
+            logger.exception(
+                "Skipping malformed xGScore match at %s",
+                url,
+                extra={
+                    "event": "match.skipped",
+                    "outcome": "error",
+                    "reason_code": "match_parse_failed",
+                    "source_key": "xgscore",
+                    "url": url,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
 
     def _extract_odds_from_html(self, soup):
         """Extract bookmaker odds from HTML and return a safe Odds object."""
@@ -133,7 +185,18 @@ class xGScoreFinder(BaseMatchFinder):
             return Odds(**init_data)
 
         except Exception as e:
-            logger.error(f"Error extracting odds: {e}")
+            logger.warning(
+                "Could not extract xGScore odds; keeping prediction without odds: %s",
+                e,
+                extra={
+                    "event": "match.odds_unavailable",
+                    "outcome": "warning",
+                    "reason_code": "odds_extraction_failed",
+                    "source_key": "xgscore",
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
             # Return a "safe" default object if everything crashes
             return None
 
@@ -153,7 +216,18 @@ class xGScoreFinder(BaseMatchFinder):
             if match:
                 try:
                     found_data[field_name] = float(match.group(1))
-                except ValueError, TypeError:
+                except (ValueError, TypeError) as exc:
+                    log_event(
+                        logger,
+                        event="match.odds_field_unavailable",
+                        outcome="warning",
+                        reason_code="odds_value_invalid",
+                        level=30,
+                        message=f"Could not parse xGScore odds value for {label}: {exc}",
+                        source_key="xgscore",
+                        error_type=type(exc).__name__,
+                        error_message=str(exc),
+                    )
                     continue
 
         return found_data

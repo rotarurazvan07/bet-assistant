@@ -578,6 +578,9 @@ Common issues:
 ## 🧪 Testing & Quality
 
 ```bash
+# Framework tests
+cd bet_framework && python -m pytest
+
 # Backend tests
 cd bet_dashboard/backend && python -m pytest tests/
 

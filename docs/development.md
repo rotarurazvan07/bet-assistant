@@ -269,14 +269,14 @@ ws_manager.broadcast_sync({
 
 ```bash
 # Run tests
-cd bet_dashboard/backend
+python -m pytest bet_framework/tests/
 python -m pytest tests/ -v
 
-# With coverage
-python -m pytest tests/ --cov=. --cov-report=html
+python -m pytest bet_framework/tests/test_bet_assistant.py -v
+python -m pytest bet_framework/tests/test_matches_manager.py -v
 ```
 
-### Linting & Formatting
+python -m pytest bet_framework/tests/ -k "integration" -v
 
 ```bash
 # Ruff (fast Python linter)
@@ -309,7 +309,7 @@ urls = f.get_matches_urls()
 print(f'Found {len(urls)} URLs')
 "
 ```
-
+python -m pytest bet_framework/tests/ --cov=bet_framework --cov=bet_dashboard.backend --cov=bet_crawler --cov-report=html
 ### Project Structure
 
 ```
@@ -467,7 +467,8 @@ export default defineConfig({
 
 ```bash
 # All tests
-python -m pytest tests/
+cd bet_framework
+python -m pytest
 
 # Specific module
 python -m pytest tests/test_bet_assistant.py -v

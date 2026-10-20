@@ -23,7 +23,7 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - Framework: `bet_framework/` — `BetAssistant` (slip build/validate), `MatchesManager` (buffered SQLite + fuzzy dedup), `consensus.py`, `scoring.py`
 - Config (source of truth): `config/` — `scraper_config.yaml` (crawler keys, runner sets, skip patterns), `similarity_config.yaml` (team matching), `profiles/*.yaml` (risk profiles)
 - Docker stack: `setup/compose.yaml` — 3 services (bet-assistant, runner, bet-updater)
-- Tests: `tests/` — pytest for Python, Vitest for frontend
+- Tests: `bet_framework/tests/`, `bet_crawler/tests/`, `bet_dashboard/backend/tests/`, and frontend Vitest/Playwright suites
 
 ## Running and verifying
 
@@ -31,7 +31,7 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - **Frontend dev**: `cd bet_dashboard/frontend && npm run dev` → http://localhost:5173 (proxies `/api`, `/ws` to backend)
 - **Backend dev**: `cd bet_dashboard/backend && export MATCHES_DB_PATH=../../workspace/data/matches.db SLIPS_DB_PATH=../../workspace/data/slips.db CONFIG_PATH=../../workspace/config && uvicorn main:app --reload --port 8000`
 - **Crawler**: `python -m bet_crawler.crawl --mode <mode> --config_dir config` (runner sets: `actions` cloud, `local` self-hosted, `test`)
-- **Python tests**: `cd bet_dashboard/backend && python -m pytest tests/ -v`
+- **Python tests**: `cd bet_framework && python -m pytest`; `cd bet_crawler && python -m pytest tests/`; `cd bet_dashboard/backend && python -m pytest tests/ -v`
 - **Frontend tests**: `cd bet_dashboard/frontend && npm test`
 - **Lint/format**: `ruff check . --fix && ruff format .` (Python, line-length 127, py314); `cd bet_dashboard/frontend && npm run lint` (TypeScript strict, ESLint flat)
 - **CI pipeline**: auto-fix → test (3.14 only) → audit (mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate) → gate

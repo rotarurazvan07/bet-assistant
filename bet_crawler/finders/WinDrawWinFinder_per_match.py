@@ -1,6 +1,6 @@
 """Match finder for windrawwin.com per-match pages."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -56,7 +56,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         """Scrape all windrawwin match URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -66,7 +66,16 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         try:
             soup = BeautifulSoup(html, "html.parser")
             if "Voting Is Now Closed" in html:
-                logger.error(f"Skipping {url} as voting is closed")
+                log_event(
+                    logger,
+                    event="match.skipped",
+                    outcome="warning",
+                    reason_code="voting_closed",
+                    level=30,
+                    message=f"Skipping WinDrawWin match because voting is closed: {url}",
+                    source_key="windrawwin",
+                    url=url,
+                )
                 return
             # Extract teams
             home_team, away_team = "Unknown", "Unknown"
@@ -96,7 +105,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             # Extract odds
             market_map = {
                 "MATCH WINNER": ["home", "draw", "away"],
-                "BOTH TEAMS TO SCORE": ["btts_y", "btts_n"],
+                "BOTH TEAMS TO SCORE": ["btts_yes", "btts_no"],
                 "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
                 "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],
             }
@@ -113,8 +122,19 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                         for i, attr in enumerate(attr_names):
                             try:
                                 odds_data[attr] = float(links[i].get_text(strip=True))
-                            except ValueError, TypeError:  # noqa: PERF203 - intentional per-item fault isolation: one malformed odds cell must not kill the parse
-                                logger.error(f"Could not parse odds for {attr} in {url}")
+                            except (ValueError, TypeError) as exc:  # noqa: PERF203 - per-item fault isolation
+                                log_event(
+                                    logger,
+                                    event="match.odds_field_unavailable",
+                                    outcome="warning",
+                                    reason_code="odds_value_invalid",
+                                    level=30,
+                                    message=f"Could not parse WinDrawWin odds field {attr} in {url}: {exc}",
+                                    source_key="windrawwin",
+                                    url=url,
+                                    error_type=type(exc).__name__,
+                                    error_message=str(exc),
+                                )
                                 continue
 
             # 3. Create the object in "one shot" if we found any data
@@ -127,4 +147,11 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             self.add_match(match)
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse WinDrawWin match page {url}: {e}",
+                source_key="windrawwin",
+                url=url,
+            )

@@ -9,6 +9,7 @@ import json
 import pytest
 
 from bet_crawler.crawl_core.prepare_scrape import prepare_scrape
+from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 
 from .conftest import StubCrawler, StubFactory
 
@@ -139,6 +140,27 @@ class TestPrepareScrapeRetryP1:
         for f in sorted(tmp_cwd.glob("actions-*-urls.txt")):
             got.extend(_read_urls(f))
         assert sorted(got) == sorted(urls)
+
+    def test_exhausted_discovery_retries_emit_error_and_partial_stage(self, tmp_cwd, capsys, monkeypatch) -> None:
+        monkeypatch.setattr("time.sleep", lambda _seconds: None)
+        event_path = tmp_cwd / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+        try:
+            _run(tmp_cwd, [FlakyCrawler(99, [])], capsys=capsys)
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            failed = [record for record in records if record["event"] == "source.discovery.failed"]
+            completed = [record for record in records if record["event"] == "stage.completed"]
+            assert failed and failed[0]["severity"] == "ERROR"
+            assert failed[0]["error_type"] == "RuntimeError"
+            assert "transient" in failed[0]["exception"]
+            assert failed[0]["stage"] == "prepare-scrape"
+            assert failed[0]["source_key"] == "flaky_crawler"
+            assert completed and completed[-1]["outcome"] == "partial"
+            assert completed[-1]["counts"]["sources_failed"] == 1
+            assert completed[-1]["counts"]["errors"] > 0
+        finally:
+            disable_event_logging()
 
     def test_retry_loop_breaks_on_success_no_extra_sleep(self, tmp_cwd, capsys, monkeypatch) -> None:
         sleeps = []

@@ -3,7 +3,8 @@
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
-from scrape_kit import get_logger
+
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -75,7 +76,7 @@ class ScorePredictorFinder(BaseMatchFinder):
         """Scrape all scorepredictor URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -111,8 +112,20 @@ class ScorePredictorFinder(BaseMatchFinder):
 
                     # Check if scores are valid integers
                     if not home_score_text.isdigit() or not away_score_text.isdigit():
-                        logger.warning(
-                            f"Skipping match {home_team} vs {away_team} on {url} due to invalid score data: '{home_score_text}' - '{away_score_text}'"
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="warning",
+                            reason_code="score_invalid",
+                            level=30,
+                            message=(
+                                f"Skipping ScorePredictor match {home_team} vs {away_team} on {url}: "
+                                f"invalid score {home_score_text!r}-{away_score_text!r}"
+                            ),
+                            source_key="scorepredictor",
+                            url=url,
+                            match_id=f"{home_team}|{away_team}",
+                            candidate={"home_score": home_score_text, "away_score": away_score_text},
                         )
                         continue
 
@@ -138,12 +151,33 @@ class ScorePredictorFinder(BaseMatchFinder):
 
                 except ValueError as e:
                     # Handle individual match parsing errors
-                    logger.error(f"Skipping match on {url} due to parsing error: {e}")
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_invalid",
+                        message=f"Skipping ScorePredictor match on {url}: {e}",
+                        source_key="scorepredictor",
+                        url=url,
+                    )
                     continue
                 except Exception as e:
                     # Handle any other unexpected errors for individual matches
-                    logger.error(f"Skipping match on {url} due to unexpected error: {e}")
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping ScorePredictor match on {url}: {e}",
+                        source_key="scorepredictor",
+                        url=url,
+                    )
                     continue
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse ScorePredictor page {url}: {e}",
+                source_key="scorepredictor",
+                url=url,
+            )

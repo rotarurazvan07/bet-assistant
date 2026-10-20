@@ -12,6 +12,7 @@ permissions:
 
 env:
   SCRAPE_KIT_LOG_LEVEL: INFO
+  SCRAPE_EVENT_LOG_PATH: crawler-events.jsonl
   LOCAL_RUNNER: "self-hosted, linux, bet-runner"
 
 jobs:
@@ -26,6 +27,7 @@ jobs:
       - name: Initialize log file
         run: |
           echo "=== Job: prepare-actions started at $(date) ===" > job_log.txt
+          : > crawler-events.jsonl
 
       - name: Set up Python 3.14
         uses: actions/setup-python@v4
@@ -43,8 +45,17 @@ jobs:
         id: set-matrix
         run: |
           set -o pipefail
-          JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "config" 2> stderr.log)
-          cat stderr.log >> job_log.txt
+          if JSON_DATA=$(./venv/bin/python -m bet_crawler.crawl --mode prepare-scrape --runners actions --config_dir "config" 2> stderr.log); then
+            python_status=0
+          else
+            python_status=$?
+          fi
+          # Keep the task-matrix JSON on stdout, but always tee every log line
+          # captured from stderr into both the Actions console and job artifact.
+          tee -a job_log.txt < stderr.log >&2
+          if [ "$python_status" -ne 0 ]; then
+            exit "$python_status"
+          fi
 
           echo "matrix<<EOF" >> $GITHUB_OUTPUT
           echo "{\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
@@ -62,7 +73,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-prepare-actions
-          path: job_log.txt
+          path: |
+            job_log.txt
+            crawler-events.jsonl
+          if-no-files-found: ignore
           retention-days: 7
 
   # ── 2. PREPARE (local / self-hosted) ──────────────────────────────────────
@@ -76,6 +90,7 @@ jobs:
       - name: Initialize log file
         run: |
           echo "=== Job: prepare-local started at $(date) ===" > job_log.txt
+          : > crawler-events.jsonl
 
 
       - name: Generate Matrix
@@ -84,12 +99,18 @@ jobs:
           PYTHONPATH: /home/runner/work/bet-assistant/bet-assistant:/home/runner/.local/lib/python3.14/site-packages
         run: |
           set -o pipefail
-          if ! JSON_DATA=$(python3 -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "config" 2> stderr.log); then
-            echo "❌ Python script crashed! Printing stderr configurations:" >&2
-            cat stderr.log >&2
-            exit 1
+          if JSON_DATA=$(python3 -m bet_crawler.crawl --mode prepare-scrape --runners local --config_dir "config" 2> stderr.log); then
+            python_status=0
+          else
+            python_status=$?
           fi
-          cat stderr.log >> job_log.txt
+          # Keep the task-matrix JSON on stdout, but always tee every log line
+          # captured from stderr into both the Actions console and job artifact.
+          tee -a job_log.txt < stderr.log >&2
+          if [ "$python_status" -ne 0 ]; then
+            echo "❌ Python script crashed! Printing stderr configurations:" >&2
+            exit "$python_status"
+          fi
 
           echo "matrix<<EOF" >> $GITHUB_OUTPUT
           echo "{\"include\":$JSON_DATA}" >> $GITHUB_OUTPUT
@@ -107,7 +128,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-prepare-local
-          path: job_log.txt
+          path: |
+            job_log.txt
+            crawler-events.jsonl
+          if-no-files-found: ignore
           retention-days: 7
 
   # ── 3. SCRAPE (cloud) ──────────────────────────────────────────────────────
@@ -123,6 +147,7 @@ jobs:
       - name: Initialize log file
         run: |
           echo "=== Job: scrape-actions started at $(date) ===" > job_log.txt
+          : > crawler-events.jsonl
 
       - name: Set up Python 3.14
         uses: actions/setup-python@v4
@@ -164,7 +189,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-scrape-actions-${{ matrix.db_path }}
-          path: job_log.txt
+          path: |
+            job_log.txt
+            crawler-events.jsonl
+          if-no-files-found: ignore
           retention-days: 7
 
   # ── 4. SCRAPE (local / self-hosted) ───────────────────────────────────────
@@ -180,6 +208,7 @@ jobs:
       - name: Initialize log file
         run: |
           echo "=== Job: scrape-local started at $(date) ===" > job_log.txt
+          : > crawler-events.jsonl
 
 
       - name: Download URL files
@@ -211,7 +240,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-scrape-local-${{ matrix.db_path }}
-          path: job_log.txt
+          path: |
+            job_log.txt
+            crawler-events.jsonl
+          if-no-files-found: ignore
           retention-days: 7
 
   # ── 5. MERGE ────────────────────────────────────────────────────────────
@@ -224,6 +256,7 @@ jobs:
       - name: Initialize log file
         run: |
           echo "=== Job: merge started at $(date) ===" > job_log.txt
+          : > crawler-events.jsonl
 
       - name: Set up Python 3.14
         uses: actions/setup-python@v4
@@ -266,7 +299,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: logs-merge
-          path: job_log.txt
+          path: |
+            job_log.txt
+            crawler-events.jsonl
+          if-no-files-found: ignore
           retention-days: 7
 
   # ── 6. RELEASE ──────────────────────────────────────────────────────────
@@ -302,29 +338,61 @@ jobs:
     runs-on: ubuntu-22.04
     if: always()
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+
       - name: Download All Logs
         uses: actions/download-artifact@v4
         with:
           pattern: logs-*
           path: all_logs
+        continue-on-error: true
 
-      - name: Create unified log
+      - name: Create unified log and problem summary
+        if: always()
+        env:
+          PREPARE_ACTIONS_RESULT: ${{ needs.prepare-actions.result }}
+          SCRAPE_ACTIONS_RESULT: ${{ needs.scrape-actions.result }}
+          PREPARE_LOCAL_RESULT: ${{ needs.prepare-local.result }}
+          SCRAPE_LOCAL_RESULT: ${{ needs.scrape-local.result }}
+          MERGE_RESULT: ${{ needs.merge.result }}
         run: |
+          mkdir -p all_logs
           echo "=== UNIFIED LOGS FROM ALL JOBS ===" > unified_log.txt
           echo "" >> unified_log.txt
           find all_logs -type f | sort | while read log_file; do
-            echo "=== LOG FILE: $(basename "$log_file") ===" >> unified_log.txt
+            echo "=== LOG FILE: ${log_file#all_logs/} ===" >> unified_log.txt
             cat "$log_file"                                    >> unified_log.txt
             echo ""                                            >> unified_log.txt
             echo "=== END OF FILE ==="                        >> unified_log.txt
             echo ""                                            >> unified_log.txt
           done
 
+          python3 -m bet_crawler.summarize_scrape_logs \
+            --logs-dir all_logs \
+            --output-json scrape-summary.json \
+            --output-markdown scrape-summary.md \
+            --step-summary "$GITHUB_STEP_SUMMARY" \
+            --job-outcome "prepare-actions=$PREPARE_ACTIONS_RESULT" \
+            --job-outcome "scrape-actions=$SCRAPE_ACTIONS_RESULT" \
+            --job-outcome "prepare-local=$PREPARE_LOCAL_RESULT" \
+            --job-outcome "scrape-local=$SCRAPE_LOCAL_RESULT" \
+            --job-outcome "merge=$MERGE_RESULT"
+
       - name: Upload unified log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: unified-logs
-          path: unified_log.txt
+          path: |
+            unified_log.txt
+            scrape-summary.md
+            scrape-summary.json
+          if-no-files-found: ignore
           retention-days: 30
 
   # ── 8. CLEANUP ──────────────────────────────────────────────────────────

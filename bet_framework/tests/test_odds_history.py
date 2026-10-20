@@ -31,17 +31,17 @@ def manager(temp_db):
 class TestExtractHistoryFromOdds:
     """Test _extract_history_from_odds helper."""
 
-    def test_extract_empty_dict(self):
+    def test_extract_empty_dict(self) -> None:
         assert MatchesManager._extract_history_from_odds({}) == []
 
-    def test_extract_none(self):
+    def test_extract_none(self) -> None:
         assert MatchesManager._extract_history_from_odds(None) == []
 
-    def test_extract_no_history_key(self):
+    def test_extract_no_history_key(self) -> None:
         odds = {"home": 1.5, "draw": 3.0, "away": 5.0}
         assert MatchesManager._extract_history_from_odds(odds) == []
 
-    def test_extract_with_history(self):
+    def test_extract_with_history(self) -> None:
         odds = {
             "home": 1.5,
             "history": [{"ts": "2026-05-18T10:00:00", "home": 1.6}],
@@ -54,7 +54,7 @@ class TestExtractHistoryFromOdds:
 class TestGetCurrentOddsSnapshot:
     """Test _get_current_odds_snapshot helper."""
 
-    def test_snapshot_excludes_history(self):
+    def test_snapshot_excludes_history(self) -> None:
         odds = {
             "home": 1.5,
             "draw": 3.0,
@@ -65,24 +65,24 @@ class TestGetCurrentOddsSnapshot:
         assert result["home"] == 1.5
         assert result["draw"] == 3.0
 
-    def test_snapshot_excludes_none_values(self):
+    def test_snapshot_excludes_none_values(self) -> None:
         odds = {"home": 1.5, "draw": None, "away": 5.0}
         result = MatchesManager._get_current_odds_snapshot(odds)
         assert "draw" not in result
         assert result["home"] == 1.5
         assert result["away"] == 5.0
 
-    def test_snapshot_empty_dict(self):
+    def test_snapshot_empty_dict(self) -> None:
         assert MatchesManager._get_current_odds_snapshot({}) == {}
 
-    def test_snapshot_none(self):
+    def test_snapshot_none(self) -> None:
         assert MatchesManager._get_current_odds_snapshot(None) == {}
 
 
 class TestAppendToHistory:
     """Test _append_to_history helper."""
 
-    def test_append_first_snapshot(self):
+    def test_append_first_snapshot(self) -> None:
         odds = {"home": 1.5, "draw": 3.0}
         snapshot = {"ts": "2026-05-18T10:00:00", "home": 1.6, "draw": 3.1}
         result = MatchesManager._append_to_history(odds, snapshot, max_entries=3)
@@ -92,7 +92,7 @@ class TestAppendToHistory:
         assert result["history"][0]["ts"] == "2026-05-18T10:00:00"
         assert result["home"] == 1.5  # Current values preserved
 
-    def test_append_to_existing_history(self):
+    def test_append_to_existing_history(self) -> None:
         odds = {
             "home": 1.5,
             "history": [{"ts": "2026-05-17T10:00:00", "home": 1.7}],
@@ -104,7 +104,7 @@ class TestAppendToHistory:
         assert result["history"][0]["ts"] == "2026-05-17T10:00:00"
         assert result["history"][1]["ts"] == "2026-05-18T10:00:00"
 
-    def test_append_trims_to_max_entries(self):
+    def test_append_trims_to_max_entries(self) -> None:
         odds = {
             "home": 1.5,
             "history": [
@@ -121,12 +121,12 @@ class TestAppendToHistory:
         assert result["history"][0]["ts"] == "2026-05-17T10:00:00"
         assert result["history"][2]["ts"] == "2026-05-19T10:00:00"
 
-    def test_append_empty_snapshot_returns_unchanged(self):
+    def test_append_empty_snapshot_returns_unchanged(self) -> None:
         odds = {"home": 1.5}
         result = MatchesManager._append_to_history(odds, {}, max_entries=3)
         assert result == odds
 
-    def test_append_snapshot_with_only_ts_returns_unchanged(self):
+    def test_append_snapshot_with_only_ts_returns_unchanged(self) -> None:
         odds = {"home": 1.5}
         result = MatchesManager._append_to_history(odds, {"ts": "2026-05-18T10:00:00"}, max_entries=3)
         assert result == odds
@@ -135,12 +135,12 @@ class TestAppendToHistory:
 class TestCalculateMovementFromOdds:
     """Test calculate_movement_from_odds method."""
 
-    def test_movement_no_history(self, manager):
+    def test_movement_no_history(self, manager) -> None:
         odds = {"home": 1.5, "draw": 3.0, "away": 5.0}
         result = manager.calculate_movement_from_odds(odds)
         assert result == {}
 
-    def test_movement_with_history_up(self, manager):
+    def test_movement_with_history_up(self, manager) -> None:
         odds = {
             "home": 1.6,
             "draw": 3.0,
@@ -150,7 +150,7 @@ class TestCalculateMovementFromOdds:
         assert result["home"] == "up"
         assert result["draw"] == "stable"
 
-    def test_movement_with_history_down(self, manager):
+    def test_movement_with_history_down(self, manager) -> None:
         odds = {
             "home": 1.4,
             "draw": 3.0,
@@ -159,7 +159,7 @@ class TestCalculateMovementFromOdds:
         result = manager.calculate_movement_from_odds(odds)
         assert result["home"] == "down"
 
-    def test_movement_with_history_stable(self, manager):
+    def test_movement_with_history_stable(self, manager) -> None:
         odds = {
             "home": 1.5,
             "draw": 3.0,
@@ -169,7 +169,7 @@ class TestCalculateMovementFromOdds:
         assert result["home"] == "stable"
         assert result["draw"] == "stable"
 
-    def test_movement_missing_market_in_history(self, manager):
+    def test_movement_missing_market_in_history(self, manager) -> None:
         odds = {
             "home": 1.5,
             "over_25": 2.0,
@@ -179,7 +179,7 @@ class TestCalculateMovementFromOdds:
         assert result["home"] == "up"
         assert result["over_25"] is None  # Not in history
 
-    def test_movement_none_odds(self, manager):
+    def test_movement_none_odds(self, manager) -> None:
         result = manager.calculate_movement_from_odds(None)
         assert result == {}
 
@@ -187,17 +187,17 @@ class TestCalculateMovementFromOdds:
 class TestGetOddsHistoryFromRow:
     """Test get_odds_history_from_row method."""
 
-    def test_get_history_empty_buffer(self, manager):
+    def test_get_history_empty_buffer(self, manager) -> None:
         result = manager.get_odds_history_from_row(0)
         assert result == []
 
-    def test_get_history_invalid_index(self, manager):
+    def test_get_history_invalid_index(self, manager) -> None:
         result = manager.get_odds_history_from_row(-1)
         assert result == []
         result = manager.get_odds_history_from_row(999)
         assert result == []
 
-    def test_get_history_converts_format(self, manager):
+    def test_get_history_converts_format(self, manager) -> None:
         # Insert a match with embedded history
         manager.ensure_buffer()
         manager.insert(
@@ -231,11 +231,11 @@ class TestGetOddsHistoryFromRow:
 class TestGetMovementForRow:
     """Test get_movement_for_row method."""
 
-    def test_get_movement_empty_buffer(self, manager):
+    def test_get_movement_empty_buffer(self, manager) -> None:
         result = manager.get_movement_for_row(0)
         assert result == {}
 
-    def test_get_movement_with_data(self, manager):
+    def test_get_movement_with_data(self, manager) -> None:
         manager.ensure_buffer()
         manager.insert(
             "matches",
@@ -273,7 +273,7 @@ class TestMergeWithHistoryPreservation:
         if os.path.exists(path):
             os.unlink(path)
 
-    def test_merge_transfers_history(self, temp_db, fresh_db):
+    def test_merge_transfers_history(self, temp_db, fresh_db) -> None:
         """Test that history is transferred from current to fresh database."""
         # Set up current database with a match that has odds
         current_manager = MatchesManager(temp_db)
@@ -329,7 +329,7 @@ class TestMergeWithHistoryPreservation:
 
         current_manager.close()
 
-    def test_merge_prunes_past_matches(self, temp_db, fresh_db):
+    def test_merge_prunes_past_matches(self, temp_db, fresh_db) -> None:
         """Test that past matches don't transfer history (they're ignored)."""
         current_manager = MatchesManager(temp_db)
         past_dt = (datetime.now() - timedelta(days=1)).isoformat()

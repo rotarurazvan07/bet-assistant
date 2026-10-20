@@ -23,7 +23,7 @@ The Bet Assistant backend is a **FastAPI** application providing REST API endpoi
 graph TD
     Main[main.py
     create_app() + lifespan]
-    
+
     Routers[Routers/ 8 API Endpoints]
     MT[matches.py
     GET /api/matches
@@ -52,7 +52,7 @@ graph TD
     POST /api/pull
     GET /api/status
     WS /ws]
-    
+
     Core[Core Modules]
     LG[logic.py
     AppLogic - Unified Business Logic
@@ -71,7 +71,7 @@ graph TD
     Statistics Calculations]
     CH[config_helpers.py
     Profile YAML Conversion]
-    
+
     Framework[bet_framework/]
     BA[BetAssistant.py
     Slip Building + Validation + Storage]
@@ -79,7 +79,7 @@ graph TD
     Buffered SQLite + Fuzzy Dedup]
     CoreF[core/
     Match, Slip, Consensus, Scoring, Outcomes]
-    
+
     Main --> Routers
     Routers --> MT
     Routers --> BL
@@ -89,7 +89,7 @@ graph TD
     Routers --> AN
     Routers --> OH
     Routers --> SY
-    
+
     Main --> Core
     Core --> LG
     Core --> TS
@@ -98,7 +98,7 @@ graph TD
     Core --> SC
     Core --> AU
     Core --> CH
-    
+
     LG --> Framework
     LG --> BA
     LG --> MM
@@ -222,7 +222,7 @@ def preview(request: Request, body: BetSlipConfigIn):
     legs = app.build_preview(cfg)
     total_odds = math.prod(leg.odds for leg in legs) if legs else 1.0
     pending_urls = list(app.logic.get_pending_urls())
-    
+
     return sanitize_floats({
         "total_odds": round(total_odds, 4),
         "pending_urls": pending_urls,
@@ -388,7 +388,7 @@ class TickerService:
         self.predicate = predicate
         self.enabled = True
         self._thread = _daemon(self._run, name.lower())
-    
+
     def _run(self):
         while True:
             if not self.enabled:
@@ -423,13 +423,13 @@ class ConnectionManager:
     def __init__(self):
         self._connections: list[WebSocket] = []
         self._loop: asyncio.AbstractEventLoop | None = None
-    
+
     def set_loop(self, loop):
         self._loop = loop
-    
+
     async def broadcast(self, payload):
         # Async broadcast, prune dead connections
-    
+
     def broadcast_sync(self, payload):
         # Thread-safe: run_coroutine_threadsafe
         if self._loop and not self._loop.is_closed():
@@ -499,7 +499,7 @@ Key functions:
 
 ```python
 def _yaml_to_config(data: dict) -> BetSlipConfig:
-    kwargs = {k: v for k, v in data.items() 
+    kwargs = {k: v for k, v in data.items()
               if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY}
     return BetSlipConfig(**kwargs)
 
@@ -775,12 +775,14 @@ except Exception as exc:
 cd bet_dashboard/backend
 python -m pytest tests/ -v
 
-# Specific test files
+# Framework test files
+cd ../../bet_framework
 python -m pytest tests/test_bet_assistant.py -v
 python -m pytest tests/test_matches_manager.py -v
 python -m pytest tests/test_odds_history.py -v
 
 # With coverage
+cd ../bet_dashboard/backend
 python -m pytest tests/ --cov=. --cov-report=html
 ```
 

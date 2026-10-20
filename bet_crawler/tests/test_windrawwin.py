@@ -52,7 +52,7 @@ class TestPerMatchUrls:
         assert m.predictions[0].source == NAME_PM
         assert m.predictions[0].home == 2.0
         assert m.odds.home == 2.10
-        assert m.odds.btts_y == 1.85
+        assert m.odds.btts_yes == 1.85
         assert m.odds.over_25 == 1.70
         assert m.odds.over_15 == 1.30
 
@@ -91,7 +91,7 @@ class TestPerLeague:
         assert m.odds.draw == 3.30
         assert m.odds.away == 3.80
         assert m.odds.over_25 == 1.65
-        assert m.odds.btts_y == 1.90
+        assert m.odds.btts_yes == 1.90
 
     def test_league_page_no_matches_div(self) -> None:
         finder, collector = _finder(WinDrawWinFinder_per_league)

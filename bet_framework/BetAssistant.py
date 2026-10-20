@@ -49,6 +49,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import BaseStorageManager, get_logger, scrape
 
 from bet_framework.core.consensus import calc_consensus
+from bet_framework.core.market_config import MARKET_DEFINITIONS
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
     adjusted_consensus,
@@ -75,43 +76,12 @@ from bet_framework.core.utils import coerce_datetime_str, is_valid_url
 
 logger = get_logger(__name__)
 
-# (cons_col, odds_col, display_label)
-MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {
-    MarketType.RESULT: [
-        ("cons_home", "odds_home", MarketLabel.HOME),
-        ("cons_draw", "odds_draw", MarketLabel.DRAW),
-        ("cons_away", "odds_away", MarketLabel.AWAY),
-    ],
-    MarketType.OVER_UNDER_25: [
-        ("cons_over_25", "odds_over_25", MarketLabel.OVER_25),
-        ("cons_under_25", "odds_under_25", MarketLabel.UNDER_25),
-    ],
-    MarketType.OVER_UNDER_15: [
-        ("cons_over_15", "odds_over_15", MarketLabel.OVER_15),
-        ("cons_under_15", "odds_under_15", MarketLabel.UNDER_15),
-    ],
-    MarketType.BTTS: [
-        ("cons_btts_yes", "odds_btts_yes", MarketLabel.BTTS_YES),
-        ("cons_btts_no", "odds_btts_no", MarketLabel.BTTS_NO),
-    ],
-    MarketType.OVER_UNDER_05: [
-        ("cons_over_05", "odds_over_05", MarketLabel.OVER_05),
-        ("cons_under_05", "odds_under_05", MarketLabel.UNDER_05),
-    ],
-    MarketType.OVER_UNDER_35: [
-        ("cons_over_35", "odds_over_35", MarketLabel.OVER_35),
-        ("cons_under_35", "odds_under_35", MarketLabel.UNDER_35),
-    ],
-    MarketType.OVER_UNDER_45: [
-        ("cons_over_45", "odds_over_45", MarketLabel.OVER_45),
-        ("cons_under_45", "odds_under_45", MarketLabel.UNDER_45),
-    ],
-    MarketType.DOUBLE_CHANCE: [
-        ("cons_dc_1x", "odds_dc_1x", MarketLabel.DC_1X),
-        ("cons_dc_12", "odds_dc_12", MarketLabel.DC_12),
-        ("cons_dc_x2", "odds_dc_x2", MarketLabel.DC_X2),
-    ],
-}
+# (cons_col, odds_col, display_label), generated from the canonical catalog.
+MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {}
+for _market_def in MARKET_DEFINITIONS:
+    MARKET_MAP.setdefault(MarketType(_market_def.market_type), []).append(
+        (_market_def.cons_key, _market_def.odds_key, MarketLabel(_market_def.market))
+    )
 
 
 def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
@@ -382,30 +352,9 @@ class BetAssistant(BaseStorageManager):
         row_data.update(self._flatten_odds(odds))
         return row_data
 
-    _ODDS_KEY_MAP = {
-        "home": "home",
-        "draw": "draw",
-        "away": "away",
-        "over_15": "over_15",
-        "under_15": "under_15",
-        "over_25": "over_25",
-        "under_25": "under_25",
-        "btts_yes": "btts_y",
-        "btts_no": "btts_n",
-        "over_05": "over_05",
-        "under_05": "under_05",
-        "over_35": "over_35",
-        "under_35": "under_35",
-        "over_45": "over_45",
-        "under_45": "under_45",
-        "dc_1x": "dc_1x",
-        "dc_12": "dc_12",
-        "dc_x2": "dc_x2",
-    }
-
     def _flatten_odds(self, odds: dict) -> dict:
         """Flatten an odds dict into odds_* columns (None entries become 0.0)."""
-        return {f"odds_{key}": (odds.get(src) or 0.0) for key, src in self._ODDS_KEY_MAP.items()}
+        return {market.odds_key: (odds.get(market.odds_key.removeprefix("odds_")) or 0.0) for market in MARKET_DEFINITIONS}
 
     # ── Match browsing ────────────────────────────────────────────────────────
 
