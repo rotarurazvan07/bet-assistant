@@ -1,0 +1,2251 @@
+{
+  "version": 1,
+  "rule": "no-raw-market-key-literals",
+  "generated_by": "tracked-file literal scan mirroring .semgrep/no-raw-market-literals.yml (superset-safe vs semgrep; CI runs real semgrep against this baseline)",
+  "findings": [
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_crawler/finders/SoccerVistaFinder_per_match.py",
+      "start": 199,
+      "end": 199
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_crawler/finders/SoccerVistaFinder_per_match.py",
+      "start": 200,
+      "end": 200
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_crawler/finders/WinDrawWinFinder_per_match.py",
+      "start": 105,
+      "end": 105
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_crawler/finders/WinDrawWinFinder_per_match.py",
+      "start": 106,
+      "end": 106
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/routers/analytics.py",
+      "start": 221,
+      "end": 221
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/routers/analytics.py",
+      "start": 222,
+      "end": 222
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/routers/analytics.py",
+      "start": 223,
+      "end": 223
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/routers/analytics.py",
+      "start": 224,
+      "end": 224
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/routers/analytics.py",
+      "start": 225,
+      "end": 225
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/routers/analytics.py",
+      "start": 227,
+      "end": 227
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 49,
+      "end": 49
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 50,
+      "end": 50
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 51,
+      "end": 51
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 52,
+      "end": 52
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 53,
+      "end": 53
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 54,
+      "end": 54
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 56,
+      "end": 56
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 57,
+      "end": 57
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 58,
+      "end": 58
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 59,
+      "end": 59
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 60,
+      "end": 60
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 61,
+      "end": 61
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 62,
+      "end": 62
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 63,
+      "end": 63
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 64,
+      "end": 64
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 65,
+      "end": 65
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 66,
+      "end": 66
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 67,
+      "end": 67
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 68,
+      "end": 68
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 69,
+      "end": 69
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 70,
+      "end": 70
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 71,
+      "end": 71
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 72,
+      "end": 72
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 73,
+      "end": 73
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 74,
+      "end": 74
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 75,
+      "end": 75
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 76,
+      "end": 76
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 77,
+      "end": 77
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 78,
+      "end": 78
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 79,
+      "end": 79
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 80,
+      "end": 80
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 180,
+      "end": 180
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/conftest.py",
+      "start": 180,
+      "end": 180
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
+      "start": 85,
+      "end": 85
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
+      "start": 86,
+      "end": 86
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
+      "start": 95,
+      "end": 95
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
+      "start": 96,
+      "end": 96
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 49,
+      "end": 49
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 50,
+      "end": 50
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 51,
+      "end": 51
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 52,
+      "end": 52
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 53,
+      "end": 53
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 54,
+      "end": 54
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 57,
+      "end": 57
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 58,
+      "end": 58
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 61,
+      "end": 61
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 62,
+      "end": 62
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 63,
+      "end": 63
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 178,
+      "end": 178
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
+      "start": 213,
+      "end": 213
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_logic_lifecycle.py",
+      "start": 129,
+      "end": 129
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_logic_lifecycle.py",
+      "start": 142,
+      "end": 142
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_logic_lifecycle.py",
+      "start": 160,
+      "end": 160
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_logic_slip_ops.py",
+      "start": 62,
+      "end": 62
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_analytics.py",
+      "start": 67,
+      "end": 67
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_builder.py",
+      "start": 87,
+      "end": 87
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 38,
+      "end": 38
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 39,
+      "end": 39
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 59,
+      "end": 59
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 132,
+      "end": 132
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 145,
+      "end": 145
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 146,
+      "end": 146
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 152,
+      "end": 152
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 154,
+      "end": 154
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 199,
+      "end": 199
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 200,
+      "end": 200
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_matches.py",
+      "start": 281,
+      "end": 281
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
+      "start": 24,
+      "end": 24
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
+      "start": 56,
+      "end": 56
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
+      "start": 72,
+      "end": 72
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/components/MatchRow.tsx",
+      "start": 17,
+      "end": 17
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/components/MatchRow.tsx",
+      "start": 181,
+      "end": 181
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 38,
+      "end": 38
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 38,
+      "end": 38
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 39,
+      "end": 39
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 39,
+      "end": 39
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 40,
+      "end": 40
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 40,
+      "end": 40
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 41,
+      "end": 41
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 41,
+      "end": 41
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 41,
+      "end": 41
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 42,
+      "end": 42
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 42,
+      "end": 42
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 42,
+      "end": 42
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 43,
+      "end": 43
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 43,
+      "end": 43
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 43,
+      "end": 43
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 44,
+      "end": 44
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 44,
+      "end": 44
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 44,
+      "end": 44
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 49,
+      "end": 49
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 49,
+      "end": 49
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 49,
+      "end": 49
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 50,
+      "end": 50
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 50,
+      "end": 50
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 50,
+      "end": 50
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 51,
+      "end": 51
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 51,
+      "end": 51
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 51,
+      "end": 51
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 52,
+      "end": 52
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 52,
+      "end": 52
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 52,
+      "end": 52
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 53,
+      "end": 53
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 53,
+      "end": 53
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 53,
+      "end": 53
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 54,
+      "end": 54
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 54,
+      "end": 54
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 54,
+      "end": 54
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 548,
+      "end": 548
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 548,
+      "end": 548
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 554,
+      "end": 554
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 554,
+      "end": 554
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 554,
+      "end": 554
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 554,
+      "end": 554
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 554,
+      "end": 554
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
+      "start": 554,
+      "end": 554
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/utils/colorUtils.ts",
+      "start": 94,
+      "end": 94
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_dashboard/frontend/src/utils/colorUtils.ts",
+      "start": 98,
+      "end": 98
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 83,
+      "end": 83
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 83,
+      "end": 83
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 84,
+      "end": 84
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 84,
+      "end": 84
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 85,
+      "end": 85
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 85,
+      "end": 85
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 88,
+      "end": 88
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 88,
+      "end": 88
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 89,
+      "end": 89
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 89,
+      "end": 89
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 92,
+      "end": 92
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 92,
+      "end": 92
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 93,
+      "end": 93
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 93,
+      "end": 93
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 96,
+      "end": 96
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 96,
+      "end": 96
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 97,
+      "end": 97
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 97,
+      "end": 97
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 100,
+      "end": 100
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 100,
+      "end": 100
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 101,
+      "end": 101
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 101,
+      "end": 101
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 104,
+      "end": 104
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 104,
+      "end": 104
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 105,
+      "end": 105
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 105,
+      "end": 105
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 108,
+      "end": 108
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 108,
+      "end": 108
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 109,
+      "end": 109
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 109,
+      "end": 109
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 112,
+      "end": 112
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 112,
+      "end": 112
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 113,
+      "end": 113
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 113,
+      "end": 113
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 114,
+      "end": 114
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 114,
+      "end": 114
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 371,
+      "end": 371
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 372,
+      "end": 372
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 373,
+      "end": 373
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 374,
+      "end": 374
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 374,
+      "end": 374
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 375,
+      "end": 375
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 375,
+      "end": 375
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 376,
+      "end": 376
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 376,
+      "end": 376
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 377,
+      "end": 377
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 377,
+      "end": 377
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 378,
+      "end": 378
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 378,
+      "end": 378
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 379,
+      "end": 379
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 379,
+      "end": 379
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 380,
+      "end": 380
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 380,
+      "end": 380
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 381,
+      "end": 381
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 381,
+      "end": 381
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 382,
+      "end": 382
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 382,
+      "end": 382
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 383,
+      "end": 383
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 383,
+      "end": 383
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 384,
+      "end": 384
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 385,
+      "end": 385
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 386,
+      "end": 386
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 386,
+      "end": 386
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 387,
+      "end": 387
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 387,
+      "end": 387
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 388,
+      "end": 388
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 388,
+      "end": 388
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 660,
+      "end": 660
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 660,
+      "end": 660
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 661,
+      "end": 661
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 661,
+      "end": 661
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 661,
+      "end": 661
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/MatchesManager.py",
+      "start": 66,
+      "end": 66
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/MatchesManager.py",
+      "start": 66,
+      "end": 66
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 39,
+      "end": 39
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 40,
+      "end": 40
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 56,
+      "end": 56
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 57,
+      "end": 57
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 58,
+      "end": 58
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 59,
+      "end": 59
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 61,
+      "end": 61
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 94,
+      "end": 94
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 95,
+      "end": 95
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 125,
+      "end": 125
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 127,
+      "end": 127
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 144,
+      "end": 144
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 148,
+      "end": 148
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 152,
+      "end": 152
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 156,
+      "end": 156
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 160,
+      "end": 160
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 165,
+      "end": 165
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 166,
+      "end": 166
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/consensus.py",
+      "start": 168,
+      "end": 168
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 14,
+      "end": 14
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 15,
+      "end": 15
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 16,
+      "end": 16
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 17,
+      "end": 17
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 18,
+      "end": 18
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 20,
+      "end": 20
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 58,
+      "end": 58
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/core/type_defs.py",
+      "start": 59,
+      "end": 59
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "setup/seed_e2e.py",
+      "start": 89,
+      "end": 89
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "setup/seed_e2e.py",
+      "start": 90,
+      "end": 90
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 71,
+      "end": 71
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 72,
+      "end": 72
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 520,
+      "end": 520
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 520,
+      "end": 520
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 520,
+      "end": 520
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 520,
+      "end": 520
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 520,
+      "end": 520
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 526,
+      "end": 526
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 526,
+      "end": 526
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 526,
+      "end": 526
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 542,
+      "end": 542
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 580,
+      "end": 580
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 585,
+      "end": 585
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 596,
+      "end": 596
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 1237,
+      "end": 1237
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 1451,
+      "end": 1451
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 1452,
+      "end": 1452
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 1559,
+      "end": 1559
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_bet_assistant.py",
+      "start": 1587,
+      "end": 1587
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 34,
+      "end": 34
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 35,
+      "end": 35
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 36,
+      "end": 36
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 37,
+      "end": 37
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 38,
+      "end": 38
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 40,
+      "end": 40
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 44,
+      "end": 44
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 65,
+      "end": 65
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 66,
+      "end": 66
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 67,
+      "end": 67
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 68,
+      "end": 68
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 69,
+      "end": 69
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 71,
+      "end": 71
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 124,
+      "end": 124
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 125,
+      "end": 125
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 127,
+      "end": 127
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 128,
+      "end": 128
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 129,
+      "end": 129
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 134,
+      "end": 134
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 136,
+      "end": 136
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 137,
+      "end": 137
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 138,
+      "end": 138
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 143,
+      "end": 143
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 144,
+      "end": 144
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 147,
+      "end": 147
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 148,
+      "end": 148
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 149,
+      "end": 149
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 163,
+      "end": 163
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 164,
+      "end": 164
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 169,
+      "end": 169
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 170,
+      "end": 170
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 171,
+      "end": 171
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 175,
+      "end": 175
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 176,
+      "end": 176
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 177,
+      "end": 177
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 181,
+      "end": 181
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 182,
+      "end": 182
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 186,
+      "end": 186
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 187,
+      "end": 187
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 191,
+      "end": 191
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 195,
+      "end": 195
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 210,
+      "end": 210
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_consensus.py",
+      "start": 262,
+      "end": 262
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 28,
+      "end": 28
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 29,
+      "end": 29
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 44,
+      "end": 44
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 45,
+      "end": 45
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 46,
+      "end": 46
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 47,
+      "end": 47
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 48,
+      "end": 48
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 50,
+      "end": 50
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 53,
+      "end": 53
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 54,
+      "end": 54
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 55,
+      "end": 55
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 56,
+      "end": 56
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 57,
+      "end": 57
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 58,
+      "end": 58
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 59,
+      "end": 59
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 60,
+      "end": 60
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 61,
+      "end": 61
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 62,
+      "end": 62
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 63,
+      "end": 63
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 64,
+      "end": 64
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 65,
+      "end": 65
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 66,
+      "end": 66
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 67,
+      "end": 67
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 68,
+      "end": 68
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 69,
+      "end": 69
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 70,
+      "end": 70
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 83,
+      "end": 83
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 84,
+      "end": 84
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 87,
+      "end": 87
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 88,
+      "end": 88
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 89,
+      "end": 89
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 90,
+      "end": 90
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 91,
+      "end": 91
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 92,
+      "end": 92
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 93,
+      "end": 93
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 94,
+      "end": 94
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 95,
+      "end": 95
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 96,
+      "end": 96
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 97,
+      "end": 97
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 131,
+      "end": 131
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 131,
+      "end": 131
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 131,
+      "end": 131
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 131,
+      "end": 131
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 152,
+      "end": 152
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 153,
+      "end": 153
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 159,
+      "end": 159
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 159,
+      "end": 159
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 160,
+      "end": 160
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 160,
+      "end": 160
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 161,
+      "end": 161
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "tests/test_markets_contract.py",
+      "start": 161,
+      "end": 161
+    }
+  ]
+}
