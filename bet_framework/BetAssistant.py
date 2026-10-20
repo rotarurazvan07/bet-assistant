@@ -72,6 +72,7 @@ from bet_framework.core.Slip import (
 )
 from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
 from bet_framework.core.utils import coerce_datetime_str, is_valid_url
+from bet_framework.markets.keys import stripped_key
 
 logger = get_logger(__name__)
 
@@ -164,7 +165,9 @@ def _extract_status_text(soup: BeautifulSoup) -> str:
     return status_text
 
 
-def _determine_match_status(status_text: str, soup: BeautifulSoup) -> tuple[bool, bool, str]:
+def _determine_match_status(
+    status_text: str, soup: BeautifulSoup
+) -> tuple[bool, bool, str]:
     """
     Determine if match is finished or live, and extract minute if live.
     Returns: (is_finished, is_live, minute)
@@ -200,7 +203,7 @@ def _extract_score(soup: BeautifulSoup) -> str | None:
 
     if not match_score:
         # 2. Fallback: search in common score-like classes
-        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.I))
+        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.IGNORECASE))
         if score_div:
             match_score = score_rx.search(score_div.get_text(strip=True))
 
@@ -300,13 +303,15 @@ class BetAssistant(BaseStorageManager):
         """Open the DB connection (context-manager support)."""
         return self
 
-    def __exit__(self, *_: Any) -> None:
+    def __exit__(self, *_: object) -> None:
         """Close the DB connection on context exit."""
         self.close()
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
-    def load_matches(self, df: pd.DataFrame, excluded_sources: list[str] | None = None) -> None:
+    def load_matches(
+        self, df: pd.DataFrame, excluded_sources: list[str] | None = None
+    ) -> None:
         """
         Ingest a raw match DataFrame and build the internal flat representation.
 
@@ -332,7 +337,7 @@ class BetAssistant(BaseStorageManager):
         for idx, row in df.iterrows():
             try:
                 rows.append(self._build_match_row(idx, row, excluded))
-            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one bad row must not abort the load
+            except Exception as e:
                 logger.info(f"[BetAssistant] Skipping row {idx}: {e}")
 
         self._df = pd.DataFrame(rows)
@@ -348,7 +353,9 @@ class BetAssistant(BaseStorageManager):
         # Filter out excluded sources
         filtered_scores = [s for s in scores if s.get("source") not in excluded]
         cons_data = calc_consensus(filtered_scores)
-        n_sources = len({s.get("source", "") for s in filtered_scores if s.get("source")})
+        n_sources = len(
+            {s.get("source", "") for s in filtered_scores if s.get("source")}
+        )
 
         row_data = {
             "match_id": match_id,
@@ -405,7 +412,10 @@ class BetAssistant(BaseStorageManager):
 
     def _flatten_odds(self, odds: dict) -> dict:
         """Flatten an odds dict into odds_* columns (None entries become 0.0)."""
-        return {f"odds_{key}": (odds.get(src) or 0.0) for key, src in self._ODDS_KEY_MAP.items()}
+        return {
+            f"odds_{key}": (odds.get(src) or 0.0)
+            for key, src in self._ODDS_KEY_MAP.items()
+        }
 
     # ── Match browsing ────────────────────────────────────────────────────────
 
@@ -432,16 +442,18 @@ class BetAssistant(BaseStorageManager):
         out = self._df.copy()
 
         if search_text:
-            mask = out["home"].str.contains(search_text, case=False, na=False) | out["away"].str.contains(
-                search_text, case=False, na=False
-            )
+            mask = out["home"].str.contains(search_text, case=False, na=False) | out[
+                "away"
+            ].str.contains(search_text, case=False, na=False)
             out = out[mask]
 
         if date_from:
             out = out[out["datetime"] >= pd.to_datetime(date_from)]
 
         if date_to:
-            end = pd.to_datetime(date_to) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+            end = (
+                pd.to_datetime(date_to) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+            )
             out = out[out["datetime"] <= end]
 
         if min_sources and min_sources > 1:
@@ -465,7 +477,11 @@ class BetAssistant(BaseStorageManager):
         if self._df.empty:
             return []
 
-        cfg = get_profile(profile_or_config) if isinstance(profile_or_config, str) else profile_or_config
+        cfg = (
+            get_profile(profile_or_config)
+            if isinstance(profile_or_config, str)
+            else profile_or_config
+        )
 
         if extra_excluded_urls:
             current = list(cfg.excluded_urls or [])
@@ -521,7 +537,11 @@ class BetAssistant(BaseStorageManager):
 
             for leg in legs:
                 # Store market value as string, not enum representation
-                market_value = leg.market.value if hasattr(leg.market, "value") else str(leg.market)
+                market_value = (
+                    leg.market.value
+                    if hasattr(leg.market, "value")
+                    else str(leg.market)
+                )
                 market_type_value = (
                     leg.market_type.value
                     if hasattr(leg.market_type, "value")
@@ -533,7 +553,9 @@ class BetAssistant(BaseStorageManager):
                 # Serialize predictions to JSON
                 import json
 
-                predictions_json = json.dumps(leg.predictions) if leg.predictions else None
+                predictions_json = (
+                    json.dumps(leg.predictions) if leg.predictions else None
+                )
 
                 self.conn.execute(
                     """INSERT INTO legs
@@ -665,7 +687,9 @@ class BetAssistant(BaseStorageManager):
         h, a = parse_score(score)
         outcome = determine_outcome(h, a, market, market_type)
         self.update_leg(leg_id, outcome, final_score=score)
-        logger.info(f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})")
+        logger.info(
+            f"[BetAssistant] Manually settled leg {leg_id} → {outcome} ({score})"
+        )
         return outcome
 
     def score_match(
@@ -795,7 +819,7 @@ class BetAssistant(BaseStorageManager):
 
         return None
 
-    def validate_slips(self) -> ValidationReport:  # noqa: C901 - pre-existing complexity on main; refactor out of testing-cycle scope
+    def validate_slips(self) -> ValidationReport:
         """Scrape result pages, settle legs, and update slip statuses."""
         self.reopen_if_changed()
 
@@ -824,7 +848,9 @@ class BetAssistant(BaseStorageManager):
                 base_info = _parse_match_result_html(html, url)
 
                 for leg_id, market, market_type, match_name in url_to_legs[url]:
-                    outcome_info = self.process_leg_result(leg_id, base_info, market, market_type, match_name)
+                    outcome_info = self.process_leg_result(
+                        leg_id, base_info, market, market_type, match_name
+                    )
                     if not outcome_info:
                         continue
 
@@ -859,15 +885,20 @@ class BetAssistant(BaseStorageManager):
             errors=errors[0],
         )
 
-    def update_leg(self, leg_id: int, status: str, final_score: str | None = None) -> None:
+    def update_leg(
+        self, leg_id: int, status: str, final_score: str | None = None
+    ) -> None:
         """Manually override a leg outcome ('Won', 'Lost', or 'Pending')."""
         with self.db_lock:
             if final_score is not None:
                 self.conn.execute(
-                    "UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?", (status, final_score, leg_id)
+                    "UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?",
+                    (status, final_score, leg_id),
                 )
             else:
-                self.conn.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
+                self.conn.execute(
+                    "UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id)
+                )
             self.conn.commit()
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -889,7 +920,11 @@ class BetAssistant(BaseStorageManager):
         # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
         """Collect candidate legs passing config filters from matches."""
         date_from = pd.to_datetime(cfg.date_from) if cfg.date_from else None
-        date_to = (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1)) if cfg.date_to else None
+        date_to = (
+            (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1))
+            if cfg.date_to
+            else None
+        )
         excluded = set(cfg.excluded_urls or [])
         markets = cfg.included_markets
 
@@ -898,7 +933,9 @@ class BetAssistant(BaseStorageManager):
             if not self._row_passes_filters(row, cfg, date_from, date_to, excluded):
                 continue
 
-            league = None if pd.isna(row.get("league", None)) else row.get("league", None)
+            league = (
+                None if pd.isna(row.get("league", None)) else row.get("league", None)
+            )
             match_name = f"{row['home']} vs {row['away']}"
 
             # Get filtered scores for this match (already filtered by excluded_sources in load_matches)
@@ -907,7 +944,16 @@ class BetAssistant(BaseStorageManager):
             for m_type, market_cols in MARKET_MAP.items():
                 for cons_col, odds_col, label in market_cols:
                     leg = self._cell_to_candidate(
-                        row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores
+                        row,
+                        cfg,
+                        markets,
+                        m_type,
+                        cons_col,
+                        odds_col,
+                        label,
+                        match_name,
+                        league,
+                        filtered_scores,
                     )
                     if leg is not None:
                         candidates.append(leg)
@@ -928,9 +974,24 @@ class BetAssistant(BaseStorageManager):
         league = row.get("league", None)
         if pd.isna(league):
             league = None
-        return not (cfg.included_leagues and (league is None or league not in cfg.included_leagues))
+        return not (
+            cfg.included_leagues
+            and (league is None or league not in cfg.included_leagues)
+        )
 
-    def _cell_to_candidate(self, row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores):
+    def _cell_to_candidate(
+        self,
+        row,
+        cfg,
+        markets,
+        m_type,
+        cons_col,
+        odds_col,
+        label,
+        match_name,
+        league,
+        filtered_scores,
+    ):
         """Build a CandidateLeg from one market cell if it passes all gate filters."""
         if markets and label not in markets:
             return None
@@ -953,7 +1014,9 @@ class BetAssistant(BaseStorageManager):
         if source_edge < min_edge:
             return None
         # Odds movement per market
-        mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
+        mov_dir, mov_str = self._get_market_movement(
+            row.get("odds"), stripped_key(odds_col)
+        )
 
         # Build per-source predictions for this leg's market
         leg_predictions = self._build_leg_predictions(filtered_scores, m_type)
@@ -974,7 +1037,9 @@ class BetAssistant(BaseStorageManager):
             predictions=leg_predictions,
         )
 
-    def _build_leg_predictions(self, filtered_scores: list[dict], market_type: MarketType) -> list[dict]:
+    def _build_leg_predictions(
+        self, filtered_scores: list[dict], market_type: MarketType
+    ) -> list[dict]:
         """
         Build per-source predictions for a specific market from filtered scores.
 
@@ -1001,7 +1066,9 @@ class BetAssistant(BaseStorageManager):
         return predictions
 
     @staticmethod
-    def _get_market_movement(odds_dict: dict | None, market_key: str) -> tuple[str | None, float]:
+    def _get_market_movement(
+        odds_dict: dict | None, market_key: str
+    ) -> tuple[str | None, float]:
         """Extract movement direction and strength for a specific market from odds history."""
         if not odds_dict or not isinstance(odds_dict, dict):
             return None, 0.0
@@ -1013,7 +1080,9 @@ class BetAssistant(BaseStorageManager):
         first_val = first.get(market_key)
         if cur_val is None or first_val is None or first_val == 0:
             return None, 0.0
-        if not isinstance(cur_val, (int, float)) or not isinstance(first_val, (int, float)):
+        if not isinstance(cur_val, (int, float)) or not isinstance(
+            first_val, (int, float)
+        ):
             return None, 0.0
         change_pct = abs(cur_val - first_val) / first_val
         if cur_val > first_val:
@@ -1025,7 +1094,9 @@ class BetAssistant(BaseStorageManager):
     # ── Leg selection loop ────────────────────────────────────────────────────
 
     @staticmethod
-    def _select_legs(candidates: list[CandidateLeg], cfg: BetSlipConfig) -> list[CandidateLeg]:
+    def _select_legs(
+        candidates: list[CandidateLeg], cfg: BetSlipConfig
+    ) -> list[CandidateLeg]:
         """Pick legs for a slip from candidates using the scoring config."""
         stop_threshold = resolve_stop_threshold(cfg)
         max_legs = resolve_max_legs(cfg)
@@ -1037,7 +1108,10 @@ class BetAssistant(BaseStorageManager):
         total_odds: float = 1.0
 
         while len(selected) < max_legs:
-            if total_odds >= cfg.target_odds * stop_threshold and len(selected) >= min_legs:
+            if (
+                total_odds >= cfg.target_odds * stop_threshold
+                and len(selected) >= min_legs
+            ):
                 break
 
             remaining_target = cfg.target_odds / total_odds
@@ -1047,7 +1121,9 @@ class BetAssistant(BaseStorageManager):
             scored = []
             for c in candidates:
                 if c.match_name not in seen_matches:
-                    tier, score, quality = score_pick(c, ideal_per_leg, max_sources, cfg, use_preadjusted=True)
+                    tier, score, quality = score_pick(
+                        c, ideal_per_leg, max_sources, cfg, use_preadjusted=True
+                    )
                     scored.append((tier, score, quality, c))
 
             if not scored:
@@ -1163,7 +1239,9 @@ class BetAssistant(BaseStorageManager):
 
         result = []
         for slip in slips.values():
-            slip.slip_status = BetAssistant._derive_slip_status([leg.status for leg in slip.legs])
+            slip.slip_status = BetAssistant._derive_slip_status(
+                [leg.status for leg in slip.legs]
+            )
             result.append(slip)
 
         return result
