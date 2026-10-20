@@ -446,9 +446,9 @@ ws_manager.broadcast_sync({
 })
 ```
 
-### Market Config (`core/market_config.py`)
+### Market Config (`core/market_config.py`, deprecated facade)
 
-**Centralized market definitions** (shared with frontend).
+**Canonical market definitions now live in `bet_framework/markets/`** (single source of truth): `catalog.py` owns identity/columns, `enums.py` the `MarketKey`/`MarketType` StrEnums (frozen values), `keys.py` the column-key helpers, `views.py` the key-indexed structures, `compat.py` the tolerant boundary coercion. `core/market_config.py` remains a deprecated facade that materializes the historical names (`MARKET_DEFINITIONS`, `CONSENSUS_COLUMNS`, `ALL_MARKETS`, `MARKET_BY_ID`, ...) from the canonical catalog during burn-down; add new markets in `bet_framework/markets/catalog.py` (plus one frontend presentation-order entry in `marketConfig.ts`), never here. Values are frozen: renaming a persisted key is a data migration, not a code edit.
 
 ```python
 MARKET_DEFINITIONS = [

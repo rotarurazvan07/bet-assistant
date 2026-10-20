@@ -31,8 +31,9 @@ export function strippedKey(oddsKey: string): string {
 }
 
 /**
- * Market columns in display order.
- * To reorder columns, simply reorder entries in this array.
+ * Market columns in display/PRESENTATION order only - this array is the one
+ * place column order lives. To reorder columns, reorder entries here; it can
+ * never affect backend behavior (keys are bound by identity, not position).
  */
 export const MARKET_COLUMNS: MarketColumn[] = [
     { market: '1', label: '1', consKey: 'cons_home', oddsKey: 'odds_home', marketType: 'result' },
