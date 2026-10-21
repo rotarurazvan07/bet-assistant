@@ -87,7 +87,13 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
+          # Formatter target py313 is NOT a runtime floor change: runtime is 3.14-only
+          # (Docker 3.14-slim, CI 3.14.8, mypy --python-version 3.14). ruff format
+          # --target-version py314 re-expands parenthesised PEP-758 excepts into
+          # un-parenthesised `except A, B:` syntax that CPython 3.14.8 REJECTS
+          # (SyntaxError: multiple exception types must be parenthesized —
+          # reproduced in CI). pyupgrade --py314-plus above still modernises.
+          ruff format --line-length 127 --target-version py313             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
