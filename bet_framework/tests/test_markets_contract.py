@@ -149,11 +149,11 @@ def test_stripped_key_convention(odds_key_value: str) -> None:
 
 
 def test_lookup_key_translates_history_field_names() -> None:
-    """Movement lookups hit Odds-dataclass fields ('btts_y'), not stripped keys."""
+    """Movement lookups hit Odds-dataclass fields ('btts_yes'), not stripped keys."""
     from bet_framework.markets.keys import lookup_key
 
-    assert lookup_key("btts_yes") == "btts_y"
-    assert lookup_key("btts_no") == "btts_n"
+    assert lookup_key("btts_yes") == "btts_yes"
+    assert lookup_key("btts_no") == "btts_no"
     assert lookup_key("over_25") == "over_25"
     with pytest.raises(KeyError):
         lookup_key("not_a_market")
@@ -162,9 +162,9 @@ def test_lookup_key_translates_history_field_names() -> None:
 def test_crawler_field_mapping_frozen() -> None:
     """AC-08: the canonical <-> Odds-dataclass field map is frozen.
 
-    'btts_y'/'btts_n' (Odds dataclass fields) vs 'btts_yes'/'btts_no'
-    (stripped odds keys) is the exact PR #106 divergence class - the map that
-    joins them now lives in exactly one file.
+    The BTTS Odds-dataclass fields (renamed by PR #110 to 'btts_yes'/'btts_no')
+    vs their stripped odds keys ('btts_yes') is the exact PR #106 divergence
+    class - the map that joins them now lives in exactly one file.
     """
     from bet_framework.markets.catalog import MARKET_BY_CRAWLER_FIELD, MARKET_CATALOG
 
@@ -183,16 +183,16 @@ def test_crawler_field_mapping_frozen() -> None:
         "under_35",
         "over_45",
         "under_45",
-        "btts_y",
-        "btts_n",
+        "btts_yes",
+        "btts_no",
         "dc_1x",
         "dc_12",
         "dc_x2",
     }
-    # The two do-or-die rows: identical key semantics, different spellings.
-    assert MARKET_BY_CRAWLER_FIELD["btts_y"].key == "BTTS Yes"
-    assert MARKET_BY_CRAWLER_FIELD["btts_y"].odds_key.removeprefix("odds_") == "btts_yes"
-    assert MARKET_BY_CRAWLER_FIELD["btts_n"].key == "BTTS No"
+    # The do-or-die row: crawler map binds persisted key -> Odds dataclass field.
+    assert MARKET_BY_CRAWLER_FIELD["btts_yes"].key == "BTTS Yes"
+    assert MARKET_BY_CRAWLER_FIELD["btts_yes"].odds_key.removeprefix("odds_") == "btts_yes"
+    assert MARKET_BY_CRAWLER_FIELD["btts_no"].key == "BTTS No"
 
 
 def test_snapshot_excludes_crawler_field(tmp_path: Path) -> None:
