@@ -20,3 +20,13 @@ MARKET_MAP_V2: dict[str, list[tuple[str, str, str]]] = {
 
 # Stripped odds keys used by movement payloads ('odds_over_25' -> 'over_25').
 STRIPPED_ODDS_KEYS: tuple[str, ...] = tuple(spec.odds_key.removeprefix("odds_") for spec in MARKET_CATALOG)
+
+# Canonical derived views (replacing the deleted facade's legacy names).
+# All materialize from the catalog above; there is no second source.
+MARKET_KEYS: tuple[str, ...] = tuple(spec.key for spec in MARKET_CATALOG)
+ALLOWED_MARKET_KEYS: frozenset[str] = frozenset(spec.key for spec in MARKET_CATALOG)
+CONSENSUS_COLUMN_NAMES: tuple[str, ...] = tuple(spec.cons_key for spec in MARKET_CATALOG)
+ODDS_COLUMN_NAMES: tuple[str, ...] = tuple(spec.odds_key for spec in MARKET_CATALOG)
+# label -> key lookup for the one-cycle legacy read (pre-U1 slips/DB rows and
+# browser storage persist display labels like '1'/'BTTS Yes'). See keys.py.
+LEGACY_LABEL_TO_KEY: dict[str, str] = {spec.label: spec.key for spec in MARKET_CATALOG}

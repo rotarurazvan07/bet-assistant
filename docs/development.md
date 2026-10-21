@@ -197,7 +197,6 @@ backend/
 │   ├── logic.py         # AppLogic - unified business logic
 │   ├── ticker_service.py # Daemon thread polling
 │   ├── ws.py            # WebSocket connection manager
-│   ├── market_config.py # deprecated facade -> bet_framework/markets/catalog.py
 │   ├── schemas.py       # Pydantic request/response models
 │   ├── analytics_utils.py # Statistics calculations
 │   └── config_helpers.py # Profile YAML conversion

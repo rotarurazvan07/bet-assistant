@@ -97,8 +97,8 @@ describe('AnalyticsDashboard — metric edge branches', () => {
         render(
             <AnalyticsDashboard
                 legs={[
-                    makeCandidateLeg({ tier: 1, market: 'Home' }),
-                    makeCandidateLeg({ tier: 2, market: 'Over 2.5' }),
+                    makeCandidateLeg({ tier: 1, market: 'home' }),
+                    makeCandidateLeg({ tier: 2, market: 'over_25' }),
                 ]}
                 totalOdds={4}
             />,
@@ -109,7 +109,7 @@ describe('AnalyticsDashboard — metric edge branches', () => {
     it('high source count saturates sourceDepth at 100', () => {
         render(
             <AnalyticsDashboard
-                legs={[makeCandidateLeg({ sources: 8, market: 'Home' })]}
+                legs={[makeCandidateLeg({ sources: 8, market: 'home' })]}
                 totalOdds={2}
             />,
         );

@@ -107,8 +107,8 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             market_map = {
                 "MATCH WINNER": ["home", "draw", "away"],
                 "BOTH TEAMS TO SCORE": [
-                    MARKET_BY_KEY["BTTS Yes"].crawler_field,
-                    MARKET_BY_KEY["BTTS No"].crawler_field,
+                    MARKET_BY_KEY["btts_yes"].key,
+                    MARKET_BY_KEY["btts_no"].key,
                 ],
                 "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
                 "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],

@@ -61,7 +61,7 @@ describe('MatchRow', () => {
         await user.click(screen.getByRole('button', { name: 'Select 75% at @1.90' }));
         expect(onCellClick).toHaveBeenCalledTimes(1);
         const leg = onCellClick.mock.calls[0][0] as CandidateLeg;
-        expect(leg.market).toBe('1'); // MARKET_COLUMNS home market key is '1' (not 'Home')
+        expect(leg.market).toBe('home'); // MARKET_COLUMNS home market key is 'home' (U1)
         expect(leg.market_type).toBe('result');
         expect(leg.consensus).toBe(75);
         expect(leg.odds).toBe(1.9);

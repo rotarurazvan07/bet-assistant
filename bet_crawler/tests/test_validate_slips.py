@@ -14,14 +14,14 @@ import pytest
 import bet_crawler.crawl_core.validate_slips as vs_mod
 from bet_crawler.crawl_core.validate_slips import validate_slips
 from bet_framework.core.Slip import LegOutcomeInfo, ValidationReport
-from bet_framework.core.type_defs import MarketLabel
+from bet_framework.markets.enums import MarketKey
 
 
 def make_leg(outcome="Won", name="A vs B", score="2:1", minute=""):
     return LegOutcomeInfo(
         leg_id=1,
         match_name=name,
-        market=MarketLabel.HOME,
+        market=MarketKey.HOME,
         score=score,
         minute=minute,
         outcome=outcome,

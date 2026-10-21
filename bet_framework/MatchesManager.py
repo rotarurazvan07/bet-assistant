@@ -12,9 +12,9 @@ from scrape_kit import (
     time_profiler,
 )
 
-from bet_framework.markets.keys import lookup_key, stripped_key
+from bet_framework.markets.catalog import MARKET_CATALOG
 
-from .core.market_config import MARKET_DEFINITIONS
+from bet_framework.markets.catalog import MARKET_CATALOG
 from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
@@ -60,9 +60,9 @@ _MARKET_GROUP_LABELS = {
 # selections, so their combined implied probability is approximately doubled.
 _MARKET_GROUP_IMPLIED_DIVISORS = {"double_chance": 2.0}
 _odds_groups: dict[str, list[tuple[str, str]]] = {}
-for _market_def in MARKET_DEFINITIONS:
-    _field = _market_def.odds_key.removeprefix("odds_")
-    _odds_groups.setdefault(_market_def.market_type, []).append((_field, _market_def.market))
+for _spec in MARKET_CATALOG:
+    _field = _spec.odds_key.removeprefix("odds_")
+    _odds_groups.setdefault(_spec.market_type, []).append((_field, _spec.label))
 ODDS_MARKET_GROUPS: list[tuple[str, str, list[tuple[str, str]]]] = [
     (market_type, _MARKET_GROUP_LABELS[market_type], fields) for market_type, fields in _odds_groups.items()
 ]
@@ -628,14 +628,13 @@ class MatchesManager(BufferedStorageManager):
         # Compare first historical snapshot to current values
         first_odds = history[0]
         # Derive simplified market keys from central configuration (strip 'odds_' prefix)
-        markets = [stripped_key(md.odds_key) for md in MARKET_DEFINITIONS]
+        markets = [spec.key for spec in MARKET_CATALOG]
         movement: dict[str, str | None] = {}
 
         for market in markets:
-            # Odds-history snapshots are keyed by Odds-dataclass fields
-            # ('btts_yes'); the response key stays the stripped spelling
-            # ('btts_yes') - the two-word difference was the PR #106 class.
-            field = lookup_key(market)
+            # U1: canonical key IS the persisted Odds-dataclass field spelling;
+            # no translation between history snapshots and movement keys.
+            field = market
             first_val = first_odds.get(field)
             current_val = current.get(field)
 
@@ -665,14 +664,13 @@ class MatchesManager(BufferedStorageManager):
         if not history or not current:
             return {}
         first_odds = history[0]
-        markets = [stripped_key(md.odds_key) for md in MARKET_DEFINITIONS]
+        markets = [spec.key for spec in MARKET_CATALOG]
         has_enough_history = len(history) >= 2
         result: dict = {}
         for market in markets:
-            # Odds-history snapshots are keyed by Odds-dataclass fields
-            # ('btts_yes'); the response key stays the stripped spelling
-            # ('btts_yes') - the two-word difference was the PR #106 class.
-            field = lookup_key(market)
+            # U1: canonical key IS the persisted Odds-dataclass field spelling;
+            # no translation between history snapshots and movement keys.
+            field = market
             first_val = first_odds.get(field)
             current_val = current.get(field)
             if first_val is None or current_val is None:

@@ -374,8 +374,8 @@ graph TD
     WS[ws.py
     ConnectionManager
     Thread-safe broadcast]
-    MC[market_config.py
-    MarketDef + constants]
+    MK[bet_framework/markets/
+    canonical catalog]
     SC[schemas.py
     Pydantic request/response]
     AU[analytics_utils.py

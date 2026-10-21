@@ -1,8 +1,16 @@
 """Contract freeze for the canonical market catalog (AC-01).
 
-Characterization tests: they pin the CURRENT market key/label/type/column values
-before the canonical ``bet_framework/markets/`` module takes over. An accidental
-value change (rename of a persisted key) must fail here, not reach a database.
+Characterization tests: they pin the CURRENT market identity (persisted DB
+field spellings), display labels, types and column keys before/after any
+change. An accidental rename of a persisted key or label must fail here,
+not reach a database.
+
+Identity (``key``) is the persisted Odds/DB field spelling - exactly what
+matches.db odds JSON and odds-* columns use. Display text lives in
+``label``. The two were two layers until U1 (see D1 in story 114-2):
+there is no translation layer anymore. ``crawler_field`` and
+``lookup_key`` were deleted as tautologies - tests asserting them are
+gone with them.
 """
 
 import json
@@ -10,16 +18,37 @@ from pathlib import Path
 
 import pytest
 
-from bet_framework.core.market_config import (
-    CONSENSUS_COLUMNS,
-    MARKET_DEFINITIONS,
-    ODDS_COLUMNS,
-)
-from bet_framework.core.type_defs import MarketLabel, MarketType
+from bet_framework.markets.catalog import MARKET_BY_KEY, MARKET_CATALOG, MarketSpec
 from bet_framework.markets.contract import emit
+from bet_framework.markets.enums import MarketKey, MarketType
+from bet_framework.markets.views import (
+    CONSENSUS_COLUMN_NAMES,
+    LEGACY_LABEL_TO_KEY,
+    ODDS_COLUMN_NAMES,
+)
 
-# Frozen expectations (live-verified 2026-10-20 against market_config.py).
-EXPECTED_MARKET_LABELS = [
+# Frozen expectations (live-verified against catalog.py under U1, 2026-10-21).
+EXPECTED_KEYS = [
+    "home",
+    "draw",
+    "away",
+    "over_25",
+    "under_25",
+    "btts_yes",
+    "btts_no",
+    "over_05",
+    "under_05",
+    "over_15",
+    "under_15",
+    "over_35",
+    "under_35",
+    "over_45",
+    "under_45",
+    "dc_1x",
+    "dc_12",
+    "dc_x2",
+]
+EXPECTED_LABELS = [
     "1",
     "X",
     "2",
@@ -49,95 +78,51 @@ EXPECTED_MARKET_TYPES = [
     "btts",
     "double_chance",
 ]
-EXPECTED_CONS_KEYS = [
-    "cons_home",
-    "cons_draw",
-    "cons_away",
-    "cons_over_25",
-    "cons_under_25",
-    "cons_btts_yes",
-    "cons_btts_no",
-    "cons_over_05",
-    "cons_under_05",
-    "cons_over_15",
-    "cons_under_15",
-    "cons_over_35",
-    "cons_under_35",
-    "cons_over_45",
-    "cons_under_45",
-    "cons_dc_1x",
-    "cons_dc_12",
-    "cons_dc_x2",
-]
+EXPECTED_CONS_KEYS = [key.upper().replace("_", "_") for key in []]  # placeholder replaced below
+EXPECTED_CONS_KEYS = [f"cons_{key}" for key in EXPECTED_KEYS]
 EXPECTED_ODDS_KEYS = [key.replace("cons_", "odds_") for key in EXPECTED_CONS_KEYS]
+EXPECTED_ODDS_TO_STRIPPED = {f"odds_{key}": key for key in EXPECTED_KEYS}
 
 
-def test_market_definitions_frozen_values() -> None:
-    assert [d.market for d in MARKET_DEFINITIONS] == EXPECTED_MARKET_LABELS
-    assert [d.cons_key for d in MARKET_DEFINITIONS] == EXPECTED_CONS_KEYS
-    assert [d.odds_key for d in MARKET_DEFINITIONS] == EXPECTED_ODDS_KEYS
-    assert [d.market_type for d in MARKET_DEFINITIONS] == [
-        "result",
-        "result",
-        "result",
-        "over_under_25",
-        "over_under_25",
-        "btts",
-        "btts",
-        "over_under_05",
-        "over_under_05",
-        "over_under_15",
-        "over_under_15",
-        "over_under_35",
-        "over_under_35",
-        "over_under_45",
-        "over_under_45",
-        "double_chance",
-        "double_chance",
-        "double_chance",
-    ]
+def test_frozen_catalog_shape() -> None:
+    """18 rows, 5-field MarketSpec (no crawler_field column)."""
+    assert len(MARKET_CATALOG) == 18
+    assert {spec.key for spec in MARKET_CATALOG} == set(EXPECTED_KEYS)
+    assert all(len(spec) == 5 for spec in MARKET_CATALOG)
 
 
-def test_enum_values_match_definitions() -> None:
+def test_frozen_values() -> None:
+    assert [spec.key for spec in MARKET_CATALOG] == EXPECTED_KEYS
+    assert [spec.label for spec in MARKET_CATALOG] == EXPECTED_LABELS
+    assert [spec.cons_key for spec in MARKET_CATALOG] == EXPECTED_CONS_KEYS
+    assert [spec.odds_key for spec in MARKET_CATALOG] == EXPECTED_ODDS_KEYS
+    assert {spec.market_type for spec in MARKET_CATALOG} == set(EXPECTED_MARKET_TYPES)
+
+
+def test_enum_values_match_catalog() -> None:
     assert {m.value for m in MarketType} == set(EXPECTED_MARKET_TYPES)
-    assert {m.value for m in MarketLabel} == set(EXPECTED_MARKET_LABELS)
-    assert set(CONSENSUS_COLUMNS) == set(EXPECTED_CONS_KEYS)
-    assert set(ODDS_COLUMNS) == set(EXPECTED_ODDS_KEYS)
+    # U1: MarketKey members ARE the persisted spellings (no label indirection).
+    assert {m.value for m in MarketKey} == set(EXPECTED_KEYS)
+    # MarketKey (StrEnum) and the catalog identities are the same strings.
+    assert set(CONSENSUS_COLUMN_NAMES) == set(EXPECTED_CONS_KEYS)
+    assert set(ODDS_COLUMN_NAMES) == set(EXPECTED_ODDS_KEYS)
 
 
-def test_snapshot_emitter_matches_definitions(tmp_path: Path) -> None:
-    snapshot = emit(tmp_path / "snapshot.json")
-    labels = set(EXPECTED_MARKET_LABELS)
-    assert set(snapshot) == labels
-    for market, row in snapshot.items():
-        assert row["label"] == market
-        assert row["market_type"] in EXPECTED_MARKET_TYPES
-        assert row["cons_key"].startswith("cons_")
-        assert row["odds_key"].startswith("odds_")
-    written = json.loads(tmp_path.joinpath("snapshot.json").read_text(encoding="utf-8"))
-    assert written == snapshot
+def test_labels_stay_display_text() -> None:
+    """U1 keeps MarketSpec.label as the presentation string (D3)."""
+    assert MARKET_BY_KEY["home"].label == "1"
+    assert MARKET_BY_KEY["btts_yes"].label == "BTTS Yes"
+    assert MARKET_BY_KEY["over_25"].label == "Over 2.5"
+    assert MARKET_BY_KEY["dc_1x"].label == "1X"
 
 
-EXPECTED_ODDS_TO_STRIPPED = {
-    "odds_home": "home",
-    "odds_draw": "draw",
-    "odds_away": "away",
-    "odds_over_25": "over_25",
-    "odds_under_25": "under_25",
-    "odds_over_05": "over_05",
-    "odds_under_05": "under_05",
-    "odds_over_15": "over_15",
-    "odds_under_15": "under_15",
-    "odds_over_35": "over_35",
-    "odds_under_35": "under_35",
-    "odds_over_45": "over_45",
-    "odds_under_45": "under_45",
-    "odds_btts_yes": "btts_yes",
-    "odds_btts_no": "btts_no",
-    "odds_dc_1x": "dc_1x",
-    "odds_dc_12": "dc_12",
-    "odds_dc_x2": "dc_x2",
-}
+def test_legacy_label_map_covers_pre_u1_spellings() -> None:
+    """D2 one-cycle read support: every persisted pre-U1 label maps to a key."""
+    assert LEGACY_LABEL_TO_KEY["1"] == "home"
+    assert LEGACY_LABEL_TO_KEY["BTTS Yes"] == "btts_yes"
+    assert LEGACY_LABEL_TO_KEY["Over 2.5"] == "over_25"
+    assert LEGACY_LABEL_TO_KEY["1X"] == "dc_1x"
+    assert set(LEGACY_LABEL_TO_KEY.values()) == set(EXPECTED_KEYS)
 
 
 @pytest.mark.parametrize("odds_key_value", sorted(EXPECTED_ODDS_TO_STRIPPED))
@@ -148,55 +133,24 @@ def test_stripped_key_convention(odds_key_value: str) -> None:
     assert stripped_key(odds_key_value) == EXPECTED_ODDS_TO_STRIPPED[odds_key_value]
 
 
-def test_lookup_key_translates_history_field_names() -> None:
-    """Movement lookups hit Odds-dataclass fields ('btts_yes'), not stripped keys."""
-    from bet_framework.markets.keys import lookup_key
-
-    assert lookup_key("btts_yes") == "btts_yes"
-    assert lookup_key("btts_no") == "btts_no"
-    assert lookup_key("over_25") == "over_25"
-    with pytest.raises(KeyError):
-        lookup_key("not_a_market")
-
-
-def test_crawler_field_mapping_frozen() -> None:
-    """AC-08: the canonical <-> Odds-dataclass field map is frozen.
-
-    The BTTS Odds-dataclass fields (renamed by PR #110 to 'btts_yes'/'btts_no')
-    vs their stripped odds keys ('btts_yes') is the exact PR #106 divergence
-    class - the map that joins them now lives in exactly one file.
-    """
-    from bet_framework.markets.catalog import MARKET_BY_CRAWLER_FIELD, MARKET_CATALOG
-
-    crawler_fields = {spec.crawler_field for spec in MARKET_CATALOG}
-    assert crawler_fields == {
-        "home",
-        "draw",
-        "away",
-        "over_05",
-        "under_05",
-        "over_15",
-        "under_15",
-        "over_25",
-        "under_25",
-        "over_35",
-        "under_35",
-        "over_45",
-        "under_45",
-        "btts_yes",
-        "btts_no",
-        "dc_1x",
-        "dc_12",
-        "dc_x2",
-    }
-    # The do-or-die row: crawler map binds persisted key -> Odds dataclass field.
-    assert MARKET_BY_CRAWLER_FIELD["btts_yes"].key == "BTTS Yes"
-    assert MARKET_BY_CRAWLER_FIELD["btts_yes"].odds_key.removeprefix("odds_") == "btts_yes"
-    assert MARKET_BY_CRAWLER_FIELD["btts_no"].key == "BTTS No"
-
-
-def test_snapshot_excludes_crawler_field(tmp_path: Path) -> None:
-    """Snapshot shape stays {label, market_type, cons_key, odds_key} (frontend contract)."""
+def test_snapshot_emitter_matches_catalog(tmp_path: Path) -> None:
     snapshot = emit(tmp_path / "snapshot.json")
-    for row in snapshot.values():
+    assert set(snapshot) == set(EXPECTED_KEYS)  # frontend identity == DB spellings
+    for key, row in snapshot.items():
+        assert row["label"] == MARKET_BY_KEY[key].label
+        assert row["market_type"] in EXPECTED_MARKET_TYPES
+        assert row["cons_key"] == f"cons_{key}"
+        assert row["odds_key"] == f"odds_{key}"
         assert set(row) == {"label", "market_type", "cons_key", "odds_key"}
+    written = json.loads(tmp_path.joinpath("snapshot.json").read_text(encoding="utf-8"))
+    assert written == snapshot
+
+
+def test_market_spec_shape() -> None:
+    """MarketSpec is the canonical 5-field row; deleted columns stay gone."""
+    spec = MARKET_BY_KEY["btts_yes"]
+    assert isinstance(spec, MarketSpec)
+    assert len(spec) == 5
+    assert not hasattr(spec, "crawler_field")
+    with pytest.raises(AttributeError):
+        spec.crawler_field

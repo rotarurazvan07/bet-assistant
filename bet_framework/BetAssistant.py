@@ -70,7 +70,7 @@ from bet_framework.core.Slip import (
     ValidationReport,
     get_profile,
 )
-from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
 from bet_framework.core.utils import coerce_datetime_str, is_valid_url
 from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.keys import stripped_key
@@ -80,9 +80,9 @@ logger = get_logger(__name__)
 # (cons_col, odds_col, display_label)
 # Key-indexed by MarketType, derived from the canonical catalog
 # (bet_framework/markets/catalog.py) — never a hand-written literal matrix.
-MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {}
+MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketKey]]] = {}
 for _spec in MARKET_CATALOG:
-    MARKET_MAP.setdefault(MarketType(_spec.market_type), []).append((_spec.cons_key, _spec.odds_key, MarketLabel(_spec.key)))
+    MARKET_MAP.setdefault(MarketType(_spec.market_type), []).append((_spec.cons_key, _spec.odds_key, MarketKey(_spec.key)))
 
 
 def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
@@ -353,7 +353,7 @@ class BetAssistant(BaseStorageManager):
         row_data.update(self._flatten_odds(odds))
         return row_data
 
-    _ODDS_KEY_MAP = {spec.odds_key.removeprefix("odds_"): spec.crawler_field for spec in MARKET_CATALOG}
+    _ODDS_KEY_MAP = {spec.odds_key.removeprefix("odds_"): spec.key for spec in MARKET_CATALOG}
 
     def _flatten_odds(self, odds: dict) -> dict:
         """Flatten an odds dict into odds_* columns (None entries become 0.0)."""
@@ -713,7 +713,7 @@ class BetAssistant(BaseStorageManager):
         self,
         leg_id: int,
         info: MatchResultInfo,
-        market: MarketLabel,
+        market: MarketKey,
         market_type: MarketType,
         match_name: str,
     ) -> LegOutcomeInfo | None:

@@ -2,78 +2,8 @@
   "version": 2,
   "rule": "no-raw-market-key-literals",
   "generated_by": "tracked-file literal scan mirroring .semgrep/no-raw-market-literals.yml (superset-safe vs semgrep; CI runs the real semgrep engine and .semgrep/check_burn_down.py against it)",
-  "max_baseline_size": 286,
+  "max_baseline_size": 95,
   "findings": [
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_crawler/finders/SoccerVistaFinder_per_match.py",
-      "start": 199,
-      "end": 199,
-      "match": "\"odds-link-yes\": MARKET_BY_KEY[\"BTTS Yes\"].crawler_field,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_crawler/finders/SoccerVistaFinder_per_match.py",
-      "start": 200,
-      "end": 200,
-      "match": "\"odds-link-no\": MARKET_BY_KEY[\"BTTS No\"].crawler_field,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_crawler/finders/WinDrawWinFinder_per_match.py",
-      "start": 105,
-      "end": 105,
-      "match": "MARKET_BY_KEY[\"BTTS Yes\"].crawler_field,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_crawler/finders/WinDrawWinFinder_per_match.py",
-      "start": 106,
-      "end": 106,
-      "match": "MARKET_BY_KEY[\"BTTS No\"].crawler_field,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/routers/analytics.py",
-      "start": 221,
-      "end": 221,
-      "match": "\"over_under_25\": lambda: _over_under(2.5, \"25\"),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/routers/analytics.py",
-      "start": 222,
-      "end": 222,
-      "match": "\"over_under_15\": lambda: _over_under(1.5, \"15\"),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/routers/analytics.py",
-      "start": 223,
-      "end": 223,
-      "match": "\"over_under_05\": lambda: _over_under(0.5, \"05\"),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/routers/analytics.py",
-      "start": 224,
-      "end": 224,
-      "match": "\"over_under_35\": lambda: _over_under(3.5, \"35\"),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/routers/analytics.py",
-      "start": 225,
-      "end": 225,
-      "match": "\"over_under_45\": lambda: _over_under(4.5, \"45\"),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/routers/analytics.py",
-      "start": 227,
-      "end": 227,
-      "match": "\"double_chance\": _double_chance,"
-    },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/backend/tests/conftest.py",
@@ -328,177 +258,23 @@
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/conftest.py",
-      "start": 180,
-      "end": 180,
-      "match": "self._movement = {\"home\": \"up\", \"draw\": \"down\", \"away\": None, \"btts_yes\": \"up\", \"btts_no\": \"down\", \"over_25\": \"stable\"}"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
-      "start": 85,
-      "end": 85,
-      "match": "\"btts_yes\": 1.75,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
-      "start": 86,
-      "end": 86,
-      "match": "\"btts_no\": 2.05,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
-      "start": 95,
-      "end": 95,
-      "match": "\"btts_yes\": 1.7,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/logic_test_helpers.py",
-      "start": 96,
-      "end": 96,
-      "match": "\"btts_no\": 2.1,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 45,
-      "end": 45,
-      "match": "assert _predict_outcome_from_score(2, 1, \"Over 2.5\", \"over_under_25\") == \"OVER_25\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 46,
-      "end": 46,
-      "match": "assert _predict_outcome_from_score(0, 2, \"Under 2.5\", \"over_under_25\") == \"UNDER_25\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 47,
-      "end": 47,
-      "match": "assert _predict_outcome_from_score(2, 0, \"Over 1.5\", \"over_under_15\") == \"OVER_15\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 48,
-      "end": 48,
-      "match": "assert _predict_outcome_from_score(1, 0, \"Under 1.5\", \"over_under_15\") == \"UNDER_15\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 49,
-      "end": 49,
-      "match": "assert _predict_outcome_from_score(1, 0, \"Over 0.5\", \"over_under_05\") == \"OVER_05\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 50,
-      "end": 50,
-      "match": "assert _predict_outcome_from_score(0, 0, \"Under 0.5\", \"over_under_05\") == \"UNDER_05\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 51,
-      "end": 51,
-      "match": "assert _predict_outcome_from_score(4, 0, \"Over 3.5\", \"over_under_35\") == \"OVER_35\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 52,
-      "end": 52,
-      "match": "assert _predict_outcome_from_score(1, 2, \"Under 3.5\", \"over_under_35\") == \"UNDER_35\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 53,
-      "end": 53,
-      "match": "assert _predict_outcome_from_score(3, 2, \"Over 4.5\", \"over_under_45\") == \"OVER_45\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 54,
-      "end": 54,
-      "match": "assert _predict_outcome_from_score(2, 2, \"Under 4.5\", \"over_under_45\") == \"UNDER_45\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 57,
-      "end": 57,
-      "match": "assert _predict_outcome_from_score(1, 1, \"BTTS Yes\", \"btts\") == \"BTTS_YES\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 58,
-      "end": 58,
-      "match": "assert _predict_outcome_from_score(2, 0, \"BTTS No\", \"btts\") == \"BTTS_NO\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 61,
-      "end": 61,
-      "match": "assert _predict_outcome_from_score(2, 1, \"1X\", \"double_chance\") == \"DC_1X\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 62,
-      "end": 62,
-      "match": "assert _predict_outcome_from_score(1, 1, \"X2\", \"double_chance\") == \"DC_X2\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 63,
-      "end": 63,
-      "match": "assert _predict_outcome_from_score(1, 2, \"12\", \"double_chance\") == \"DC_12\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 178,
-      "end": 178,
-      "match": "market_type=\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_analytics_helpers.py",
-      "start": 213,
-      "end": 213,
-      "match": "market_type=\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/backend/tests/test_logic_lifecycle.py",
-      "start": 129,
-      "end": 129,
+      "start": 132,
+      "end": 132,
       "match": "assert df.iloc[0][\"cons_home\"] == 75.0  # 3 of 4 sources predict a home win"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/backend/tests/test_logic_lifecycle.py",
-      "start": 142,
-      "end": 142,
+      "start": 145,
+      "end": 145,
       "match": "assert df.iloc[0][\"cons_home\"] == 100.0"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/backend/tests/test_logic_lifecycle.py",
-      "start": 160,
-      "end": 160,
+      "start": 163,
+      "end": 163,
       "match": "assert app_env.app.match_df.iloc[0][\"cons_home\"] == 100.0"
     },
     {
@@ -507,20 +283,6 @@
       "start": 62,
       "end": 62,
       "match": "assert app.match_df.iloc[0][\"cons_home\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_router_analytics.py",
-      "start": 67,
-      "end": 67,
-      "match": "market_type=\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_router_builder.py",
-      "start": 87,
-      "end": 87,
-      "match": "assert leg[\"market_type\"] == \"over_under_25\""
     },
     {
       "rule_id": "no-raw-market-key-literals",
@@ -601,34 +363,6 @@
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
-      "start": 24,
-      "end": 24,
-      "match": "assert data[\"movement\"][\"btts_yes\"] == \"up\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
-      "start": 55,
-      "end": 55,
-      "match": "assert data[\"btts_yes\"] == \"up\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
-      "start": 56,
-      "end": 56,
-      "match": "assert data[\"btts_no\"] == \"down\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/backend/tests/test_router_odds_history.py",
-      "start": 72,
-      "end": 72,
-      "match": "assert data[\"m1\"][\"btts_yes\"] == \"up\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/components/MatchRow.tsx",
       "start": 17,
       "end": 17,
@@ -644,1367 +378,296 @@
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
-      "start": 39,
-      "end": 39,
-      "match": "{ market: '1', label: '1', consKey: 'cons_home', oddsKey: 'odds_home', marketType: 'result' },"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
-      "start": 40,
-      "end": 40,
-      "match": "{ market: 'X', label: 'X', consKey: 'cons_draw', oddsKey: 'odds_draw', marketType: 'result' },"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 41,
       "end": 41,
-      "match": "{ market: '2', label: '2', consKey: 'cons_away', oddsKey: 'odds_away', marketType: 'result' },"
+      "match": "{ market: 'home', label: '1', consKey: 'cons_home', oddsKey: 'odds_home', marketType: 'result' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 42,
       "end": 42,
-      "match": "{ market: 'Over 2.5', label: 'O2.5', consKey: 'cons_over_25', oddsKey: 'odds_over_25', marketType: 'over_under_25' },"
+      "match": "{ market: 'draw', label: 'X', consKey: 'cons_draw', oddsKey: 'odds_draw', marketType: 'result' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 43,
       "end": 43,
-      "match": "{ market: 'Under 2.5', label: 'U2.5', consKey: 'cons_under_25', oddsKey: 'odds_under_25', marketType: 'over_under_25' },"
+      "match": "{ market: 'away', label: '2', consKey: 'cons_away', oddsKey: 'odds_away', marketType: 'result' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 44,
       "end": 44,
-      "match": "{ market: 'BTTS Yes', label: 'BTTS Y', consKey: 'cons_btts_yes', oddsKey: 'odds_btts_yes', marketType: 'btts' },"
+      "match": "{ market: 'over_25', label: 'O2.5', consKey: 'cons_over_25', oddsKey: 'odds_over_25', marketType: 'over_under_25' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 45,
       "end": 45,
-      "match": "{ market: 'BTTS No', label: 'BTTS N', consKey: 'cons_btts_no', oddsKey: 'odds_btts_no', marketType: 'btts' },"
+      "match": "{ market: 'under_25', label: 'U2.5', consKey: 'cons_under_25', oddsKey: 'odds_under_25', marketType: 'over_under_25' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 46,
       "end": 46,
-      "match": "{ market: 'Over 0.5', label: 'O0.5', consKey: 'cons_over_05', oddsKey: 'odds_over_05', marketType: 'over_under_05' },"
+      "match": "{ market: 'btts_yes', label: 'BTTS Y', consKey: 'cons_btts_yes', oddsKey: 'odds_btts_yes', marketType: 'btts' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 47,
       "end": 47,
-      "match": "{ market: 'Under 0.5', label: 'U0.5', consKey: 'cons_under_05', oddsKey: 'odds_under_05', marketType: 'over_under_05' },"
+      "match": "{ market: 'btts_no', label: 'BTTS N', consKey: 'cons_btts_no', oddsKey: 'odds_btts_no', marketType: 'btts' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 48,
       "end": 48,
-      "match": "{ market: 'Over 1.5', label: 'O1.5', consKey: 'cons_over_15', oddsKey: 'odds_over_15', marketType: 'over_under_15' },"
+      "match": "{ market: 'over_05', label: 'O0.5', consKey: 'cons_over_05', oddsKey: 'odds_over_05', marketType: 'over_under_05' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 49,
       "end": 49,
-      "match": "{ market: 'Under 1.5', label: 'U1.5', consKey: 'cons_under_15', oddsKey: 'odds_under_15', marketType: 'over_under_15' },"
+      "match": "{ market: 'under_05', label: 'U0.5', consKey: 'cons_under_05', oddsKey: 'odds_under_05', marketType: 'over_under_05' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 50,
       "end": 50,
-      "match": "{ market: 'Over 3.5', label: 'O3.5', consKey: 'cons_over_35', oddsKey: 'odds_over_35', marketType: 'over_under_35' },"
+      "match": "{ market: 'over_15', label: 'O1.5', consKey: 'cons_over_15', oddsKey: 'odds_over_15', marketType: 'over_under_15' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 51,
       "end": 51,
-      "match": "{ market: 'Under 3.5', label: 'U3.5', consKey: 'cons_under_35', oddsKey: 'odds_under_35', marketType: 'over_under_35' },"
+      "match": "{ market: 'under_15', label: 'U1.5', consKey: 'cons_under_15', oddsKey: 'odds_under_15', marketType: 'over_under_15' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 52,
       "end": 52,
-      "match": "{ market: 'Over 4.5', label: 'O4.5', consKey: 'cons_over_45', oddsKey: 'odds_over_45', marketType: 'over_under_45' },"
+      "match": "{ market: 'over_35', label: 'O3.5', consKey: 'cons_over_35', oddsKey: 'odds_over_35', marketType: 'over_under_35' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 53,
       "end": 53,
-      "match": "{ market: 'Under 4.5', label: 'U4.5', consKey: 'cons_under_45', oddsKey: 'odds_under_45', marketType: 'over_under_45' },"
+      "match": "{ market: 'under_35', label: 'U3.5', consKey: 'cons_under_35', oddsKey: 'odds_under_35', marketType: 'over_under_35' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 54,
       "end": 54,
-      "match": "{ market: '1X', label: '1X', consKey: 'cons_dc_1x', oddsKey: 'odds_dc_1x', marketType: 'double_chance' },"
+      "match": "{ market: 'over_45', label: 'O4.5', consKey: 'cons_over_45', oddsKey: 'odds_over_45', marketType: 'over_under_45' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 55,
       "end": 55,
-      "match": "{ market: '12', label: '12', consKey: 'cons_dc_12', oddsKey: 'odds_dc_12', marketType: 'double_chance' },"
+      "match": "{ market: 'under_45', label: 'U4.5', consKey: 'cons_under_45', oddsKey: 'odds_under_45', marketType: 'over_under_45' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
       "start": 56,
       "end": 56,
-      "match": "{ market: 'X2', label: 'X2', consKey: 'cons_dc_x2', oddsKey: 'odds_dc_x2', marketType: 'double_chance' },"
+      "match": "{ market: 'dc_1x', label: '1X', consKey: 'cons_dc_1x', oddsKey: 'odds_dc_1x', marketType: 'double_chance' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
-      "start": 548,
-      "end": 548,
-      "match": "MarketKey: \"1\" | \"X\" | \"2\" | \"Over 2.5\" | \"Under 2.5\" | \"BTTS Yes\" | \"BTTS No\" | \"Over 0.5\" | \"Under 0.5\" | \"Over 1.5\" | \"Under 1.5\" | \"Over 3.5\" | \"Under 3.5\" | \"Over 4.5\" | \"Under 4.5\" | \"1X\" | \"12\" | \"X2\";"
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 57,
+      "end": 57,
+      "match": "{ market: 'dc_12', label: '12', consKey: 'cons_dc_12', oddsKey: 'odds_dc_12', marketType: 'double_chance' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/frontend/src/types/api.generated.ts",
-      "start": 554,
-      "end": 554,
-      "match": "MarketType: \"result\" | \"over_under_25\" | \"over_under_15\" | \"over_under_05\" | \"over_under_35\" | \"over_under_45\" | \"btts\" | \"double_chance\";"
+      "path": "bet_dashboard/frontend/src/config/marketConfig.ts",
+      "start": 58,
+      "end": 58,
+      "match": "{ market: 'dc_x2', label: 'X2', consKey: 'cons_dc_x2', oddsKey: 'odds_dc_x2', marketType: 'double_chance' },"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/frontend/src/utils/colorUtils.ts",
-      "start": 94,
-      "end": 94,
-      "match": "if (market === 'BTTS Yes') {"
+      "path": "bet_framework/BetAssistant.py",
+      "start": 334,
+      "end": 334,
+      "match": "\"cons_home\": cons_data[\"result\"][\"home\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_dashboard/frontend/src/utils/colorUtils.ts",
-      "start": 98,
-      "end": 98,
-      "match": "if (market === 'BTTS No') {"
+      "path": "bet_framework/BetAssistant.py",
+      "start": 335,
+      "end": 335,
+      "match": "\"cons_draw\": cons_data[\"result\"][\"draw\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 336,
+      "end": 336,
+      "match": "\"cons_away\": cons_data[\"result\"][\"away\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 337,
+      "end": 337,
+      "match": "\"cons_over_15\": cons_data[\"over_under_15\"][\"over\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 338,
+      "end": 338,
+      "match": "\"cons_under_15\": cons_data[\"over_under_15\"][\"under\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 339,
+      "end": 339,
+      "match": "\"cons_over_05\": cons_data[\"over_under_05\"][\"over\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 340,
+      "end": 340,
+      "match": "\"cons_under_05\": cons_data[\"over_under_05\"][\"under\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 341,
+      "end": 341,
+      "match": "\"cons_over_25\": cons_data[\"over_under_25\"][\"over\"],"
+    },
+    {
+      "rule_id": "no-raw-market-key-literals",
+      "path": "bet_framework/BetAssistant.py",
+      "start": 342,
+      "end": 342,
+      "match": "\"cons_under_25\": cons_data[\"over_under_25\"][\"under\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 343,
       "end": 343,
-      "match": "\"cons_home\": cons_data[\"result\"][\"home\"],"
+      "match": "\"cons_over_35\": cons_data[\"over_under_35\"][\"over\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 344,
       "end": 344,
-      "match": "\"cons_draw\": cons_data[\"result\"][\"draw\"],"
+      "match": "\"cons_under_35\": cons_data[\"over_under_35\"][\"under\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 345,
       "end": 345,
-      "match": "\"cons_away\": cons_data[\"result\"][\"away\"],"
+      "match": "\"cons_over_45\": cons_data[\"over_under_45\"][\"over\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 346,
       "end": 346,
-      "match": "\"cons_over_15\": cons_data[\"over_under_15\"][\"over\"],"
+      "match": "\"cons_under_45\": cons_data[\"over_under_45\"][\"under\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 347,
       "end": 347,
-      "match": "\"cons_under_15\": cons_data[\"over_under_15\"][\"under\"],"
+      "match": "\"cons_btts_yes\": cons_data[\"btts\"][\"yes\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 348,
       "end": 348,
-      "match": "\"cons_over_05\": cons_data[\"over_under_05\"][\"over\"],"
+      "match": "\"cons_btts_no\": cons_data[\"btts\"][\"no\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 349,
       "end": 349,
-      "match": "\"cons_under_05\": cons_data[\"over_under_05\"][\"under\"],"
+      "match": "\"cons_dc_1x\": cons_data[\"double_chance\"][\"1x\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 350,
       "end": 350,
-      "match": "\"cons_over_25\": cons_data[\"over_under_25\"][\"over\"],"
+      "match": "\"cons_dc_12\": cons_data[\"double_chance\"][\"12\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
       "path": "bet_framework/BetAssistant.py",
       "start": 351,
       "end": 351,
-      "match": "\"cons_under_25\": cons_data[\"over_under_25\"][\"under\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 352,
-      "end": 352,
-      "match": "\"cons_over_35\": cons_data[\"over_under_35\"][\"over\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 353,
-      "end": 353,
-      "match": "\"cons_under_35\": cons_data[\"over_under_35\"][\"under\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 354,
-      "end": 354,
-      "match": "\"cons_over_45\": cons_data[\"over_under_45\"][\"over\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 355,
-      "end": 355,
-      "match": "\"cons_under_45\": cons_data[\"over_under_45\"][\"under\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 356,
-      "end": 356,
-      "match": "\"cons_btts_yes\": cons_data[\"btts\"][\"yes\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 357,
-      "end": 357,
-      "match": "\"cons_btts_no\": cons_data[\"btts\"][\"no\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 358,
-      "end": 358,
-      "match": "\"cons_dc_1x\": cons_data[\"double_chance\"][\"1x\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 359,
-      "end": 359,
-      "match": "\"cons_dc_12\": cons_data[\"double_chance\"][\"12\"],"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 360,
-      "end": 360,
       "match": "\"cons_dc_x2\": cons_data[\"double_chance\"][\"x2\"],"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 632,
-      "end": 632,
-      "match": "market_type : One of 'result', 'btts', 'over_under_25', 'over_under_15',"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/BetAssistant.py",
-      "start": 633,
-      "end": 633,
-      "match": "'over_under_05', 'over_under_35', 'over_under_45'."
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/MatchesManager.py",
-      "start": 66,
-      "end": 66,
-      "match": "(\"BTTS\", [(\"btts_yes\", \"Yes\"), (\"btts_no\", \"No\")]),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/MatchesManager.py",
-      "start": 677,
-      "end": 677,
-      "match": "# ('btts_y'); the response key stays the stripped spelling"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/MatchesManager.py",
-      "start": 678,
-      "end": 678,
-      "match": "# ('btts_yes') - the two-word difference was the PR #106 class."
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/MatchesManager.py",
-      "start": 714,
-      "end": 714,
-      "match": "# ('btts_y'); the response key stays the stripped spelling"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/MatchesManager.py",
-      "start": 715,
-      "end": 715,
-      "match": "# ('btts_yes') - the two-word difference was the PR #106 class."
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 39,
-      "end": 39,
-      "match": "\"over_under_25\": {\"over\": float, \"under\": float},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 40,
-      "end": 40,
-      "match": "\"over_under_15\": {\"over\": float, \"under\": float},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 55,
-      "end": 55,
-      "match": "\"over_under_25\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 56,
-      "end": 56,
-      "match": "\"over_under_15\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 57,
-      "end": 57,
-      "match": "\"over_under_05\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 58,
-      "end": 58,
-      "match": "\"over_under_35\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 59,
-      "end": 59,
-      "match": "\"over_under_45\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 61,
-      "end": 61,
-      "match": "\"double_chance\": {\"1x\": 0.0, \"12\": 0.0, \"x2\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 94,
-      "end": 94,
-      "match": "\"btts_y\": 0,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 95,
-      "end": 95,
-      "match": "\"btts_n\": 0,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 125,
-      "end": 125,
-      "match": "counts[\"btts_y\"] += 1"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 127,
-      "end": 127,
-      "match": "counts[\"btts_n\"] += 1"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 144,
-      "end": 144,
-      "match": "\"over_under_25\": {"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 148,
-      "end": 148,
-      "match": "\"over_under_15\": {"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 152,
-      "end": 152,
-      "match": "\"over_under_05\": {"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 156,
-      "end": 156,
-      "match": "\"over_under_35\": {"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 160,
-      "end": 160,
-      "match": "\"over_under_45\": {"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 165,
-      "end": 165,
-      "match": "\"yes\": to_pct(counts[\"btts_y\"], total),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 166,
-      "end": 166,
-      "match": "\"no\": to_pct(counts[\"btts_n\"], total),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "bet_framework/core/consensus.py",
-      "start": 168,
-      "end": 168,
-      "match": "\"double_chance\": {"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "setup/seed_e2e.py",
-      "start": 89,
-      "end": 89,
-      "match": "\"btts_y\": 1.9,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "setup/seed_e2e.py",
-      "start": 90,
-      "end": 90,
-      "match": "\"btts_n\": 1.9,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 71,
-      "end": 71,
-      "match": "\"btts_y\": 1.90 + (i * 0.1),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 72,
-      "end": 72,
-      "match": "\"btts_n\": 1.90 + (i * 0.1),"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 520,
-      "end": 520,
+      "path": "bet_framework/tests/test_bet_assistant.py",
+      "start": 532,
+      "end": 532,
       "match": "for col in [\"cons_home\", \"cons_draw\", \"cons_away\", \"cons_over_25\", \"cons_under_25\"]:"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 526,
-      "end": 526,
+      "path": "bet_framework/tests/test_bet_assistant.py",
+      "start": 538,
+      "end": 538,
       "match": "for col in [\"odds_home\", \"odds_draw\", \"odds_away\"]:"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 542,
-      "end": 542,
+      "path": "bet_framework/tests/test_bet_assistant.py",
+      "start": 554,
+      "end": 554,
       "match": "assert ba._df.iloc[0][\"odds_home\"] == 0.0"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 580,
-      "end": 580,
+      "path": "bet_framework/tests/test_bet_assistant.py",
+      "start": 592,
+      "end": 592,
       "match": "assert ba._df.iloc[0][\"cons_home\"] == pytest.approx(66.6, abs=0.2)"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 585,
-      "end": 585,
+      "path": "bet_framework/tests/test_bet_assistant.py",
+      "start": 597,
+      "end": 597,
       "match": "assert ba2._df.iloc[0][\"cons_home\"] == 100.0"
     },
     {
       "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 596,
-      "end": 596,
+      "path": "bet_framework/tests/test_bet_assistant.py",
+      "start": 608,
+      "end": 608,
       "match": "assert ba._df.iloc[0][\"cons_home\"] == ba2._df.iloc[0][\"cons_home\"]"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 1237,
-      "end": 1237,
-      "match": "assert market == \"BTTS Yes\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 1451,
-      "end": 1451,
-      "match": "\"btts_y\": 1.9,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 1452,
-      "end": 1452,
-      "match": "\"btts_n\": 1.9,"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 1559,
-      "end": 1559,
-      "match": "ba.settle_leg_manually(rows2[0][\"leg_id\"], \"2:1\", \"Over 2.5\", \"over_under_25\")"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_bet_assistant.py",
-      "start": 1587,
-      "end": 1587,
-      "match": "elif mkt_type == \"over_under_25\":"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 34,
-      "end": 34,
-      "match": "\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 35,
-      "end": 35,
-      "match": "\"over_under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 36,
-      "end": 36,
-      "match": "\"over_under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 37,
-      "end": 37,
-      "match": "\"over_under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 38,
-      "end": 38,
-      "match": "\"over_under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 40,
-      "end": 40,
-      "match": "\"double_chance\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 44,
-      "end": 44,
-      "match": "\"over_under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 45,
-      "end": 45,
-      "match": "\"over_under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 46,
-      "end": 46,
-      "match": "\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 47,
-      "end": 47,
-      "match": "\"over_under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 48,
-      "end": 48,
-      "match": "\"over_under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 65,
-      "end": 65,
-      "match": "\"over_under_25\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 66,
-      "end": 66,
-      "match": "\"over_under_15\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 67,
-      "end": 67,
-      "match": "\"over_under_05\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 68,
-      "end": 68,
-      "match": "\"over_under_35\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 69,
-      "end": 69,
-      "match": "\"over_under_45\": {\"over\": 0.0, \"under\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 71,
-      "end": 71,
-      "match": "\"double_chance\": {\"1x\": 0.0, \"12\": 0.0, \"x2\": 0.0},"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 124,
-      "end": 124,
-      "match": "assert result[\"over_under_25\"][\"over\"] == 100.0  # total 3 > 2.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 125,
-      "end": 125,
-      "match": "assert result[\"over_under_35\"][\"under\"] == 100.0  # total 3 < 3.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 127,
-      "end": 127,
-      "match": "assert result[\"double_chance\"][\"1x\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 128,
-      "end": 128,
-      "match": "assert result[\"double_chance\"][\"12\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 129,
-      "end": 129,
-      "match": "assert result[\"double_chance\"][\"x2\"] == 0.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 134,
-      "end": 134,
-      "match": "assert result[\"over_under_25\"][\"over\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 136,
-      "end": 136,
-      "match": "assert result[\"double_chance\"][\"1x\"] == 0.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 137,
-      "end": 137,
-      "match": "assert result[\"double_chance\"][\"12\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 138,
-      "end": 138,
-      "match": "assert result[\"double_chance\"][\"x2\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 143,
-      "end": 143,
-      "match": "assert result[\"over_under_25\"][\"under\"] == 100.0  # totals 2 and 0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 144,
-      "end": 144,
-      "match": "assert result[\"over_under_15\"][\"over\"] == 50.0  # 1+1=2 over, 0+0 under"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 147,
-      "end": 147,
-      "match": "assert result[\"double_chance\"][\"1x\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 148,
-      "end": 148,
-      "match": "assert result[\"double_chance\"][\"12\"] == 0.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 149,
-      "end": 149,
-      "match": "assert result[\"double_chance\"][\"x2\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 163,
-      "end": 163,
-      "match": "assert result[\"over_under_25\"][\"under\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 164,
-      "end": 164,
-      "match": "assert result[\"over_under_15\"][\"over\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 169,
-      "end": 169,
-      "match": "assert result[\"double_chance\"][\"1x\"] == pytest.approx(200.0 / 3, abs=0.05)"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 170,
-      "end": 170,
-      "match": "assert result[\"double_chance\"][\"12\"] == pytest.approx(200.0 / 3, abs=0.05)"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 171,
-      "end": 171,
-      "match": "assert result[\"double_chance\"][\"x2\"] == pytest.approx(200.0 / 3, abs=0.05)"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 175,
-      "end": 175,
-      "match": "assert result[\"over_under_25\"][\"under\"] == 100.0  # 2 <= 2.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 176,
-      "end": 176,
-      "match": "assert result[\"over_under_15\"][\"over\"] == 100.0  # 2 > 1.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 177,
-      "end": 177,
-      "match": "assert result[\"over_under_05\"][\"over\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 181,
-      "end": 181,
-      "match": "assert result[\"over_under_25\"][\"over\"] == 100.0  # 3 > 2.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 182,
-      "end": 182,
-      "match": "assert result[\"over_under_35\"][\"under\"] == 100.0  # 3 < 3.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 186,
-      "end": 186,
-      "match": "assert result[\"over_under_35\"][\"over\"] == 100.0  # 4 > 3.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 187,
-      "end": 187,
-      "match": "assert result[\"over_under_45\"][\"under\"] == 100.0  # 4 < 4.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 191,
-      "end": 191,
-      "match": "assert result[\"over_under_45\"][\"over\"] == 100.0  # 5 > 4.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 195,
-      "end": 195,
-      "match": "assert result[\"over_under_05\"][\"under\"] == 100.0  # 0 < 0.5"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 210,
-      "end": 210,
-      "match": "assert result[\"over_under_05\"][\"under\"] == 100.0"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_consensus.py",
-      "start": 262,
-      "end": 262,
-      "match": "dc = result[\"double_chance\"]"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 28,
-      "end": 28,
-      "match": "\"BTTS Yes\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 29,
-      "end": 29,
-      "match": "\"BTTS No\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 44,
-      "end": 44,
-      "match": "\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 45,
-      "end": 45,
-      "match": "\"over_under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 46,
-      "end": 46,
-      "match": "\"over_under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 47,
-      "end": 47,
-      "match": "\"over_under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 48,
-      "end": 48,
-      "match": "\"over_under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 50,
-      "end": 50,
-      "match": "\"double_chance\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 53,
-      "end": 53,
-      "match": "\"cons_home\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 54,
-      "end": 54,
-      "match": "\"cons_draw\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 55,
-      "end": 55,
-      "match": "\"cons_away\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 56,
-      "end": 56,
-      "match": "\"cons_over_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 57,
-      "end": 57,
-      "match": "\"cons_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 58,
-      "end": 58,
-      "match": "\"cons_btts_yes\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 59,
-      "end": 59,
-      "match": "\"cons_btts_no\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 60,
-      "end": 60,
-      "match": "\"cons_over_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 61,
-      "end": 61,
-      "match": "\"cons_under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 62,
-      "end": 62,
-      "match": "\"cons_over_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 63,
-      "end": 63,
-      "match": "\"cons_under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 64,
-      "end": 64,
-      "match": "\"cons_over_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 65,
-      "end": 65,
-      "match": "\"cons_under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 66,
-      "end": 66,
-      "match": "\"cons_over_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 67,
-      "end": 67,
-      "match": "\"cons_under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 68,
-      "end": 68,
-      "match": "\"cons_dc_1x\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 69,
-      "end": 69,
-      "match": "\"cons_dc_12\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 70,
-      "end": 70,
-      "match": "\"cons_dc_x2\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 83,
-      "end": 83,
-      "match": "\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 84,
-      "end": 84,
-      "match": "\"over_under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 87,
-      "end": 87,
-      "match": "\"over_under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 88,
-      "end": 88,
-      "match": "\"over_under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 89,
-      "end": 89,
-      "match": "\"over_under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 90,
-      "end": 90,
-      "match": "\"over_under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 91,
-      "end": 91,
-      "match": "\"over_under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 92,
-      "end": 92,
-      "match": "\"over_under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 93,
-      "end": 93,
-      "match": "\"over_under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 94,
-      "end": 94,
-      "match": "\"over_under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 95,
-      "end": 95,
-      "match": "\"double_chance\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 96,
-      "end": 96,
-      "match": "\"double_chance\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 97,
-      "end": 97,
-      "match": "\"double_chance\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 122,
-      "end": 122,
-      "match": "\"odds_home\": \"home\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 123,
-      "end": 123,
-      "match": "\"odds_draw\": \"draw\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 124,
-      "end": 124,
-      "match": "\"odds_away\": \"away\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 125,
-      "end": 125,
-      "match": "\"odds_over_25\": \"over_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 126,
-      "end": 126,
-      "match": "\"odds_under_25\": \"under_25\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 127,
-      "end": 127,
-      "match": "\"odds_over_05\": \"over_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 128,
-      "end": 128,
-      "match": "\"odds_under_05\": \"under_05\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 129,
-      "end": 129,
-      "match": "\"odds_over_15\": \"over_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 130,
-      "end": 130,
-      "match": "\"odds_under_15\": \"under_15\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 131,
-      "end": 131,
-      "match": "\"odds_over_35\": \"over_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 132,
-      "end": 132,
-      "match": "\"odds_under_35\": \"under_35\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 133,
-      "end": 133,
-      "match": "\"odds_over_45\": \"over_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 134,
-      "end": 134,
-      "match": "\"odds_under_45\": \"under_45\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 135,
-      "end": 135,
-      "match": "\"odds_btts_yes\": \"btts_yes\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 136,
-      "end": 136,
-      "match": "\"odds_btts_no\": \"btts_no\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 137,
-      "end": 137,
-      "match": "\"odds_dc_1x\": \"dc_1x\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 138,
-      "end": 138,
-      "match": "\"odds_dc_12\": \"dc_12\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 139,
-      "end": 139,
-      "match": "\"odds_dc_x2\": \"dc_x2\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 152,
-      "end": 152,
-      "match": "\"\"\"Movement lookups hit Odds-dataclass fields ('btts_y'), not stripped keys.\"\"\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 155,
-      "end": 155,
-      "match": "assert lookup_key(\"btts_yes\") == \"btts_y\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 156,
-      "end": 156,
-      "match": "assert lookup_key(\"btts_no\") == \"btts_n\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 165,
-      "end": 165,
-      "match": "'btts_y'/'btts_n' (Odds dataclass fields) vs 'btts_yes'/'btts_no'"
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 186,
-      "end": 186,
-      "match": "\"btts_y\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 187,
-      "end": 187,
-      "match": "\"btts_n\","
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 193,
-      "end": 193,
-      "match": "assert MARKET_BY_CRAWLER_FIELD[\"btts_y\"].key == \"BTTS Yes\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 194,
-      "end": 194,
-      "match": "assert MARKET_BY_CRAWLER_FIELD[\"btts_y\"].odds_key.removeprefix(\"odds_\") == \"btts_yes\""
-    },
-    {
-      "rule_id": "no-raw-market-key-literals",
-      "path": "tests/test_markets_contract.py",
-      "start": 195,
-      "end": 195,
-      "match": "assert MARKET_BY_CRAWLER_FIELD[\"btts_n\"].key == \"BTTS No\""
     }
   ]
 }

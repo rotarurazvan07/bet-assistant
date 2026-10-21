@@ -25,7 +25,7 @@ import pytest
 
 from bet_framework.BetAssistant import MARKET_MAP, BetAssistant
 from bet_framework.core.consensus import calc_consensus
-from bet_framework.core.market_config import MARKET_DEFINITIONS
+from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
     apply_odds_movement_adjustment,
@@ -42,7 +42,7 @@ from bet_framework.core.scoring import (
     score_sources,
 )
 from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
-from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
+from bet_framework.markets.enums import MarketKey, MarketType, Outcome
 
 
 def test_candidate_market_map_matches_canonical_catalog() -> None:
@@ -51,7 +51,7 @@ def test_candidate_market_map_matches_canonical_catalog() -> None:
         for market_columns in MARKET_MAP.values()
         for cons_key, odds_key, market in market_columns
     }
-    canonical = {(market.cons_key, market.odds_key, market.market) for market in MARKET_DEFINITIONS}
+    canonical = {(spec.cons_key, spec.odds_key, spec.key) for spec in MARKET_CATALOG}
     assert configured == canonical
 
 
@@ -294,7 +294,7 @@ class TestScoringFunctions:
         opt = CandidateLeg(
             match_name="A vs B",
             datetime="2025-01-01",
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -374,7 +374,7 @@ class TestOddsMovementScoring:
         opt = CandidateLeg(
             match_name="A vs B",
             datetime="2025-01-01",
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -391,7 +391,7 @@ class TestOddsMovementScoring:
         opt = CandidateLeg(
             match_name="A vs B",
             datetime="2025-01-01",
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -418,33 +418,33 @@ class TestOutcomeFunctions:
             parse_score("invalid")
 
     def test_determine_outcome_home_win(self) -> None:
-        assert determine_outcome(2, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
-        assert determine_outcome(2, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
+        assert determine_outcome(2, 1, MarketKey.HOME, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(2, 1, MarketKey.AWAY, MarketType.RESULT) == Outcome.LOST
+        assert determine_outcome(2, 1, MarketKey.DRAW, MarketType.RESULT) == Outcome.LOST
 
     def test_determine_outcome_draw(self) -> None:
-        assert determine_outcome(1, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(1, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+        assert determine_outcome(1, 1, MarketKey.DRAW, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(1, 1, MarketKey.HOME, MarketType.RESULT) == Outcome.LOST
 
     def test_determine_outcome_away_win(self) -> None:
-        assert determine_outcome(0, 2, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(0, 2, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+        assert determine_outcome(0, 2, MarketKey.AWAY, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(0, 2, MarketKey.HOME, MarketType.RESULT) == Outcome.LOST
 
     def test_determine_outcome_over_25(self) -> None:
-        assert determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
-        assert determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
+        assert determine_outcome(2, 1, MarketKey.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
+        assert determine_outcome(1, 0, MarketKey.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
     def test_determine_outcome_under_25(self) -> None:
-        assert determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
+        assert determine_outcome(1, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
+        assert determine_outcome(2, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
     def test_determine_outcome_btts_yes(self) -> None:
-        assert determine_outcome(1, 1, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.WON
-        assert determine_outcome(1, 0, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.LOST
+        assert determine_outcome(1, 1, MarketKey.BTTS_YES, MarketType.BTTS) == Outcome.WON
+        assert determine_outcome(1, 0, MarketKey.BTTS_YES, MarketType.BTTS) == Outcome.LOST
 
     def test_determine_outcome_btts_no(self) -> None:
-        assert determine_outcome(1, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.LOST
+        assert determine_outcome(1, 0, MarketKey.BTTS_NO, MarketType.BTTS) == Outcome.WON
+        assert determine_outcome(2, 1, MarketKey.BTTS_NO, MarketType.BTTS) == Outcome.LOST
 
     def test_determine_outcome_unknown_market_type(self) -> None:
         assert determine_outcome(1, 0, "?", "unknown_type") == Outcome.PENDING
@@ -695,7 +695,7 @@ class TestSaveAndGetSlips:
             CandidateLeg(
                 match_name=f"Home_{i} vs Away_{i}",
                 datetime=DT_BASE + timedelta(hours=i),
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50 + (i * 0.1),
                 result_url=f"https://example.com/match/{i}",
@@ -762,7 +762,7 @@ class TestDeleteSlip:
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://x",
@@ -787,7 +787,7 @@ class TestUpdateLeg:
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://x",
@@ -808,7 +808,7 @@ class TestUpdateLeg:
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://x",
@@ -832,7 +832,7 @@ class TestGetExcludedUrls:
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://pending-url",
@@ -849,7 +849,7 @@ class TestGetExcludedUrls:
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://won-url",
@@ -869,7 +869,7 @@ class TestGetExcludedUrls:
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://lost-slip-pending",
@@ -879,7 +879,7 @@ class TestGetExcludedUrls:
             CandidateLeg(
                 match_name="C vs D",
                 datetime=DT_BASE,
-                market=MarketLabel.AWAY,
+                market=MarketKey.AWAY,
                 market_type=MarketType.RESULT,
                 odds=2.0,
                 result_url="http://lost-slip-lost",
@@ -918,7 +918,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.PENDING,
@@ -935,7 +935,7 @@ class TestRowsToSlips:
                 1.0,
                 "C vs D",
                 "2026-04-01T18:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
@@ -959,7 +959,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.PENDING,
@@ -982,7 +982,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
@@ -1005,7 +1005,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
@@ -1022,7 +1022,7 @@ class TestRowsToSlips:
                 1.0,
                 "C vs D",
                 "2026-04-01T18:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.LOST,
@@ -1045,7 +1045,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.LIVE,
@@ -1062,7 +1062,7 @@ class TestRowsToSlips:
                 1.0,
                 "C vs D",
                 "2026-04-01T18:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
@@ -1085,7 +1085,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.PENDING,
@@ -1102,7 +1102,7 @@ class TestRowsToSlips:
                 2.0,
                 "C vs D",
                 "2026-04-02T15:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.WON,
@@ -1231,7 +1231,7 @@ class TestBetAssistantScenarios:
             leg = CandidateLeg(
                 match_name="Home_0 vs Away_0",
                 datetime=DT_BASE,
-                market=MarketLabel.BTTS_YES,
+                market=MarketKey.BTTS_YES,
                 market_type=MarketType.BTTS,
                 odds=1.90,
                 result_url="https://example.com/match/0",
@@ -1246,7 +1246,7 @@ class TestBetAssistantScenarios:
             rows = ba.fetch_rows("SELECT market, market_type FROM legs WHERE slip_id = ?", (slip_id,))
             assert len(rows) == 1
             market, market_type = rows[0]
-            assert market == "BTTS Yes"
+            assert market == "btts_yes"
             assert market_type == "btts"
 
 
@@ -1262,7 +1262,7 @@ class TestSourceReliabilityTracking:
             CandidateLeg(
                 match_name="Home_0 vs Away_0",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="https://example.com/match/0",
@@ -1295,7 +1295,7 @@ class TestSourceReliabilityTracking:
             CandidateLeg(
                 match_name="Home_0 vs Away_0",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="https://example.com/match/0",
@@ -1381,7 +1381,7 @@ class TestSourceReliabilityTracking:
         leg = CandidateLeg(
             match_name="A vs B",
             datetime=DT_BASE,
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -1397,7 +1397,7 @@ class TestSourceReliabilityTracking:
         leg = BetLeg(
             match_name="A vs B",
             datetime=DT_BASE,
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             odds=1.50,
             status=Outcome.PENDING,
@@ -1497,7 +1497,7 @@ class TestSourceReliabilityTracking:
             CandidateLeg(
                 match_name="Home vs Away",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://test",
@@ -1516,7 +1516,7 @@ class TestSourceReliabilityTracking:
         leg_id = rows[0]["leg_id"]
 
         # Use settle_leg_manually which stores final_score
-        outcome = ba.settle_leg_manually(leg_id, "2:1", "1", "result")
+        outcome = ba.settle_leg_manually(leg_id, "2:1", "home", "result")
         assert outcome == "Won"
 
         # Check final_score is stored
@@ -1534,7 +1534,7 @@ class TestSourceReliabilityTracking:
             CandidateLeg(
                 match_name="Home vs Away",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://test1",
@@ -1548,7 +1548,7 @@ class TestSourceReliabilityTracking:
             CandidateLeg(
                 match_name="Home2 vs Away2",
                 datetime=DT_BASE,
-                market=MarketLabel.OVER_25,
+                market=MarketKey.OVER_25,
                 market_type=MarketType.OVER_UNDER_25,
                 odds=1.80,
                 result_url="http://test2",

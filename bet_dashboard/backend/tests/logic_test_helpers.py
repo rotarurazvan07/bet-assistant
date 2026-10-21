@@ -31,7 +31,7 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
 from core.logic import AppLogic  # noqa: E402
 
 from bet_framework.core.Slip import CandidateLeg  # noqa: E402
-from bet_framework.core.type_defs import MarketLabel, MarketType  # noqa: E402
+from bet_framework.markets.enums import MarketKey, MarketType  # noqa: E402
 
 # ── FakeTicker: thread-free test double for TickerService ────────────────────
 
@@ -238,7 +238,7 @@ def make_candidate(i=0, odds=1.9, **overrides):
     return CandidateLeg(
         match_name=f"Team Home {i} - Team Away {i}",
         datetime=datetime(2030, 1, 1, 20, 0),
-        market=MarketLabel.HOME,
+        market=MarketKey.HOME,
         market_type=MarketType.RESULT,
         consensus=75.0,
         odds=odds,

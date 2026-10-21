@@ -545,7 +545,7 @@ export interface components {
      * @description Canonical market identity keys (frozen values).
      * @enum {string}
      */
-    MarketKey: "1" | "X" | "2" | "Over 2.5" | "Under 2.5" | "BTTS Yes" | "BTTS No" | "Over 0.5" | "Under 0.5" | "Over 1.5" | "Under 1.5" | "Over 3.5" | "Under 3.5" | "Over 4.5" | "Under 4.5" | "1X" | "12" | "X2";
+    MarketKey: "home" | "draw" | "away" | "over_25" | "under_25" | "btts_yes" | "btts_no" | "over_05" | "under_05" | "over_15" | "under_15" | "over_35" | "under_35" | "over_45" | "under_45" | "dc_1x" | "dc_12" | "dc_x2";
     /**
      * MarketType
      * @description Canonical market category routing keys (frozen values).

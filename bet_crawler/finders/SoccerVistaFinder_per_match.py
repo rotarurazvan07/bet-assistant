@@ -234,8 +234,8 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             "odds-link-under-3.5": "under_35",
             "odds-link-over-4.5": "over_45",
             "odds-link-under-4.5": "under_45",
-            "odds-link-yes": MARKET_BY_KEY["BTTS Yes"].crawler_field,
-            "odds-link-no": MARKET_BY_KEY["BTTS No"].crawler_field,
+            "odds-link-yes": MARKET_BY_KEY["btts_yes"].key,
+            "odds-link-no": MARKET_BY_KEY["btts_no"].key,
         }
 
         extracted_data = {}

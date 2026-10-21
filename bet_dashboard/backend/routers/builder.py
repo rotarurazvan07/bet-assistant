@@ -7,7 +7,17 @@ from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 
 from bet_framework.core.Slip import BetSlipConfig
-from bet_framework.markets.compat import coerce_key, coerce_type
+from bet_framework.markets.catalog import MARKET_BY_KEY
+from bet_framework.markets.enums import MarketType
+
+
+def coerce_key(value):
+    return value if isinstance(value, str) else str(value)
+
+
+def coerce_type(value):
+    return value if isinstance(value, str) else str(value)
+
 
 router = APIRouter(prefix="/api/builder", tags=["builder"])
 

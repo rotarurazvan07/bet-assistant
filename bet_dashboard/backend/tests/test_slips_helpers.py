@@ -17,13 +17,13 @@ from routers.slips import (
     validate_manual_leg,
 )
 
-from bet_framework.core.type_defs import MarketType, Outcome
+from bet_framework.markets.enums import MarketType, Outcome
 
 
 def _leg_dict(**overrides) -> dict:
     leg = {
         "match_name": "Real Madrid - Barcelona",
-        "market": "1",
+        "market": "home",
         "odds": 1.9,
         "result_url": "https://example.com/match/1",
     }
@@ -64,20 +64,20 @@ class TestValidateManualLegMarket:
 
     def test_allowed_market_passes(self) -> None:
         logic = FakeDashboardLogic()
-        assert validate_manual_leg(_leg_dict(market="Over 2.5"), logic) == {"valid": True}
+        assert validate_manual_leg(_leg_dict(market="over_25"), logic) == {"valid": True}
 
     def test_disallowed_market_rejected(self) -> None:
         logic = FakeDashboardLogic()
         result = validate_manual_leg(_leg_dict(market="Corner Over 9.5"), logic)
         assert result["valid"] is False
         assert "Invalid market 'Corner Over 9.5'" in result["error"]
-        assert "Over 2.5" in result["error"]  # allowed list surfaced
+        assert "over_25" in result["error"]  # allowed list surfaced
 
     def test_enum_market_value_extracted(self) -> None:
-        from bet_framework.core.type_defs import MarketLabel
+        from bet_framework.markets.enums import MarketKey
 
         logic = FakeDashboardLogic()
-        assert validate_manual_leg(_leg_dict(market=MarketLabel.HOME), logic) == {"valid": True}
+        assert validate_manual_leg(_leg_dict(market=MarketKey.HOME), logic) == {"valid": True}
 
 
 class TestValidateManualLegOdds:
@@ -129,7 +129,7 @@ class TestDictToCandidateLeg:
     def _full(self, **overrides) -> dict:
         d = {
             "match_name": "A - B",
-            "market": "1",
+            "market": "home",
             "market_type": "result",
             "odds": 1.9,
             "result_url": "https://x.com/1",
@@ -142,7 +142,7 @@ class TestDictToCandidateLeg:
     def test_happy_path_builds_candidate_leg(self) -> None:
         leg = _dict_to_candidate_leg(self._full())
         assert leg.match_name == "A - B"
-        assert leg.market.value == "1"
+        assert leg.market.value == "home"
         assert leg.market_type == MarketType.RESULT
         assert leg.consensus == 55.0
         assert leg.sources == 4
@@ -220,7 +220,7 @@ class TestLegAndSlipSerialization:
         leg = SimpleNamespace(
             match_name="A",
             datetime=None,
-            market="1",
+            market="home",
             market_type="result",
             odds=2.0,
             status="Pending",
@@ -234,7 +234,7 @@ class TestLegAndSlipSerialization:
         leg = SimpleNamespace(
             match_name="A",
             datetime="2030-01-01 20:00",
-            market="1",
+            market="home",
             market_type="result",
             odds=2.0,
             status="Pending",

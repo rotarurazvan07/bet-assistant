@@ -25,8 +25,8 @@ import {
 function manualLeg(overrides: Partial<ManualLegIn> = {}): ManualLegIn {
     return {
         match_name: 'Arsenal vs Chelsea',
-        market: 'Home',
-        market_type: 'Result',
+        market: 'home',
+        market_type: 'result',
         odds: 1.9,
         result_url: 'https://example.com/match/1',
         datetime: '2026-09-25T15:00:00',

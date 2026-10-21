@@ -63,8 +63,8 @@ graph TD
     WS[ws.py
     ConnectionManager
     Thread-safe Broadcast]
-    MC[market_config.py
-    MarketDef + Constants]
+    MK[bet_framework/markets/
+    canonical catalog]
     SC[schemas.py
     Pydantic Request/Response]
     AU[analytics_utils.py
@@ -189,8 +189,8 @@ has_sig = only_significant_movement
 
 if has_cons or has_odds or has_sig:
     mask = pd.Series(False, index=df.index)
-    for md in MARKET_DEFINITIONS:
-        if md.cons_key not in df.columns:
+    for spec in MARKET_CATALOG:
+        if spec.cons_key not in df.columns:
             continue
         cell_ok = pd.Series(True, index=df.index)
         if has_cons:
@@ -466,15 +466,17 @@ ws_manager.broadcast_sync(
 )
 ```
 
-### Market Config (`core/market_config.py`, deprecated facade)
+### Market identity (`bet_framework/markets/`, canonical)
 
-**Canonical market definitions now live in `bet_framework/markets/`** (single source of truth): `catalog.py` owns identity/columns, `enums.py` the `MarketKey`/`MarketType` StrEnums (frozen values), `keys.py` the column-key helpers, `views.py` the key-indexed structures, `compat.py` the tolerant boundary coercion. `core/market_config.py` remains a deprecated facade that materializes the historical names (`MARKET_DEFINITIONS`, `CONSENSUS_COLUMNS`, `ALL_MARKETS`, `MARKET_BY_ID`, ...) from the canonical catalog during burn-down; add new markets in `bet_framework/markets/catalog.py` (plus one frontend presentation-order entry in `marketConfig.ts`), never here. Values are frozen: renaming a persisted key is a data migration, not a code edit.
+**Market identity lives ONLY in `bet_framework/markets/`** (single source of truth, zero translation layers): `catalog.py` owns identity and columns — `MarketSpec.key` IS the persisted DB/Odds field spelling (`home`, `over_25`, `btts_yes`, `dc_1x`), `label` the display text, `market_type` the routing key, `cons_key`/`odds_key` the column names; `enums.py` the `MarketKey`/`MarketType` StrEnums whose values are those same spellings; `keys.py` the column-key helpers plus the one-cycle `legacy_market_key` read shim; `views.py` the key-indexed dicts and derived views; `contract.py` the JSON snapshot. Adding a market = 1 row in `catalog.py` + 1 frontend presentation-order entry in `marketConfig.ts`, then regenerate (`npm run codegen:markets`). Values are frozen: renaming a persisted key is a data migration, not a code edit.
 
 ```python
-MARKET_DEFINITIONS = [
-    MarketDef("1", "cons_home", "odds_home", "result"),
-    MarketDef("X", "cons_draw", "odds_draw", "result"),
-    MarketDef("2", "cons_away", "odds_away", "result"),
+from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.enums import MarketKey
+
+MarketKey.HOME  # 'home' — identity == persisted Odds field spelling
+MARKET_CATALOG[0]  # MarketSpec(key='home', label='1', market_type='result', ...)
+
     MarketDef("Over 2.5", "cons_over_25", "odds_over_25", "over_under_25"),
     # ... 18 total markets
 ]
@@ -597,7 +599,7 @@ def merge_with_history_preservation(self, fresh_db_path, max_history=3, local_tz
 | `consensus.py` | `calc_consensus(scores)`, `to_pct(n, total)` |
 | `scoring.py` | `score_pick()`, `resolve_tolerance()`, `resolve_stop_threshold()`, `apply_odds_movement_adjustment()` |
 | `outcomes.py` | `determine_outcome(home, away, market, type)`, `parse_score()` |
-| `types.py` | `MarketType`, `Outcome`, `MatchStatus`, `MarketLabel` enums |
+| (canonical `bet_framework/markets/enums.py`) | `MarketType`, `MarketKey`, `Outcome`, `MatchStatus` enums |
 | `utils.py` | `is_valid_url()`, `coerce_datetime_str()` |
 | `leagues.py` | League name constants |
 

@@ -77,13 +77,13 @@ class TestPreview:
         assert cfg.balance_decay == "linear"
 
     def test_preview_enum_market_serialized_to_value(self, client, fake_app) -> None:
-        from bet_framework.core.type_defs import MarketLabel, MarketType
+        from bet_framework.markets.enums import MarketKey, MarketType
 
         fake_app.build_preview.return_value = [
-            make_candidate_leg(market=MarketLabel.OVER_25, market_type=MarketType.OVER_UNDER_25)
+            make_candidate_leg(market=MarketKey.OVER_25, market_type=MarketType.OVER_UNDER_25)
         ]
         leg = client.post(f"{BASE}/preview", json={}).json()["legs"][0]
-        assert leg["market"] == "Over 2.5"
+        assert leg["market"] == "over_25"
         assert leg["market_type"] == "over_under_25"
 
     def test_preview_none_market_type_serialized_null(self, client, fake_app) -> None:

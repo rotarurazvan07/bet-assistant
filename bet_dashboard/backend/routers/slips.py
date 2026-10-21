@@ -5,9 +5,10 @@ from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
-from bet_framework.core.market_config import ALLOWED_MARKETS
+from bet_framework.markets.views import ALLOWED_MARKET_KEYS as ALLOWED_MARKETS
 from bet_framework.core.Slip import CandidateLeg
-from bet_framework.core.type_defs import MarketLabel, MarketType
+from bet_framework.markets.enums import MarketKey, MarketType
+from bet_framework.markets.keys import legacy_market_key
 from bet_framework.core.utils import is_valid_url
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
@@ -171,8 +172,10 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         raise ValueError("market_type is required")
 
     try:
-        market = MarketLabel(market_str)
-    except ValueError:
+        market = MarketKey(legacy_market_key(market_str))
+    except (ValueError, KeyError):
+        # Unknown market string: keep the raw value; validation surfaces the error.
+        # (legacy_market_key translates pre-U1 labels for one cycle, see keys.py)
         market = market_str
 
     try:

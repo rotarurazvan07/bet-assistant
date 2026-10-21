@@ -85,8 +85,7 @@ Any frontend test that needs **populated** data must grow **both tracks together
 
 ## Canonical market keys (single source of truth)
 
-- Market identity lives ONLY in `bet_framework/markets/`: `catalog.py` (18 `MarketSpec` rows, order-free, values frozen — renaming a persisted key is a data migration), `enums.py` (`MarketKey`/`MarketType` StrEnums), `keys.py` (`consensus_key`/`odds_key`/`stripped_key` — the only `cons_`/`odds_` convention home), `views.py` (key-indexed dicts only), `compat.py` (`coerce_key`/`coerce_type`), `contract.py` (JSON snapshot).
-- Backend `core/market_config.py` and `type_defs.py` enums remain deprecated facades during burn-down (zero-reference-gated deletion).
+- Market identity lives ONLY in `bet_framework/markets/`: `catalog.py` (18 `MarketSpec` rows, order-free, values frozen — renaming a persisted key is a data migration), `enums.py` (`MarketKey`/`MarketType` StrEnums — values ARE the persisted DB/Odds field spellings, U1), `keys.py` (`stripped_key` + the one-cycle `legacy_market_key` read shim), `views.py` (key-indexed dicts + derived views), `contract.py` (JSON snapshot). No facades, no compat layer: market identity is one spelling everywhere.
 - Wire contract: backend response schemas type `market`/`market_type` with the canonical enums (serialized by `.value` — payloads are byte-identical to the old hand-built strings; inputs stay validated strings in routers).
 - Frontend: `npm run codegen:markets` (in `bet_dashboard/frontend`) regenerates `src/types/api.generated.ts` + the contract snapshot fixture from the backend; `config/marketConfig.ts` is presentation order + labels ONLY. CI fails on drift (`codegen:markets:check`).
 - Adding a market = 1 row in `markets/catalog.py` + 1 frontend order entry + parity tests cover the rest (`tests/test_markets_contract.py`, `src/test/marketsContract.test.ts`).

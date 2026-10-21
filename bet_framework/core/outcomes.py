@@ -11,7 +11,7 @@ Public surface
   determine_outcome(home, away, market, type)    → Outcome
 """
 
-from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
+from bet_framework.markets.enums import MarketKey, MarketType, Outcome
 
 
 def parse_score(raw: str) -> tuple[int, int]:
@@ -70,11 +70,11 @@ def determine_outcome(home: int, away: int, market: str, market_type: str) -> Ou
 
 def _handle_result_market(home: int, away: int, market: str) -> Outcome:
     """Handle 1X2 (result) market outcomes."""
-    if market == MarketLabel.HOME and home > away:
+    if market == MarketKey.HOME and home > away:
         return Outcome.WON
-    if market == MarketLabel.AWAY and away > home:
+    if market == MarketKey.AWAY and away > home:
         return Outcome.WON
-    if market == MarketLabel.DRAW and home == away:
+    if market == MarketKey.DRAW and home == away:
         return Outcome.WON
     return Outcome.LOST
 
@@ -82,20 +82,20 @@ def _handle_result_market(home: int, away: int, market: str) -> Outcome:
 def _handle_btts_market(home: int, away: int, market: str) -> Outcome:
     """Handle Both Teams To Score (BTTS) market outcomes."""
     scored = home > 0 and away > 0
-    if market == MarketLabel.BTTS_YES and scored:
+    if market == MarketKey.BTTS_YES and scored:
         return Outcome.WON
-    if market == MarketLabel.BTTS_NO and not scored:
+    if market == MarketKey.BTTS_NO and not scored:
         return Outcome.WON
     return Outcome.LOST
 
 
 def _handle_double_chance_market(home: int, away: int, market: str) -> Outcome:
     """Handle Double Chance market outcomes."""
-    if market == MarketLabel.DC_1X and (home >= away):  # Home win or draw (1X)
+    if market == MarketKey.DC_1X and (home >= away):  # Home win or draw (1X)
         return Outcome.WON
-    if market == MarketLabel.DC_12 and (home != away):  # Either team wins (12)
+    if market == MarketKey.DC_12 and (home != away):  # Either team wins (12)
         return Outcome.WON
-    if market == MarketLabel.DC_X2 and (away >= home):  # Away win or draw (X2)
+    if market == MarketKey.DC_X2 and (away >= home):  # Away win or draw (X2)
         return Outcome.WON
     return Outcome.LOST
 
@@ -105,25 +105,24 @@ def _handle_over_under_market(home: int, away: int, market: str) -> Outcome:
     total = home + away
 
     # Determine threshold based on market label
-    if market in (MarketLabel.OVER_05, MarketLabel.UNDER_05):
+    if market in (MarketKey.OVER_05, MarketKey.UNDER_05):
         threshold = 0.5
-    elif market in (MarketLabel.OVER_15, MarketLabel.UNDER_15):
+    elif market in (MarketKey.OVER_15, MarketKey.UNDER_15):
         threshold = 1.5
-    elif market in (MarketLabel.OVER_35, MarketLabel.UNDER_35):
+    elif market in (MarketKey.OVER_35, MarketKey.UNDER_35):
         threshold = 3.5
-    elif market in (MarketLabel.OVER_45, MarketLabel.UNDER_45):
+    elif market in (MarketKey.OVER_45, MarketKey.UNDER_45):
         threshold = 4.5
     else:  # Default to 2.5 for OVER_25, UNDER_25
         threshold = 2.5
 
     if (
-        market in (MarketLabel.OVER_05, MarketLabel.OVER_15, MarketLabel.OVER_25, MarketLabel.OVER_35, MarketLabel.OVER_45)
+        market in (MarketKey.OVER_05, MarketKey.OVER_15, MarketKey.OVER_25, MarketKey.OVER_35, MarketKey.OVER_45)
         and total > threshold
     ):
         return Outcome.WON
     if (
-        market
-        in (MarketLabel.UNDER_05, MarketLabel.UNDER_15, MarketLabel.UNDER_25, MarketLabel.UNDER_35, MarketLabel.UNDER_45)
+        market in (MarketKey.UNDER_05, MarketKey.UNDER_15, MarketKey.UNDER_25, MarketKey.UNDER_35, MarketKey.UNDER_45)
         and total < threshold
     ):
         return Outcome.WON

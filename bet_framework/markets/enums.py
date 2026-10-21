@@ -23,30 +23,32 @@ class MarketType(StrEnum):
 
 
 class MarketKey(StrEnum):
-    """Persisted market identity: the 18 market labels (e.g. 'BTTS Yes')."""
+    """Persisted market identity: the persisted DB/Odds field spellings.
 
-    HOME = "1"
-    DRAW = "X"
-    AWAY = "2"
-    OVER_25 = "Over 2.5"
-    UNDER_25 = "Under 2.5"
-    BTTS_YES = "BTTS Yes"
-    BTTS_NO = "BTTS No"
-    OVER_05 = "Over 0.5"
-    UNDER_05 = "Under 0.5"
-    OVER_15 = "Over 1.5"
-    UNDER_15 = "Under 1.5"
-    OVER_35 = "Over 3.5"
-    UNDER_35 = "Under 3.5"
-    OVER_45 = "Over 4.5"
-    UNDER_45 = "Under 4.5"
-    DC_1X = "1X"
-    DC_12 = "12"
-    DC_X2 = "X2"
+    Values are IDENTICAL to the Odds dataclass fields / odds-* stripped keys
+    ('home', 'over_25', 'btts_yes', 'dc_1x', ...): no translation layer exists
+    between the canonical identity and the persisted format. Display text
+    lives in MarketSpec.label, never here.
+    """
 
-
-# Deprecated alias kept for the shim era: same values as MarketKey.
-MarketLabel = MarketKey
+    HOME = "home"
+    DRAW = "draw"
+    AWAY = "away"
+    OVER_25 = "over_25"
+    UNDER_25 = "under_25"
+    BTTS_YES = "btts_yes"
+    BTTS_NO = "btts_no"
+    OVER_05 = "over_05"
+    UNDER_05 = "under_05"
+    OVER_15 = "over_15"
+    UNDER_15 = "under_15"
+    OVER_35 = "over_35"
+    UNDER_35 = "under_35"
+    OVER_45 = "over_45"
+    UNDER_45 = "under_45"
+    DC_1X = "dc_1x"
+    DC_12 = "dc_12"
+    DC_X2 = "dc_x2"
 
 
 class Outcome(StrEnum):
