@@ -5,6 +5,7 @@ import { formatBetDate } from '../utils/betUtils';
 import { parseTeamNames } from '../utils/teamUtils';
 import { getStatusColor, getStatusBadge } from '../utils/colorUtils';
 import { calculateNetProfit } from '../utils/calculationUtils';
+import { marketLabel } from '../config/marketConfig';
 import { getPotentialStatusColor } from '../utils/colorUtils';
 
 // ── BetPreview ────────────────────────────────────────────────────────────────
@@ -194,7 +195,7 @@ export function BetPreview({ legs, pendingUrls, onExclude, minStrength }: Previe
                                             color: 'var(--accent)',
                                             boxShadow: '0 0 12px var(--accent-glow)',
                                         }}>
-                                        {leg.market} <span style={{ opacity: 0.7, margin: '0 3px' }}></span>@{leg.odds.toFixed(2)}
+                                        {marketLabel(leg.market)} <span style={{ opacity: 0.7, margin: '0 3px' }}></span>@{leg.odds.toFixed(2)}
                                     </span>
                                 </div>
 
@@ -299,7 +300,7 @@ export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
                                 color: 'white'
                             }}
                         >
-                            {leg.market} @{leg.odds.toFixed(2)}
+                            {marketLabel(leg.market)} @{leg.odds.toFixed(2)}
                         </span>
                         {live && leg.status === 'Live' && (
                             <div className="flex flex-col items-center gap-0.5">

@@ -25,7 +25,7 @@ describe('BetPreview', () => {
         // parseTeamNames splits on ' - ' (dash format, not 'vs')
         expect(screen.getByText('Arsenal')).toBeInTheDocument();
         expect(screen.getByText('Chelsea')).toBeInTheDocument();
-        expect(screen.getByText(/Home @1\.90/)).toBeInTheDocument();
+        expect(screen.getByText(/1 @1\.90/)).toBeInTheDocument();
     });
 
     it('highlights legs already in a pending slip (divergence: strip, not toast)', () => {
@@ -105,7 +105,7 @@ describe('BetLegRow', () => {
     it('renders match name, date, league and market@odds badge', () => {
         render(<BetLegRow leg={makeBetLeg()} slipStatus="Pending" />);
         expect(screen.getByText('Arsenal vs Chelsea')).toBeInTheDocument();
-        expect(screen.getByText(/Home @1\.90/)).toBeInTheDocument();
+        expect(screen.getByText(/1 @1\.90/)).toBeInTheDocument();
         expect(screen.getByText('England')).toBeInTheDocument();
     });
 

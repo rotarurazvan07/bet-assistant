@@ -12,7 +12,7 @@ import { markFirstSlip } from '../components/tourStorage';
 import type { GlobalFilters } from '../components/Layout';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
-import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS } from '../config/marketConfig';
+import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS, marketLabel } from '../config/marketConfig';
 import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, SwipeableDrawer, useMediaQuery, Snackbar, Alert } from '@mui/material';
 
 // Derive columns from centralized config (fixed columns only - market columns filtered dynamically)
@@ -333,7 +333,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         if (pulseTimer.current) clearTimeout(pulseTimer.current);
         pulseTimer.current = setTimeout(() => setPulsingKey(null), 300);
         setLegAddNonce(n => n + 1);
-        setToast(`Added ${leg.market} @${leg.odds.toFixed(2)} to slip`);
+        setToast(`Added ${marketLabel(leg.market)} @${leg.odds.toFixed(2)} to slip`);
         if (element) flyClone(element);
     }
 

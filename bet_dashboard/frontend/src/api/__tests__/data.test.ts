@@ -182,7 +182,7 @@ describe('slips endpoints', () => {
         expect(id).toBe(42);
         expect((body as unknown as Record<string, unknown>).profile).toBe('low');
         expect((body as unknown as Record<string, unknown>).units).toBe(2.5);
-        expect(((body as unknown as Record<string, unknown>).legs as ManualLegIn[])[0].market).toBe('Home');
+        expect(((body as unknown as Record<string, unknown>).legs as ManualLegIn[])[0].market).toBe('home');
     });
 
     it('deleteSlip templated DELETE', async () => {
@@ -230,7 +230,7 @@ describe('analytics endpoint', () => {
         expect(query).toContain('profiles%5B%5D=low');
         expect(query).toContain('date_from=2026-09-01');
         expect(data.history[0].cumulative_profit).toBe(0.9);
-        expect(data.market_accuracy[0].market).toBe('Home');
+        expect(data.market_accuracy[0].market).toBe('home');
         expect(data.stats.edge).toBe(14.04);
         expect(data.time_patterns?.day_of_week[0].key).toBe('Monday');
     });

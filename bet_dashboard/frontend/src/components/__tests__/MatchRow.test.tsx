@@ -90,13 +90,13 @@ describe('MatchRow', () => {
     });
 
     it('visibleColumns filters market cells', () => {
-        renderRow({ visibleColumns: new Set(['1']) });
+        renderRow({ visibleColumns: new Set(['home']) });
         expect(screen.getByRole('button', { name: /Select 75% at @1\.90/ })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /55% at @1\.80/ })).not.toBeInTheDocument();
     });
 
     it('inSlipMarkets cells show loss styling', () => {
-        renderRow({ inSlipMarkets: new Set(['1']) });
+        renderRow({ inSlipMarkets: new Set(['home']) });
         const cell = screen.getByRole('button', { name: /Select 75% at @1\.90/ });
         expect(cell.getAttribute('style')).toContain('var(--loss-bg)');
     });

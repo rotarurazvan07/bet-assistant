@@ -97,3 +97,14 @@ export const ALLOWED_MARKETS = new Set(MARKET_COLUMNS.map(m => m.market));
  * List of all market identifiers in order.
  */
 export const ALL_MARKETS = MARKET_COLUMNS.map(m => m.market);
+
+// Canonical key -> display label lookup (U1: wire payloads carry DB field
+// spellings like 'home'; presentation must still show human labels like '1').
+const LABEL_BY_KEY: Record<string, string> = Object.fromEntries(
+    MARKET_COLUMNS.map((col) => [col.market, col.label]),
+);
+
+/** Display label for a canonical market key; falls back to the raw key. */
+export function marketLabel(key: string): string {
+    return LABEL_BY_KEY[key] ?? key;
+}
