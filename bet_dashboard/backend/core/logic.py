@@ -191,7 +191,7 @@ class AppLogic:
                     # Already ran today — sync in-memory guard and skip
                     self._last_generator_run = today_key
                     return False
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         self._last_generator_run = today_key
