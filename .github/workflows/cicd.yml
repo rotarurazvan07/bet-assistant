@@ -88,7 +88,7 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
+          ruff format --line-length 127 --target-version py311             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
@@ -688,10 +688,11 @@ jobs:
         # the committed versions: frontend/backend contract drift never lands.
         working-directory: bet_dashboard/frontend
         run: |
-          # export_openapi.py imports only fastapi/pydantic (routers are DB-free
-          # at import time), so the drift check does not pull the full backend
-          # stack (pandas/scrape-kit) into the frontend job.
-          python3 -m pip install -q fastapi pydantic
+          # export_openapi.py imports the backend package to build the OpenAPI
+          # schema; the import chain reaches finders/scrape-kit, so the backend
+          # requirements must be installed or the drift check dies with
+          # ModuleNotFoundError: scrape_kit (CI Frontend red, branch unmergeable).
+          python3 -m pip install -q -r ../backend/requirements.txt
           npm run codegen:markets:check
 
       - name: Type check
