@@ -293,9 +293,7 @@ class OddsPortalFinder(BaseMatchFinder):
                 links = []
                 for event in self._iter_ld_events(soup):
                     event_type = event.get("@type", [])
-                    event_types = (
-                        event_type if isinstance(event_type, list) else [event_type]
-                    )
+                    event_types = event_type if isinstance(event_type, list) else [event_type]
                     if "SportsEvent" not in event_types:
                         continue
                     match_url = self._normalize_match_url(event.get("url"))
@@ -325,9 +323,7 @@ class OddsPortalFinder(BaseMatchFinder):
                         )
                         continue
                     try:
-                        match_date = datetime.fromisoformat(
-                            start_date_str.replace("Z", "+00:00")
-                        ).date()
+                        match_date = datetime.fromisoformat(start_date_str.replace("Z", "+00:00")).date()
                     except (ValueError, TypeError, AttributeError) as exc:
                         log_event(
                             logger,
@@ -358,9 +354,7 @@ class OddsPortalFinder(BaseMatchFinder):
 
                 links = list(dict.fromkeys(links))
                 urls.extend(links)
-                logger.info(
-                    "Found %d match URLs on %s (total: %d)", len(links), url, len(urls)
-                )
+                logger.info("Found %d match URLs on %s (total: %d)", len(links), url, len(urls))
             except Exception as e:
                 exception_event(
                     logger,
@@ -396,18 +390,14 @@ class OddsPortalFinder(BaseMatchFinder):
                             timeout=self._BROWSER_TIMEOUT_MS,
                         )
                     except Exception as e:
-                        logger.warning(
-                            "[%s] Fetch error (retrying): %s", thread_name, e
-                        )
+                        logger.warning("[%s] Fetch error (retrying): %s", thread_name, e)
                         session.fetch(
                             url,
                             wait_until="domcontentloaded",
                             timeout=self._BROWSER_TIMEOUT_MS,
                         )
 
-                    self._wait_for_selector(
-                        session, 'script[type="application/ld+json"]', state="attached"
-                    )
+                    self._wait_for_selector(session, 'script[type="application/ld+json"]', state="attached")
                     soup = BeautifulSoup(session.page.content(), "html.parser")
                     identity = self._parse_identity(soup)
                     if identity is None:
@@ -421,12 +411,8 @@ class OddsPortalFinder(BaseMatchFinder):
                     home_team, away_team, match_date = identity
 
                     odds_1, odds_X, odds_2 = self._scrape_tab_1x2(session, thread_name)
-                    odds_btts_yes, odds_btts_no = self._scrape_tab_btts(
-                        session, thread_name
-                    )
-                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(
-                        session, thread_name
-                    )
+                    odds_btts_yes, odds_btts_no = self._scrape_tab_btts(session, thread_name)
+                    odds_dc_1x, odds_dc_12, odds_dc_x2 = self._scrape_tab_dc(session, thread_name)
                     ou = self._scrape_tab_ou(session, thread_name)
 
                     odds = Odds(
@@ -463,9 +449,7 @@ class OddsPortalFinder(BaseMatchFinder):
                             )
                         )
 
-                except (
-                    Exception
-                ) as e:  # per-row fault isolation: one bad page must not kill the batch
+                except Exception as e:  # per-row fault isolation: one bad page must not kill the batch
                     exception_event(
                         logger,
                         event="match.parse.failed",
@@ -534,9 +518,7 @@ class OddsPortalFinder(BaseMatchFinder):
         if isinstance(status_obj, str):
             status_str = status_obj
         elif isinstance(status_obj, dict):
-            status_str = str(status_obj.get("@id", "")) or str(
-                status_obj.get("name", "")
-            )
+            status_str = str(status_obj.get("@id", "")) or str(status_obj.get("name", ""))
         else:
             status_str = ""
         return "Scheduled" in status_str
@@ -602,9 +584,7 @@ class OddsPortalFinder(BaseMatchFinder):
             return (
                 str(home).strip(),
                 str(away).strip(),
-                match_date.replace(
-                    hour=0, minute=0, second=0, microsecond=0, tzinfo=None
-                ),
+                match_date.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None),
             )
         return None
 
@@ -615,13 +595,9 @@ class OddsPortalFinder(BaseMatchFinder):
         session.page.set_default_timeout(self._BROWSER_TIMEOUT_MS)
         session.page.set_default_navigation_timeout(self._BROWSER_TIMEOUT_MS)
 
-    def _wait_for_selector(
-        self, session, selector: str, *, state: str = "visible"
-    ) -> None:
+    def _wait_for_selector(self, session, selector: str, *, state: str = "visible") -> None:
         """Wait for a DOM control/content node before reading or interacting with it."""
-        session.page.wait_for_selector(
-            selector, state=state, timeout=self._BROWSER_TIMEOUT_MS
-        )
+        session.page.wait_for_selector(selector, state=state, timeout=self._BROWSER_TIMEOUT_MS)
 
     def _wait_for_function(self, session, expression: str) -> None:
         """Wait up to one minute for the live page's DOM/data condition."""
@@ -679,24 +655,16 @@ class OddsPortalFinder(BaseMatchFinder):
         button_selector = f'li.tab-item button:has-text("{tab_label}")'
         li_selector = f'li.tab-item:has-text("{tab_label}")'
         self._wait_for_selector(session, li_selector)
-        before = self._table_fingerprint(
-            BeautifulSoup(session.page.content(), "html.parser")
-        )
+        before = self._table_fingerprint(BeautifulSoup(session.page.content(), "html.parser"))
         try:
             self._wait_for_selector(session, button_selector)
-            clicked = session.click(
-                "li.tab-item button", tab_label, hard_cap_ms=self._BROWSER_TIMEOUT_MS
-            )
+            clicked = session.click("li.tab-item button", tab_label, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
         except Exception:
             clicked = False
         if not clicked:
-            assert self._click_selector(session, "li.tab-item", tab_label), (
-                "Click failed"
-            )
+            assert self._click_selector(session, "li.tab-item", tab_label), "Click failed"
         if expected_headers:
-            self._wait_for_function(
-                session, self._tab_ready_js(expected_headers, before)
-            )
+            self._wait_for_function(session, self._tab_ready_js(expected_headers, before))
         try:
             soup = BeautifulSoup(session.page.content(), "html.parser")
         except Exception as err:
@@ -709,9 +677,7 @@ class OddsPortalFinder(BaseMatchFinder):
         """Build a browser-side mutation predicate matching the Python readiness check."""
         prev_heads, prev_cells = before
         prev = [c for c in prev_cells if c and _DECIMAL.match(str(c))]
-        already_on_market = bool(prev_heads) and all(
-            h in prev_heads for h in expected_headers
-        )
+        already_on_market = bool(prev_heads) and all(h in prev_heads for h in expected_headers)
         return (
             "() => {"
             "const table = document.querySelector('table.w-full.table-fixed');"
@@ -753,9 +719,7 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_1 = odds_X = odds_2 = None
         try:
             logger.info("[%s] Extracting 1X2 odds", thread_name)
-            cells = self._first_bookmaker_odds(
-                self._click_tab(session, "1X2", ("1", "X", "2"))
-            )
+            cells = self._first_bookmaker_odds(self._click_tab(session, "1X2", ("1", "X", "2")))
             if len(cells) >= 3:
                 odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
         except Exception as e:
@@ -767,9 +731,7 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_btts_yes = odds_btts_no = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
-            cells = self._first_bookmaker_odds(
-                self._click_tab(session, "Both Teams to Score", ("Yes", "No"))
-            )
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
             if len(cells) >= 2:
                 odds_btts_yes, odds_btts_no = cells[0], cells[1]
         except Exception as e:
@@ -781,9 +743,7 @@ class OddsPortalFinder(BaseMatchFinder):
         odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
         try:
             logger.info("[%s] Extracting DC odds", thread_name)
-            cells = self._first_bookmaker_odds(
-                self._click_tab(session, "Double Chance", ("1X", "12", "X2"))
-            )
+            cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance", ("1X", "12", "X2")))
             if len(cells) >= 3:
                 odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
         except Exception as e:
@@ -841,12 +801,9 @@ class OddsPortalFinder(BaseMatchFinder):
             [len(c) for c in chunks],
         )
 
-        with ThreadPoolExecutor(
-            max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal"
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal") as executor:
             futures = {
-                executor.submit(copy_context().run, self._process_url_batch, chunk): i
-                for i, chunk in enumerate(chunks)
+                executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)
             }
             for future in as_completed(futures):
                 chunk_idx = futures[future]

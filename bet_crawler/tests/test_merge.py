@@ -48,17 +48,13 @@ class TestMergeP0:
             chunks / "actions-1.db",
             [make_match(home="Alpha FC", url="https://a.com/1")],
         )
-        make_chunk_db(
-            chunks / "actions-2.db", [make_match(home="Beta FC", url="https://b.com/1")]
-        )
+        make_chunk_db(chunks / "actions-2.db", [make_match(home="Beta FC", url="https://b.com/1")])
         final = tmp_path / "final.db"
         merge(str(final), str(chunks), SIM, {}, {})
         df = _fetch(str(final), SIM)
         assert sorted(df["home_name"]) == ["Alpha FC", "Beta FC"]
 
-    def test_fuzzy_dedup_across_chunks_single_row_merged_sources(
-        self, tmp_path
-    ) -> None:
+    def test_fuzzy_dedup_across_chunks_single_row_merged_sources(self, tmp_path) -> None:
         """Man Utd vs Manchester United (same away+datetime) → one row, 2 sources."""
         from bet_framework.core.Match import Score
 
@@ -71,9 +67,7 @@ class TestMergeP0:
             url="https://a.com/1",
         )
         m1.predictions = [Score(source="srcA", home=2, away=1)]
-        m2 = make_match(
-            home="Man Utd", away="Liverpool", preds=None, url="https://b.com/2"
-        )
+        m2 = make_match(home="Man Utd", away="Liverpool", preds=None, url="https://b.com/2")
         m2.predictions = [Score(source="srcB", home=3, away=1)]
         make_chunk_db(chunks / "actions-1.db", [m1])
         make_chunk_db(chunks / "actions-2.db", [m2])
@@ -118,9 +112,7 @@ class TestMergeP0:
         chunks = tmp_path / "chunks"
         chunks.mkdir()
         make_chunk_db(chunks / "actions-1.db", [])
-        make_chunk_db(
-            chunks / "actions-2.db", [make_match(home="Solo FC", url="https://a.com/1")]
-        )
+        make_chunk_db(chunks / "actions-2.db", [make_match(home="Solo FC", url="https://a.com/1")])
         final = tmp_path / "final.db"
         merge(str(final), str(chunks), SIM, {}, {})
         df = _fetch(str(final), SIM)
@@ -128,9 +120,7 @@ class TestMergeP0:
 
 
 class TestMergeSummaryP1:
-    def test_merge_completion_reports_missing_sources_as_partial(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_merge_completion_reports_missing_sources_as_partial(self, tmp_path, monkeypatch) -> None:
         chunks = tmp_path / "chunks"
         chunks.mkdir()
         make_chunk_db(
@@ -142,16 +132,9 @@ class TestMergeSummaryP1:
         monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
         configure_event_logging(str(event_path))
         try:
-            merge(
-                str(final), str(chunks), SIM, {"a": {}, "ghost": {}}, {"actions": ["a"]}
-            )
-            records = [
-                json.loads(line)
-                for line in event_path.read_text(encoding="utf-8").splitlines()
-            ]
-            completed = [
-                record for record in records if record["event"] == "stage.completed"
-            ][-1]
+            merge(str(final), str(chunks), SIM, {"a": {}, "ghost": {}}, {"actions": ["a"]})
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            completed = [record for record in records if record["event"] == "stage.completed"][-1]
             assert completed["outcome"] == "partial"
             assert completed["severity"] == "WARNING"
             assert completed["counts"]["crawlers_missing"] == 1
@@ -168,12 +151,8 @@ class TestMergeSummaryP1:
         )
         final = tmp_path / "final.db"
         with caplog.at_level("WARNING", logger="bet_crawler.crawl_core.merge"):
-            merge(
-                str(final), str(chunks), SIM, {"ghost": {}, "a": {}}, {"actions": ["a"]}
-            )
-        missing = [
-            r.getMessage() for r in caplog.records if "MISSING" in r.getMessage()
-        ]
+            merge(str(final), str(chunks), SIM, {"ghost": {}, "a": {}}, {"actions": ["a"]})
+        missing = [r.getMessage() for r in caplog.records if "MISSING" in r.getMessage()]
         assert any("ghost: 0 matches (MISSING)" in m for m in missing)
 
     def test_missing_runner_set_logs_error(self, tmp_path, caplog) -> None:
@@ -188,9 +167,7 @@ class TestMergeSummaryP1:
         final = tmp_path / "final.db"
         with caplog.at_level("ERROR", logger="bet_crawler.crawl_core.merge"):
             merge(str(final), str(chunks), SIM, {}, {"actions": ["a"], "local": ["b"]})
-        errs = [
-            r.getMessage() for r in caplog.records if "missing data" in r.getMessage()
-        ]
+        errs = [r.getMessage() for r in caplog.records if "missing data" in r.getMessage()]
         assert any("actions" in e for e in errs)
 
     def test_final_db_excluded_from_chunk_scan(self, tmp_path, caplog) -> None:
@@ -206,9 +183,7 @@ class TestMergeSummaryP1:
         df = _fetch(str(final), SIM)
         assert len(df) == 1  # merged once, not doubled by re-reading its own output
 
-    def test_scores_source_contributes_to_source_mapping(
-        self, tmp_path, caplog
-    ) -> None:
+    def test_scores_source_contributes_to_source_mapping(self, tmp_path, caplog) -> None:
         """Predictions source names (no URL) still count toward runner-set validation."""
         from bet_framework.core.Match import Score
 
@@ -220,9 +195,7 @@ class TestMergeSummaryP1:
         final = tmp_path / "final.db"
         with caplog.at_level("ERROR", logger="bet_crawler.crawl_core.merge"):
             merge(str(final), str(chunks), SIM, {}, {"actions": ["predictz"]})
-        errs = [
-            r.getMessage() for r in caplog.records if "missing data" in r.getMessage()
-        ]
+        errs = [r.getMessage() for r in caplog.records if "missing data" in r.getMessage()]
         assert errs == []  # predictz contributed → actions runner set seen
 
 
@@ -234,9 +207,7 @@ class TestMergeP2:
         with caplog.at_level("ERROR", logger="bet_crawler.crawl_core.merge"):
             merge(str(final), str(chunks), SIM, {}, {"actions": ["a"]})
         assert len(_fetch(str(final), SIM)) == 0
-        errs = [
-            r.getMessage() for r in caplog.records if "missing data" in r.getMessage()
-        ]
+        errs = [r.getMessage() for r in caplog.records if "missing data" in r.getMessage()]
         # expected runners derive from chunk filename prefixes — no chunks → nothing expected,
         # so an empty dir logs no missing-runner-set errors (pinned actual semantics)
         assert errs == []

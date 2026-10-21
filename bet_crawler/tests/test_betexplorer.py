@@ -220,20 +220,14 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
 
     def test_missing_critical_selectors_skips_url(self, monkeypatch) -> None:
-        content_map = {
-            "https://www.betexplorer.com/match/empty/": "<html><body><p>nothing</p></body></html>"
-        }
+        content_map = {"https://www.betexplorer.com/match/empty/": "<html><body><p>nothing</p></body></html>"}
         fake_browser(monkeypatch, be, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.betexplorer.com/match/empty/"])
         assert len(collector) == 0
 
     def test_broken_page_no_crash(self, monkeypatch) -> None:
-        content_map = {
-            "https://www.betexplorer.com/match/broken/": load_fixture(
-                "betexplorer", "broken.html"
-            )
-        }
+        content_map = {"https://www.betexplorer.com/match/broken/": load_fixture("betexplorer", "broken.html")}
         fake_browser(monkeypatch, be, content_map)
         finder, collector = _finder()
         finder._process_url_batch(["https://www.betexplorer.com/match/broken/"])

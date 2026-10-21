@@ -28,18 +28,10 @@ def snapshot() -> dict[str, dict[str, str]]:
 def emit(path: str | Path) -> dict[str, dict[str, str]]:
     """Write the canonical snapshot to ``path`` and return it."""
     data = snapshot()
-    Path(path).write_text(
-        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return data
 
 
-if (
-    __name__ == "__main__"
-):  # python -m bet_framework.markets.contract [path] -> refresh snapshot
-    target = (
-        Path(sys.argv[1])
-        if len(sys.argv) > 1
-        else Path(__file__).with_name("contract.snapshot.json")
-    )
+if __name__ == "__main__":  # python -m bet_framework.markets.contract [path] -> refresh snapshot
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).with_name("contract.snapshot.json")
     emit(target)

@@ -86,9 +86,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                     dt_tag = cells[0].find(class_="fulldatetime")
                     if dt_tag:
                         dt_str = dt_tag.get_text(strip=True)
-                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(
-                            hour=0, minute=0, second=0, microsecond=0
-                        )
+                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(hour=0, minute=0, second=0, microsecond=0)
 
                         teams = list(cells[1].stripped_strings)
                         home_team = teams[0]
@@ -97,11 +95,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         score_text = cells[2].get_text(strip=True)
                         # AC-07: skip if split length < 2 or empty
                         parts = score_text.split(":")
-                        if (
-                            len(parts) < 2
-                            or not parts[0].strip()
-                            or not parts[1].strip()
-                        ):
+                        if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
                             log_event(
                                 logger,
                                 event="match.skipped",
@@ -123,11 +117,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         ]
                         odds = None
 
-                        league = (
-                            TOP_LEAGUES.get(url)
-                            if self.top_leagues_only and url in TOP_LEAGUES
-                            else None
-                        )
+                        league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                         self.add_match(
                             Match(
                                 home_team,

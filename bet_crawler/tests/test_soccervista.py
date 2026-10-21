@@ -7,9 +7,7 @@ League fixture uses TODAY+1 dates (closest-year search, decision D5).
 import importlib
 
 from bet_crawler.finders.SoccerVistaFinder_per_league import SOCCERVISTA_NAME as NAME_PL
-from bet_crawler.finders.SoccerVistaFinder_per_league import (
-    SoccerVistaFinder_per_league,
-)
+from bet_crawler.finders.SoccerVistaFinder_per_league import SoccerVistaFinder_per_league
 from bet_crawler.finders.SoccerVistaFinder_per_match import SoccerVistaFinder_per_match
 
 from .finder_test_helpers import load_fixture, make_finder, relax_date_window
@@ -78,9 +76,7 @@ class TestSoccerVistaPerMatch:
         assert m.result_url == url
 
     def test_missing_prediction_raises_no_match(self) -> None:
-        html = load_fixture("soccervista", "match.html").replace(
-            "correctScorePrediction", "nothingHere"
-        )
+        html = load_fixture("soccervista", "match.html").replace("correctScorePrediction", "nothingHere")
         finder, collector = _finder(SoccerVistaFinder_per_match)
         finder._parse_page("u", html)
         assert len(collector) == 0
@@ -91,9 +87,7 @@ class TestSoccerVistaPerMatch:
         assert len(collector) == 0
 
     def test_reserve_team_skipped(self) -> None:
-        html = load_fixture("soccervista", "match.html").replace(
-            '"name": "Arsenal"', '"name": "Arsenal II"'
-        )
+        html = load_fixture("soccervista", "match.html").replace('"name": "Arsenal"', '"name": "Arsenal II"')
         finder, collector = _finder(SoccerVistaFinder_per_match)
         finder._parse_page("u", html)
         assert len(collector) == 0

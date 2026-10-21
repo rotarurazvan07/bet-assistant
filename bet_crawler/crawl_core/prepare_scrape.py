@@ -22,9 +22,7 @@ from bet_crawler.crawler_logging import (
 logger = get_logger(__name__)
 
 
-def prepare_scrape(
-    runner: str, crawler_factory, max_chunk_size: dict[str, int]
-) -> None:
+def prepare_scrape(runner: str, crawler_factory, max_chunk_size: dict[str, int]) -> None:
     """Prepare scraping by collecting URLs and creating chunk tasks.
 
     Args:
@@ -130,16 +128,9 @@ def prepare_scrape(
 
     # Log unique domains
     unique_domains = sorted({urlparse(u).netloc for u in urls if u})
-    logger.info(
-        f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}"
-    )
+    logger.info(f"Collected {len(urls)} URLs across {len(unique_domains)} domains: {', '.join(unique_domains)}")
     event_totals = get_event_totals(stage="prepare-scrape")
-    partial = bool(
-        failed_sources
-        or empty_sources
-        or event_totals["errors"]
-        or sources_with_warnings
-    )
+    partial = bool(failed_sources or empty_sources or event_totals["errors"] or sources_with_warnings)
     log_event(
         logger,
         event="stage.completed",
@@ -153,9 +144,7 @@ def prepare_scrape(
             if sources_with_warnings
             else None
         ),
-        level=(
-            40 if failed_sources or event_totals["errors"] else 30 if partial else 20
-        ),
+        level=(40 if failed_sources or event_totals["errors"] else 30 if partial else 20),
         message="Prepare-scrape completed",
         stage="prepare-scrape",
         runner=runner,

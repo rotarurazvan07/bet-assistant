@@ -85,9 +85,7 @@ class PredictzFinder(BaseMatchFinder):
             self._parse_page(url, html)
 
         try:
-            scrape(
-                urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY
-            )
+            scrape(urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
         except FetcherError as exc:  # AC-06: sample 403s must not hard-fail the crawler
             remaining = [u for u in urls if u not in parsed]
             log_event(
@@ -105,9 +103,7 @@ class PredictzFinder(BaseMatchFinder):
             )
             if remaining:
                 try:
-                    scrape(
-                        remaining, _on_page, mode=ScrapeMode.STEALTH, max_concurrency=1
-                    )
+                    scrape(remaining, _on_page, mode=ScrapeMode.STEALTH, max_concurrency=1)
                 except FetcherError as stealth_exc:
                     exception_event(
                         logger,
@@ -131,9 +127,7 @@ class PredictzFinder(BaseMatchFinder):
             for entry in soup.find_all(class_="pzcnth"):
                 if entry.find("h2"):
                     date_str = entry.find("h2").get_text()
-                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(
-                        ",", ""
-                    )
+                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
                     match_datetime = next(
                         dt
                         for y in range(datetime.now().year - 1, datetime.now().year + 2)
@@ -174,11 +168,7 @@ class PredictzFinder(BaseMatchFinder):
                         )
                         odds = None
 
-                    league = (
-                        TOP_LEAGUES.get(url)
-                        if self.top_leagues_only and url in TOP_LEAGUES
-                        else None
-                    )
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
                         Match(
                             home_team,

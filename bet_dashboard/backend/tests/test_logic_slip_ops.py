@@ -106,14 +106,9 @@ class TestAppLogicSlipOperations:
         legs = app.build_preview(_slip_cfg())
         urls = [leg.result_url for leg in legs]
         assert "https://example.com/match/1" not in urls  # manual exclusion honored
-        assert (
-            "https://example.com/match/0" in urls
-            or "https://example.com/match/2" in urls
-        )
+        assert "https://example.com/match/0" in urls or "https://example.com/match/2" in urls
 
-    def test_build_preview_without_manual_exclusions_shows_pending(
-        self, app_env
-    ) -> None:
+    def test_build_preview_without_manual_exclusions_shows_pending(self, app_env) -> None:
         """[P1] Without manual exclusions pending-slip matches still preview."""
         app = app_env.app
         seed_slip(
@@ -125,9 +120,7 @@ class TestAppLogicSlipOperations:
         )
         legs = app.build_preview(_slip_cfg())
         urls = {leg.result_url for leg in legs}
-        assert (
-            "https://example.com/match/0" in urls
-        )  # pending URL NOT hidden in preview
+        assert "https://example.com/match/0" in urls  # pending URL NOT hidden in preview
 
     def test_build_preview_respects_cfg_excluded_sources(self, app_env) -> None:
         """[P1] Preview also honors cfg.excluded_sources via the same reload path."""
@@ -178,9 +171,7 @@ class TestAppLogicSlipOperations:
     def test_generate_slips_dynamic_units_from_target_payout(self, app_env) -> None:
         """[P0] target_payout recalculates units: payout / total_odds rounded to 1dp."""
         app = app_env.app
-        results = app.generate_slips(
-            {"p": (self._active_profile_tuple()[0], 1.0, 1, 10.0)}
-        )
+        results = app.generate_slips({"p": (self._active_profile_tuple()[0], 1.0, 1, 10.0)})
         assert results["p"]
         slip = app.get_slips("p")[0]
         assert slip.total_odds == 1.9
@@ -278,18 +269,14 @@ class TestAppLogicSlipOperations:
 
     # ── broadcast wrappers ──────────────────────────────────────────────────
 
-    def test_save_slip_and_broadcast_saves_and_broadcasts(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_save_slip_and_broadcast_saves_and_broadcasts(self, app_env, broadcast_capture) -> None:
         """[P0] save_slip_and_broadcast persists and fires slips_updated."""
         slip_id = app_env.app.save_slip_and_broadcast("manual", [make_candidate()], 1.0)
         assert slip_id == app_env.app.get_slips()[0].slip_id
         assert broadcast_capture[-1]["event"] == "slips_updated"
         assert "live_data" not in broadcast_capture[-1]
 
-    def test_delete_slip_and_broadcast_deletes_and_broadcasts(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_delete_slip_and_broadcast_deletes_and_broadcasts(self, app_env, broadcast_capture) -> None:
         """[P0] delete_slip_and_broadcast removes the slip and fires slips_updated."""
         app = app_env.app
         slip_id = seed_slip(
@@ -321,17 +308,9 @@ class TestAppLogicSlipOperations:
         rows = app._assistant.fetch_rows("SELECT COUNT(*) FROM legs")
         assert rows[0][0] == 0
 
-    def test_validate_and_broadcast_returns_report_and_live_data(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_validate_and_broadcast_returns_report_and_live_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P0] validate_and_broadcast returns the report and broadcasts live_data."""
-        report = SimpleNamespace(
-            live=[
-                LegOutcomeInfo(
-                    leg_id=1, match_name="M 1", market="1", score="1:0", minute="23"
-                )
-            ]
-        )
+        report = SimpleNamespace(live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")])
 
         def fake_validate():
             return report
@@ -343,9 +322,7 @@ class TestAppLogicSlipOperations:
         assert payload["event"] == "slips_updated"
         assert payload["live_data"] == {"M 1": {"score": "1:0", "minute": "23"}}
 
-    def test_validate_and_broadcast_no_live_legs_omits_live_data(
-        self, app_env, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_validate_and_broadcast_no_live_legs_omits_live_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] An empty live list still broadcasts, but without a live_data key."""
 
         def fake_validate():
@@ -355,9 +332,7 @@ class TestAppLogicSlipOperations:
         app_env.app.validate_and_broadcast()
         assert "live_data" not in broadcast_capture[-1]
 
-    def test_generate_and_broadcast_generates_and_persists(
-        self, tmp_path, monkeypatch, broadcast_capture
-    ) -> None:
+    def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
         """[P0] generate_and_broadcast runs active profiles and persists the timestamp."""
         profiles = {
             "p1": {
@@ -385,9 +360,7 @@ class TestAppLogicSlipOperations:
             app._assistant.conn.close()
             app._matches_manager.close()
 
-    def test_generate_and_broadcast_without_profiles_returns_empty(
-        self, app_env, broadcast_capture
-    ) -> None:
+    def test_generate_and_broadcast_without_profiles_returns_empty(self, app_env, broadcast_capture) -> None:
         """[P1] No active profiles → empty dict, broadcast still fires."""
         assert app_env.app.generate_and_broadcast() == {}
         assert broadcast_capture[-1]["event"] == "slips_updated"
@@ -495,18 +468,14 @@ class TestAppLogicSlipOperations:
     def test_stats_respects_profile_and_date_filters(self, app_env) -> None:
         """[P1] stats() filters flow through get_slips (profile + window)."""
         self._seed_stats_slips(app_env.app)
-        st = app_env.app.stats(
-            profile="a", date_from="2030-01-01", date_to="2030-01-02"
-        )
+        st = app_env.app.stats(profile="a", date_from="2030-01-01", date_to="2030-01-02")
         assert st["total_settled"] == 2
         assert st["total_won_count"] == 1
         assert st["pending_count"] == 0
 
     # ── Analytics delegation ───────────────────────────────────────────────
 
-    def test_daily_summary_delegates_to_analytics_utils(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_daily_summary_delegates_to_analytics_utils(self, app_env, monkeypatch) -> None:
         """[P0] daily_summary passes retrieved slips + filters to analytics_utils."""
         import core.analytics_utils as au
 
@@ -518,9 +487,7 @@ class TestAppLogicSlipOperations:
 
         monkeypatch.setattr(au, "calculate_daily_summary", recorder)
         self._seed_three_slips(app_env.app)
-        out = app_env.app.daily_summary(
-            profile="a", date_from="2030-01-01", date_to="2030-01-01"
-        )
+        out = app_env.app.daily_summary(profile="a", date_from="2030-01-01", date_to="2030-01-01")
         assert out == [{"day": "2030-01-01"}]
         slips, profile, date_from, date_to = calls[0]
         assert [s.profile for s in slips] == ["a"]
@@ -548,9 +515,7 @@ class TestAppLogicSlipOperations:
         # ...while the original None is passed through to analytics_utils.
         assert seen[0][0] is None
 
-    def test_market_accuracy_delegates_to_analytics_utils(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_market_accuracy_delegates_to_analytics_utils(self, app_env, monkeypatch) -> None:
         """[P0] market_accuracy passes the retrieved slips to analytics_utils."""
         import core.analytics_utils as au
 
@@ -566,9 +531,7 @@ class TestAppLogicSlipOperations:
         assert out == [{"market": "1", "accuracy": 60.0}]
         assert len(calls[0]) == 2
 
-    def test_correlation_data_filters_settled_then_delegates(
-        self, app_env, monkeypatch
-    ) -> None:
+    def test_correlation_data_filters_settled_then_delegates(self, app_env, monkeypatch) -> None:
         """[P0] correlation_data settles-filters before delegating."""
         import core.analytics_utils as au
 

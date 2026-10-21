@@ -107,16 +107,10 @@ class VitibetFinder(BaseMatchFinder):
 
             for match_link in soup.find_all("a", class_="upcoming-match-wrapper"):
                 try:
-                    prev_date_div = match_link.find_previous(
-                        "div", style=lambda x: x and "background: linear-gradient" in x
-                    )
-                    date_span = prev_date_div.find(
-                        "span", string=re.compile(r"\d{2}\.\d{2}\.\d{4}")
-                    )
+                    prev_date_div = match_link.find_previous("div", style=lambda x: x and "background: linear-gradient" in x)
+                    date_span = prev_date_div.find("span", string=re.compile(r"\d{2}\.\d{2}\.\d{4}"))
                     date_str = date_span.text.strip()
-                    match_datetime = datetime.strptime(date_str, "%d.%m.%Y").replace(
-                        hour=0, minute=0, second=0
-                    )
+                    match_datetime = datetime.strptime(date_str, "%d.%m.%Y").replace(hour=0, minute=0, second=0)
 
                     # Home team
                     home_div = match_link.find("div", class_="mc-team")
@@ -128,9 +122,7 @@ class VitibetFinder(BaseMatchFinder):
 
                     # Score prediction
                     score_div = match_link.find("div", class_="mc-score")
-                    tokens = (
-                        [] if score_div is None else score_div.text.strip().split(" : ")
-                    )
+                    tokens = [] if score_div is None else score_div.text.strip().split(" : ")
                     # AC-09: skip if token is not a number
                     if len(tokens) < 2:
                         log_event(
@@ -161,11 +153,7 @@ class VitibetFinder(BaseMatchFinder):
                         continue
                     predictions = [Score(VITIBET_NAME, home_score, away_score)]
 
-                    league = (
-                        TOP_LEAGUES.get(url)
-                        if self.top_leagues_only and url in TOP_LEAGUES
-                        else None
-                    )
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
                         Match(
                             home_team=home_team,

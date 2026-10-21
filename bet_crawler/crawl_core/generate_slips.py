@@ -9,9 +9,7 @@ from bet_framework.MatchesManager import MatchesManager
 logger = get_logger(__name__)
 
 
-def generate_slips(
-    matches_db_path: str, slips_db_path: str, profile_name: str, profile_data: dict
-) -> None:
+def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, profile_data: dict) -> None:
     """
     Generate slips for an already loaded profile.
     """
@@ -83,13 +81,9 @@ def generate_slips(
             slip_id = assistant.save_slip(profile_name, legs, units)
             total_odds = 1.0
             for leg in legs:
-                logger.info(
-                    f"  ⚽ {leg.match_name} ({leg.market.value}) @ {leg.odds:.2f}"
-                )
+                logger.info(f"  ⚽ {leg.match_name} ({leg.market.value}) @ {leg.odds:.2f}")
                 total_odds *= leg.odds
-            logger.info(
-                f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)"
-            )
+            logger.info(f"  ✅ Slip #{slip_id} — {len(legs)} legs @ {total_odds:.2f} ({units}u)")
             log_event(
                 logger,
                 event="slip_generation.completed",

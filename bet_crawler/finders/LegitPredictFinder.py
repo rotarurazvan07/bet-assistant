@@ -51,11 +51,7 @@ class LegitPredictFinder(BaseMatchFinder):
                 return
             dt_obj = datetime.strptime(url.split("dt=")[-1], "%d-%m-%Y")
             soup = BeautifulSoup(html, "html.parser")
-            matches_trs = (
-                soup.find("div", class_="content nopaddingsmall")
-                .find("tbody")
-                .find_all("tr")
-            )
+            matches_trs = soup.find("div", class_="content nopaddingsmall").find("tbody").find_all("tr")
 
             for tr in matches_trs:
                 try:
@@ -108,13 +104,9 @@ class LegitPredictFinder(BaseMatchFinder):
                         continue
                     score = Score(LEGITPREDICT_NAME, home_score, away_score)
 
-                    dt_obj = dt_obj.replace(hour=hour, minute=minute).replace(
-                        hour=0, minute=0, second=0, microsecond=0
-                    )
+                    dt_obj = dt_obj.replace(hour=hour, minute=minute).replace(hour=0, minute=0, second=0, microsecond=0)
 
-                    self.add_match(
-                        Match(home_team, away_team, dt_obj, score, None, None)
-                    )
+                    self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
 
                 except Exception as e:
                     exception_event(

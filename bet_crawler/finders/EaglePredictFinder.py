@@ -166,9 +166,7 @@ class EaglePredictFinder(BaseMatchFinder):
             "Dec": 12,
         }
 
-    def _extract_date(
-        self, text: str, months: dict[str, int]
-    ) -> tuple[int, int, int] | None:
+    def _extract_date(self, text: str, months: dict[str, int]) -> tuple[int, int, int] | None:
         """Extract date tuple (year, month, day) from text. Returns None if not a date."""
         m = re.match(r"\w{3}\s*-\s*(\d{1,2})\s+(\w{3})\s+(\d{4})", text)
         if m:
@@ -217,16 +215,12 @@ class EaglePredictFinder(BaseMatchFinder):
                 return t
         return None
 
-    def _build_datetime(
-        self, date_tuple: tuple[int, int, int], time_str: str
-    ) -> datetime:
+    def _build_datetime(self, date_tuple: tuple[int, int, int], time_str: str) -> datetime:
         """Build datetime object from date tuple and time string."""
         h, m = map(int, time_str.split(":"))
         return datetime(date_tuple[0], date_tuple[1], date_tuple[2], 0, 0)
 
-    def _create_and_add_match(
-        self, home: str, away: str, dt: datetime, score_match
-    ) -> None:
+    def _create_and_add_match(self, home: str, away: str, dt: datetime, score_match) -> None:
         """Create Match object and add it via callback."""
         self.add_match(
             Match(

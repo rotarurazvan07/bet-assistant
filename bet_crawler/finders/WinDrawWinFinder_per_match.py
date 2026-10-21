@@ -33,9 +33,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = (
-            next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
-        )
+        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
         league_urls = []
         for tr in all_trs[start:]:
             anchors = tr.find_all("a")
@@ -91,9 +89,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                 (
                     json.loads(s.string)["startDate"]
                     for s in soup.find_all("script", type="application/ld+json")
-                    if s.string
-                    and "SportsEvent" in s.string
-                    and "startDate" in s.string
+                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
                 ),
                 None,
             )

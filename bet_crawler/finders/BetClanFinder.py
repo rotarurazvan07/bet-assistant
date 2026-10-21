@@ -40,9 +40,7 @@ class BetClanFinder(BaseMatchFinder):
             soup = BeautifulSoup(page, "html.parser")
 
             matches_anchors = soup.find_all("div", class_="bclisttip")
-            matches_urls.extend(
-                anchor.find("a").get("href") for anchor in matches_anchors
-            )
+            matches_urls.extend(anchor.find("a").get("href") for anchor in matches_anchors)
 
         logger.info(f"Found {len(matches_urls)} matches to scrape")
         return matches_urls
@@ -63,23 +61,9 @@ class BetClanFinder(BaseMatchFinder):
 
             home_team = soup.find("div", class_="teamtophome").get_text().strip()
             away_team = soup.find("div", class_="teamtopaway").get_text().strip()
-            date_str = (
-                soup.find("span", class_="dategamedetailsis")
-                .get_text()
-                .strip()
-                .replace("Date ", "")
-                .split(" ")[0]
-            )
-            current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-            score_str = (
-                soup.find("div", class_="predione")
-                .find("div", class_="parttwo")
-                .find_all("h5")[-1]
-                .get_text()
-                .strip()
-            )
+            date_str = soup.find("span", class_="dategamedetailsis").get_text().strip().replace("Date ", "").split(" ")[0]
+            current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+            score_str = soup.find("div", class_="predione").find("div", class_="parttwo").find_all("h5")[-1].get_text().strip()
             predictions = [
                 Score(
                     BETCLAN_NAME,

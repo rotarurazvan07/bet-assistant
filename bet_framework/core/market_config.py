@@ -32,8 +32,7 @@ class MarketDef(NamedTuple):
 
 # Legacy ordered list view, materialized from the canonical order-free catalog.
 MARKET_DEFINITIONS: list[MarketDef] = [
-    MarketDef(spec.key, spec.cons_key, spec.odds_key, spec.market_type)
-    for spec in MARKET_CATALOG
+    MarketDef(spec.key, spec.cons_key, spec.odds_key, spec.market_type) for spec in MARKET_CATALOG
 ]
 
 # Set of allowed market identifiers for validation

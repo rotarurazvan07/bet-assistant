@@ -83,9 +83,7 @@ class TestAppLogicExcludedManagement:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[
-                make_leg_row(status="Pending", result_url="https://example.com/match/0")
-            ],
+            legs=[make_leg_row(status="Pending", result_url="https://example.com/match/0")],
         )
         app.add_excluded("https://example.com/match/1")
         combined = app._combined_excluded()
@@ -108,9 +106,7 @@ class TestAppLogicExcludedManagement:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[
-                make_leg_row(status="Pending", result_url="https://example.com/match/0")
-            ],
+            legs=[make_leg_row(status="Pending", result_url="https://example.com/match/0")],
         )
         assert app._combined_excluded() == ["https://example.com/match/0"]
 
@@ -137,9 +133,7 @@ class TestAppLogicExcludedManagement:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[
-                make_leg_row(status="Pending", result_url="https://example.com/match/0")
-            ],
+            legs=[make_leg_row(status="Pending", result_url="https://example.com/match/0")],
         )
         assert app.get_pending_urls() == {"https://example.com/match/0"}
 
@@ -151,9 +145,7 @@ class TestAppLogicExcludedManagement:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[
-                make_leg_row(status="Live", result_url="https://example.com/match/1")
-            ],
+            legs=[make_leg_row(status="Live", result_url="https://example.com/match/1")],
         )
         assert app.get_pending_urls() == {"https://example.com/match/1"}
 
@@ -172,9 +164,7 @@ class TestAppLogicExcludedManagement:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[
-                make_leg_row(status="Lost", result_url="https://example.com/match/1")
-            ],
+            legs=[make_leg_row(status="Lost", result_url="https://example.com/match/1")],
         )
         assert app.get_pending_urls() == set()
 
@@ -188,9 +178,7 @@ class TestAppLogicExcludedManagement:
             units=1.0,
             legs=[
                 make_leg_row(status="Won", result_url="https://example.com/match/0"),
-                make_leg_row(
-                    status="Pending", result_url="https://example.com/match/1"
-                ),
+                make_leg_row(status="Pending", result_url="https://example.com/match/1"),
             ],
         )
         assert app.get_pending_urls() == {"https://example.com/match/1"}
@@ -213,9 +201,7 @@ class TestAppLogicExcludedManagement:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[
-                make_leg_row(status="Pending", result_url="https://example.com/match/1")
-            ],
+            legs=[make_leg_row(status="Pending", result_url="https://example.com/match/1")],
         )
         assert set(app.get_excluded_urls()) == {
             "https://example.com/match/0",

@@ -135,9 +135,7 @@ class BaseMatchFinder:
                         url=match.result_url,
                     )
                     return False
-                if match.datetime is not None and not self.validate_match_date(
-                    match.datetime
-                ):
+                if match.datetime is not None and not self.validate_match_date(match.datetime):
                     self.log_counts["matches_skipped"] += 1
                     log_event(
                         logger,
@@ -159,9 +157,7 @@ class BaseMatchFinder:
                     f"({match.datetime}) {prediction.home}-{prediction.away}"
                 )
             else:
-                logger.info(
-                    f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})"
-                )
+                logger.info(f"ADDED: {match.home_team} vs {match.away_team} ({match.datetime})")
             self.log_counts["matches_added"] += 1
             log_event(
                 logger,
@@ -204,8 +200,7 @@ class BaseMatchFinder:
             (
                 reason
                 for pattern, reason in patterns
-                if re.search(pattern, home_team_name, re.IGNORECASE)
-                or re.search(pattern, away_team_name, re.IGNORECASE)
+                if re.search(pattern, home_team_name, re.IGNORECASE) or re.search(pattern, away_team_name, re.IGNORECASE)
             ),
             None,
         )

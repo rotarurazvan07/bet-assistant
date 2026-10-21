@@ -27,10 +27,7 @@ class TestLegitPredict:
         assert len(urls) == 4  # today + 3 days
         today = date.today()
         assert f"{lp.LEGITPREDICT_URL}{today.strftime('%d-%m-%Y')}" in urls
-        assert (
-            f"{lp.LEGITPREDICT_URL}{(today + timedelta(days=3)).strftime('%d-%m-%Y')}"
-            in urls
-        )
+        assert f"{lp.LEGITPREDICT_URL}{(today + timedelta(days=3)).strftime('%d-%m-%Y')}" in urls
 
     def test_empty_day_guard(self) -> None:
         finder, collector = _finder()
@@ -64,15 +61,8 @@ class TestLegitPredict:
                 lp.LEGITPREDICT_URL + "25-09-2026",
                 load_fixture("legitpredict", "page.html"),
             )
-            records = [
-                json.loads(line)
-                for line in event_path.read_text(encoding="utf-8").splitlines()
-            ]
-            skipped = [
-                record
-                for record in records
-                if record["reason_code"] == "score_or_time_incomplete"
-            ]
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            skipped = [record for record in records if record["reason_code"] == "score_or_time_incomplete"]
             assert skipped
             assert skipped[0]["severity"] == "WARNING"
             assert skipped[0]["event"] == "match.skipped"

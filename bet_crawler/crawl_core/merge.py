@@ -42,9 +42,7 @@ def merge(
 
     try:
         matches_df = _perform_merge(db_path, chunks_dir, similarity_config)
-        _generate_merge_summary(
-            matches_df, chunks_dir, db_path, crawler_keys, runner_sets
-        )
+        _generate_merge_summary(matches_df, chunks_dir, db_path, crawler_keys, runner_sets)
     except Exception as exc:
         logger.exception(
             "Merge stage failed for chunks directory %s",
@@ -61,9 +59,7 @@ def merge(
         raise
 
 
-def _perform_merge(
-    db_path: str, chunks_dir: str, similarity_config: dict | None
-) -> pd.DataFrame:
+def _perform_merge(db_path: str, chunks_dir: str, similarity_config: dict | None) -> pd.DataFrame:
     """Perform the database merge operation. Returns the merged DataFrame."""
     from bet_framework.MatchesManager import MatchesManager
 
@@ -86,42 +82,23 @@ def _generate_merge_summary(
 
     source_to_matches = _build_source_mapping(matches_df)
     matches_count = len(matches_df)
-    chunk_files = [
-        f
-        for f in os.listdir(chunks_dir)
-        if f.endswith(".db") and f != os.path.basename(db_path)
-    ]
+    chunk_files = [f for f in os.listdir(chunks_dir) if f.endswith(".db") and f != os.path.basename(db_path)]
 
     _log_summary_header(matches_count, len(chunk_files))
     _log_source_details(source_to_matches)
     missing_crawlers = _log_missing_crawlers(source_to_matches, crawler_keys)
-    missing_runner_sets = _validate_runner_sets(
-        source_to_matches, chunk_files, runner_sets
-    )
+    missing_runner_sets = _validate_runner_sets(source_to_matches, chunk_files, runner_sets)
     _log_footer(db_path)
     event_totals = get_event_totals(stage="merge")
-    has_missing_data = bool(
-        missing_crawlers
-        or missing_runner_sets
-        or event_totals["warnings"]
-        or event_totals["errors"]
-    )
+    has_missing_data = bool(missing_crawlers or missing_runner_sets or event_totals["warnings"] or event_totals["errors"])
     log_event(
         logger,
         event="stage.completed",
         outcome="partial" if has_missing_data else "success",
         reason_code=(
-            "runner_set_missing_data"
-            if missing_runner_sets
-            else "crawler_sources_missing"
-            if missing_crawlers
-            else None
+            "runner_set_missing_data" if missing_runner_sets else "crawler_sources_missing" if missing_crawlers else None
         ),
-        level=40
-        if missing_runner_sets or event_totals["errors"]
-        else 30
-        if has_missing_data
-        else 20,
+        level=40 if missing_runner_sets or event_totals["errors"] else 30 if has_missing_data else 20,
         message="Merge stage completed",
         stage="merge",
         counts={
@@ -196,9 +173,7 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
         logger.info(f"    - {k}: {v} matches")
 
 
-def _log_missing_crawlers(
-    source_to_matches: dict[str, set], crawler_keys: dict
-) -> set[str]:
+def _log_missing_crawlers(source_to_matches: dict[str, set], crawler_keys: dict) -> set[str]:
     """Identify configured crawlers that did not contribute matches."""
     missing_crawlers = set()
     for crawler in sorted(crawler_keys.keys()):

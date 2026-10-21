@@ -48,9 +48,9 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         """Parse one footballbettingtips page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            match_datetime = datetime.strptime(
-                soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y"
-            ).replace(hour=0, minute=0, second=0, microsecond=0)
+            match_datetime = datetime.strptime(soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y").replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
 
             for match_html in soup.find("table", class_="results").find_all("tr"):
                 try:
@@ -60,9 +60,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                     home_team_name = match_html.find("a").get_text().split(" - ")[0]
                     away_team_name = match_html.find("a").get_text().split(" - ")[1]
 
-                    score_text = re.search(
-                        r"(\d+:\d+)", match_html.find_all("td")[-2].get_text()
-                    ).group(1)
+                    score_text = re.search(r"(\d+:\d+)", match_html.find_all("td")[-2].get_text()).group(1)
                     score = Score(
                         FOOTBALLBETTINGTIPS_NAME,
                         score_text.split(":")[0],
@@ -71,15 +69,9 @@ class FootballBettingTipsFinder(BaseMatchFinder):
 
                     try:
                         odds = Odds(
-                            home=match_html.find_all(class_="desktop")[0]
-                            .get_text()
-                            .strip(),
-                            draw=match_html.find_all(class_="desktop")[1]
-                            .get_text()
-                            .strip(),
-                            away=match_html.find_all(class_="desktop")[2]
-                            .get_text()
-                            .strip(),
+                            home=match_html.find_all(class_="desktop")[0].get_text().strip(),
+                            draw=match_html.find_all(class_="desktop")[1].get_text().strip(),
+                            away=match_html.find_all(class_="desktop")[2].get_text().strip(),
                         )
                     except Exception as exc:
                         log_event(

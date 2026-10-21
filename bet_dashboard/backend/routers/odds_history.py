@@ -39,8 +39,7 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
             if movement:
                 # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
                 summary_kwargs = {
-                    stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key))
-                    for md in MARKET_DEFINITIONS
+                    stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_DEFINITIONS
                 }
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
 
@@ -64,11 +63,7 @@ def get_significant_movements(request: Request) -> dict:
             strength = logic.get_odds_movement_with_strength(idx)
             if not strength:
                 continue
-            sig_count = sum(
-                1
-                for v in strength.values()
-                if isinstance(v, dict) and v.get("significant")
-            )
+            sig_count = sum(1 for v in strength.values() if isinstance(v, dict) and v.get("significant"))
             if sig_count == 0:
                 continue
             match_id = row.get("match_id", str(idx))
@@ -104,9 +99,7 @@ def get_match_odds_history(request: Request, match_id: int):
     history = logic.get_odds_history(match_id)
     movement = logic.get_odds_movement(match_id)
 
-    snapshots = [
-        OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history
-    ]
+    snapshots = [OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history]
 
     return OddsHistoryOut(
         match_id=match_id,
@@ -124,8 +117,5 @@ def get_match_movement(request: Request, match_id: int):
     movement = logic.get_odds_movement(match_id)
 
     # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
-    summary_kwargs = {
-        stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key))
-        for md in MARKET_DEFINITIONS
-    }
+    summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_DEFINITIONS}
     return OddsMovementSummary(**summary_kwargs)

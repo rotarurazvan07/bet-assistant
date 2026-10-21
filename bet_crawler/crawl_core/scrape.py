@@ -19,9 +19,7 @@ from bet_framework.MatchesManager import MatchesManager
 logger = get_logger(__name__)
 
 
-def scrape(
-    db_path: str, urls_str: str, crawler_factory, similarity_config: dict | None = None
-) -> None:
+def scrape(db_path: str, urls_str: str, crawler_factory, similarity_config: dict | None = None) -> None:
     """Scrape chunk URLs per domain with per-finder instances and write chunk SQLite DBs."""
     chunk_id = os.path.basename(db_path)
     reset_event_totals(stage="scrape", chunk_id=chunk_id)
@@ -50,17 +48,13 @@ def scrape(
     source_warning_counts: dict[str, int] = {}
     try:
         for i, (domain_key, group_urls) in enumerate(groups.items()):
-            logger.info(
-                f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)..."
-            )
+            logger.info(f"  [{i + 1}/{len(groups)}] Scraping {domain_key} ({len(group_urls)} URLs)...")
             crawler = None
             try:
                 crawler = crawler_factory.create_for_url(group_urls[0], _on_match)
                 source_key = source_key_for(crawler, crawler_factory)
                 crawler._log_chunk_id = os.path.basename(db_path)
-                warnings_before = get_event_totals(stage="scrape", chunk_id=chunk_id)[
-                    "warnings"
-                ]
+                warnings_before = get_event_totals(stage="scrape", chunk_id=chunk_id)["warnings"]
                 with log_context(
                     stage="scrape",
                     chunk_id=os.path.basename(db_path),
@@ -71,9 +65,7 @@ def scrape(
                     crawler.get_matches(group_urls)
                 for key in match_counts:
                     match_counts[key] += getattr(crawler, "log_counts", {}).get(key, 0)
-                warnings_after = get_event_totals(stage="scrape", chunk_id=chunk_id)[
-                    "warnings"
-                ]
+                warnings_after = get_event_totals(stage="scrape", chunk_id=chunk_id)["warnings"]
                 source_warning_counts[source_key] = warnings_after - warnings_before
                 completed_groups += 1
                 log_event(
@@ -93,9 +85,7 @@ def scrape(
                 for key in match_counts:
                     match_counts[key] += getattr(crawler, "log_counts", {}).get(key, 0)
                 if crawler is not None:
-                    warnings_after = get_event_totals(
-                        stage="scrape", chunk_id=chunk_id
-                    )["warnings"]
+                    warnings_after = get_event_totals(stage="scrape", chunk_id=chunk_id)["warnings"]
                     source_warning_counts[source_key] = warnings_after - warnings_before
                 logger.exception(
                     "Error scraping URL group %s (%d URLs)",
@@ -134,16 +124,11 @@ def scrape(
             raise
 
     event_totals = get_event_totals(stage="scrape", chunk_id=chunk_id)
-    event_totals["sources_with_warnings"] = sum(
-        count > 0 for count in source_warning_counts.values()
-    )
+    event_totals["sources_with_warnings"] = sum(count > 0 for count in source_warning_counts.values())
     event_totals["matches_added"] = match_counts["matches_added"]
     event_totals["matches_skipped"] = match_counts["matches_skipped"]
     partial = bool(
-        failed_groups
-        or match_counts["match_errors"]
-        or event_totals["errors"]
-        or event_totals["sources_with_warnings"]
+        failed_groups or match_counts["match_errors"] or event_totals["errors"] or event_totals["sources_with_warnings"]
     )
     log_event(
         logger,
@@ -158,13 +143,7 @@ def scrape(
             if event_totals["sources_with_warnings"]
             else None
         ),
-        level=(
-            40
-            if failed_groups or match_counts["match_errors"] or event_totals["errors"]
-            else 30
-            if partial
-            else 20
-        ),
+        level=(40 if failed_groups or match_counts["match_errors"] or event_totals["errors"] else 30 if partial else 20),
         message="Scrape stage completed",
         stage="scrape",
         chunk_id=os.path.basename(db_path),

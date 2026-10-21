@@ -45,18 +45,12 @@ def _significant_mask(df, sig_data, odds_key):
     sig_mask = pd.Series(False, index=df.index)
     for idx in df.index:
         s = sig_data.get(idx)
-        if (
-            s
-            and isinstance(s.get(market_key), dict)
-            and s[market_key].get("significant")
-        ):
+        if s and isinstance(s.get(market_key), dict) and s[market_key].get("significant"):
             sig_mask.at[idx] = True
     return sig_mask
 
 
-def _apply_cell_filters(
-    logic, df, has_cons, has_odds, has_sig, min_consensus, min_odds
-):
+def _apply_cell_filters(logic, df, has_cons, has_odds, has_sig, min_consensus, min_odds):
     """Keep rows where at least one market cell passes every active filter."""
     import pandas as pd
 
@@ -143,9 +137,7 @@ def get_matches(
     has_sig = only_significant_movement
 
     if has_cons or has_odds or has_sig:
-        df = _apply_cell_filters(
-            logic, df, has_cons, has_odds, has_sig, min_consensus, min_odds
-        )
+        df = _apply_cell_filters(logic, df, has_cons, has_odds, has_sig, min_consensus, min_odds)
 
     if df.empty:
         return {
@@ -163,9 +155,7 @@ def get_matches(
     total = len(df)
     total_pages = max(1, math.ceil(total / page_size))
     start = (page - 1) * page_size
-    rows = [
-        _row_to_dict(r) for r in df.iloc[start : start + page_size].to_dict("records")
-    ]
+    rows = [_row_to_dict(r) for r in df.iloc[start : start + page_size].to_dict("records")]
 
     return {
         "total": total,

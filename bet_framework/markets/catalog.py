@@ -45,9 +45,7 @@ MARKET_CATALOG: tuple[MarketSpec, ...] = (
         "odds_under_25",
         "under_25",
     ),
-    MarketSpec(
-        "BTTS Yes", "BTTS Yes", "btts", "cons_btts_yes", "odds_btts_yes", "btts_yes"
-    ),
+    MarketSpec("BTTS Yes", "BTTS Yes", "btts", "cons_btts_yes", "odds_btts_yes", "btts_yes"),
     MarketSpec("BTTS No", "BTTS No", "btts", "cons_btts_no", "odds_btts_no", "btts_no"),
     MarketSpec(
         "Over 0.5",
@@ -119,15 +117,11 @@ MARKET_CATALOG: tuple[MarketSpec, ...] = (
 )
 
 MARKET_BY_KEY: dict[str, MarketSpec] = {spec.key: spec for spec in MARKET_CATALOG}
-MARKET_BY_CRAWLER_FIELD: dict[str, MarketSpec] = {
-    spec.crawler_field: spec for spec in MARKET_CATALOG
-}
+MARKET_BY_CRAWLER_FIELD: dict[str, MarketSpec] = {spec.crawler_field: spec for spec in MARKET_CATALOG}
 # Stripped odds key -> Odds-dataclass field: odds-history/DB snapshots are keyed
 # by crawler fields ('btts_yes'); this map is why the PR #106 spelling
 # divergence cannot recur.
-MARKET_BY_STRIPPED_KEY: dict[str, MarketSpec] = {
-    spec.odds_key.removeprefix("odds_"): spec for spec in MARKET_CATALOG
-}
+MARKET_BY_STRIPPED_KEY: dict[str, MarketSpec] = {spec.odds_key.removeprefix("odds_"): spec for spec in MARKET_CATALOG}
 
 
 def market_by_key(market: str) -> MarketSpec:

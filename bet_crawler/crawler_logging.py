@@ -22,14 +22,8 @@ from typing import Any
 from scrape_kit import get_logger as _get_logger
 
 SCHEMA_VERSION = 1
-_LOCAL_RUN_ID = (
-    os.environ.get("SCRAPE_RUN_ID")
-    or os.environ.get("GITHUB_RUN_ID")
-    or str(uuid.uuid4())
-)
-_CONTEXT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
-    "crawler_log_context", default=None
-)
+_LOCAL_RUN_ID = os.environ.get("SCRAPE_RUN_ID") or os.environ.get("GITHUB_RUN_ID") or str(uuid.uuid4())
+_CONTEXT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("crawler_log_context", default=None)
 _HANDLER_LOCK = threading.Lock()
 _EVENT_HANDLERS: dict[str, logging.Handler] = {}
 _EVENT_COUNTS: dict[tuple[str, str, str], dict[str, int]] = {}
@@ -62,9 +56,7 @@ class JsonEventFormatter(logging.Formatter):
         payload: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "timestamp": (
-                datetime.fromtimestamp(record.created, UTC)
-                .isoformat(timespec="milliseconds")
-                .replace("+00:00", "Z")
+                datetime.fromtimestamp(record.created, UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
             ),
             "severity": record.levelname,
             "event": event,
@@ -80,18 +72,12 @@ class JsonEventFormatter(logging.Formatter):
             "logger": record.name,
             "message": message,
             "run_id": context.get("run_id", _LOCAL_RUN_ID),
-            "run_attempt": context.get(
-                "run_attempt", os.environ.get("GITHUB_RUN_ATTEMPT")
-            ),
+            "run_attempt": context.get("run_attempt", os.environ.get("GITHUB_RUN_ATTEMPT")),
             "job": context.get("job", os.environ.get("GITHUB_JOB")),
-            "runner": getattr(
-                record, "runner", context.get("runner", os.environ.get("RUNNER_NAME"))
-            ),
+            "runner": getattr(record, "runner", context.get("runner", os.environ.get("RUNNER_NAME"))),
             "stage": getattr(record, "stage", context.get("stage")),
             "chunk_id": getattr(record, "chunk_id", context.get("chunk_id")),
-            "source_key": getattr(
-                record, "source_key", context.get("source_key", inferred_source_key)
-            ),
+            "source_key": getattr(record, "source_key", context.get("source_key", inferred_source_key)),
             "finder": getattr(record, "finder", context.get("finder", inferred_finder)),
             "url": getattr(record, "url", context.get("url")),
             "match_id": getattr(record, "match_id", context.get("match_id")),
@@ -110,14 +96,10 @@ class JsonEventFormatter(logging.Formatter):
                 totals["errors"] += 1
             elif record.levelno >= logging.WARNING:
                 totals["warnings"] += 1
-            if (
-                event == "match.added"
-                and payload["logger"] == "bet_crawler.finders.BaseMatchFinder"
-            ):
+            if event == "match.added" and payload["logger"] == "bet_crawler.finders.BaseMatchFinder":
                 totals["matches_added"] += 1
             elif (
-                event in ("match.skipped", "match.parse.failed")
-                and payload["logger"] == "bet_crawler.finders.BaseMatchFinder"
+                event in ("match.skipped", "match.parse.failed") and payload["logger"] == "bet_crawler.finders.BaseMatchFinder"
             ):
                 totals["matches_skipped"] += 1
         for key in (
@@ -214,10 +196,7 @@ def configure_event_logging(path: str | None = None) -> None:
     for name, candidate in logging.Logger.manager.loggerDict.items():
         if name.startswith("bet_crawler.") and isinstance(candidate, logging.Logger):
             for existing in tuple(candidate.handlers):
-                if (
-                    isinstance(existing.formatter, JsonEventFormatter)
-                    and existing is not handler
-                ):
+                if isinstance(existing.formatter, JsonEventFormatter) and existing is not handler:
                     candidate.removeHandler(existing)
             _configure_logger(candidate)
 
@@ -269,11 +248,7 @@ def get_event_totals(*, stage: str, chunk_id: str | None = None) -> dict[str, in
     result = {"warnings": 0, "errors": 0, "matches_added": 0, "matches_skipped": 0}
     with _HANDLER_LOCK:
         for (event_run, event_stage, event_chunk), counts in _EVENT_COUNTS.items():
-            if (
-                event_run == str(run_id)
-                and event_stage == stage
-                and (chunk_id is None or event_chunk == target_chunk)
-            ):
+            if event_run == str(run_id) and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
                 result["warnings"] += counts["warnings"]
                 result["errors"] += counts["errors"]
                 result["matches_added"] += counts["matches_added"]
@@ -289,11 +264,7 @@ def reset_event_totals(*, stage: str, chunk_id: str | None = None) -> None:
     with _HANDLER_LOCK:
         for key in tuple(_EVENT_COUNTS):
             event_run, event_stage, event_chunk = key
-            if (
-                event_run == run_id
-                and event_stage == stage
-                and (chunk_id is None or event_chunk == target_chunk)
-            ):
+            if event_run == run_id and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
                 del _EVENT_COUNTS[key]
 
 
@@ -365,7 +336,5 @@ def source_key_for(crawler: Any, factory: Any = None) -> str:
         "win_draw_win": "windrawwin",
         "x_g_score": "xgscore",
     }
-    source_key = re.sub(
-        r"[^a-z0-9_]", "", re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
-    )
+    source_key = re.sub(r"[^a-z0-9_]", "", re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower())
     return aliases.get(source_key, source_key)

@@ -69,9 +69,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
 
             links = [
                 link["href"]
-                for link in soup.find(
-                    "h3", string=lambda t: t and "Top Leagues" in t
-                ).parent.find_all("a", href=True)
+                for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
             ][:-2]
 
             with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
@@ -80,9 +78,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         lambda l: (
                             [
                                 opt["value"]
-                                for opt in BeautifulSoup(
-                                    fetch(SOCCERVISTA_URL + l) or "", "html.parser"
-                                )
+                                for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser")
                                 .find("select", id="tournamentPage")
                                 .find_all("option")
                             ]
@@ -110,9 +106,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         """Parse one soccervista league page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            container = soup.find(
-                "h2", string=lambda t: t and "Upcoming Predictions" in t
-            )
+            container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)
             if container is None:
                 log_event(
                     logger,
@@ -128,12 +122,8 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
 
             for match_tr in matches:
                 try:
-                    home_team = (
-                        match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                    )
-                    away_team = (
-                        match_tr.find_all("td")[3].find_all("span")[0].get_text()
-                    )
+                    home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
+                    away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
                     try:
                         date_str = match_tr.find_all("td")[0].get_text()
                         match_datetime = min(
@@ -149,10 +139,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         ).replace(hour=0, minute=0, second=0, microsecond=0)
                     except ValueError as exc:
                         date_text = match_tr.find_all("td")[0].get_text(strip=True)
-                        if any(
-                            token in date_text.casefold()
-                            for token in ("live", "ongoing", "in play")
-                        ):
+                        if any(token in date_text.casefold() for token in ("live", "ongoing", "in play")):
                             logger.info("%s vs %s: Match ongoing", home_team, away_team)
                         else:
                             logger.warning(
@@ -181,11 +168,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         )
                     ]
 
-                    league = (
-                        TOP_LEAGUES.get(url)
-                        if self.top_leagues_only and url in TOP_LEAGUES
-                        else None
-                    )
+                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                     self.add_match(
                         Match(
                             home_team=home_team,
@@ -194,8 +177,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                             predictions=scores,
                             odds=None,
                             league=league,
-                            result_url=SOCCERVISTA_URL
-                            + match_tr.find("a").get("href").replace("/fr/", "/"),
+                            result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
                         )
                     )
 

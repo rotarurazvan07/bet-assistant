@@ -42,12 +42,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             soup = BeautifulSoup(html, "html.parser")
             if html:
                 try:
-                    league_urls += [
-                        opt["value"]
-                        for opt in soup.find("select", id="tournamentPage").find_all(
-                            "option"
-                        )
-                    ]
+                    league_urls += [opt["value"] for opt in soup.find("select", id="tournamentPage").find_all("option")]
                 except AttributeError:
                     logger.warning(
                         "Skipping SoccerVista league listing with missing tournament selector: %s",
@@ -162,24 +157,20 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                 event_type = data.get("@type", "")
 
                 # Check if it's a SportsEvent (handling both string and list types)
-                if "SportsEvent" in (
-                    event_type if isinstance(event_type, list) else [event_type]
-                ):
+                if "SportsEvent" in (event_type if isinstance(event_type, list) else [event_type]):
                     home_team = data.get("homeTeam", {}).get("name")
                     away_team = data.get("awayTeam", {}).get("name")
                     start_date = next(
                         (
                             json.loads(s.string)["startDate"]
                             for s in soup.find_all("script", type="application/ld+json")
-                            if s.string
-                            and "SportsEvent" in s.string
-                            and "startDate" in s.string
+                            if s.string and "SportsEvent" in s.string and "startDate" in s.string
                         ),
                         None,
                     )
-                    match_datetime = datetime.strptime(
-                        start_date, "%Y-%m-%dT%H:%M"
-                    ).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+                    match_datetime = datetime.strptime(start_date, "%Y-%m-%dT%H:%M").replace(
+                        tzinfo=None, hour=0, minute=0, second=0, microsecond=0
+                    )
 
                     break
             except (json.JSONDecodeError, TypeError) as exc:
@@ -200,9 +191,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
 
     def _extract_predictions(self, soup):
         """Extract source score predictions from the page."""
-        script_text = " ".join(
-            script.string for script in soup.find_all("script") if script.string
-        )
+        script_text = " ".join(script.string for script in soup.find_all("script") if script.string)
         script_text = script_text.replace("\\u0022", '"')
 
         correct_score_match = re.search(
@@ -272,7 +261,5 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                 )
                 continue
         valid_field_names = {f.name for f in fields(Odds)}
-        final_payload = {
-            k: v for k, v in extracted_data.items() if k in valid_field_names
-        }
+        final_payload = {k: v for k, v in extracted_data.items() if k in valid_field_names}
         return Odds(**final_payload)

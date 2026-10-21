@@ -28,19 +28,13 @@ def _read_urls(path):
 
 
 class TestPrepareScrapeP0:
-    def test_creates_chunk_files_with_runner_prefix_and_content(
-        self, tmp_cwd, capsys
-    ) -> None:
+    def test_creates_chunk_files_with_runner_prefix_and_content(self, tmp_cwd, capsys) -> None:
         crawlers = [StubCrawler([f"https://a.com/{i}" for i in range(5)])]
         out = _run(tmp_cwd, crawlers, capsys=capsys)
         assert (tmp_cwd / "actions-1-urls.txt").is_file()
-        assert (
-            tmp_cwd / "actions-1.db"
-        ).exists() is False  # db created later by scrape
+        assert (tmp_cwd / "actions-1.db").exists() is False  # db created later by scrape
         # random.shuffle runs before chunking — order NOT guaranteed, multiset is
-        assert sorted(_read_urls(tmp_cwd / "actions-1-urls.txt")) == sorted(
-            f"https://a.com/{i}" for i in range(5)
-        )
+        assert sorted(_read_urls(tmp_cwd / "actions-1-urls.txt")) == sorted(f"https://a.com/{i}" for i in range(5))
         tasks = json.loads(out.strip())
         assert tasks == [{"db_path": "actions-1.db", "urls_file": "actions-1-urls.txt"}]
 
@@ -63,9 +57,7 @@ class TestPrepareScrapeP0:
 
     def test_chunk_math_splits_by_max_runners(self, tmp_cwd, capsys) -> None:
         urls = [f"https://a.com/{i}" for i in range(50)]
-        out = _run(
-            tmp_cwd, [StubCrawler(urls)], max_chunk_size={"actions": 2}, capsys=capsys
-        )
+        out = _run(tmp_cwd, [StubCrawler(urls)], max_chunk_size={"actions": 2}, capsys=capsys)
         tasks = json.loads(out.strip())
         assert len(tasks) == 2
         sizes = [len(_read_urls(tmp_cwd / t["urls_file"])) for t in tasks]
@@ -123,9 +115,7 @@ class EmptyCrawler:
 
 
 class TestPrepareScrapeRetryP1:
-    def test_retry_then_success_after_two_failures(
-        self, tmp_cwd, capsys, monkeypatch
-    ) -> None:
+    def test_retry_then_success_after_two_failures(self, tmp_cwd, capsys, monkeypatch) -> None:
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         flaky = FlakyCrawler(2, ["https://a.com/1"])
@@ -134,9 +124,7 @@ class TestPrepareScrapeRetryP1:
         assert sleeps == [2, 2]
         assert _read_urls(tmp_cwd / "actions-1-urls.txt") == ["https://a.com/1"]
 
-    def test_crawler_erroring_all_three_attempts_is_skipped(
-        self, tmp_cwd, capsys, monkeypatch
-    ) -> None:
+    def test_crawler_erroring_all_three_attempts_is_skipped(self, tmp_cwd, capsys, monkeypatch) -> None:
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         ok = StubCrawler(["https://b.com/1"])
@@ -145,9 +133,7 @@ class TestPrepareScrapeRetryP1:
         assert dead.calls == 3
         assert _read_urls(tmp_cwd / "actions-1-urls.txt") == ["https://b.com/1"]
 
-    def test_empty_url_list_retries_all_three_attempts(
-        self, tmp_cwd, capsys, monkeypatch
-    ) -> None:
+    def test_empty_url_list_retries_all_three_attempts(self, tmp_cwd, capsys, monkeypatch) -> None:
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         empty = EmptyCrawler()
@@ -163,27 +149,16 @@ class TestPrepareScrapeRetryP1:
             got.extend(_read_urls(f))
         assert sorted(got) == sorted(urls)
 
-    def test_exhausted_discovery_retries_emit_error_and_partial_stage(
-        self, tmp_cwd, capsys, monkeypatch
-    ) -> None:
+    def test_exhausted_discovery_retries_emit_error_and_partial_stage(self, tmp_cwd, capsys, monkeypatch) -> None:
         monkeypatch.setattr("time.sleep", lambda _seconds: None)
         event_path = tmp_cwd / "events.jsonl"
         monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
         configure_event_logging(str(event_path))
         try:
             _run(tmp_cwd, [FlakyCrawler(99, [])], capsys=capsys)
-            records = [
-                json.loads(line)
-                for line in event_path.read_text(encoding="utf-8").splitlines()
-            ]
-            failed = [
-                record
-                for record in records
-                if record["event"] == "source.discovery.failed"
-            ]
-            completed = [
-                record for record in records if record["event"] == "stage.completed"
-            ]
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            failed = [record for record in records if record["event"] == "source.discovery.failed"]
+            completed = [record for record in records if record["event"] == "stage.completed"]
             assert failed and failed[0]["severity"] == "ERROR"
             assert failed[0]["error_type"] == "RuntimeError"
             assert "transient" in failed[0]["exception"]
@@ -195,9 +170,7 @@ class TestPrepareScrapeRetryP1:
         finally:
             disable_event_logging()
 
-    def test_retry_loop_breaks_on_success_no_extra_sleep(
-        self, tmp_cwd, capsys, monkeypatch
-    ) -> None:
+    def test_retry_loop_breaks_on_success_no_extra_sleep(self, tmp_cwd, capsys, monkeypatch) -> None:
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
         flaky = FlakyCrawler(1, ["https://a.com/1", "https://a.com/2"])
@@ -207,12 +180,8 @@ class TestPrepareScrapeRetryP1:
 
 
 class TestPrepareScrapeP2:
-    def test_domain_logging_counts_unique_domains(
-        self, tmp_cwd, capsys, caplog
-    ) -> None:
-        crawlers = [
-            StubCrawler(["https://a.com/1", "https://b.org/2", "https://a.com/3"])
-        ]
+    def test_domain_logging_counts_unique_domains(self, tmp_cwd, capsys, caplog) -> None:
+        crawlers = [StubCrawler(["https://a.com/1", "https://b.org/2", "https://a.com/3"])]
         with caplog.at_level("INFO", logger="bet_crawler.crawl_core.prepare_scrape"):
             _run(tmp_cwd, crawlers, capsys=capsys)
         msg = [r.getMessage() for r in caplog.records if "Collected" in r.getMessage()]

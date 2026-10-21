@@ -35,11 +35,7 @@ class WhoScoredFinder(BaseMatchFinder):
             soup = BeautifulSoup(page, "html.parser")
 
         table = soup.find("table", class_="grid")
-        urls = [
-            WHOSCORED_URL + a["href"]
-            for a in table.find_all("a")
-            if "matches" in a["href"]
-        ]
+        urls = [WHOSCORED_URL + a["href"] for a in table.find_all("a") if "matches" in a["href"]]
         logger.info(f"{len(urls)} matches to scrape")
         return urls
 
@@ -79,9 +75,7 @@ class WhoScoredFinder(BaseMatchFinder):
             # StartTimeUtc format: /Date(1772290800000)/
             ts_str = data.get("StartTimeUtc", "").strip("/Date()")
             ts = int(ts_str) / 1000
-            match_datetime = datetime.fromtimestamp(ts, tz=timezone.utc).replace(
-                tzinfo=None
-            )
+            match_datetime = datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None)
 
             # 2. Extract score predictions from DOM
             soup = BeautifulSoup(html, "html.parser")
@@ -101,9 +95,7 @@ class WhoScoredFinder(BaseMatchFinder):
                     Match(
                         home_team,
                         away_team,
-                        match_datetime.replace(
-                            hour=0, minute=0, second=0, microsecond=0
-                        ),
+                        match_datetime.replace(hour=0, minute=0, second=0, microsecond=0),
                         scores,
                         None,
                     )

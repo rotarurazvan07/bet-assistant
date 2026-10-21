@@ -92,12 +92,8 @@ def validate_slips(slips_db_path: str) -> None:
         )
 
     for item in result.live:
-        logger.info(
-            f"  🟡 {item.match_name} ({item.market})  {item.score}  {item.minute}"
-        )
+        logger.info(f"  🟡 {item.match_name} ({item.market})  {item.score}  {item.minute}")
 
     for item in result.settled:
         icon = "✅" if item.outcome == "Won" else "❌"
-        logger.info(
-            f"  {icon} {item.match_name} ({item.market})  {item.score}  → {item.outcome}"
-        )
+        logger.info(f"  {icon} {item.match_name} ({item.market})  {item.score}  → {item.outcome}")

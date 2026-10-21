@@ -67,9 +67,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
         """Parse one footballpredictions page and emit matches via callback."""
         soup = BeautifulSoup(html, "html.parser")
         # Select all rows in the table body that contain match data (skip header)
-        all_anchors = soup.select(
-            "table.table-tips tbody tr:has(td)"
-        )  # tr elements with <td> (data rows)
+        all_anchors = soup.select("table.table-tips tbody tr:has(td)")  # tr elements with <td> (data rows)
         logger.info(f"Found {len(all_anchors)} matches to scan")
 
         for row in all_anchors:
@@ -81,9 +79,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
 
                 # --- Date and time ---
                 date_wrapper = row.find("span", class_="table-tips__date-time-wrapper")
-                match_date_str = date_wrapper[
-                    "data-datetime"
-                ]  # e.g. "2026-05-11T20:00:00+01:00"
+                match_date_str = date_wrapper["data-datetime"]  # e.g. "2026-05-11T20:00:00+01:00"
                 match_date = datetime.fromisoformat(match_date_str).replace(
                     hour=0, minute=0, second=0, microsecond=0, tzinfo=None
                 )
@@ -99,11 +95,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
                 prediction = Score(FOOTBALLPREDICTIONS_NAME, home_goals, away_goals)
 
                 # Add match to the collector
-                league = (
-                    TOP_LEAGUES.get(url)
-                    if self.top_leagues_only and url in TOP_LEAGUES
-                    else None
-                )
+                league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
                 self.add_match(
                     Match(
                         home_team,

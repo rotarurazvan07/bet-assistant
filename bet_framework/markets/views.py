@@ -14,15 +14,9 @@ for _spec in MARKET_CATALOG:
 
 # Type -> [(cons_key, odds_key, key)] replacing the positional MARKET_MAP build.
 MARKET_MAP_V2: dict[str, list[tuple[str, str, str]]] = {
-    market_type: [
-        (spec.cons_key, spec.odds_key, spec.key)
-        for spec in MARKET_CATALOG
-        if spec.market_type == market_type
-    ]
+    market_type: [(spec.cons_key, spec.odds_key, spec.key) for spec in MARKET_CATALOG if spec.market_type == market_type]
     for market_type in KEYS_BY_TYPE
 }
 
 # Stripped odds keys used by movement payloads ('odds_over_25' -> 'over_25').
-STRIPPED_ODDS_KEYS: tuple[str, ...] = tuple(
-    spec.odds_key.removeprefix("odds_") for spec in MARKET_CATALOG
-)
+STRIPPED_ODDS_KEYS: tuple[str, ...] = tuple(spec.odds_key.removeprefix("odds_") for spec in MARKET_CATALOG)
