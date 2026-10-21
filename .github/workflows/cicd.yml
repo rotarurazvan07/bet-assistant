@@ -67,13 +67,12 @@ jobs:
           # Process all source and test directories
           autoflake --in-place --recursive             --remove-all-unused-imports --remove-unused-variables             --exclude .venv,__pycache__             $SRC_DIR $TEST_DIR
 
-      - name: pyupgrade — modernise syntax to Python runtime floor (3.11)
+      - name: pyupgrade — modernise syntax to Python 3.14+
         run: |
-          # NEVER --py314-plus here: it rewrites PEP 758 un-parenthesised
-          # `except A, B:` clauses into syntax that only parses on 3.14 while
-          # the docker stack/wheel runtime still runs python:3.11-slim. The
-          # CI matrix parses on 3.14 (green) and never sees the breakage.
-          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py311-plus || true
+          # The repo floor is Python 3.14 everywhere (Docker 3.14-slim, CI
+          # matrix, mypy target). PEP 758 un-parenthesised `except A, B:` is
+          # valid runtime syntax here — no floor gate.
+          find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py314-plus || true
 
       - name: autotyping — infer trivial return type annotations
         run: |
@@ -88,20 +87,13 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py311             $SRC_DIR $TEST_DIR
+          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
           # --line-length 127 matches project convention (ruff.toml header
           # + AGENTS.md) — without it ruff defaults to 88 and floods E501s
           ruff check --select E,F,B,C,SIM,PERF --ignore UP --line-length 127           --fix --unsafe-fixes --output-format=concise           $SRC_DIR $TEST_DIR || true
-
-      - name: Syntax floor gate (py3.11) — fail BEFORE committing fixes
-        run: |
-          # pyupgrade/py314 rewrite protection: if any sweep re-emitted PEP 758
-          # un-parenthesised excepts (3.14-only syntax), abort here instead of
-          # pushing a tree that the python:3.11-slim runtime cannot import.
-          python scripts/check_syntax_floor.py
 
       - name: Commit fixes (if any)
         run: |
@@ -187,13 +179,6 @@ jobs:
             echo "Running post-install commands: $POST_INSTALL_CMDS"
             eval "$POST_INSTALL_CMDS"
           fi
-
-      - name: Syntax floor gate (py3.11) — defense in depth
-        # The docker runtime floor is python:3.11-slim; the test matrix parses on
-        # 3.14, so a floor-compiling regression (PEP 758 un-parenthesised excepts)
-        # would pass here while breaking deployable surfaces. Gate before tests.
-        run: |
-          python scripts/check_syntax_floor.py
 
       - name: Run tests — framework suite (bet_framework/tests)
         # D-A: per-suite invocations. A combined 'pytest bet_framework/tests bet_crawler/tests
