@@ -25,7 +25,6 @@ import pytest
 
 from bet_framework.BetAssistant import MARKET_MAP, BetAssistant
 from bet_framework.core.consensus import calc_consensus
-from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
     apply_odds_movement_adjustment,
@@ -42,6 +41,7 @@ from bet_framework.core.scoring import (
     score_sources,
 )
 from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
+from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.enums import MarketKey, MarketType, Outcome
 
 

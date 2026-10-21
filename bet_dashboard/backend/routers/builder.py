@@ -7,8 +7,6 @@ from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 
 from bet_framework.core.Slip import BetSlipConfig
-from bet_framework.markets.catalog import MARKET_BY_KEY
-from bet_framework.markets.enums import MarketType
 
 
 def coerce_key(value):

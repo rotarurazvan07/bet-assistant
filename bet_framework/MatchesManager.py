@@ -14,7 +14,6 @@ from scrape_kit import (
 
 from bet_framework.markets.catalog import MARKET_CATALOG
 
-from bet_framework.markets.catalog import MARKET_CATALOG
 from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)

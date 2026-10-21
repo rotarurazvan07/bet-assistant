@@ -17,8 +17,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.core.Match import Match, Odds, Score
+from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.MatchesManager import ODDS_MARKET_GROUPS, MatchesManager, _check_market_group
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

@@ -70,9 +70,9 @@ from bet_framework.core.Slip import (
     ValidationReport,
     get_profile,
 )
-from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
 from bet_framework.core.utils import coerce_datetime_str, is_valid_url
 from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
 from bet_framework.markets.keys import stripped_key
 
 logger = get_logger(__name__)

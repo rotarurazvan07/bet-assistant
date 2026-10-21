@@ -4,9 +4,9 @@ import math
 
 from fastapi import APIRouter, Query, Request
 
-from bet_framework.markets.views import CONSENSUS_COLUMN_NAMES as CONSENSUS_COLUMNS
 from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.keys import stripped_key
+from bet_framework.markets.views import CONSENSUS_COLUMN_NAMES as CONSENSUS_COLUMNS
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 

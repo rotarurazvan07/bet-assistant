@@ -5,11 +5,11 @@ from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
-from bet_framework.markets.views import ALLOWED_MARKET_KEYS as ALLOWED_MARKETS
 from bet_framework.core.Slip import CandidateLeg
+from bet_framework.core.utils import is_valid_url
 from bet_framework.markets.enums import MarketKey, MarketType
 from bet_framework.markets.keys import legacy_market_key
-from bet_framework.core.utils import is_valid_url
+from bet_framework.markets.views import ALLOWED_MARKET_KEYS as ALLOWED_MARKETS
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
 
