@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from bet_dashboard.backend.core.market_config import (
+from bet_framework.core.market_config import (
     CONSENSUS_COLUMNS,
     MARKET_DEFINITIONS,
     ODDS_COLUMNS,

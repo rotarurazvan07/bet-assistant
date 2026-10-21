@@ -22,7 +22,7 @@ class MarketSpec(NamedTuple):
     market_type: str  # category routing key, e.g. 'btts'
     cons_key: str  # consensus column, e.g. 'cons_btts_yes'
     odds_key: str  # odds column, e.g. 'odds_btts_yes'
-    crawler_field: str  # Odds dataclass field, e.g. 'btts_y'
+    crawler_field: str  # Odds dataclass field, e.g. 'btts_yes'
 
 
 MARKET_CATALOG: tuple[MarketSpec, ...] = (
@@ -46,9 +46,9 @@ MARKET_CATALOG: tuple[MarketSpec, ...] = (
         "under_25",
     ),
     MarketSpec(
-        "BTTS Yes", "BTTS Yes", "btts", "cons_btts_yes", "odds_btts_yes", "btts_y"
+        "BTTS Yes", "BTTS Yes", "btts", "cons_btts_yes", "odds_btts_yes", "btts_yes"
     ),
-    MarketSpec("BTTS No", "BTTS No", "btts", "cons_btts_no", "odds_btts_no", "btts_n"),
+    MarketSpec("BTTS No", "BTTS No", "btts", "cons_btts_no", "odds_btts_no", "btts_no"),
     MarketSpec(
         "Over 0.5",
         "Over 0.5",
@@ -123,8 +123,8 @@ MARKET_BY_CRAWLER_FIELD: dict[str, MarketSpec] = {
     spec.crawler_field: spec for spec in MARKET_CATALOG
 }
 # Stripped odds key -> Odds-dataclass field: odds-history/DB snapshots are keyed
-# by crawler fields ('btts_y'); this map is why the PR #106 spelling divergence
-# ('btts_y' vs 'btts_yes') cannot recur.
+# by crawler fields ('btts_yes'); this map is why the PR #106 spelling
+# divergence cannot recur.
 MARKET_BY_STRIPPED_KEY: dict[str, MarketSpec] = {
     spec.odds_key.removeprefix("odds_"): spec for spec in MARKET_CATALOG
 }

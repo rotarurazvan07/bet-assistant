@@ -35,7 +35,9 @@ def _units_std(settled, n_settled: int, avg_units: float) -> float:
     """Sample standard deviation of stakes (0.0 when fewer than two slips)."""
     if n_settled <= 1:
         return 0.0
-    return round((sum((s.units - avg_units) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2)
+    return round(
+        (sum((s.units - avg_units) ** 2 for s in settled) / (n_settled - 1)) ** 0.5, 2
+    )
 
 
 def _daily_pnl_and_sharpe(settled) -> tuple[dict[str, float], float | None]:
@@ -43,7 +45,11 @@ def _daily_pnl_and_sharpe(settled) -> tuple[dict[str, float], float | None]:
     daily_pnl: dict[str, float] = {}
     for s in settled:
         day = s.date_generated[:10]
-        pnl = (s.total_odds - 1) * s.units if _get_status_value(s.slip_status) == "Won" else -s.units
+        pnl = (
+            (s.total_odds - 1) * s.units
+            if _get_status_value(s.slip_status) == "Won"
+            else -s.units
+        )
         daily_pnl[day] = daily_pnl.get(day, 0.0) + pnl
 
     sharpe_ratio: float | None = None
@@ -169,7 +175,9 @@ class AppLogic:
         target_hour = int(svc_cfg.get("generate_hour", 8))
         target_minute = int(svc_cfg.get("generate_minute", 0))
 
-        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+        target_time = now.replace(
+            hour=target_hour, minute=target_minute, second=0, microsecond=0
+        )
 
         # If the scheduled time hasn't arrived yet, nothing to do
         if now < target_time:
@@ -254,7 +262,13 @@ class AppLogic:
         if not odds_dict or not isinstance(odds_dict, dict):
             return []
         history = MatchesManager._extract_history_from_odds(odds_dict)
-        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
+        return [
+            {
+                "timestamp": h.get("ts", ""),
+                "odds": {k: v for k, v in h.items() if k != "ts"},
+            }
+            for h in history
+        ]
 
     def _do_generate(self) -> None:
         """Ticker daemon: generate slips for active profiles at the scheduled hour."""
@@ -386,7 +400,9 @@ class AppLogic:
             # Reload matches with excluded sources to recalculate consensus
             # Empty list means include all sources (reload without exclusions)
             self.refresh_data(excluded_sources=excluded_sources)
-        return self._assistant.filter_matches(search_text=search_text, date_from=date_from, date_to=date_to)
+        return self._assistant.filter_matches(
+            search_text=search_text, date_from=date_from, date_to=date_to
+        )
 
     def pull_matches_db(self, matches_db_path: str) -> str:
         """Download fresh database and merge with history preservation."""
@@ -450,7 +466,9 @@ class AppLogic:
         # Always reload when excluded_sources is explicitly set (including [] for "include all")
         if cfg.excluded_sources is not None:
             self.refresh_data(excluded_sources=cfg.excluded_sources)
-        elif hasattr(cfg, "excluded_sources"):  # Field present but None - explicit "no filter"
+        elif hasattr(
+            cfg, "excluded_sources"
+        ):  # Field present but None - explicit "no filter"
             # Reload with empty list to ensure all sources are included
             self.refresh_data(excluded_sources=[])
         return self._assistant.build_slip(cfg, extra_excluded_urls=extra_excluded_urls)
@@ -587,16 +605,29 @@ class AppLogic:
         actual_win_rate = round((n_won / n_settled * 100) if n_settled else 0.0, 2)
 
         # ── New value metrics ────────────────────────────────────────────────
-        avg_odds = round(sum(s.total_odds for s in settled) / n_settled, 3) if n_settled else 0.0
+        avg_odds = (
+            round(sum(s.total_odds for s in settled) / n_settled, 3)
+            if n_settled
+            else 0.0
+        )
         implied_win_rate = round(
-            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100) if n_settled else 0.0, 2
+            (
+                sum(1.0 / s.total_odds for s in settled if s.total_odds > 0)
+                / n_settled
+                * 100
+            )
+            if n_settled
+            else 0.0,
+            2,
         )
 
         # Calculate overall edge using the new unified function
         edge = calculate_overall_edge(settled)
 
         # ── Staking consistency ──────────────────────────────────────────────
-        avg_units = round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
+        avg_units = (
+            round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
+        )
         units_std = _units_std(settled, n_settled, avg_units)
 
         # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
@@ -606,7 +637,9 @@ class AppLogic:
         best_day_pnl = max(daily_pnl.values()) if daily_pnl else None
         worst_day_pnl = min(daily_pnl.values()) if daily_pnl else None
 
-        kelly_rec = calculate_kelly_recommendation(n_won, n_settled, avg_odds, gross_return)
+        kelly_rec = calculate_kelly_recommendation(
+            n_won, n_settled, avg_odds, gross_return
+        )
         edge_analysis = get_rolling_edge_trend(settled)
 
         # ── New advanced metrics ───────────────────────────────────────────────
@@ -615,7 +648,9 @@ class AppLogic:
         biggest_loss_units = biggest_win_loss["biggest_loss_units"]
 
         # Calculate streak metrics + profit factor
-        streak_metrics = calculate_streak_metrics(slips)  # Pass all slips, not just settled ones
+        streak_metrics = calculate_streak_metrics(
+            slips
+        )  # Pass all slips, not just settled ones
         profit_factor = calculate_profit_factor(settled)
 
         return {
@@ -639,8 +674,12 @@ class AppLogic:
             # New advanced metrics
             "biggest_win_units": biggest_win_units,
             "biggest_loss_units": biggest_loss_units,
-            "best_day_pnl": round(best_day_pnl, 2) if best_day_pnl is not None else None,
-            "worst_day_pnl": round(worst_day_pnl, 2) if worst_day_pnl is not None else None,
+            "best_day_pnl": round(best_day_pnl, 2)
+            if best_day_pnl is not None
+            else None,
+            "worst_day_pnl": round(worst_day_pnl, 2)
+            if worst_day_pnl is not None
+            else None,
             "current_streak": streak_metrics["current_streak"],
             "longest_win_streak": streak_metrics["longest_win_streak"],
             "longest_loss_streak": streak_metrics["longest_loss_streak"],
@@ -683,7 +722,9 @@ class AppLogic:
         from core.analytics_utils import calculate_correlation_data
 
         slips = self.get_slips(profile or "all", date_from, date_to)
-        settled = [s for s in slips if self._get_status_value(s.slip_status) in ("Won", "Lost")]
+        settled = [
+            s for s in slips if self._get_status_value(s.slip_status) in ("Won", "Lost")
+        ]
         return calculate_correlation_data(settled)
 
     # ── Builder ──────────────────────────────────────────────────────────[...]
@@ -760,7 +801,9 @@ class AppLogic:
         )
         return new_state
 
-    def save_service_settings(self, generate_hour: int, generate_minute: int = 0) -> None:
+    def save_service_settings(
+        self, generate_hour: int, generate_minute: int = 0
+    ) -> None:
         """Persist scheduler hour/minute settings to config."""
         cfg = self._settings.get("services") or {}
         cfg["generate_hour"] = generate_hour
@@ -774,7 +817,12 @@ class AppLogic:
         """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
         profiles_raw = self._settings.get("profiles") or {}
         return {
-            name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 0), cfg.get("target_payout"))
+            name: (
+                _yaml_to_config(cfg),
+                cfg.get("units", 1.0),
+                cfg.get("run_daily_count", 0),
+                cfg.get("target_payout"),
+            )
             for name, cfg in profiles_raw.items()
             if cfg.get("run_daily_count")
         }

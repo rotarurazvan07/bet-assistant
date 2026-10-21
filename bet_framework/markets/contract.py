@@ -1,7 +1,7 @@
 """Canonical contract snapshot emitter for frontend parity tests.
 
 Emits {market: {label, market_type, cons_key, odds_key}} as JSON. The frontend
-contract test asserts its column config against this snapshot, so a `btts_y`
+contract test asserts its column config against this snapshot, so a `btts_yes`
 class divergence fails CI instead of shipping.
 """
 

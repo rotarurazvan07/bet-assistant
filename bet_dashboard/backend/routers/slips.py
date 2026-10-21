@@ -1,11 +1,11 @@
 """Slips API: add, list, delete, validate and generate."""
 
-from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
+from bet_framework.core.market_config import ALLOWED_MARKETS
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.type_defs import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
@@ -178,7 +178,9 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
     try:
         market_type = MarketType(mtype_str)
     except ValueError as e:
-        raise ValueError(f"Invalid market_type '{mtype_str}'. Must be one of: {[mt.value for mt in MarketType]}") from e
+        raise ValueError(
+            f"Invalid market_type '{mtype_str}'. Must be one of: {[mt.value for mt in MarketType]}"
+        ) from e
 
     # Required fields - raise if missing
     required_fields = ["match_name", "odds", "result_url", "consensus", "sources"]
@@ -282,7 +284,9 @@ def get_slips(
     if hide_settled_bool:
         slips = [s for s in slips if status_str(s.slip_status) not in ("Won", "Lost")]
     if live_only_bool:
-        slips = [s for s in slips if any(status_str(leg.status) == "Live" for leg in s.legs)]
+        slips = [
+            s for s in slips if any(status_str(leg.status) == "Live" for leg in s.legs)
+        ]
 
     stats = logic.stats(prof, date_from or None, date_to or None)
 

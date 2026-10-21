@@ -58,7 +58,9 @@ def make_finder(
         top_leagues_only=top_leagues_only,
         num_days_ahead=num_days_ahead,
         local_timezone=local_timezone,
-        skip_patterns=skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS,
+        skip_patterns=skip_patterns
+        if skip_patterns is not None
+        else DEFAULT_SKIP_PATTERNS,
     )
     return finder, collector
 
@@ -105,7 +107,7 @@ class FakeBrowserSession:
     """Patch target for scrape_kit browser() sessions.
 
     Supports the three usage patterns in the codebase:
-    - session.fetch(url) -> str HTML             (WhoScored discovery; scrape-kit@v0.2.2)
+    - session.fetch(url) -> str HTML             (WhoScored discovery; scrape-kit@v0.3.0)
     - session.execute_script(...)                (xGScore discovery)
     - session.page.content() + session.click(sel, label) (OddsPortal/BetExplorer)
 
@@ -118,22 +120,30 @@ class FakeBrowserSession:
         self.content_map = content_map
         self.fetch_error_urls = set(fetch_error_urls)
         self.fetched = []
+        self.fetch_kwargs = []
         self.clicks = []
         # (selector, label) pairs — pins click targets (2026-10-12 OP button fix)
         self.click_calls = []
+        self.click_kwargs = []
+        self.wait_for_selector_calls = []
+        self.wait_for_function_calls = []
+        self.default_timeout = None
+        self.navigation_timeout = None
         self._current_url = None
         self.page = self
 
     def fetch(self, url, **kwargs):
         self.fetched.append(url)
+        self.fetch_kwargs.append(kwargs)
         if url in self.fetch_error_urls:
             raise RuntimeError("fetch failed")
         self._current_url = url
         return self.html_content
 
-    def click(self, selector, label=None) -> bool:
+    def click(self, selector, label=None, **kwargs) -> bool:
         self.clicks.append(label if label is not None else selector)
         self.click_calls.append((selector, label))
+        self.click_kwargs.append(kwargs)
         return True
 
     def execute_script(self, script) -> bool:
@@ -148,8 +158,17 @@ class FakeBrowserSession:
         content = self.content_map.get(self._current_url, "")
         return content(self.clicks) if callable(content) else content
 
-    def wait_for_selector(self, selector, state=None, timeout=None):
-        return None
+    def wait_for_selector(self, selector, state=None, timeout=None) -> None:
+        self.wait_for_selector_calls.append((selector, state, timeout))
+
+    def wait_for_function(self, expression, timeout=None) -> None:
+        self.wait_for_function_calls.append((expression, timeout))
+
+    def set_default_timeout(self, timeout) -> None:
+        self.default_timeout = timeout
+
+    def set_default_navigation_timeout(self, timeout) -> None:
+        self.navigation_timeout = timeout
 
 
 def fake_browser(monkeypatch, finder_module, content_map, fetch_error_urls=()):

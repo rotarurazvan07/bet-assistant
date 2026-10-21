@@ -1,6 +1,6 @@
 """Match finder for soccervista.com per-match pages."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -49,7 +49,17 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                         )
                     ]
                 except AttributeError:
-                    logger.info(f"Can't parse: {link}")
+                    logger.warning(
+                        "Skipping SoccerVista league listing with missing tournament selector: %s",
+                        link,
+                        extra={
+                            "event": "source.discovery.candidate_skipped",
+                            "outcome": "warning",
+                            "reason_code": "tournament_selector_missing",
+                            "source_key": "soccervista",
+                            "url": link,
+                        },
+                    )
 
         league_urls = [SOCCERVISTA_URL + url for url in league_urls]
 
@@ -76,7 +86,20 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                             matches_url.append(url)
                             # matches_url.append(SOCCERVISTA_URL + url)
                 except Exception as e:
-                    logger.debug(f"Failed to parse JSON-LD script: {e}")
+                    logger.warning(
+                        "Skipping malformed SoccerVista JSON-LD candidate on %s: %s",
+                        league_url,
+                        e,
+                        extra={
+                            "event": "source.discovery.candidate_skipped",
+                            "outcome": "warning",
+                            "reason_code": "json_ld_parse_failed",
+                            "source_key": "soccervista",
+                            "url": league_url,
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                        },
+                    )
                     continue
 
         logger.info(f"{len(matches_url)} matches to scrape")
@@ -86,7 +109,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
         """Open soccervista match pages via browser and emit matches."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -117,7 +140,14 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             )
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse SoccerVista match page {url}: {e}",
+                source_key="soccervista",
+                url=url,
+            )
 
     def _extract_match_metadata(self, soup):
         """Extract teams and kickoff datetime from a match anchor."""
@@ -152,7 +182,18 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     ).replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
 
                     break
-            except json.JSONDecodeError, TypeError:
+            except (json.JSONDecodeError, TypeError) as exc:
+                log_event(
+                    logger,
+                    event="source.match_metadata.invalid",
+                    outcome="warning",
+                    reason_code="json_ld_metadata_invalid",
+                    level=30,
+                    message=f"Ignoring malformed SoccerVista match metadata: {exc}",
+                    source_key="soccervista",
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
                 continue
 
         return home_team, away_team, match_datetime
@@ -177,7 +218,15 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                 )
             ]
         else:
-            logger.error("No correct score prediction found in the page")
+            logger.error(
+                "No correct score prediction found in the page",
+                extra={
+                    "event": "match.prediction_missing",
+                    "outcome": "error",
+                    "reason_code": "correct_score_prediction_missing",
+                    "source_key": "soccervista",
+                },
+            )
             return None
 
     def _extract_odds(self, soup):
@@ -210,8 +259,16 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     if value and value != "-":
                         extracted_data[attr_name] = value
             except Exception as e:
-                logger.error(
-                    f"Error extracting {attr_name} for class {class_name}: {e}"
+                log_event(
+                    logger,
+                    event="match.odds_field_unavailable",
+                    outcome="warning",
+                    reason_code="odds_field_parse_failed",
+                    level=30,
+                    message=f"Odds field {attr_name} could not be extracted from {class_name}: {e}",
+                    source_key="soccervista",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
                 )
                 continue
         valid_field_names = {f.name for f in fields(Odds)}

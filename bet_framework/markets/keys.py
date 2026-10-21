@@ -17,7 +17,8 @@ def stripped_key(odds_key_value: str) -> str:
 def lookup_key(stripped: str) -> str:
     """Translate a stripped key back to the Odds-dataclass field used by history rows.
 
-    'btts_yes' -> 'btts_y'; every other market maps to itself. Raises KeyError
+    BTTS maps to its Odds-dataclass field spelling ('btts_yes'); every other
+    market maps to itself. Raises KeyError
     for unknown keys (fail loudly instead of a silent None movement).
     """
     return MARKET_BY_STRIPPED_KEY[stripped].crawler_field

@@ -12,9 +12,9 @@ from scrape_kit import (
     time_profiler,
 )
 
-from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
 from bet_framework.markets.keys import lookup_key, stripped_key
 
+from .core.market_config import MARKET_DEFINITIONS
 from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
@@ -42,43 +42,52 @@ class OddsValidationIssue(NamedTuple):
     odds_values: dict[str, float]
 
 
-# Market groups: each is (group_label, [(field_name, display_label), ...])
-# Sum of 1/odds for each group should be ~100-115% (bookmaker margin)
-# Implied-probability thresholds (percent).  A healthy book sums to ~102-112%.
-ODDS_VALID_LOW = 95.0
+# Implied-probability thresholds (percent). A healthy complete market group
+# should sum to roughly 100-120% after converting decimal odds to probabilities.
+ODDS_VALID_LOW = 100.0
 ODDS_VALID_HIGH = 120.0
-ODDS_MARKET_GROUPS: list[tuple[str, list[tuple[str, str]]]] = [
-    ("1X2", [("home", "1"), ("draw", "X"), ("away", "2")]),
-    (
-        "Double Chance",
-        [
-            ("double_chance_1x", "1X"),
-            ("double_chance_x2", "X2"),
-            ("double_chance_12", "12"),
-        ],
-    ),
-    ("O/U 0.5", [("over_0_5", "O0.5"), ("under_0_5", "U0.5")]),
-    ("O/U 1.5", [("over_1_5", "O1.5"), ("under_1_5", "U1.5")]),
-    ("O/U 2.5", [("over_2_5", "O2.5"), ("under_2_5", "U2.5")]),
-    ("O/U 3.5", [("over_3_5", "O3.5"), ("under_3_5", "U3.5")]),
-    ("O/U 4.5", [("over_4_5", "O4.5"), ("under_4_5", "U4.5")]),
-    ("O/U 5.5", [("over_5_5", "O5.5"), ("under_5_5", "U5.5")]),
-    ("BTTS", [("btts_yes", "Yes"), ("btts_no", "No")]),
+_MARKET_GROUP_LABELS = {
+    "result": "1X2",
+    "btts": "BTTS",
+    "double_chance": "Double Chance",
+    "over_under_05": "O/U 0.5",
+    "over_under_15": "O/U 1.5",
+    "over_under_25": "O/U 2.5",
+    "over_under_35": "O/U 3.5",
+    "over_under_45": "O/U 4.5",
+}
+# The three Double Chance selections overlap: each 1X2 outcome appears in two
+# selections, so their combined implied probability is approximately doubled.
+_MARKET_GROUP_IMPLIED_DIVISORS = {"double_chance": 2.0}
+_odds_groups: dict[str, list[tuple[str, str]]] = {}
+for _market_def in MARKET_DEFINITIONS:
+    _field = _market_def.odds_key.removeprefix("odds_")
+    _odds_groups.setdefault(_market_def.market_type, []).append(
+        (_field, _market_def.market)
+    )
+ODDS_MARKET_GROUPS: list[tuple[str, str, list[tuple[str, str]]]] = [
+    (market_type, _MARKET_GROUP_LABELS[market_type], fields)
+    for market_type, fields in _odds_groups.items()
 ]
-# Reverse lookup: field_name -> (group_label, group_fields)
-_FIELD_TO_GROUP: dict[str, tuple[str, list[tuple[str, str]]]] = {}
-for _gl, _gf in ODDS_MARKET_GROUPS:
+# Reverse lookup: field_name -> (market_type, group_label, group_fields)
+_FIELD_TO_GROUP: dict[str, tuple[str, str, list[tuple[str, str]]]] = {}
+for _mt, _gl, _gf in ODDS_MARKET_GROUPS:
     for _fn, _ in _gf:
-        _FIELD_TO_GROUP[_fn] = (_gl, _gf)
+        _FIELD_TO_GROUP[_fn] = (_mt, _gl, _gf)
 
 
 def _check_market_group(
-    odds_dict: dict, fields: list[tuple[str, str]]
+    odds_dict: dict,
+    fields: list[tuple[str, str]],
+    *,
+    implied_divisor: float = 1.0,
 ) -> tuple[bool, float]:
     """Check if a complete market group passes implied-probability sanity.
 
     Returns (is_valid, implied_prob_pct).
     If any selection is missing, returns (True, 0.0) — incomplete groups are allowed.
+    ``implied_divisor`` normalizes overlapping selections before applying the
+    standard 100-120% range (Double Chance uses 2.0).
     """
     values: list[float] = []
     for field, _ in fields:
@@ -86,8 +95,9 @@ def _check_market_group(
         if v is None or not isinstance(v, (int, float)) or v <= 0:
             return True, 0.0  # incomplete group — can't validate
         values.append(float(v))
-    implied = sum(1.0 / v for v in values) * 100.0
-    return ODDS_VALID_LOW <= implied <= ODDS_VALID_HIGH, implied
+    implied = sum(1.0 / v for v in values) * 100.0 / implied_divisor
+    valid = ODDS_VALID_LOW - 1e-9 <= implied <= ODDS_VALID_HIGH + 1e-9
+    return valid, implied
 
 
 def _is_empty(value) -> bool:
@@ -429,9 +439,13 @@ class MatchesManager(BufferedStorageManager):
             grp = _FIELD_TO_GROUP.get(field)
             if grp is None or grp[0] in checked_groups:
                 continue
-            group_label, group_fields = grp
-            checked_groups.add(group_label)
-            valid, implied = _check_market_group(merged, group_fields)
+            market_type, group_label, group_fields = grp
+            checked_groups.add(market_type)
+            valid, implied = _check_market_group(
+                merged,
+                group_fields,
+                implied_divisor=_MARKET_GROUP_IMPLIED_DIVISORS.get(market_type, 1.0),
+            )
             if not valid:
                 bad_keys = {f for f, _ in group_fields}
                 rejected_fields |= bad_keys & raw_patch.keys()
@@ -551,8 +565,14 @@ class MatchesManager(BufferedStorageManager):
                 continue
             home = row.get("home_team_name", "?")
             away = row.get("away_team_name", "?")
-            for group_label, fields in ODDS_MARKET_GROUPS:
-                valid, implied = _check_market_group(odds_dict, fields)
+            for market_type, group_label, fields in ODDS_MARKET_GROUPS:
+                valid, implied = _check_market_group(
+                    odds_dict,
+                    fields,
+                    implied_divisor=_MARKET_GROUP_IMPLIED_DIVISORS.get(
+                        market_type, 1.0
+                    ),
+                )
                 if implied == 0.0:
                     continue  # incomplete group
                 if not valid:
@@ -618,7 +638,9 @@ class MatchesManager(BufferedStorageManager):
             new_snapshot: Dict with timestamp 'ts' and market values
             max_entries: Maximum number of history entries to keep
         """
-        if not new_snapshot or not any(v for k, v in new_snapshot.items() if k != "ts"):
+        if not new_snapshot or not any(
+            v for k, v in new_snapshot.items() if k != "ts" and v is not None
+        ):
             return current_odds
 
         history = list(current_odds.get("history", []))
@@ -674,7 +696,7 @@ class MatchesManager(BufferedStorageManager):
 
         for market in markets:
             # Odds-history snapshots are keyed by Odds-dataclass fields
-            # ('btts_y'); the response key stays the stripped spelling
+            # ('btts_yes'); the response key stays the stripped spelling
             # ('btts_yes') - the two-word difference was the PR #106 class.
             field = lookup_key(market)
             first_val = first_odds.get(field)
@@ -711,7 +733,7 @@ class MatchesManager(BufferedStorageManager):
         result: dict = {}
         for market in markets:
             # Odds-history snapshots are keyed by Odds-dataclass fields
-            # ('btts_y'); the response key stays the stripped spelling
+            # ('btts_yes'); the response key stays the stripped spelling
             # ('btts_yes') - the two-word difference was the PR #106 class.
             field = lookup_key(market)
             first_val = first_odds.get(field)

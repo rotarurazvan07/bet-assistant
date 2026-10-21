@@ -3,7 +3,7 @@
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
 from fastapi import APIRouter, HTTPException, Request
 
-from bet_dashboard.backend.core.market_config import MARKET_DEFINITIONS
+from bet_framework.core.market_config import MARKET_DEFINITIONS
 from bet_framework.markets.keys import stripped_key
 
 router = APIRouter(prefix="/api/odds-history", tags=["odds-history"])

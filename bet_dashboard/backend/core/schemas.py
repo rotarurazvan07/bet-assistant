@@ -49,7 +49,7 @@ class CandidateLegOut(BaseModel):
     match_name: str
     datetime: str | None = None
     market: MarketKey
-    market_type: MarketType
+    market_type: MarketType  # BetFw MarketType (bet_framework.markets enums)
     consensus: float
     odds: float
     result_url: str | None = None
@@ -120,7 +120,9 @@ class ManualLegIn(BaseModel):
     consensus: float  # 0-100 percentage, required for scoring
     sources: int  # number of sources, required for scoring
     league: str | None = None
-    predictions: list[dict] | None = None  # Per-source predictions for source reliability tracking
+    predictions: list[dict] | None = (
+        None  # Per-source predictions for source reliability tracking
+    )
 
 
 class SlipIn(BaseModel):

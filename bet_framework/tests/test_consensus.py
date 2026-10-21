@@ -80,19 +80,19 @@ def flat_values(result: dict) -> list:
 
 
 class TestToPct:
-    def test_normal_counts(self):
+    def test_normal_counts(self) -> None:
         assert to_pct(2, 4) == 50.0
         assert to_pct(1, 4) == 25.0
         assert to_pct(3, 3) == 100.0
 
-    def test_zero_numerator(self):
+    def test_zero_numerator(self) -> None:
         assert to_pct(0, 5) == 0.0
 
-    def test_zero_total_returns_zero(self):
+    def test_zero_total_returns_zero(self) -> None:
         assert to_pct(0, 0) == 0.0
         assert to_pct(7, 0) == 0.0
 
-    def test_rounding_to_one_decimal(self):
+    def test_rounding_to_one_decimal(self) -> None:
         assert to_pct(1, 3) == 33.3
         assert to_pct(2, 3) == 66.7
 
@@ -101,14 +101,14 @@ class TestToPct:
 
 
 class TestCalcConsensusStructure:
-    def test_empty_input_returns_all_zero_structure(self):
+    def test_empty_input_returns_all_zero_structure(self) -> None:
         assert calc_consensus([]) == empty_consensus()
 
-    def test_populated_result_has_complete_market_key_set(self):
+    def test_populated_result_has_complete_market_key_set(self) -> None:
         result = calc_consensus([{"home": 2, "away": 1}])
         assert set(result.keys()) == MARKET_KEYS
 
-    def test_empty_result_has_complete_market_key_set(self):
+    def test_empty_result_has_complete_market_key_set(self) -> None:
         assert set(calc_consensus([]).keys()) == MARKET_KEYS
 
 
@@ -116,7 +116,7 @@ class TestCalcConsensusStructure:
 
 
 class TestCalcConsensusAggregation:
-    def test_single_source_home_win(self):
+    def test_single_source_home_win(self) -> None:
         result = calc_consensus([{"home": 2, "away": 1}])
         assert result["result"]["home"] == 100.0
         assert result["result"]["draw"] == 0.0
@@ -128,7 +128,7 @@ class TestCalcConsensusAggregation:
         assert result["double_chance"]["12"] == 100.0
         assert result["double_chance"]["x2"] == 0.0
 
-    def test_single_source_away_win(self):
+    def test_single_source_away_win(self) -> None:
         result = calc_consensus([{"home": 0, "away": 3}])
         assert result["result"]["away"] == 100.0
         assert result["over_under_25"]["over"] == 100.0
@@ -137,7 +137,7 @@ class TestCalcConsensusAggregation:
         assert result["double_chance"]["12"] == 100.0
         assert result["double_chance"]["x2"] == 100.0
 
-    def test_all_draw_scores(self):
+    def test_all_draw_scores(self) -> None:
         result = calc_consensus([{"home": 1, "away": 1}, {"home": 0, "away": 0}])
         assert result["result"]["draw"] == 100.0
         assert result["over_under_25"]["under"] == 100.0  # totals 2 and 0
@@ -148,7 +148,7 @@ class TestCalcConsensusAggregation:
         assert result["double_chance"]["12"] == 0.0
         assert result["double_chance"]["x2"] == 100.0
 
-    def test_mixed_three_way_split(self):
+    def test_mixed_three_way_split(self) -> None:
         scores = [
             {"home": 2, "away": 0},
             {"home": 1, "away": 1},
@@ -170,46 +170,46 @@ class TestCalcConsensusAggregation:
         assert result["double_chance"]["12"] == pytest.approx(200.0 / 3, abs=0.05)
         assert result["double_chance"]["x2"] == pytest.approx(200.0 / 3, abs=0.05)
 
-    def test_boundary_total_two_goals(self):
+    def test_boundary_total_two_goals(self) -> None:
         result = calc_consensus([{"home": 2, "away": 0}])
         assert result["over_under_25"]["under"] == 100.0  # 2 <= 2.5
         assert result["over_under_15"]["over"] == 100.0  # 2 > 1.5
         assert result["over_under_05"]["over"] == 100.0
 
-    def test_boundary_total_three_goals(self):
+    def test_boundary_total_three_goals(self) -> None:
         result = calc_consensus([{"home": 3, "away": 0}])
         assert result["over_under_25"]["over"] == 100.0  # 3 > 2.5
         assert result["over_under_35"]["under"] == 100.0  # 3 < 3.5
 
-    def test_boundary_total_four_goals(self):
+    def test_boundary_total_four_goals(self) -> None:
         result = calc_consensus([{"home": 3, "away": 1}])
         assert result["over_under_35"]["over"] == 100.0  # 4 > 3.5
         assert result["over_under_45"]["under"] == 100.0  # 4 < 4.5
 
-    def test_boundary_total_five_goals(self):
+    def test_boundary_total_five_goals(self) -> None:
         result = calc_consensus([{"home": 4, "away": 1}])
         assert result["over_under_45"]["over"] == 100.0  # 5 > 4.5
 
-    def test_goalless_score_hits_under_05(self):
+    def test_goalless_score_hits_under_05(self) -> None:
         result = calc_consensus([{"home": 0, "away": 0}])
         assert result["over_under_05"]["under"] == 100.0  # 0 < 0.5
         assert result["btts"]["no"] == 100.0
         assert result["result"]["draw"] == 100.0
 
-    def test_missing_home_key_defaults_to_zero(self):
+    def test_missing_home_key_defaults_to_zero(self) -> None:
         result = calc_consensus([{"away": 2}])
         assert result["result"]["away"] == 100.0  # 0 < 2
 
-    def test_missing_away_key_defaults_to_zero(self):
+    def test_missing_away_key_defaults_to_zero(self) -> None:
         result = calc_consensus([{"home": 1}])
         assert result["result"]["home"] == 100.0
 
-    def test_none_values_treated_as_zero(self):
+    def test_none_values_treated_as_zero(self) -> None:
         result = calc_consensus([{"home": None, "away": None}])
         assert result["result"]["draw"] == 100.0  # 0 == 0
         assert result["over_under_05"]["under"] == 100.0
 
-    def test_exception_mid_list_returns_empty_structure(self):
+    def test_exception_mid_list_returns_empty_structure(self) -> None:
         # First entry is valid, second raises inside the loop ("boom" + "bang"
         # compared against 2.5 raises TypeError) -> partial results discarded.
         scores = [{"home": 2, "away": 1}, {"home": "boom", "away": "bang"}]
@@ -222,14 +222,14 @@ class TestCalcConsensusAggregation:
 class TestCalcConsensusProperties:
     @settings(deadline=None)
     @given(scores=SCORE_LISTS)
-    def test_property_result_percentages_sum_to_100(self, scores):
+    def test_property_result_percentages_sum_to_100(self, scores) -> None:
         result = calc_consensus(scores)
         total = sum(result["result"].values())
         assert total == pytest.approx(100.0, abs=0.2)
 
     @settings(deadline=None)
     @given(scores=SCORE_LISTS)
-    def test_property_over_under_complement_per_line(self, scores):
+    def test_property_over_under_complement_per_line(self, scores) -> None:
         result = calc_consensus(scores)
         for market in OVER_UNDER_MARKETS:
             total = result[market]["over"] + result[market]["under"]
@@ -237,27 +237,27 @@ class TestCalcConsensusProperties:
 
     @settings(deadline=None)
     @given(scores=SCORE_LISTS)
-    def test_property_btts_complement(self, scores):
+    def test_property_btts_complement(self, scores) -> None:
         result = calc_consensus(scores)
         total = result["btts"]["yes"] + result["btts"]["no"]
         assert total == pytest.approx(100.0, abs=0.15)
 
     @settings(deadline=None)
     @given(scores=SCORE_LISTS)
-    def test_property_all_values_within_0_100(self, scores):
+    def test_property_all_values_within_0_100(self, scores) -> None:
         for value in flat_values(calc_consensus(scores)):
             assert 0.0 <= value <= 100.0
 
     @settings(deadline=None)
     @given(scores=SINGLE_SCORE)
-    def test_property_single_source_is_degenerate(self, scores):
+    def test_property_single_source_is_degenerate(self, scores) -> None:
         # With one source every percentage must be exactly 0.0 or 100.0.
         for value in flat_values(calc_consensus(scores)):
             assert value in (0.0, 100.0)
 
     @settings(deadline=None)
     @given(scores=SCORE_LISTS)
-    def test_property_double_chance_pairwise_covers_all_scores(self, scores):
+    def test_property_double_chance_pairwise_covers_all_scores(self, scores) -> None:
         result = calc_consensus(scores)
         dc = result["double_chance"]
         # 1X + 12 covers home wins, draws and away wins; same for X2 + 12.
@@ -269,27 +269,27 @@ class TestCalcConsensusProperties:
 
 
 class TestAdjustedConsensus:
-    def test_formula_single_source_default_k(self):
+    def test_formula_single_source_default_k(self) -> None:
         # 50 + (1 / (1 + 3)) * (80 - 50) = 50 + 0.25 * 30 = 57.5
         assert adjusted_consensus(80.0, 1, 3.0) == pytest.approx(57.5)
 
-    def test_formula_below_fifty(self):
+    def test_formula_below_fifty(self) -> None:
         # 50 + 0.25 * (20 - 50) = 42.5
         assert adjusted_consensus(20.0, 1, 3.0) == pytest.approx(42.5)
 
-    def test_zero_sources_returns_neutral_fifty(self):
+    def test_zero_sources_returns_neutral_fifty(self) -> None:
         assert adjusted_consensus(80.0, 0, 3.0) == 50.0
         assert adjusted_consensus(20.0, 0, 5.0) == 50.0
 
-    def test_at_fifty_stays_fifty_for_any_inputs(self):
+    def test_at_fifty_stays_fifty_for_any_inputs(self) -> None:
         assert adjusted_consensus(50.0, 0, 3.0) == 50.0
         assert adjusted_consensus(50.0, 7, 10.0) == 50.0
 
-    def test_high_source_count_converges_to_raw(self):
+    def test_high_source_count_converges_to_raw(self) -> None:
         # 10000 sources, k=3: weight = 10000/10003 = 0.9997 -> 89.988.
         assert adjusted_consensus(90.0, 10000, 3.0) == pytest.approx(90.0, abs=0.05)
 
-    def test_larger_k_shrinks_harder_toward_fifty(self):
+    def test_larger_k_shrinks_harder_toward_fifty(self) -> None:
         raw, sources = 90.0, 2
         distances = []
         for k in (1.0, 3.0, 10.0, 100.0):
@@ -304,7 +304,7 @@ class TestAdjustedConsensus:
         sources=st.integers(min_value=0, max_value=200),
         k=st.floats(min_value=0.5, max_value=10.0),
     )
-    def test_property_shrinkage_never_amplifies_distance_from_fifty(self, raw, sources, k):
+    def test_property_shrinkage_never_amplifies_distance_from_fifty(self, raw, sources, k) -> None:
         adjusted = adjusted_consensus(raw, sources, k)
         assert abs(adjusted - 50.0) <= abs(raw - 50.0) + 1e-9
         low, high = min(50.0, raw), max(50.0, raw)
@@ -317,7 +317,7 @@ class TestAdjustedConsensus:
         s1=st.integers(min_value=0, max_value=100),
         s2=st.integers(min_value=0, max_value=100),
     )
-    def test_property_more_sources_move_closer_to_raw(self, raw, k, s1, s2):
+    def test_property_more_sources_move_closer_to_raw(self, raw, k, s1, s2) -> None:
         lo, hi = sorted((s1, s2))
         near = adjusted_consensus(raw, lo, k)
         far = adjusted_consensus(raw, hi, k)

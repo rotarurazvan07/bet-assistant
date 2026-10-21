@@ -1,6 +1,6 @@
 """Match finder for betclan.com daily tips."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger
 
 logger = get_logger(__name__)
 
@@ -40,7 +40,9 @@ class BetClanFinder(BaseMatchFinder):
             soup = BeautifulSoup(page, "html.parser")
 
             matches_anchors = soup.find_all("div", class_="bclisttip")
-            matches_urls.extend(anchor.find("a").get("href") for anchor in matches_anchors)
+            matches_urls.extend(
+                anchor.find("a").get("href") for anchor in matches_anchors
+            )
 
         logger.info(f"Found {len(matches_urls)} matches to scrape")
         return matches_urls
@@ -49,7 +51,7 @@ class BetClanFinder(BaseMatchFinder):
         """Scrape match details from a list of URLs."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -61,13 +63,40 @@ class BetClanFinder(BaseMatchFinder):
 
             home_team = soup.find("div", class_="teamtophome").get_text().strip()
             away_team = soup.find("div", class_="teamtopaway").get_text().strip()
-            date_str = soup.find("span", class_="dategamedetailsis").get_text().strip().replace("Date ", "").split(" ")[0]
-            current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
-            score_str = soup.find("div", class_="predione").find("div", class_="parttwo").find_all("h5")[-1].get_text().strip()
-            predictions = [Score(BETCLAN_NAME, home=(score_str.split("-")[0]), away=(score_str.split("-")[1]))]
+            date_str = (
+                soup.find("span", class_="dategamedetailsis")
+                .get_text()
+                .strip()
+                .replace("Date ", "")
+                .split(" ")[0]
+            )
+            current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            score_str = (
+                soup.find("div", class_="predione")
+                .find("div", class_="parttwo")
+                .find_all("h5")[-1]
+                .get_text()
+                .strip()
+            )
+            predictions = [
+                Score(
+                    BETCLAN_NAME,
+                    home=(score_str.split("-")[0]),
+                    away=(score_str.split("-")[1]),
+                )
+            ]
             odds = None
 
             self.add_match(Match(home_team, away_team, current_date, predictions, odds))
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse BetClan page {url}: {e}",
+                source_key="betclan",
+                url=url,
+            )

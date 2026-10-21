@@ -70,10 +70,10 @@ graph TD
     BT --> PS
     FT --> PS
     FP --> PS
-    
+
     PS --> SC
     SC --> MR    MR --> MDB
-    
+
     MDB --> BA[Backend API]
     SDB --> BA
     CFG --> BA
@@ -114,6 +114,24 @@ python -m bet_crawler.crawl --mode merge \
   --config_dir config
 ```
 
+## Scraper event logging
+
+The crawler retains its human-readable scrape-kit console logs and can also emit a separate, ANSI-free JSONL sidecar. Set `SCRAPE_EVENT_LOG_PATH` before starting the crawler; each line is one independent JSON object. The scraping GitHub Actions workflow writes `crawler-events.jsonl` and uploads it beside each existing job log artifact. Prepare-scrape continues to write only its task-matrix JSON to stdout.
+
+Every structured record includes `schema_version`, UTC `timestamp`, `severity`, `event`, `outcome`, `reason_code`, `logger`, `message`, and run/job/runner/stage/chunk/source/finder/URL/match attribution where available. Error records include exception type/message and traceback when logged inside an exception handler. Existing logs receive stable fallback classifications (`application.warning` / `application.error` and `unclassified_warning` / `unclassified_error`) until their call sites are migrated to a specific reason code.
+
+Severity policy:
+
+- `INFO`: progress, successful outcomes, expected ongoing/finished states, and intentional team-pattern/date-window exclusions.
+- `WARNING`: recoverable retries/degradation, malformed candidates or odds that are skipped, and unexpected empty/invalid source data.
+- `ERROR`: required page/match/source processing failures, exhausted source-discovery retries, and incomplete stage outcomes.
+
+Explicit events use dotted names such as `source.discovery.failed`, `match.skipped`, `source.scrape.failed`, and `stage.completed`. Consumers should use `event`, `outcome`, `reason_code`, and context fields rather than matching display text. `stage.completed` includes event warning/error totals, explicit counts and the `success`/`partial` outcome.
+
+The scraping workflow downloads all `logs-*` artifacts in `unify-logs`, keeps the relative artifact paths in `unified_log.txt`, and runs `bet_crawler.summarize_scrape_logs`. The script groups structured WARNING/ERROR/CRITICAL events by source, event, and reason; includes non-application legacy log records and job conclusions; and reports malformed JSONL lines as warnings. It writes `scrape-summary.md` to the GitHub Actions step summary and retains both Markdown and JSON reports with the raw unified log in `unified-logs`. Expected INFO skips are excluded, and the summary is diagnostic only; it does not independently change workflow success/failure.
+
+For `prepare-scrape`, stderr contains operational logs while stdout is reserved for the task matrix. The prepare job captures stdout for the matrix and always tees captured stderr to both the Actions console and `job_log.txt`, including on failure.
+
 
 
 ## Finder Architecture
@@ -132,7 +150,7 @@ python -m bet_crawler.crawl --mode merge \
 ```python
 class BaseMatchFinder:
     TIMEZONE: str | None = None  # Subclasses override
-    
+
     def __init__(self, add_match_callback, **runtime_settings):
         self.add_match_callback = add_match_callback
         self.contributes_odds = runtime_settings["contributes_odds"]
@@ -140,25 +158,25 @@ class BaseMatchFinder:
         self.num_days_ahead = runtime_settings["num_days_ahead"]
         self.local_timezone = runtime_settings["local_timezone"]
         self.skip_patterns = runtime_settings["skip_patterns"]
-    
+
     @abstractmethod
     def get_matches_urls(self): pass
-    
+
     @abstractmethod
     def get_matches(self, urls): pass
-    
+
     @abstractmethod
     def _parse_page(self, url, html): pass
-    
+
     def normalise_datetime(self, dt):
         # Convert from source timezone to local timezone
-    
+
     def add_match(self, match, force=False):
         # Skip patterns + date validation + callback
-    
+
     def skip_match_by_patterns(self, home, away):
         # Regex matching against skip_patterns
-    
+
     def validate_match_date(self, match_datetime):
         # today <= match_date <= today + num_days_ahead
 ```
@@ -259,6 +277,7 @@ class Score:
     home: float
     away: float
 
+
 @dataclass
 class Odds:
     home: float = None
@@ -274,15 +293,18 @@ class Odds:
     under_35: float = None
     over_45: float = None
     under_45: float = None
-    btts_y: float = None
-    btts_n: float = None
+    btts_yes: float = None
+    btts_no: float = None
     dc_1x: float = None
     dc_12: float = None
     dc_x2: float = None
     # Auto-converts American odds to decimal
 
+
 class Match:
-    def __init__(self, home_team, away_team, datetime, predictions, odds, result_url, league):
+    def __init__(
+        self, home_team, away_team, datetime, predictions, odds, result_url, league
+    ):
         self.home_team = home_team
         self.away_team = away_team
         self.datetime = datetime
@@ -321,7 +343,7 @@ class MatchesManager(BufferedStorageManager):
     def __init__(self, db_path, similarity_config=None):
         self.similarity_engine = SimilarityEngine(similarity_config) if similarity_config else None
         super().__init__(db_path, "matches")
-    
+
     def add_match(self, match: Match) -> int | None:
         # 1. Fuzzy match in buffer (±1 day)
         # 2. Exact match → update
@@ -329,12 +351,12 @@ class MatchesManager(BufferedStorageManager):
         # 4. Source collision guard
         # 5. Insert new or update existing
         # 6. Return buffer index
-    
+
     def merge_databases(self, chunks_dir):
         # Merge chunk DBs with fuzzy dedup
         # Log near-misses (40-65 similarity)
         # Validate odds implied probability (95-120%)
-    
+
     def merge_with_history_preservation(self, fresh_db_path, max_history=3, local_tz="UTC"):
         # Preserve odds history when merging fresh DB
         # Transfer existing history + append current snapshot
@@ -407,7 +429,7 @@ graph TD
     CL[cleanup-artifacts
     After UL
     Delete intermediate]
-    
+
     PA --> SA
     PL --> SL
     SA --> MR
@@ -542,7 +564,7 @@ Add new modes to `crawl.py`:
 
 ```python
 # In build_parser()
-choices=[
+choices = [
     "prepare-scrape",
     "scrape",
     "merge",

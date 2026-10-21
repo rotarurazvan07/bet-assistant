@@ -1,6 +1,6 @@
 """Match finder for predictz.com predictions."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -85,19 +85,38 @@ class PredictzFinder(BaseMatchFinder):
             self._parse_page(url, html)
 
         try:
-            scrape(urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
+            scrape(
+                urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY
+            )
         except FetcherError as exc:  # AC-06: sample 403s must not hard-fail the crawler
             remaining = [u for u in urls if u not in parsed]
-            logger.warning(
-                "Predictz FAST scrape had failures (%s); retrying %d URL(s) in STEALTH",
-                exc,
-                len(remaining),
+            log_event(
+                logger,
+                event="source.fetch.retry",
+                outcome="warning",
+                reason_code="fast_fetch_retry_stealth",
+                level=30,
+                message=f"Predictz FAST scrape had failures ({exc}); retrying {len(remaining)} URL(s) in STEALTH",
+                source_key="predictz",
+                attempt=1,
+                max_attempts=2,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
             )
             if remaining:
                 try:
-                    scrape(remaining, _on_page, mode=ScrapeMode.STEALTH, max_concurrency=1)
+                    scrape(
+                        remaining, _on_page, mode=ScrapeMode.STEALTH, max_concurrency=1
+                    )
                 except FetcherError as stealth_exc:
-                    logger.warning("Predictz STEALTH retry still failed: %s", stealth_exc)
+                    exception_event(
+                        logger,
+                        event="source.scrape.failed",
+                        reason_code="stealth_retry_failed",
+                        message=f"Predictz STEALTH retry failed: {stealth_exc}",
+                        source_key="predictz",
+                        urls=remaining,
+                    )
 
     def _parse_page(self, url, html) -> None:
         """Parse one predictz league page and emit matches via callback."""
@@ -112,7 +131,9 @@ class PredictzFinder(BaseMatchFinder):
             for entry in soup.find_all(class_="pzcnth"):
                 if entry.find("h2"):
                     date_str = entry.find("h2").get_text()
-                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(",", "")
+                    clean = re.sub(r"(\d+)(st|nd|rd|th)", r"\1", date_str).replace(
+                        ",", ""
+                    )
                     match_datetime = next(
                         dt
                         for y in range(datetime.now().year - 1, datetime.now().year + 2)
@@ -138,10 +159,26 @@ class PredictzFinder(BaseMatchFinder):
                             draw=entry.find_all(class_="odds")[1].get_text(),
                             away=entry.find_all(class_="odds")[2].get_text(),
                         )
-                    except (AttributeError, IndexError):
+                    except (AttributeError, IndexError) as exc:
+                        log_event(
+                            logger,
+                            event="match.odds_unavailable",
+                            outcome="warning",
+                            reason_code="odds_cells_missing",
+                            level=30,
+                            message=f"Predictz odds unavailable for candidate on {url}: {exc}",
+                            source_key="predictz",
+                            url=url,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                        )
                         odds = None
 
-                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                    league = (
+                        TOP_LEAGUES.get(url)
+                        if self.top_leagues_only and url in TOP_LEAGUES
+                        else None
+                    )
                     self.add_match(
                         Match(
                             home_team,
@@ -154,4 +191,11 @@ class PredictzFinder(BaseMatchFinder):
                     )
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse Predictz page {url}: {e}",
+                source_key="predictz",
+                url=url,
+            )

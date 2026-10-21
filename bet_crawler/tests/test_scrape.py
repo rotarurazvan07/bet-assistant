@@ -5,7 +5,10 @@ class chunk .db via MatchesManager, per-group exception isolation, reset semanti
 All finders are stubs — zero network.
 """
 
+import json
+
 from bet_crawler.crawl_core.scrape import scrape
+from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 from bet_framework.MatchesManager import MatchesManager
 
 from .conftest import StubCrawler, StubFactory, make_match
@@ -65,7 +68,9 @@ class TestScrapeP0:
 
         crawler_b.get_matches = spy_b
         db = tmp_path / "chunk.db"
-        scrape(str(db), "https://www.a.com/1,https://www.a.com/9,https://b.org/2", factory)
+        scrape(
+            str(db), "https://www.a.com/1,https://www.a.com/9,https://b.org/2", factory
+        )
         assert seen["a"] == ["https://www.a.com/1", "https://www.a.com/9"]
         assert seen["b"] == ["https://b.org/2"]
         # create_for_url receives the FIRST url of each group
@@ -73,7 +78,9 @@ class TestScrapeP0:
 
     def test_exception_in_one_group_continues_others(self, tmp_path) -> None:
         bad = StubCrawler([], raise_on_get=True)
-        good = StubCrawler([], matches=[make_match(home="Good FC", url="https://b.org/1")])
+        good = StubCrawler(
+            [], matches=[make_match(home="Good FC", url="https://b.org/1")]
+        )
         factory = StubFactory(
             {},
             url_to_crawler={"a": bad, "b": good},
@@ -86,12 +93,102 @@ class TestScrapeP0:
 
     def test_factory_exception_continues_others(self, tmp_path) -> None:
         """Unknown URL for a domain → create_for_url raises → other groups proceed."""
-        good = StubCrawler([], matches=[make_match(home="Good FC", url="https://b.org/1")])
+        good = StubCrawler(
+            [], matches=[make_match(home="Good FC", url="https://b.org/1")]
+        )
         factory = StubFactory({}, url_to_crawler={"b": good})
         db = tmp_path / "chunk.db"
         scrape(str(db), "https://unknown.xyz/1,https://b.org/1", factory)
         df = _fetch(str(db))
         assert len(df) == 1
+
+    def test_source_failure_records_exception_and_partial_stage(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        event_path = tmp_path / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+        bad = StubCrawler([], raise_on_get=True)
+        factory = StubFactory({}, url_to_crawler={"a": bad})
+        try:
+            scrape(str(tmp_path / "chunk.db"), "https://a.com/1", factory)
+            records = [
+                json.loads(line)
+                for line in event_path.read_text(encoding="utf-8").splitlines()
+            ]
+            failed = [
+                record
+                for record in records
+                if record["event"] == "source.scrape.failed"
+            ]
+            completed = [
+                record for record in records if record["event"] == "stage.completed"
+            ]
+            assert failed and failed[0]["error_type"] == "RuntimeError"
+            assert failed[0]["chunk_id"] == "chunk.db"
+            assert completed and completed[-1]["outcome"] == "partial"
+            assert completed[-1]["counts"]["groups_failed"] == 1
+            assert completed[-1]["counts"]["errors"] > 0
+        finally:
+            disable_event_logging()
+
+    def test_completion_counts_added_and_benign_skips(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from bet_crawler.finders.BaseMatchFinder import BaseMatchFinder
+
+        event_path = tmp_path / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+
+        class CountingCrawler(StubCrawler, BaseMatchFinder):
+            def __init__(self, callback) -> None:
+                BaseMatchFinder.__init__(
+                    self,
+                    callback,
+                    contributes_odds=False,
+                    top_leagues_only=True,
+                    num_days_ahead=1,
+                    local_timezone="UTC",
+                    skip_patterns=((r"\bU\d{2}\b", "Youth"),),
+                )
+
+            def get_matches(self, urls) -> None:
+                assert self.add_match(make_match(home="Arsenal U19")) is False
+                assert self.add_match(
+                    make_match(
+                        home="Eligible FC",
+                        dt=datetime.now(ZoneInfo("UTC")).replace(tzinfo=None),
+                    )
+                )
+
+        class CountingFactory(StubFactory):
+            def create_for_url(self, url, on_match_callback=None):
+                crawler = CountingCrawler(on_match_callback)
+                crawler._log_source_key = "counting"
+                return crawler
+
+        factory = CountingFactory({}, url_to_crawler={})
+        try:
+            scrape(
+                str(tmp_path / "counted.db"), "https://counting.test/matches", factory
+            )
+            records = [
+                json.loads(line)
+                for line in event_path.read_text(encoding="utf-8").splitlines()
+            ]
+            completed = [
+                record for record in records if record["event"] == "stage.completed"
+            ][-1]
+            assert completed["counts"]["matches_added"] == 1
+            assert completed["counts"]["matches_skipped"] == 1
+            assert completed["counts"]["warnings"] == 0
+            assert completed["outcome"] == "success"
+        finally:
+            disable_event_logging()
 
 
 class TestScrapeP1:
@@ -111,9 +208,13 @@ class TestScrapeP1:
         """Same home/away/datetime twice from one group lands once; predictions merge."""
         from bet_framework.core.Match import Score
 
-        m1 = make_match(home="Dedup FC", away="Rival", preds=None, url="https://a.com/1")
+        m1 = make_match(
+            home="Dedup FC", away="Rival", preds=None, url="https://a.com/1"
+        )
         m1.predictions = [Score(source="s1", home=2, away=0)]
-        m2 = make_match(home="Dedup FC", away="Rival", preds=None, url="https://a.com/2")
+        m2 = make_match(
+            home="Dedup FC", away="Rival", preds=None, url="https://a.com/2"
+        )
         m2.predictions = [Score(source="s2", home=3, away=0)]
         crawler = StubCrawler([], matches=[m1, m2])
         factory = StubFactory({}, url_to_crawler={"a": crawler})

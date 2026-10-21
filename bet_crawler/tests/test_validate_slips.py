@@ -53,21 +53,28 @@ class TestValidateSlipsP0:
         inst.validate_slips.assert_called_once_with()
         inst.close.assert_called_once()
 
-    def test_summary_log_reports_counts(self, monkeypatch, caplog) -> None:
+    def test_validation_errors_are_logged_and_fail_stage(
+        self, monkeypatch, caplog
+    ) -> None:
         report = make_report(
             settled=[make_leg()],
             live=[make_leg(outcome="Live")],
             errors=2,
             checked=7,
         )
-        with caplog.at_level("INFO", logger="bet_crawler.crawl_core.validate_slips"):
+        with (
+            caplog.at_level("ERROR", logger="bet_crawler.crawl_core.validate_slips"),
+            pytest.raises(SystemExit) as exc,
+        ):
             run_stage(monkeypatch, report)
-        summary = [r.getMessage() for r in caplog.records if "Checked" in r.getMessage()]
+        assert exc.value.code == 1
+        summary = [
+            r.getMessage()
+            for r in caplog.records
+            if "completed with 2 errors" in r.getMessage()
+        ]
         assert summary
-        assert "Checked 7" in summary[0]
-        assert "Settled 1" in summary[0]
-        assert "Live 1" in summary[0]
-        assert "Errors 2" in summary[0]
+        assert caplog.records[-1].levelname == "ERROR"
 
     def test_live_items_logged_with_score_and_minute(self, monkeypatch, caplog) -> None:
         leg = make_leg(
@@ -96,8 +103,12 @@ class TestValidateSlipsP0:
 class TestValidateSlipsP1:
     def test_empty_report_logs_zero_counts(self, monkeypatch, caplog) -> None:
         with caplog.at_level("INFO", logger="bet_crawler.crawl_core.validate_slips"):
-            run_stage(monkeypatch, make_report(settled=[], live=[], errors=0, checked=0))
-        summary = [r.getMessage() for r in caplog.records if "Checked" in r.getMessage()]
+            run_stage(
+                monkeypatch, make_report(settled=[], live=[], errors=0, checked=0)
+            )
+        summary = [
+            r.getMessage() for r in caplog.records if "Checked" in r.getMessage()
+        ]
         assert summary
         assert "Checked 0" in summary[0]
         assert "Settled 0" in summary[0]

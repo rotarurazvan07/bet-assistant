@@ -1,6 +1,6 @@
 """Match finder for soccervista.com league pages."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger
 
 logger = get_logger(__name__)
 import datetime
@@ -69,7 +69,9 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
 
             links = [
                 link["href"]
-                for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
+                for link in soup.find(
+                    "h3", string=lambda t: t and "Top Leagues" in t
+                ).parent.find_all("a", href=True)
             ][:-2]
 
             with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
@@ -78,7 +80,9 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         lambda l: (
                             [
                                 opt["value"]
-                                for opt in BeautifulSoup(fetch(SOCCERVISTA_URL + l) or "", "html.parser")
+                                for opt in BeautifulSoup(
+                                    fetch(SOCCERVISTA_URL + l) or "", "html.parser"
+                                )
                                 .find("select", id="tournamentPage")
                                 .find_all("option")
                             ]
@@ -97,7 +101,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         """Scrape all soccervista league URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -106,13 +110,30 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
         """Parse one soccervista league page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            container = soup.find("h2", string=lambda t: t and "Upcoming Predictions" in t)
+            container = soup.find(
+                "h2", string=lambda t: t and "Upcoming Predictions" in t
+            )
+            if container is None:
+                log_event(
+                    logger,
+                    event="source.page.structure_missing",
+                    outcome="warning",
+                    reason_code="upcoming_predictions_container_missing",
+                    level=30,
+                    message=f"SoccerVista league page has no Upcoming Predictions section: {url}",
+                    source_key="soccervista",
+                    url=url,
+                )
             matches = container.parent.find("tbody").find_all("tr") if container else []
 
             for match_tr in matches:
                 try:
-                    home_team = match_tr.find_all("td")[1].find_all("span")[-1].get_text()
-                    away_team = match_tr.find_all("td")[3].find_all("span")[0].get_text()
+                    home_team = (
+                        match_tr.find_all("td")[1].find_all("span")[-1].get_text()
+                    )
+                    away_team = (
+                        match_tr.find_all("td")[3].find_all("span")[0].get_text()
+                    )
                     try:
                         date_str = match_tr.find_all("td")[0].get_text()
                         match_datetime = min(
@@ -126,8 +147,29 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                             ),
                             key=lambda d: abs(d - datetime.now()),
                         ).replace(hour=0, minute=0, second=0, microsecond=0)
-                    except Exception:
-                        logger.info(f"{home_team} vs {away_team}: Match ongoing")
+                    except ValueError as exc:
+                        date_text = match_tr.find_all("td")[0].get_text(strip=True)
+                        if any(
+                            token in date_text.casefold()
+                            for token in ("live", "ongoing", "in play")
+                        ):
+                            logger.info("%s vs %s: Match ongoing", home_team, away_team)
+                        else:
+                            logger.warning(
+                                "Skipping %s vs %s: invalid/unrecognized date %r (%s)",
+                                home_team,
+                                away_team,
+                                date_text,
+                                exc,
+                                extra={
+                                    "event": "match.skipped",
+                                    "outcome": "warning",
+                                    "reason_code": "invalid_match_date",
+                                    "source_key": "soccervista",
+                                    "url": url,
+                                    "error_type": type(exc).__name__,
+                                },
+                            )
                         continue
 
                     score_text = match_tr.find_all("td")[-1].get_text()
@@ -139,7 +181,11 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         )
                     ]
 
-                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                    league = (
+                        TOP_LEAGUES.get(url)
+                        if self.top_leagues_only and url in TOP_LEAGUES
+                        else None
+                    )
                     self.add_match(
                         Match(
                             home_team=home_team,
@@ -148,13 +194,28 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                             predictions=scores,
                             odds=None,
                             league=league,
-                            result_url=SOCCERVISTA_URL + match_tr.find("a").get("href").replace("/fr/", "/"),
+                            result_url=SOCCERVISTA_URL
+                            + match_tr.find("a").get("href").replace("/fr/", "/"),
                         )
                     )
 
                 except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed SoccerVista candidate on {url}: {e}",
+                        source_key="soccervista",
+                        url=url,
+                    )
                     continue
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse SoccerVista league page {url}: {e}",
+                source_key="soccervista",
+                url=url,
+            )

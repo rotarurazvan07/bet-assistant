@@ -87,7 +87,6 @@ for _spec in MARKET_CATALOG:
     )
 
 
-
 def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
     """
     Parse a result page HTML and return the MatchResultInfo.
@@ -176,7 +175,9 @@ def _extract_score(soup: BeautifulSoup) -> str | None:
 
     if not match_score:
         # 2. Fallback: search in common score-like classes
-        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.IGNORECASE))
+        score_div = soup.find(
+            "div", class_=re.compile(r"font-bold.*text-center", re.IGNORECASE)
+        )
         if score_div:
             match_score = score_rx.search(score_div.get_text(strip=True))
 
@@ -363,7 +364,8 @@ class BetAssistant(BaseStorageManager):
         return row_data
 
     _ODDS_KEY_MAP = {
-        spec.odds_key.removeprefix("odds_"): spec.crawler_field for spec in MARKET_CATALOG
+        spec.odds_key.removeprefix("odds_"): spec.crawler_field
+        for spec in MARKET_CATALOG
     }
 
     def _flatten_odds(self, odds: dict) -> dict:
@@ -1175,7 +1177,7 @@ class BetAssistant(BaseStorageManager):
                 if predictions_json:
                     try:
                         predictions = json.loads(predictions_json)
-                    except json.JSONDecodeError, TypeError:
+                    except (json.JSONDecodeError, TypeError):
                         predictions = []
 
                 slips[slip_id].legs.append(

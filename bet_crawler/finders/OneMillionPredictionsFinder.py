@@ -3,7 +3,8 @@
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import get_logger
+
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 from itertools import takewhile
@@ -60,7 +61,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
         """Scrape all onemillionpredictions URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -85,7 +86,9 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                     dt_tag = cells[0].find(class_="fulldatetime")
                     if dt_tag:
                         dt_str = dt_tag.get_text(strip=True)
-                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(hour=0, minute=0, second=0, microsecond=0)
+                        dt_obj = datetime.strptime(dt_str, "%Y-%m-%d %H:%M").replace(
+                            hour=0, minute=0, second=0, microsecond=0
+                        )
 
                         teams = list(cells[1].stripped_strings)
                         home_team = teams[0]
@@ -94,8 +97,21 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         score_text = cells[2].get_text(strip=True)
                         # AC-07: skip if split length < 2 or empty
                         parts = score_text.split(":")
-                        if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
-                            logger.info("SKIPPED [%s]: incomplete score %r", url, score_text)
+                        if (
+                            len(parts) < 2
+                            or not parts[0].strip()
+                            or not parts[1].strip()
+                        ):
+                            log_event(
+                                logger,
+                                event="match.skipped",
+                                outcome="warning",
+                                reason_code="score_incomplete",
+                                level=30,
+                                message=f"Skipping OneMillionPredictions row with incomplete score {score_text!r}",
+                                source_key=ONE_MILLION_PREDICTIONS_NAME,
+                                url=url,
+                            )
                             continue
 
                         predictions = [
@@ -107,7 +123,11 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         ]
                         odds = None
 
-                        league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                        league = (
+                            TOP_LEAGUES.get(url)
+                            if self.top_leagues_only and url in TOP_LEAGUES
+                            else None
+                        )
                         self.add_match(
                             Match(
                                 home_team,
@@ -118,9 +138,34 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                                 league=league,
                             )
                         )
+                    else:
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="warning",
+                            reason_code="match_datetime_missing",
+                            level=30,
+                            message=f"Skipping OneMillionPredictions candidate without a datetime: {url}",
+                            source_key=ONE_MILLION_PREDICTIONS_NAME,
+                            url=url,
+                        )
 
-                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                except Exception as e:
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed OneMillionPredictions candidate on {url}: {e}",
+                        source_key=ONE_MILLION_PREDICTIONS_NAME,
+                        url=url,
+                    )
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse OneMillionPredictions page {url}: {e}",
+                source_key=ONE_MILLION_PREDICTIONS_NAME,
+                url=url,
+            )

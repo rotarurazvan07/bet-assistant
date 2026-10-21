@@ -7,6 +7,10 @@ deleted when the last reference migrates (zero-reference gate).
 Deprecation policy: ``bet_framework.markets.catalog`` owns identity and every
 derived name below is materialized from it. Values are FROZEN (no renames:
 matches.db columns, slips.db labels, odds-history JSON keys stay as-is).
+
+History note: this file lived at ``bet_dashboard/backend/core/market_config.py``
+until PR #110 relocated the framework surface; both locations were canonical
+at different times - identity now lives in ``bet_framework/markets/``.
 """
 
 from typing import NamedTuple

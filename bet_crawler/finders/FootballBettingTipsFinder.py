@@ -1,6 +1,6 @@
 """Match finder for footballbettingtips daily tips."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import get_logger, log_event
 
 logger = get_logger(__name__)
 import re
@@ -39,7 +39,7 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         """Scrape all footballbettingtips URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -48,9 +48,9 @@ class FootballBettingTipsFinder(BaseMatchFinder):
         """Parse one footballbettingtips page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            match_datetime = datetime.strptime(soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y").replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            match_datetime = datetime.strptime(
+                soup.find_all("h2")[-1].get_text(), "%A, %d %B %Y"
+            ).replace(hour=0, minute=0, second=0, microsecond=0)
 
             for match_html in soup.find("table", class_="results").find_all("tr"):
                 try:
@@ -60,7 +60,9 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                     home_team_name = match_html.find("a").get_text().split(" - ")[0]
                     away_team_name = match_html.find("a").get_text().split(" - ")[1]
 
-                    score_text = re.search(r"(\d+:\d+)", match_html.find_all("td")[-2].get_text()).group(1)
+                    score_text = re.search(
+                        r"(\d+:\d+)", match_html.find_all("td")[-2].get_text()
+                    ).group(1)
                     score = Score(
                         FOOTBALLBETTINGTIPS_NAME,
                         score_text.split(":")[0],
@@ -69,11 +71,29 @@ class FootballBettingTipsFinder(BaseMatchFinder):
 
                     try:
                         odds = Odds(
-                            home=match_html.find_all(class_="desktop")[0].get_text().strip(),
-                            draw=match_html.find_all(class_="desktop")[1].get_text().strip(),
-                            away=match_html.find_all(class_="desktop")[2].get_text().strip(),
+                            home=match_html.find_all(class_="desktop")[0]
+                            .get_text()
+                            .strip(),
+                            draw=match_html.find_all(class_="desktop")[1]
+                            .get_text()
+                            .strip(),
+                            away=match_html.find_all(class_="desktop")[2]
+                            .get_text()
+                            .strip(),
                         )
-                    except:
+                    except Exception as exc:
+                        log_event(
+                            logger,
+                            event="match.odds_unavailable",
+                            outcome="warning",
+                            reason_code="odds_parse_failed",
+                            level=30,
+                            message=f"Could not parse odds for {home_team_name} vs {away_team_name}: {exc}",
+                            source_key=FOOTBALLBETTINGTIPS_NAME,
+                            url=url,
+                            error_type=type(exc).__name__,
+                            error_message=str(exc),
+                        )
                         odds = None
 
                     self.add_match(
@@ -86,8 +106,32 @@ class FootballBettingTipsFinder(BaseMatchFinder):
                         )
                     )
                 except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    logger.exception(
+                        "Skipping malformed FootballBettingTips candidate on %s",
+                        url,
+                        extra={
+                            "event": "match.skipped",
+                            "outcome": "error",
+                            "reason_code": "candidate_parse_failed",
+                            "source_key": FOOTBALLBETTINGTIPS_NAME,
+                            "url": url,
+                            "error_type": type(e).__name__,
+                            "error_message": str(e),
+                        },
+                    )
                     continue
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            logger.exception(
+                "Failed to parse FootballBettingTips page %s",
+                url,
+                extra={
+                    "event": "source.page.failed",
+                    "outcome": "error",
+                    "reason_code": "page_parse_failed",
+                    "source_key": FOOTBALLBETTINGTIPS_NAME,
+                    "url": url,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )

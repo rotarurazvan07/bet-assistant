@@ -24,7 +24,7 @@ env:
   # Source directories (space-separated for tools like mypy, radon, etc.)
   SRC_DIR: "bet_crawler bet_dashboard/backend bet_framework"
   # All three Python test suites (auto-fix covers the full corpus)
-  TEST_DIR: "tests bet_crawler/tests bet_dashboard/backend/tests"
+  TEST_DIR: "bet_framework/tests bet_crawler/tests bet_dashboard/backend/tests"
 
   # Requirements files
   REQUIREMENTS_FILES: |
@@ -177,16 +177,16 @@ jobs:
             eval "$POST_INSTALL_CMDS"
           fi
 
-      - name: Run tests — framework suite (root tests/)
-        # D-A: per-suite invocations. A combined 'pytest tests/ bet_crawler/tests
+      - name: Run tests — framework suite (bet_framework/tests)
+        # D-A: per-suite invocations. A combined 'pytest bet_framework/tests bet_crawler/tests
         # bet_dashboard/backend/tests' from repo root resolves rootdir=repo root
         # where NO pytest.ini exists → per-suite addopts (pythonpath, --cov
-        # targets, cycle-14 --cov-fail-under gates) never apply → root suite
-        # imports of bet_framework FAIL and all gates vanish. cd per suite makes
+        # targets, cycle-14 --cov-fail-under gates) never apply → suite imports
+        # can fail and all gates vanish. cd per suite makes
         # local = CI exactly.
         # D-B: NO CLI --cov/--cov-fail-under here — they would override the
         # ini gates from cycle 14 (f26a130). Only report formats are added.
-        working-directory: tests
+        working-directory: bet_framework
         run: |
           python -m pytest             --cov-report=term-missing             --cov-report=xml:coverage-framework.xml             --junitxml=test-results-framework.xml             --timeout=60             -n auto -v
 
@@ -207,7 +207,7 @@ jobs:
           import xml.etree.ElementTree as ET
 
           SUITES = [
-              ("framework", "tests/test-results-framework.xml", "tests/coverage-framework.xml", 80),
+              ("framework", "bet_framework/test-results-framework.xml", "bet_framework/coverage-framework.xml", 80),
               ("backend", "bet_dashboard/backend/test-results-backend.xml", "bet_dashboard/backend/coverage-backend.xml", 85),
               ("crawler", "bet_crawler/test-results-crawler.xml", "bet_crawler/coverage-crawler.xml", 75),
           ]

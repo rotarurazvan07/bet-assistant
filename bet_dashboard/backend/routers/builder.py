@@ -69,7 +69,9 @@ def preview(request: Request, body: BetSlipConfigIn):
                 if leg.datetime
                 else None,
                 "market": coerce_key(leg.market),
-                "market_type": coerce_type(leg.market_type) if leg.market_type else None,
+                "market_type": coerce_type(leg.market_type)
+                if leg.market_type
+                else None,
                 "consensus": leg.consensus,
                 "odds": leg.odds,
                 "result_url": leg.result_url,
@@ -78,7 +80,9 @@ def preview(request: Request, body: BetSlipConfigIn):
                 "tier": leg.tier,
                 "score": round(leg.score, 4),
                 "odds_movement_direction": leg.odds_movement_direction,
-                "odds_movement_strength": round(leg.odds_movement_strength, 6) if leg.odds_movement_strength else 0.0,
+                "odds_movement_strength": round(leg.odds_movement_strength, 6)
+                if leg.odds_movement_strength
+                else 0.0,
                 "predictions": leg.predictions if hasattr(leg, "predictions") else [],
             }
             for leg in legs
@@ -115,7 +119,9 @@ def get_excluded_details(request: Request):
                 {
                     "url": url,
                     "match_name": f"{row['home']} vs {row['away']}",
-                    "datetime": row["datetime"].isoformat() if hasattr(row["datetime"], "isoformat") else str(row["datetime"]),
+                    "datetime": row["datetime"].isoformat()
+                    if hasattr(row["datetime"], "isoformat")
+                    else str(row["datetime"]),
                     "reason": "Manually excluded",
                 }
             )

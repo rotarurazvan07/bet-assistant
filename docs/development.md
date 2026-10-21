@@ -223,6 +223,7 @@ backend/
 def _get(request: Request):
     return request.app.state.app_logic
 
+
 @router.get("/my-endpoint")
 def my_endpoint(request: Request):
     logic = _get(request).logic
@@ -243,10 +244,12 @@ self._services = {
     ),
 }
 
+
 # Predicate for scheduled tasks
 def _should_run(self) -> bool:
     # Return True when task should execute
     pass
+
 
 # Task implementation
 def _do_my_task(self) -> None:
@@ -258,25 +261,23 @@ def _do_my_task(self) -> None:
 
 ```python
 # From daemon threads (thread-safe)
-ws_manager.broadcast_sync({
-    "event": "my_event",
-    "timestamp": datetime.now().isoformat(),
-    "data": {...}
-})
+ws_manager.broadcast_sync(
+    {"event": "my_event", "timestamp": datetime.now().isoformat(), "data": {...}}
+)
 ```
 
 ### Testing
 
 ```bash
 # Run tests
-cd bet_dashboard/backend
+python -m pytest bet_framework/tests/
 python -m pytest tests/ -v
 
-# With coverage
-python -m pytest tests/ --cov=. --cov-report=html
+python -m pytest bet_framework/tests/test_bet_assistant.py -v
+python -m pytest bet_framework/tests/test_matches_manager.py -v
 ```
 
-### Linting & Formatting
+python -m pytest bet_framework/tests/ -k "integration" -v
 
 ```bash
 # Ruff (fast Python linter)
@@ -309,7 +310,7 @@ urls = f.get_matches_urls()
 print(f'Found {len(urls)} URLs')
 "
 ```
-
+python -m pytest bet_framework/tests/ --cov=bet_framework --cov=bet_dashboard.backend --cov=bet_crawler --cov-report=html
 ### Project Structure
 
 ```
@@ -397,7 +398,7 @@ assistant.validate_slips()
 ```python
 manager = MatchesManager("matches.db", similarity_config)
 manager.add_match(match)  # Buffered, auto-dedup
-manager.flush()           # Write to disk
+manager.flush()  # Write to disk
 manager.merge_databases("chunks_dir")  # Merge with history preservation
 ```
 
@@ -467,7 +468,8 @@ export default defineConfig({
 
 ```bash
 # All tests
-python -m pytest tests/
+cd bet_framework
+python -m pytest
 
 # Specific module
 python -m pytest tests/test_bet_assistant.py -v
