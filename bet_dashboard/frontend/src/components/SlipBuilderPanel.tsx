@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { marketLabel } from '../config/marketConfig';
 import type { CandidateLeg } from '../types';
 import { BaseCard } from './ui/BaseCard';
 import { BaseBadge } from './ui/BaseBadge';
@@ -159,7 +160,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                                     onClick={() => onRemoveLeg(idx)}
                                     className="btn-icon shrink-0"
                                     style={{ color: 'var(--text-secondary)' }}
-                                    aria-label={`Remove ${leg.match_name} - ${leg.market}`}
+                                    aria-label={`Remove ${leg.match_name} - ${marketLabel(leg.market)}`}
                                 >
                                     <span style={{ fontSize: 12 }}>✕</span>
                                 </button>
@@ -168,7 +169,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                             <div className="flex items-center justify-between mb-2">
                                 {/* AC-13 (#39): --accent on accent-glow is 3.15:1; --text-accent is 4.61:1. */}
                                 <BaseBadge status="info">
-                                    <span style={{ color: 'var(--text-accent)' }}>{leg.market}</span> <span style={{ color: 'var(--text-accent)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
+                                    <span style={{ color: 'var(--text-accent)' }}>{marketLabel(leg.market)}</span> <span style={{ color: 'var(--text-accent)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
                                 </BaseBadge>
                             </div>
 

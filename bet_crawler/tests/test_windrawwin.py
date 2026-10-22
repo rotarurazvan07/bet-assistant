@@ -11,7 +11,12 @@ from bet_crawler.finders.WinDrawWinFinder_per_league import WinDrawWinFinder_per
 from bet_crawler.finders.WinDrawWinFinder_per_match import WINDRAWWIN_NAME as NAME_PM
 from bet_crawler.finders.WinDrawWinFinder_per_match import WinDrawWinFinder_per_match
 
-from .finder_test_helpers import load_fixture, make_finder, patch_fetch, relax_date_window
+from .finder_test_helpers import (
+    load_fixture,
+    make_finder,
+    patch_fetch,
+    relax_date_window,
+)
 
 wdw_pm = importlib.import_module("bet_crawler.finders.WinDrawWinFinder_per_match")
 wdw_pl = importlib.import_module("bet_crawler.finders.WinDrawWinFinder_per_league")
@@ -43,7 +48,10 @@ class TestPerMatchUrls:
 
     def test_match_page_parses_all_odds_markets(self) -> None:
         finder, collector = _finder(WinDrawWinFinder_per_match, contributes_odds=True)
-        finder._parse_page("https://www.windrawwin.com/match/arsenal-chelsea/", load_fixture("windrawwin", "match.html"))
+        finder._parse_page(
+            "https://www.windrawwin.com/match/arsenal-chelsea/",
+            load_fixture("windrawwin", "match.html"),
+        )
         assert len(collector) == 1
         m = collector.first
         assert m.home_team == "Arsenal"

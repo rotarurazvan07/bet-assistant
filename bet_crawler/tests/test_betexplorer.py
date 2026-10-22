@@ -97,7 +97,18 @@ class TestGetMatches:
 
         finder.get_matches(urls)
 
-        assert sorted(len(batch) for batch in captured["batches"]) == [3, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        assert sorted(len(batch) for batch in captured["batches"]) == [
+            3,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+        ]
         assert sorted(sum(captured["batches"], [])) == urls
 
 

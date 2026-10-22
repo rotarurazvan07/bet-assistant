@@ -64,7 +64,13 @@ class BetClanFinder(BaseMatchFinder):
             date_str = soup.find("span", class_="dategamedetailsis").get_text().strip().replace("Date ", "").split(" ")[0]
             current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
             score_str = soup.find("div", class_="predione").find("div", class_="parttwo").find_all("h5")[-1].get_text().strip()
-            predictions = [Score(BETCLAN_NAME, home=(score_str.split("-")[0]), away=(score_str.split("-")[1]))]
+            predictions = [
+                Score(
+                    BETCLAN_NAME,
+                    home=(score_str.split("-")[0]),
+                    away=(score_str.split("-")[1]),
+                )
+            ]
             odds = None
 
             self.add_match(Match(home_team, away_team, current_date, predictions, odds))

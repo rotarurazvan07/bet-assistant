@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.markets.catalog import MARKET_BY_KEY
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -105,7 +106,10 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             # Extract odds
             market_map = {
                 "MATCH WINNER": ["home", "draw", "away"],
-                "BOTH TEAMS TO SCORE": ["btts_yes", "btts_no"],
+                "BOTH TEAMS TO SCORE": [
+                    MARKET_BY_KEY["btts_yes"].key,
+                    MARKET_BY_KEY["btts_no"].key,
+                ],
                 "OVER/UNDER 2.5 GOALS": ["over_25", "under_25"],
                 "OVER/UNDER 1.5 GOALS": ["over_15", "under_15"],
             }
@@ -122,7 +126,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                         for i, attr in enumerate(attr_names):
                             try:
                                 odds_data[attr] = float(links[i].get_text(strip=True))
-                            except (ValueError, TypeError) as exc:  # noqa: PERF203 - per-item fault isolation
+                            except (ValueError, TypeError) as exc:
                                 log_event(
                                     logger,
                                     event="match.odds_field_unavailable",
@@ -142,7 +146,13 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
             odds = Odds(**odds_data) if odds_data else None
 
             # Create the Match object
-            match = Match(home_team=home_team, away_team=away_team, datetime=date_time, predictions=predictions, odds=odds)
+            match = Match(
+                home_team=home_team,
+                away_team=away_team,
+                datetime=date_time,
+                predictions=predictions,
+                odds=odds,
+            )
 
             self.add_match(match)
 

@@ -91,7 +91,7 @@ export function getPotentialStatusColor(leg: { market: string; odds: number; sta
     if (market === '2') return awayLeading ? 'var(--potential-win)' : 'var(--potential-loss)';
 
     // ── BTTS ──
-    if (market === 'BTTS Yes') {
+    if (market === 'btts_yes') {
         const bothScored = homeScore > 0 && awayScore > 0;
         return bothScored ? 'var(--potential-win)' : 'var(--potential-loss)';
     }

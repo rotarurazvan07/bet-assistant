@@ -108,7 +108,7 @@ class LegitPredictFinder(BaseMatchFinder):
 
                     self.add_match(Match(home_team, away_team, dt_obj, score, None, None))
 
-                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
+                except Exception as e:
                     exception_event(
                         logger,
                         event="match.parse.failed",

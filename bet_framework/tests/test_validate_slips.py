@@ -5,7 +5,7 @@ import pytest
 
 from bet_framework.BetAssistant import BetAssistant, _parse_match_result_html
 from bet_framework.core.Slip import CandidateLeg
-from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
 
 # ── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -67,7 +67,7 @@ def test_validate_slips_integration(ba) -> None:
         CandidateLeg(
             match_name="A vs B",
             datetime=datetime.now(),
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             odds=1.5,
             result_url="http://match1",
@@ -102,7 +102,7 @@ def test_validate_slips_skips_processed(ba) -> None:
         CandidateLeg(
             match_name="A vs B",
             datetime=datetime.now(),
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             odds=1.5,
             result_url="http://match1",

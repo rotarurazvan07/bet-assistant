@@ -308,12 +308,14 @@ from .BaseMatchFinder import BaseMatchFinder
 
 logger = get_logger(__name__)
 
+
 class MyNewFinder(BaseMatchFinder):
     TIMEZONE = "UTC"  # Source timezone
 
     def get_matches_urls(self):
         """Fetch and return list of match URLs to scrape."""
         from scrape_kit import browser
+
         with browser(solve_cloudflare=True) as session:
             page = session.fetch("https://example.com/previews")
             soup = BeautifulSoup(page.html_content, "html.parser")
@@ -322,13 +324,16 @@ class MyNewFinder(BaseMatchFinder):
         for link in soup.select("a.match-link"):
             href = link.get("href")
             if href:
-                urls.append(f"https://example.com{href}" if href.startswith("/") else href)
+                urls.append(
+                    f"https://example.com{href}" if href.startswith("/") else href
+                )
         logger.info(f"Found {len(urls)} matches")
         return urls
 
     def get_matches(self, urls):
         """Main entry point for scraping."""
         from scrape_kit import scrape, ScrapeMode
+
         scrape(urls, self._parse_page, mode=ScrapeMode.FAST, max_concurrency=5)
 
     def _parse_page(self, url, html):
@@ -346,11 +351,18 @@ class MyNewFinder(BaseMatchFinder):
             odds_away = float(soup.select_one(".odds-away").text)
 
             from bet_framework.core.Match import Match, Score
+
             scores = [Score(source="mynewfinder", home=str(int(65)), away=str(int(25)))]
             odds = Odds(home=odds_home, draw=odds_draw, away=odds_away)
 
-            match = Match(home_team=home, away_team=away, datetime=dt,
-                         predictions=scores, odds=odds, result_url=url)
+            match = Match(
+                home_team=home,
+                away_team=away,
+                datetime=dt,
+                predictions=scores,
+                odds=odds,
+                result_url=url,
+            )
             self.add_match(match)
         except Exception as e:
             logger.error(f"Failed to parse {url}: {e}")
@@ -438,7 +450,6 @@ bet-assistant/
 │           ├── logic.py      # AppLogic - unified business logic
 │           ├── ticker_service.py # Daemon thread polling
 │           ├── ws.py         # WebSocket connection manager
-│           ├── market_config.py # Market definitions
 │           ├── schemas.py    # Pydantic request/response models
 │           ├── analytics_utils.py # Statistics calculations
 │           └── config_helpers.py # Profile YAML conversion

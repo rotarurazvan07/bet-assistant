@@ -72,7 +72,11 @@ class TestAppLogicLifecycle:
         env = build_app(
             tmp_path,
             monkeypatch,
-            services={"generate_hour": 8, "generate_minute": 0, "toggles": {"puller": False}},
+            services={
+                "generate_hour": 8,
+                "generate_minute": 0,
+                "toggles": {"puller": False},
+            },
         )
         try:
             assert env.app.services["puller"].enabled is False
@@ -183,7 +187,10 @@ class TestAppLogicLifecycle:
 
         captured: list = []
         monkeypatch.setenv("REPO", "acme/bet-test")
-        monkeypatch.setattr("urllib.request.urlretrieve", self._fake_urlretrieve(str(fresh_db), captured))
+        monkeypatch.setattr(
+            "urllib.request.urlretrieve",
+            self._fake_urlretrieve(str(fresh_db), captured),
+        )
 
         result = app_env.app.pull_matches_db(app_env.matches_db)
 

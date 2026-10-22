@@ -20,7 +20,7 @@ from bet_crawler.crawl_core.scrape import scrape
 from bet_crawler.crawl_core.validate_slips import validate_slips
 from bet_framework.BetAssistant import BetAssistant
 from bet_framework.core.Slip import CandidateLeg
-from bet_framework.core.type_defs import MarketLabel, MarketType
+from bet_framework.markets.enums import MarketKey, MarketType
 
 from .conftest import (
     StubCrawler,
@@ -129,7 +129,7 @@ class TestFullPipelineP0:
             CandidateLeg(
                 match_name="FT FC vs Opp",
                 datetime=DT,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.9,
                 result_url="https://r.com/ft",
@@ -139,7 +139,7 @@ class TestFullPipelineP0:
             CandidateLeg(
                 match_name="Live FC vs Opp",
                 datetime=DT,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.9,
                 result_url="https://r.com/live",
@@ -149,7 +149,7 @@ class TestFullPipelineP0:
             CandidateLeg(
                 match_name="Pend FC vs Opp",
                 datetime=DT,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.9,
                 result_url="https://r.com/pend",

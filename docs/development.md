@@ -197,7 +197,6 @@ backend/
 │   ├── logic.py         # AppLogic - unified business logic
 │   ├── ticker_service.py # Daemon thread polling
 │   ├── ws.py            # WebSocket connection manager
-│   ├── market_config.py # MarketDef + constants
 │   ├── schemas.py       # Pydantic request/response models
 │   ├── analytics_utils.py # Statistics calculations
 │   └── config_helpers.py # Profile YAML conversion
@@ -223,6 +222,7 @@ backend/
 def _get(request: Request):
     return request.app.state.app_logic
 
+
 @router.get("/my-endpoint")
 def my_endpoint(request: Request):
     logic = _get(request).logic
@@ -243,10 +243,12 @@ self._services = {
     ),
 }
 
+
 # Predicate for scheduled tasks
 def _should_run(self) -> bool:
     # Return True when task should execute
     pass
+
 
 # Task implementation
 def _do_my_task(self) -> None:
@@ -258,11 +260,9 @@ def _do_my_task(self) -> None:
 
 ```python
 # From daemon threads (thread-safe)
-ws_manager.broadcast_sync({
-    "event": "my_event",
-    "timestamp": datetime.now().isoformat(),
-    "data": {...}
-})
+ws_manager.broadcast_sync(
+    {"event": "my_event", "timestamp": datetime.now().isoformat(), "data": {...}}
+)
 ```
 
 ### Testing
@@ -397,7 +397,7 @@ assistant.validate_slips()
 ```python
 manager = MatchesManager("matches.db", similarity_config)
 manager.add_match(match)  # Buffered, auto-dedup
-manager.flush()           # Write to disk
+manager.flush()  # Write to disk
 manager.merge_databases("chunks_dir")  # Merge with history preservation
 ```
 

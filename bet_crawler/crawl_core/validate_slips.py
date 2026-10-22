@@ -83,7 +83,12 @@ def validate_slips(slips_db_path: str) -> None:
             reason_code="validation_succeeded",
             message="Slip validation completed",
             stage="validate-slips",
-            counts={"checked": result.checked, "settled": len(result.settled), "live": len(result.live), "errors": 0},
+            counts={
+                "checked": result.checked,
+                "settled": len(result.settled),
+                "live": len(result.live),
+                "errors": 0,
+            },
         )
 
     for item in result.live:

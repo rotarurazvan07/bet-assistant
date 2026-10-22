@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from scrape_kit import ScrapeMode, fetch, scrape
 
 from bet_framework.core.Match import *
+from bet_framework.markets.catalog import MARKET_BY_KEY
 
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -71,12 +72,15 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     import json
 
                     data = json.loads(script.string)
-                    if isinstance(data, dict) and data.get("@type") == ["Event", "SportsEvent"]:
+                    if isinstance(data, dict) and data.get("@type") == [
+                        "Event",
+                        "SportsEvent",
+                    ]:
                         url = data.get("url").replace("/fr/", "/")
                         if url:
                             matches_url.append(url)
                             # matches_url.append(SOCCERVISTA_URL + url)
-                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
+                except Exception as e:
                     logger.warning(
                         "Skipping malformed SoccerVista JSON-LD candidate on %s: %s",
                         league_url,
@@ -230,8 +234,8 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             "odds-link-under-3.5": "under_35",
             "odds-link-over-4.5": "over_45",
             "odds-link-under-4.5": "under_45",
-            "odds-link-yes": "btts_yes",
-            "odds-link-no": "btts_no",
+            "odds-link-yes": MARKET_BY_KEY["btts_yes"].key,
+            "odds-link-no": MARKET_BY_KEY["btts_no"].key,
         }
 
         extracted_data = {}
@@ -243,7 +247,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
                     value = element.get_text(strip=True)
                     if value and value != "-":
                         extracted_data[attr_name] = value
-            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
+            except Exception as e:
                 log_event(
                     logger,
                     event="match.odds_field_unavailable",

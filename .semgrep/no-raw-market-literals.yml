@@ -1,0 +1,73 @@
+rules:
+  - id: no-raw-market-key-literals
+    message: |
+      Raw canonical market key/type string literal detected.
+
+      Market keys/types must be referenced via bet_framework/markets/ (enums.py,
+      catalog.py MarketSpec, keys.py helpers). This rule runs in BASELINE mode:
+      pre-existing findings are grandfathered in .semgrep/baseline.json (ratchet:
+      the baseline may only shrink), and any NEW occurrence, or any occurrence
+      inside bet_framework/markets/ itself (must import, never redeclare),
+      fails the gate.
+    severity: ERROR
+    languages: [python, ts]
+    paths:
+      exclude:
+        - bet_framework/markets/*
+        - .semgrep/*
+    patterns:
+      - pattern-either:
+          - pattern: "cons_home"
+          - pattern: "cons_draw"
+          - pattern: "cons_away"
+          - pattern: "cons_over_25"
+          - pattern: "cons_under_25"
+          - pattern: "cons_btts_yes"
+          - pattern: "cons_btts_no"
+          - pattern: "cons_over_05"
+          - pattern: "cons_under_05"
+          - pattern: "cons_over_15"
+          - pattern: "cons_under_15"
+          - pattern: "cons_over_35"
+          - pattern: "cons_under_35"
+          - pattern: "cons_over_45"
+          - pattern: "cons_under_45"
+          - pattern: "cons_dc_1x"
+          - pattern: "cons_dc_12"
+          - pattern: "cons_dc_x2"
+          - pattern: "odds_home"
+          - pattern: "odds_draw"
+          - pattern: "odds_away"
+          - pattern: "odds_over_25"
+          - pattern: "odds_under_25"
+          - pattern: "odds_btts_yes"
+          - pattern: "odds_btts_no"
+          - pattern: "odds_over_05"
+          - pattern: "odds_under_05"
+          - pattern: "odds_over_15"
+          - pattern: "odds_under_15"
+          - pattern: "odds_over_35"
+          - pattern: "odds_under_35"
+          - pattern: "odds_over_45"
+          - pattern: "odds_under_45"
+          - pattern: "odds_dc_1x"
+          - pattern: "odds_dc_12"
+          - pattern: "odds_dc_x2"
+          - pattern: "'BTTS Yes'"
+          - pattern: "'BTTS No'"
+          - pattern: '"BTTS Yes"'
+          - pattern: '"BTTS No"'
+          - pattern: '"over_under_25"'
+          - pattern: '"over_under_15"'
+          - pattern: '"over_under_05"'
+          - pattern: '"over_under_35"'
+          - pattern: '"over_under_45"'
+          - pattern: '"double_chance"'
+          - pattern: "'btts_y'"
+          - pattern: "'btts_n'"
+          - pattern: '"btts_y"'
+          - pattern: '"btts_n"'
+          - pattern: "'btts_yes'"
+          - pattern: "'btts_no'"
+          - pattern: '"btts_yes"'
+          - pattern: '"btts_no"'

@@ -139,7 +139,12 @@ class TestScrapeP0:
 
             def get_matches(self, urls) -> None:
                 assert self.add_match(make_match(home="Arsenal U19")) is False
-                assert self.add_match(make_match(home="Eligible FC", dt=datetime.now(ZoneInfo("UTC")).replace(tzinfo=None)))
+                assert self.add_match(
+                    make_match(
+                        home="Eligible FC",
+                        dt=datetime.now(ZoneInfo("UTC")).replace(tzinfo=None),
+                    )
+                )
 
         class CountingFactory(StubFactory):
             def create_for_url(self, url, on_match_callback=None):

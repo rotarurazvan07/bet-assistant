@@ -3,7 +3,8 @@
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
 from fastapi import APIRouter, HTTPException, Request
 
-from bet_framework.core.market_config import MARKET_DEFINITIONS
+from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.keys import stripped_key
 
 router = APIRouter(prefix="/api/odds-history", tags=["odds-history"])
 
@@ -36,11 +37,8 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
             movement = logic.get_odds_movement(idx)
             match_id = row.get("match_id", str(idx))
             if movement:
-                # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
-                summary_kwargs = {
-                    md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", ""))
-                    for md in MARKET_DEFINITIONS
-                }
+                # Build OddsMovementSummary dynamically from MARKET_CATALOG
+                summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
 
     return result
@@ -116,8 +114,6 @@ def get_match_movement(request: Request, match_id: int):
     logic = _get(request).logic
     movement = logic.get_odds_movement(match_id)
 
-    # Build OddsMovementSummary dynamically from MARKET_DEFINITIONS
-    summary_kwargs = {
-        md.odds_key.replace("odds_", ""): movement.get(md.odds_key.replace("odds_", "")) for md in MARKET_DEFINITIONS
-    }
+    # Build OddsMovementSummary dynamically from MARKET_CATALOG
+    summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
     return OddsMovementSummary(**summary_kwargs)

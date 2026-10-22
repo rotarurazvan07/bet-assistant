@@ -278,7 +278,16 @@ class ForebetFinder(BaseMatchFinder):
                     away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
                 )
 
-                self.add_match(Match(home_team, away_team, match_date, predictions, odds, league=league))
+                self.add_match(
+                    Match(
+                        home_team,
+                        away_team,
+                        match_date,
+                        predictions,
+                        odds,
+                        league=league,
+                    )
+                )
 
             except Exception as e:
                 exception_event(

@@ -69,6 +69,9 @@ jobs:
 
       - name: pyupgrade — modernise syntax to Python 3.14+
         run: |
+          # The repo floor is Python 3.14 everywhere (Docker 3.14-slim, CI
+          # matrix, mypy target). PEP 758 un-parenthesised `except A, B:` is
+          # valid runtime syntax here — no floor gate.
           find $SRC_DIR $TEST_DIR -name "*.py" |             xargs pyupgrade --py314-plus || true
 
       - name: autotyping — infer trivial return type annotations
@@ -84,7 +87,13 @@ jobs:
       - name: ruff format
         run: |
           # Process all source and test directories
-          ruff format --line-length 127 --target-version py314             $SRC_DIR $TEST_DIR
+          # Formatter target py313 is NOT a runtime floor change: runtime is 3.14-only
+          # (Docker 3.14-slim, CI 3.14.8, mypy --python-version 3.14). ruff format
+          # --target-version py314 re-expands parenthesised PEP-758 excepts into
+          # un-parenthesised `except A, B:` syntax that CPython 3.14.8 REJECTS
+          # (SyntaxError: multiple exception types must be parenthesized —
+          # reproduced in CI). pyupgrade --py314-plus above still modernises.
+          ruff format --line-length 127 --target-version py313             $SRC_DIR $TEST_DIR
 
       - name: ruff lint --fix
         run: |
@@ -315,7 +324,7 @@ jobs:
           done <<< "$REQUIREMENTS_FILES"
 
           # Install audit tools
-          pip install bandit pip-audit radon vulture mypy interrogate
+          pip install bandit pip-audit radon vulture mypy interrogate semgrep
 
           # NOTE: no PYTHONPATH export here. Exporting PYTHONPATH=$SRC_DIR
           # (which contains bet_framework/) made every module importable BOTH
@@ -332,7 +341,9 @@ jobs:
       - name: Install semgrep (via official action)
         uses: semgrep/semgrep-action@v1
         with:
-          config: p/auto
+          # p/auto security/bug patterns + the canonical market-key rule
+          # (baseline-mode burn-down, see .semgrep/).
+          config: p/auto .semgrep/
         continue-on-error: true
 
       - name: semgrep — pattern-based security & bug detection
@@ -344,7 +355,18 @@ jobs:
           try:
               with open('semgrep-report.json') as f:
                   data = json.load(f)
-                  print(len(data.get('results', [])))
+                  results = data.get('results', [])
+              # Canonical market-key burn-down gate: findings recorded in
+              # .semgrep/baseline.json are grandfathered (ratchet: the baseline
+              # may only shrink, never grow); everything else blocks.
+              try:
+                  with open('.semgrep/baseline.json') as bf:
+                      baseline = json.load(bf).get('findings', [])
+              except (FileNotFoundError, json.JSONDecodeError):
+                  baseline = []
+              baselined = {(f.get('path'), int(f.get('start', 0))) for f in baseline}
+              new = [r for r in results if (r.get('path'), int(r.get('start', {}).get('line', 0))) not in baselined]
+              print(len(new))
           except:
               print('0')
           " 2>/dev/null || echo "0")
@@ -354,10 +376,26 @@ jobs:
           echo "semgrep_findings=${SEMGREP_FINDINGS}" >> "$GITHUB_OUTPUT"
           # BLOCKING (gate-hardening): semgrep sits at 0 findings — locked so
           # security pattern findings can never re-enter silently.
+          # Canonical market-key literals beyond the committed baseline also block.
           if [ "${SEMGREP_FINDINGS:-0}" -gt 0 ] 2>/dev/null; then
             echo "BLOCKING: semgrep found $SEMGREP_FINDINGS finding(s) — fix before merge."
             exit 1
           fi
+
+      - name: Canonical market-key burn-down gate (AC-09)
+        id: market-keys-ratchet
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Fails CLOSED: new canonical market-key literals beyond
+          # .semgrep/baseline.json block the PR, and the baseline may only
+          # shrink (ratchet). The checked-in script evaluates a semgrep report
+          # produced with the repo rule (path identity + stripped line text,
+          # so line renumbers never re-classify grandfathered findings).
+          semgrep --config .semgrep/no-raw-market-literals.yml --json --metrics=off $SRC_DIR tests > market-keys-report.json || true
+          python3 .semgrep/check_burn_down.py market-keys-report.json | tee market-keys-gate.txt
+          python3 - << 'PY' >> "$GITHUB_STEP_SUMMARY"
+          print(open("market-keys-gate.txt").read())
+          PY
 
       - name: mypy — static type checking
         id: mypy
@@ -634,6 +672,19 @@ jobs:
       - name: Install frontend dependencies
         working-directory: bet_dashboard/frontend
         run: npm ci
+
+      - name: Market contract codegen drift check (AC-07/AC-11)
+        # Regenerates the canonical market artifacts (OpenAPI schema + TS types
+        # + frontend snapshot fixture) and fails when any of them differs from
+        # the committed versions: frontend/backend contract drift never lands.
+        working-directory: bet_dashboard/frontend
+        run: |
+          # export_openapi.py imports the backend package to build the OpenAPI
+          # schema; the import chain reaches finders/scrape-kit, so the backend
+          # requirements must be installed or the drift check dies with
+          # ModuleNotFoundError: scrape_kit (CI Frontend red, branch unmergeable).
+          python3 -m pip install -q -r ../backend/requirements.txt
+          npm run codegen:markets:check
 
       - name: Type check
         working-directory: bet_dashboard/frontend

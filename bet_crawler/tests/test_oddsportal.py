@@ -131,7 +131,18 @@ class TestGetMatches:
 
         finder.get_matches(urls)
 
-        assert sorted(len(batch) for batch in captured["batches"]) == [3, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        assert sorted(len(batch) for batch in captured["batches"]) == [
+            3,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+        ]
         assert sorted(sum(captured["batches"], [])) == urls
 
 
@@ -249,7 +260,12 @@ class TestProcessUrlBatch:
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
-        assert (odds.home, odds.btts_yes, odds.dc_1x, odds.over_05) == (2.10, 1.85, 1.25, 1.10)
+        assert (odds.home, odds.btts_yes, odds.dc_1x, odds.over_05) == (
+            2.10,
+            1.85,
+            1.25,
+            1.10,
+        )
 
     def test_live_shaped_market_tables_are_accepted(self, monkeypatch) -> None:
         """Live 2026-10-12 shape: glued 'claim bonus' bookmaker text, quarter lines,
@@ -285,8 +301,18 @@ class TestProcessUrlBatch:
         odds = collector.first.odds
         assert (odds.home, odds.btts_yes, odds.btts_no) == (2.10, 1.85, 1.95)
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.30, 1.45)
-        assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (1.10, 8.00, 1.35, 3.10)
-        assert (odds.over_25, odds.under_25, odds.over_35, odds.under_35) == (1.70, 2.10, 3.20, 1.34)
+        assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (
+            1.10,
+            8.00,
+            1.35,
+            3.10,
+        )
+        assert (odds.over_25, odds.under_25, odds.over_35, odds.under_35) == (
+            1.70,
+            2.10,
+            3.20,
+            1.34,
+        )
         assert (odds.over_45, odds.under_45) == (6.50, 1.09)
 
     def test_fetch_error_then_retry_recovers(self, monkeypatch) -> None:

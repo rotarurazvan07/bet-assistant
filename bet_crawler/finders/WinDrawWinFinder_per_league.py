@@ -133,7 +133,16 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                     )
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
-                    self.add_match(Match(home_team, away_team, current_date, predictions, odds, league=league))
+                    self.add_match(
+                        Match(
+                            home_team,
+                            away_team,
+                            current_date,
+                            predictions,
+                            odds,
+                            league=league,
+                        )
+                    )
 
                 except Exception as e:
                     exception_event(

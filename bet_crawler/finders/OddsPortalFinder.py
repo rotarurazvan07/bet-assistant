@@ -384,10 +384,18 @@ class OddsPortalFinder(BaseMatchFinder):
             for url in urls:
                 try:
                     try:
-                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
+                        session.fetch(
+                            url,
+                            wait_until="domcontentloaded",
+                            timeout=self._BROWSER_TIMEOUT_MS,
+                        )
                     except Exception as e:
                         logger.warning("[%s] Fetch error (retrying): %s", thread_name, e)
-                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
+                        session.fetch(
+                            url,
+                            wait_until="domcontentloaded",
+                            timeout=self._BROWSER_TIMEOUT_MS,
+                        )
 
                     self._wait_for_selector(session, 'script[type="application/ld+json"]', state="attached")
                     soup = BeautifulSoup(session.page.content(), "html.parser")

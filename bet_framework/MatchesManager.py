@@ -12,7 +12,8 @@ from scrape_kit import (
     time_profiler,
 )
 
-from .core.market_config import MARKET_DEFINITIONS
+from bet_framework.markets.catalog import MARKET_CATALOG
+
 from .core.Match import Match, Odds, Score, asdict
 
 logger = get_logger(__name__)
@@ -58,9 +59,9 @@ _MARKET_GROUP_LABELS = {
 # selections, so their combined implied probability is approximately doubled.
 _MARKET_GROUP_IMPLIED_DIVISORS = {"double_chance": 2.0}
 _odds_groups: dict[str, list[tuple[str, str]]] = {}
-for _market_def in MARKET_DEFINITIONS:
-    _field = _market_def.odds_key.removeprefix("odds_")
-    _odds_groups.setdefault(_market_def.market_type, []).append((_field, _market_def.market))
+for _spec in MARKET_CATALOG:
+    _field = _spec.odds_key.removeprefix("odds_")
+    _odds_groups.setdefault(_spec.market_type, []).append((_field, _spec.label))
 ODDS_MARKET_GROUPS: list[tuple[str, str, list[tuple[str, str]]]] = [
     (market_type, _MARKET_GROUP_LABELS[market_type], fields) for market_type, fields in _odds_groups.items()
 ]
@@ -102,7 +103,7 @@ def _is_empty(value) -> bool:
     try:
         if pd.isna(value):
             return True
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         # pd.isna raises TypeError for non-scalar containers (list, dict, Odds…)
         pass
     if isinstance(value, str):
@@ -531,7 +532,11 @@ class MatchesManager(BufferedStorageManager):
         """Log matches whose odds fail the implied-probability sanity check."""
         issues = self._validate_all_odds()
         if not issues:
-            logger.info("=== ODDS VALIDATION: all markets passed (%.0f-%.0f%% range) ===", ODDS_VALID_LOW, ODDS_VALID_HIGH)
+            logger.info(
+                "=== ODDS VALIDATION: all markets passed (%.0f-%.0f%% range) ===",
+                ODDS_VALID_LOW,
+                ODDS_VALID_HIGH,
+            )
             return
         logger.warning("=== ODDS VALIDATION REPORT: %d problematic markets ===", len(issues))
         for iss in sorted(issues, key=lambda x: abs(x.implied_prob_pct - 107.5), reverse=True):
@@ -596,7 +601,13 @@ class MatchesManager(BufferedStorageManager):
         history = self._extract_history_from_odds(odds_dict)
 
         # Convert embedded format to API format
-        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
+        return [
+            {
+                "timestamp": h.get("ts", ""),
+                "odds": {k: v for k, v in h.items() if k != "ts"},
+            }
+            for h in history
+        ]
 
     def calculate_movement_from_odds(self, odds_dict: dict | None) -> dict:
         """Calculate movement from embedded history in odds dict.
@@ -616,12 +627,15 @@ class MatchesManager(BufferedStorageManager):
         # Compare first historical snapshot to current values
         first_odds = history[0]
         # Derive simplified market keys from central configuration (strip 'odds_' prefix)
-        markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
+        markets = [spec.key for spec in MARKET_CATALOG]
         movement: dict[str, str | None] = {}
 
         for market in markets:
-            first_val = first_odds.get(market)
-            current_val = current.get(market)
+            # U1: canonical key IS the persisted Odds-dataclass field spelling;
+            # no translation between history snapshots and movement keys.
+            field = market
+            first_val = first_odds.get(field)
+            current_val = current.get(field)
 
             if first_val is None or current_val is None:
                 movement[market] = None
@@ -649,14 +663,21 @@ class MatchesManager(BufferedStorageManager):
         if not history or not current:
             return {}
         first_odds = history[0]
-        markets = [md.odds_key.replace("odds_", "") for md in MARKET_DEFINITIONS]
+        markets = [spec.key for spec in MARKET_CATALOG]
         has_enough_history = len(history) >= 2
         result: dict = {}
         for market in markets:
-            first_val = first_odds.get(market)
-            current_val = current.get(market)
+            # U1: canonical key IS the persisted Odds-dataclass field spelling;
+            # no translation between history snapshots and movement keys.
+            field = market
+            first_val = first_odds.get(field)
+            current_val = current.get(field)
             if first_val is None or current_val is None:
-                result[market] = {"direction": None, "change_pct": 0.0, "significant": False}
+                result[market] = {
+                    "direction": None,
+                    "change_pct": 0.0,
+                    "significant": False,
+                }
                 continue
             change_pct = 0.0 if first_val == 0 else round(((current_val - first_val) / abs(first_val)) * 100, 2)
             abs_change = abs(current_val - first_val)
@@ -673,7 +694,11 @@ class MatchesManager(BufferedStorageManager):
                 and (abs(change_pct) >= 5.0 or first_val < 2.0 and abs_change >= 0.10)
             ):
                 significant = True
-            result[market] = {"direction": direction, "change_pct": change_pct, "significant": significant}
+            result[market] = {
+                "direction": direction,
+                "change_pct": change_pct,
+                "significant": significant,
+            }
         return result
 
     def get_movement_for_row(self, row_idx: int) -> dict:

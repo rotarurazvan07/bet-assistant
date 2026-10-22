@@ -12,7 +12,13 @@ import pytest
 import yaml
 from scrape_kit import SettingsManager, configure
 
-from bet_crawler.crawl import CrawlerFactory, CrawlerRuntimeSettings, build_parser, load_profile, load_runtime
+from bet_crawler.crawl import (
+    CrawlerFactory,
+    CrawlerRuntimeSettings,
+    build_parser,
+    load_profile,
+    load_runtime,
+)
 
 RUNNER_SETS = {
     "actions": ["alpha", "beta"],
@@ -20,10 +26,26 @@ RUNNER_SETS = {
     "test": ["delta"],
 }
 CRAWLER_KEYS = {
-    "alpha": {"class": "FakeFinderA", "contributes_odds": False, "top_leagues_only": True},
-    "beta": {"class": "FakeFinderB", "contributes_odds": True, "top_leagues_only": False},
-    "gamma": {"class": "FakeFinderA", "contributes_odds": False, "top_leagues_only": True},
-    "delta": {"class": "FakeFinderB", "contributes_odds": False, "top_leagues_only": True},
+    "alpha": {
+        "class": "FakeFinderA",
+        "contributes_odds": False,
+        "top_leagues_only": True,
+    },
+    "beta": {
+        "class": "FakeFinderB",
+        "contributes_odds": True,
+        "top_leagues_only": False,
+    },
+    "gamma": {
+        "class": "FakeFinderA",
+        "contributes_odds": False,
+        "top_leagues_only": True,
+    },
+    "delta": {
+        "class": "FakeFinderB",
+        "contributes_odds": False,
+        "top_leagues_only": True,
+    },
 }
 
 
@@ -58,7 +80,10 @@ def fake_finders(monkeypatch):
             self.skip_patterns = tuple(skip_patterns)
             self.received_callback = on_match_callback is not None
 
-    monkeypatch.setattr("bet_crawler.crawl.CrawlerFactory._load_class", staticmethod(lambda name: FakeFinder))
+    monkeypatch.setattr(
+        "bet_crawler.crawl.CrawlerFactory._load_class",
+        staticmethod(lambda name: FakeFinder),
+    )
     return FakeFinder
 
 
@@ -127,7 +152,16 @@ class TestLoadRuntimeP1:
         with open(tmp_path / "scraper_config.yaml", "w") as fh:
             yaml.safe_dump(scraper, fh)
         with open(tmp_path / "similarity_config.yaml", "w") as fh:
-            yaml.safe_dump({"threshold": 65, "weights": {"token": 0.4}, "acronyms": {}, "synonyms": {}, "weak_tokens": []}, fh)
+            yaml.safe_dump(
+                {
+                    "threshold": 65,
+                    "weights": {"token": 0.4},
+                    "acronyms": {},
+                    "synonyms": {},
+                    "weak_tokens": [],
+                },
+                fh,
+            )
         rt = load_runtime(str(tmp_path))
         assert rt["max_chunk_size"] == {"actions": 5, "test": 1}
         assert rt["similarity_config"]["threshold"] == 65
@@ -158,7 +192,9 @@ class TestStatusRetriesP1:
         403 entry stays intact."""
         shutil.copyfile(
             os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "config", "scraper_config.yaml"
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "config",
+                "scraper_config.yaml",
             ),
             tmp_path / "scraper_config.yaml",
         )

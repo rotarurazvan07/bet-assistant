@@ -125,7 +125,10 @@ class ScorePredictorFinder(BaseMatchFinder):
                             source_key="scorepredictor",
                             url=url,
                             match_id=f"{home_team}|{away_team}",
-                            candidate={"home_score": home_score_text, "away_score": away_score_text},
+                            candidate={
+                                "home_score": home_score_text,
+                                "away_score": away_score_text,
+                            },
                         )
                         continue
 

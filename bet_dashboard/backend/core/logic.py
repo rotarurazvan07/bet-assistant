@@ -191,7 +191,7 @@ class AppLogic:
                     # Already ran today — sync in-memory guard and skip
                     self._last_generator_run = today_key
                     return False
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 pass
 
         self._last_generator_run = today_key
@@ -254,7 +254,13 @@ class AppLogic:
         if not odds_dict or not isinstance(odds_dict, dict):
             return []
         history = MatchesManager._extract_history_from_odds(odds_dict)
-        return [{"timestamp": h.get("ts", ""), "odds": {k: v for k, v in h.items() if k != "ts"}} for h in history]
+        return [
+            {
+                "timestamp": h.get("ts", ""),
+                "odds": {k: v for k, v in h.items() if k != "ts"},
+            }
+            for h in history
+        ]
 
     def _do_generate(self) -> None:
         """Ticker daemon: generate slips for active profiles at the scheduled hour."""
@@ -589,7 +595,8 @@ class AppLogic:
         # ── New value metrics ────────────────────────────────────────────────
         avg_odds = round(sum(s.total_odds for s in settled) / n_settled, 3) if n_settled else 0.0
         implied_win_rate = round(
-            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100) if n_settled else 0.0, 2
+            (sum(1.0 / s.total_odds for s in settled if s.total_odds > 0) / n_settled * 100) if n_settled else 0.0,
+            2,
         )
 
         # Calculate overall edge using the new unified function
@@ -774,7 +781,12 @@ class AppLogic:
         """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
         profiles_raw = self._settings.get("profiles") or {}
         return {
-            name: (_yaml_to_config(cfg), cfg.get("units", 1.0), cfg.get("run_daily_count", 0), cfg.get("target_payout"))
+            name: (
+                _yaml_to_config(cfg),
+                cfg.get("units", 1.0),
+                cfg.get("run_daily_count", 0),
+                cfg.get("target_payout"),
+            )
             for name, cfg in profiles_raw.items()
             if cfg.get("run_daily_count")
         }

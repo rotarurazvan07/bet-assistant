@@ -93,7 +93,11 @@ class WhoScoredFinder(BaseMatchFinder):
                 ]
                 self.add_match(
                     Match(
-                        home_team, away_team, match_datetime.replace(hour=0, minute=0, second=0, microsecond=0), scores, None
+                        home_team,
+                        away_team,
+                        match_datetime.replace(hour=0, minute=0, second=0, microsecond=0),
+                        scores,
+                        None,
                     )
                 )
             except Exception as e:

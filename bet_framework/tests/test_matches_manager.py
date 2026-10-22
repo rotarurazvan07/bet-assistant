@@ -17,8 +17,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from bet_framework.core.market_config import MARKET_DEFINITIONS
 from bet_framework.core.Match import Match, Odds, Score
+from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.MatchesManager import ODDS_MARKET_GROUPS, MatchesManager, _check_market_group
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ DT_BASE = datetime(2026, 4, 1, 15, 0, 0)
 def test_odds_validation_groups_match_canonical_catalog() -> None:
     """Every sanity-checked odds key comes from the central market catalog."""
     grouped_fields = {field for _, _, fields in ODDS_MARKET_GROUPS for field, _ in fields}
-    catalog_fields = {market.odds_key.removeprefix("odds_") for market in MARKET_DEFINITIONS}
+    catalog_fields = {spec.odds_key.removeprefix("odds_") for spec in MARKET_CATALOG}
     assert grouped_fields == catalog_fields
 
 

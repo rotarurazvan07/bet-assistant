@@ -63,8 +63,8 @@ graph TD
     WS[ws.py
     ConnectionManager
     Thread-safe Broadcast]
-    MC[market_config.py
-    MarketDef + Constants]
+    MK[bet_framework/markets/
+    canonical catalog]
     SC[schemas.py
     Pydantic Request/Response]
     AU[analytics_utils.py
@@ -137,9 +137,16 @@ def create_app() -> FastAPI:
     app.state.app_logic = AppLogic(matches_db, slips_db, config_dir)
 
     # Register routers
-    for router in [matches.router, builder.router, profiles.router,
-                   slips.router, analytics.router, services.router,
-                   system.router, odds_history.router]:
+    for router in [
+        matches.router,
+        builder.router,
+        profiles.router,
+        slips.router,
+        analytics.router,
+        services.router,
+        system.router,
+        odds_history.router,
+    ]:
         app.include_router(router)
 
     return app
@@ -182,8 +189,8 @@ has_sig = only_significant_movement
 
 if has_cons or has_odds or has_sig:
     mask = pd.Series(False, index=df.index)
-    for md in MARKET_DEFINITIONS:
-        if md.cons_key not in df.columns:
+    for spec in MARKET_CATALOG:
+        if spec.cons_key not in df.columns:
             continue
         cell_ok = pd.Series(True, index=df.index)
         if has_cons:
@@ -195,7 +202,11 @@ if has_cons or has_odds or has_sig:
             sig_mask = pd.Series(False, index=df.index)
             for idx in df.index:
                 s = sig_data.get(idx)
-                if s and isinstance(s.get(market_key), dict) and s[market_key].get("significant"):
+                if (
+                    s
+                    and isinstance(s.get(market_key), dict)
+                    and s[market_key].get("significant")
+                ):
                     sig_mask.at[idx] = True
             cell_ok &= sig_mask
         mask |= cell_ok
@@ -223,11 +234,13 @@ def preview(request: Request, body: BetSlipConfigIn):
     total_odds = math.prod(leg.odds for leg in legs) if legs else 1.0
     pending_urls = list(app.logic.get_pending_urls())
 
-    return sanitize_floats({
-        "total_odds": round(total_odds, 4),
-        "pending_urls": pending_urls,
-        "legs": [leg_to_dict(leg) for leg in legs]
-    })
+    return sanitize_floats(
+        {
+            "total_odds": round(total_odds, 4),
+            "pending_urls": pending_urls,
+            "legs": [leg_to_dict(leg) for leg in legs],
+        }
+    )
 ```
 
 ### 3. Profiles Router (`routers/profiles.py`)
@@ -350,17 +363,20 @@ async def websocket_endpoint(websocket: WebSocket):
 ```python
 self._services = {
     "puller": TickerService(
-        "puller", self._do_pull,
+        "puller",
+        self._do_pull,
         interval=300,  # 5 min
         predicate=self._check_for_changes,  # ETag check
     ),
     "generator": TickerService(
-        "generator", self._do_generate,
+        "generator",
+        self._do_generate,
         interval=300,
         predicate=self._is_generator_hour_met,  # Daily at hour
     ),
     "verifier": TickerService(
-        "verifier", self._do_verify,
+        "verifier",
+        self._do_verify,
         interval=60,  # 1 min
     ),
 }
@@ -397,9 +413,11 @@ class TickerService:
             interrupted = self._wake_event.wait(self.interval)
             if interrupted and not self._force_run:
                 continue
-            if not self.enabled: continue
+            if not self.enabled:
+                continue
             if self.predicate and not self._force_run:
-                if not self.predicate(): continue
+                if not self.predicate():
+                    continue
             try:
                 self.on_tick()
             finally:
@@ -439,22 +457,26 @@ class ConnectionManager:
 **Usage from Daemon Threads**:
 ```python
 # In TickerService callbacks
-ws_manager.broadcast_sync({
-    "event": "slips_updated",
-    "timestamp": datetime.now().isoformat(),
-    "live_data": {...}
-})
+ws_manager.broadcast_sync(
+    {
+        "event": "slips_updated",
+        "timestamp": datetime.now().isoformat(),
+        "live_data": {...},
+    }
+)
 ```
 
-### Market Config (`core/market_config.py`)
+### Market identity (`bet_framework/markets/`, canonical)
 
-**Centralized market definitions** (shared with frontend).
+**Market identity lives ONLY in `bet_framework/markets/`** (single source of truth, zero translation layers): `catalog.py` owns identity and columns — `MarketSpec.key` IS the persisted DB/Odds field spelling (`home`, `over_25`, `btts_yes`, `dc_1x`), `label` the display text, `market_type` the routing key, `cons_key`/`odds_key` the column names; `enums.py` the `MarketKey`/`MarketType` StrEnums whose values are those same spellings; `keys.py` the column-key helpers plus the one-cycle `legacy_market_key` read shim; `views.py` the key-indexed dicts and derived views; `contract.py` the JSON snapshot. Adding a market = 1 row in `catalog.py` + 1 frontend presentation-order entry in `marketConfig.ts`, then regenerate (`npm run codegen:markets`). Values are frozen: renaming a persisted key is a data migration, not a code edit.
 
 ```python
-MARKET_DEFINITIONS = [
-    MarketDef("1", "cons_home", "odds_home", "result"),
-    MarketDef("X", "cons_draw", "odds_draw", "result"),
-    MarketDef("2", "cons_away", "odds_away", "result"),
+from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.enums import MarketKey
+
+MarketKey.HOME  # 'home' — identity == persisted Odds field spelling
+MARKET_CATALOG[0]  # MarketSpec(key='home', label='1', market_type='result', ...)
+
     MarketDef("Over 2.5", "cons_over_25", "odds_over_25", "over_under_25"),
     # ... 18 total markets
 ]
@@ -499,13 +521,16 @@ Key functions:
 
 ```python
 def _yaml_to_config(data: dict) -> BetSlipConfig:
-    kwargs = {k: v for k, v in data.items()
-              if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY}
+    kwargs = {
+        k: v for k, v in data.items() if k in _BETSLIP_FIELDS and k not in _RUNTIME_ONLY
+    }
     return BetSlipConfig(**kwargs)
+
 
 def _config_to_yaml_dict(cfg, units=1.0, target_payout=None, run_daily_count=0):
     d = asdict(cfg)
-    for k in _RUNTIME_ONLY: d[k] = None
+    for k in _RUNTIME_ONLY:
+        d[k] = None
     d["units"] = units
     d["target_payout"] = target_payout
     d["run_daily_count"] = run_daily_count
@@ -574,7 +599,7 @@ def merge_with_history_preservation(self, fresh_db_path, max_history=3, local_tz
 | `consensus.py` | `calc_consensus(scores)`, `to_pct(n, total)` |
 | `scoring.py` | `score_pick()`, `resolve_tolerance()`, `resolve_stop_threshold()`, `apply_odds_movement_adjustment()` |
 | `outcomes.py` | `determine_outcome(home, away, market, type)`, `parse_score()` |
-| `types.py` | `MarketType`, `Outcome`, `MatchStatus`, `MarketLabel` enums |
+| (canonical `bet_framework/markets/enums.py`) | `MarketType`, `MarketKey`, `Outcome`, `MatchStatus` enums |
 | `utils.py` | `is_valid_url()`, `coerce_datetime_str()` |
 | `leagues.py` | League name constants |
 

@@ -6,7 +6,12 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from bet_crawler.crawler_logging import get_logger, log_context, log_event, source_key_for
+from bet_crawler.crawler_logging import (
+    get_logger,
+    log_context,
+    log_event,
+    source_key_for,
+)
 
 logger = get_logger(__name__)
 
@@ -195,7 +200,7 @@ class BaseMatchFinder:
             (
                 reason
                 for pattern, reason in patterns
-                if re.search(pattern, home_team_name, re.I) or re.search(pattern, away_team_name, re.I)
+                if re.search(pattern, home_team_name, re.IGNORECASE) or re.search(pattern, away_team_name, re.IGNORECASE)
             ),
             None,
         )

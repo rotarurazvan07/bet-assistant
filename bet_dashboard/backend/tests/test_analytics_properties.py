@@ -334,7 +334,7 @@ def _ref_daily_summary(seq):
     """Mirror of calculate_daily_summary accumulation order (exact FP equality)."""
     settled = [s for s in seq if _get_status_value(s.slip_status) in ("Won", "Lost")]
     settled.sort(key=lambda x: x.date_generated)
-    from bet_framework.core.type_defs import Outcome
+    from bet_framework.markets.enums import Outcome
 
     daily = {}
     for s in settled:

@@ -43,7 +43,10 @@ class TestPrepareScrapeP0:
         factory = StubFactory(
             {
                 "actions": [StubCrawler(["https://a.com/1"])],
-                "local": [StubCrawler(["https://b.com/1"]), StubCrawler(["https://c.com/1"])],
+                "local": [
+                    StubCrawler(["https://b.com/1"]),
+                    StubCrawler(["https://c.com/1"]),
+                ],
             }
         )
         prepare_scrape("local", factory, {"local": 100})
@@ -63,7 +66,12 @@ class TestPrepareScrapeP0:
 
     def test_chunk_size_floor_is_20(self, tmp_cwd, capsys) -> None:
         """chunk_size = max(20, ceil(n/max_runners)) — small collections stay in one chunk."""
-        out = _run(tmp_cwd, [StubCrawler(["https://a.com/1"] * 5)], max_chunk_size={"actions": 10}, capsys=capsys)
+        out = _run(
+            tmp_cwd,
+            [StubCrawler(["https://a.com/1"] * 5)],
+            max_chunk_size={"actions": 10},
+            capsys=capsys,
+        )
         tasks = json.loads(out.strip())
         assert len(tasks) == 1
 
@@ -187,7 +195,13 @@ class TestPrepareScrapeP2:
     def test_unknown_runner_defaults_chunk_size_1(self, tmp_cwd, capsys) -> None:
         """max_chunk_size.get(runner, 1) → chunk_size = max(20, n)."""
         urls = [f"https://a.com/{i}" for i in range(45)]
-        out = _run(tmp_cwd, [StubCrawler(urls)], runner="ghost", max_chunk_size={}, capsys=capsys)
+        out = _run(
+            tmp_cwd,
+            [StubCrawler(urls)],
+            runner="ghost",
+            max_chunk_size={},
+            capsys=capsys,
+        )
         tasks = json.loads(out.strip())
         # chunk_size = max(20, ceil(45/1)=45) → single chunk of 45
         assert len(tasks) == 1

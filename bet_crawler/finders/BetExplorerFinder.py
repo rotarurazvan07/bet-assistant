@@ -539,7 +539,11 @@ class BetExplorerFinder(BaseMatchFinder):
             for url in urls:
                 try:
                     try:
-                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
+                        session.fetch(
+                            url,
+                            wait_until="domcontentloaded",
+                            timeout=self._BROWSER_TIMEOUT_MS,
+                        )
                     except Exception as fetch_err:
                         log_event(
                             logger,
@@ -555,7 +559,11 @@ class BetExplorerFinder(BaseMatchFinder):
                             error_type=type(fetch_err).__name__,
                             error_message=str(fetch_err),
                         )
-                        session.fetch(url, wait_until="domcontentloaded", timeout=self._BROWSER_TIMEOUT_MS)
+                        session.fetch(
+                            url,
+                            wait_until="domcontentloaded",
+                            timeout=self._BROWSER_TIMEOUT_MS,
+                        )
 
                     try:
                         self._wait_for_selector(session, ".list-details__item__title")

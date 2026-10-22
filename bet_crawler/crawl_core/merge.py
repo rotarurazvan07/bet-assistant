@@ -8,7 +8,12 @@ from urllib.parse import urlparse
 
 import pandas as pd
 
-from bet_crawler.crawler_logging import get_event_totals, get_logger, log_event, reset_event_totals
+from bet_crawler.crawler_logging import (
+    get_event_totals,
+    get_logger,
+    log_event,
+    reset_event_totals,
+)
 
 logger = get_logger(__name__)
 

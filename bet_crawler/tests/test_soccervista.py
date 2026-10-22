@@ -42,7 +42,9 @@ class TestSoccerVistaPerLeague:
     def test_ongoing_match_row_skipped(self) -> None:
         """Row whose date-cell is empty (ongoing) is skipped via date-parse failure."""
         html = load_fixture("soccervista", "league.html").replace(
-            "</td><td><span>x</span><span>Arsenal", "</td><td></td><td><span>x</span><span>Arsenal", 1
+            "</td><td><span>x</span><span>Arsenal",
+            "</td><td></td><td><span>x</span><span>Arsenal",
+            1,
         )
         finder, collector = _finder(SoccerVistaFinder_per_league)
         url = next(iter(sv_pl.TOP_LEAGUES))

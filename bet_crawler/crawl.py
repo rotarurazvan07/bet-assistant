@@ -211,7 +211,7 @@ def _install_uncaught_exception_logging() -> None:
             "Uncaught crawler CLI failure in mode %s: %s",
             mode,
             exc_value,
-            exc_info=(exc_type, exc_value, traceback),  # noqa: LOG014 - this hook runs after an uncaught exception.
+            exc_info=(exc_type, exc_value, traceback),
             extra={
                 "event": "cli.failed",
                 "outcome": "error",
@@ -227,7 +227,7 @@ def _install_uncaught_exception_logging() -> None:
             "Uncaught crawler worker-thread failure in %s: %s",
             args.thread.name,
             args.exc_value,
-            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),  # noqa: LOG014 - thread exception hook.
+            exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
             extra={
                 "event": "worker.uncaught",
                 "outcome": "error",
@@ -260,7 +260,12 @@ if __name__ == "__main__":
         if not args.urls or not args.matches_db_path or not args.config_dir:
             build_parser().error("--urls, --matches_db_path, and --config_dir are required for scrape")
         runtime = load_runtime(args.config_dir)
-        scrape(args.matches_db_path, args.urls, runtime["factory"], runtime["similarity_config"])
+        scrape(
+            args.matches_db_path,
+            args.urls,
+            runtime["factory"],
+            runtime["similarity_config"],
+        )
 
     elif args.mode == "merge":
         if not args.matches_db_path or not args.chunks_dir or not args.config_dir:

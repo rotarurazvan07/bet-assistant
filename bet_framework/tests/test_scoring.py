@@ -40,7 +40,7 @@ from bet_framework.core.scoring import (
     score_sources,
 )
 from bet_framework.core.Slip import BetSlipConfig, CandidateLeg
-from bet_framework.core.type_defs import MarketLabel, MarketType
+from bet_framework.markets.enums import MarketKey, MarketType
 
 # -- Helpers -------------------------------------------------------------------
 
@@ -57,7 +57,7 @@ def make_leg(consensus=80.0, odds=1.5, sources=4, **overrides) -> CandidateLeg:
     kwargs = {
         "match_name": "Team A vs Team B",
         "datetime": DT_BASE_ISO,
-        "market": MarketLabel.HOME,
+        "market": MarketKey.HOME,
         "market_type": MarketType.RESULT,
         "consensus": consensus,
         "odds": odds,

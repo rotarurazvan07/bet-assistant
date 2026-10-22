@@ -277,6 +277,7 @@ class Score:
     home: float
     away: float
 
+
 @dataclass
 class Odds:
     home: float = None
@@ -299,8 +300,11 @@ class Odds:
     dc_x2: float = None
     # Auto-converts American odds to decimal
 
+
 class Match:
-    def __init__(self, home_team, away_team, datetime, predictions, odds, result_url, league):
+    def __init__(
+        self, home_team, away_team, datetime, predictions, odds, result_url, league
+    ):
         self.home_team = home_team
         self.away_team = away_team
         self.datetime = datetime
@@ -560,7 +564,7 @@ Add new modes to `crawl.py`:
 
 ```python
 # In build_parser()
-choices=[
+choices = [
     "prepare-scrape",
     "scrape",
     "merge",

@@ -15,7 +15,7 @@ BASE = "/api/slips"
 def _valid_leg(**overrides) -> dict:
     leg = {
         "match_name": "Real Madrid - Barcelona",
-        "market": "1",
+        "market": "home",
         "market_type": "result",
         "odds": 1.9,
         "result_url": "https://example.com/match/1",
@@ -116,7 +116,7 @@ class TestGetSlips:
             assert key in slip["legs"][0]
 
     def test_get_slips_enum_status_serialized_to_string(self, client_factory) -> None:
-        from bet_framework.core.type_defs import Outcome
+        from bet_framework.markets.enums import Outcome
 
         logic = FakeDashboardLogic(slips=[make_slip(slip_status=Outcome.WON)])
         client, _ = client_factory(logic=logic)

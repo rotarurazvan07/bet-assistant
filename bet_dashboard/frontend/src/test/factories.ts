@@ -63,8 +63,8 @@ export function makeBetLeg(overrides: Partial<BetLeg> = {}): BetLeg {
     return {
         match_name: 'Arsenal vs Chelsea',
         datetime: '2026-09-25T15:00:00',
-        market: 'Home',
-        market_type: 'Result',
+        market: 'home',
+        market_type: 'result',
         odds: 1.9,
         status: 'Pending',
         result_url: 'https://example.com/match/1',
@@ -147,11 +147,11 @@ export function makeHistoryRecord(overrides: Partial<HistoryRecord> = {}): Histo
 }
 
 export function makeMarketAccuracy(overrides: Partial<MarketAccuracy> = {}): MarketAccuracy {
-    return { market: 'Home', won: 2, lost: 1, total: 3, accuracy: 66.67, ...overrides };
+    return { market: 'home', won: 2, lost: 1, total: 3, accuracy: 66.67, ...overrides };
 }
 
 export function makePnlByMarket(overrides: Partial<PnlByMarket> = {}): PnlByMarket {
-    return { market: 'Home', won: 2, lost: 1, net_profit: 0.9, ...overrides };
+    return { market: 'home', won: 2, lost: 1, net_profit: 0.9, ...overrides };
 }
 
 export function makeOddsDistBucket(overrides: Partial<OddsDistBucket> = {}): OddsDistBucket {
@@ -175,7 +175,7 @@ export function makeProfileScatterPoint(overrides: Partial<ProfileScatterPoint> 
 
 export function makeMarketBreakdown(overrides: Partial<MarketBreakdown> = {}): MarketBreakdown {
     return {
-        market: 'Home', legs: 3, won: 2, lost: 1,
+        market: 'home', legs: 3, won: 2, lost: 1,
         win_rate: 66.67, implied_win_rate: 52.63, edge: 14.04,
         avg_odds: 1.9, net_profit: 0.9, ...overrides,
     };
@@ -273,7 +273,7 @@ export function makeCandidateLeg(overrides: Partial<CandidateLeg> = {}): Candida
     return {
         match_name: 'Arsenal vs Chelsea',
         datetime: '2026-09-25T15:00:00',
-        market: 'Home', market_type: 'Result',
+        market: 'home', market_type: 'result',
         consensus: 75.0, odds: 1.9,
         result_url: 'https://example.com/match/1',
         league: 'England', sources: 4, tier: 1, score: 0.83,

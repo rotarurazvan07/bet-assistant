@@ -95,7 +95,13 @@ class TestAppLogicSlipOperations:
         """[P0] Preview excludes only manual URLs, not pending-slip URLs."""
         app = app_env.app
         # Seed a pending slip whose leg URL should still appear in previews.
-        seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0, legs=[make_leg_row()])
+        seed_slip(
+            app,
+            date_generated="2030-01-01",
+            total_odds=1.9,
+            units=1.0,
+            legs=[make_leg_row()],
+        )
         app.add_excluded("https://example.com/match/1")
         legs = app.build_preview(_slip_cfg())
         urls = [leg.result_url for leg in legs]
@@ -105,7 +111,13 @@ class TestAppLogicSlipOperations:
     def test_build_preview_without_manual_exclusions_shows_pending(self, app_env) -> None:
         """[P1] Without manual exclusions pending-slip matches still preview."""
         app = app_env.app
-        seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0, legs=[make_leg_row()])
+        seed_slip(
+            app,
+            date_generated="2030-01-01",
+            total_odds=1.9,
+            units=1.0,
+            legs=[make_leg_row()],
+        )
         legs = app.build_preview(_slip_cfg())
         urls = {leg.result_url for leg in legs}
         assert "https://example.com/match/0" in urls  # pending URL NOT hidden in preview
@@ -229,13 +241,19 @@ class TestAppLogicSlipOperations:
         """[P1] date_from keeps slips generated on/after that date."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips(date_from="2030-01-02")
-        assert {s.date_generated.split("T")[0] for s in out} == {"2030-01-02", "2030-01-03"}
+        assert {s.date_generated.split("T")[0] for s in out} == {
+            "2030-01-02",
+            "2030-01-03",
+        }
 
     def test_get_slips_date_to_filter(self, app_env) -> None:
         """[P1] date_to keeps slips generated on/before that date."""
         self._seed_three_slips(app_env.app)
         out = app_env.app.get_slips(date_to="2030-01-02")
-        assert {s.date_generated.split("T")[0] for s in out} == {"2030-01-01", "2030-01-02"}
+        assert {s.date_generated.split("T")[0] for s in out} == {
+            "2030-01-01",
+            "2030-01-02",
+        }
 
     def test_get_slips_date_window_filter(self, app_env) -> None:
         """[P1] A from/to window narrows to the enclosed day only."""
@@ -261,7 +279,13 @@ class TestAppLogicSlipOperations:
     def test_delete_slip_and_broadcast_deletes_and_broadcasts(self, app_env, broadcast_capture) -> None:
         """[P0] delete_slip_and_broadcast removes the slip and fires slips_updated."""
         app = app_env.app
-        slip_id = seed_slip(app, date_generated="2030-01-01", total_odds=1.9, units=1.0, legs=[make_leg_row()])
+        slip_id = seed_slip(
+            app,
+            date_generated="2030-01-01",
+            total_odds=1.9,
+            units=1.0,
+            legs=[make_leg_row()],
+        )
         app.delete_slip_and_broadcast(slip_id)
         assert app.get_slips() == []
         assert broadcast_capture[-1]["event"] == "slips_updated"
@@ -274,7 +298,10 @@ class TestAppLogicSlipOperations:
             date_generated="2030-01-01",
             total_odds=1.9,
             units=1.0,
-            legs=[make_leg_row(), make_leg_row(result_url="https://example.com/match/9")],
+            legs=[
+                make_leg_row(),
+                make_leg_row(result_url="https://example.com/match/9"),
+            ],
         )
         app.delete_slip(slip_id)
         assert app.get_slips() == []
