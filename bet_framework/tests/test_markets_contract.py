@@ -23,7 +23,6 @@ from bet_framework.markets.contract import emit
 from bet_framework.markets.enums import MarketKey, MarketType
 from bet_framework.markets.views import (
     CONSENSUS_COLUMN_NAMES,
-    LEGACY_LABEL_TO_KEY,
     ODDS_COLUMN_NAMES,
 )
 
@@ -114,15 +113,6 @@ def test_labels_stay_display_text() -> None:
     assert MARKET_BY_KEY["btts_yes"].label == "BTTS Yes"
     assert MARKET_BY_KEY["over_25"].label == "Over 2.5"
     assert MARKET_BY_KEY["dc_1x"].label == "1X"
-
-
-def test_legacy_label_map_covers_pre_u1_spellings() -> None:
-    """D2 one-cycle read support: every persisted pre-U1 label maps to a key."""
-    assert LEGACY_LABEL_TO_KEY["1"] == "home"
-    assert LEGACY_LABEL_TO_KEY["BTTS Yes"] == "btts_yes"
-    assert LEGACY_LABEL_TO_KEY["Over 2.5"] == "over_25"
-    assert LEGACY_LABEL_TO_KEY["1X"] == "dc_1x"
-    assert set(LEGACY_LABEL_TO_KEY.values()) == set(EXPECTED_KEYS)
 
 
 @pytest.mark.parametrize("odds_key_value", sorted(EXPECTED_ODDS_TO_STRIPPED))
