@@ -4,7 +4,6 @@ Kills the ``odds_key.replace("odds_", "")`` prefix-surgery pattern: the
 ``cons_``/``odds_`` conventions exist in exactly this module.
 """
 
-
 ODDS_PREFIX = "odds_"
 
 
