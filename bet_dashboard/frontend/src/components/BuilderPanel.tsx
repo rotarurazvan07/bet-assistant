@@ -5,6 +5,7 @@ import { BaseDataRow } from './ui/BaseDataRow';
 import { TooltipIcon } from './ui';
 import type { BuilderConfig } from '../types';
 import { ALL_MARKETS } from '../types';
+import { marketLabel } from '../config/marketConfig';
 
 interface Props {
     cfg: BuilderConfig;
@@ -327,7 +328,8 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
                                         : 'none',
                                 }}
                             >
-                                {m}
+                                {/* AC-1: render the presentation label (like Discover/Live Preview), never the raw canonical key */}
+                                {marketLabel(m)}
                             </button>
                         );
                     })}

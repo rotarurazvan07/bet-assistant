@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import BuilderPanel from '../BuilderPanel';
 import type { BuilderConfig } from '../../types';
-import { ALL_MARKETS } from '../../config/marketConfig';
+import { ALL_MARKETS, marketLabel } from '../../config/marketConfig';
 
 
 function baseCfg(overrides: Partial<BuilderConfig> = {}): BuilderConfig {
@@ -149,9 +149,36 @@ describe('BuilderPanel', () => {
         const allButOne = ALL_MARKETS.slice(1);
         const { onChange } = renderPanel({ included_markets: allButOne });
         // toggle the one market NOT in the list (ALL_MARKETS[0]) → adds it back → all → null
-        await user.click(screen.getByText(ALL_MARKETS[0]));
+        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) })); // chip renders the presentation label
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_markets).toBeNull(); // complete set → null (all)
+    });
+
+    it('Markets filter chips render presentation labels, NOT raw canonical keys (AC-1 regression)', () => {
+        // Pre-U1 bug: BuilderPanel rendered the raw canonical key ('home' -> CSS-uppercased
+        // 'HOME'). Fix: render marketLabel(m) like Discover/Live Preview do.
+        renderPanel();
+        for (const m of ALL_MARKETS) {
+            const label = marketLabel(m);
+            expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+            if (label !== m) {
+                // the raw key text must NOT be rendered anywhere
+                expect(screen.queryByText(m)).not.toBeInTheDocument();
+            }
+        }
+        // pin a known key/label pair so a catalog rename cannot silently pass
+        expect(marketLabel('home')).toBe('1');
+        expect(marketLabel(ALL_MARKETS[0])).not.toBe(ALL_MARKETS[0]);
+    });
+
+    it('market toggle still identifies markets by canonical key in included_markets (identity unchanged)', async () => {
+        const user = userEvent.setup();
+        const { onChange } = renderPanel();
+        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
+        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+        // first click on an all-selected board excludes that one market (all-but-one array)
+        expect(last.included_markets).toHaveLength(ALL_MARKETS.length - 1);
+        expect(last.included_markets).not.toContain(ALL_MARKETS[0]);
     });
 
     it('balance_decay select switches linear/gaussian', async () => {
