@@ -265,13 +265,13 @@ describe('BettingTips page', () => {
         expect(window.alert).not.toHaveBeenCalled();
     });
 
-    it('pending legs persist to localStorage (betting_tips_state)', async () => {
+    it('pending legs persist to localStorage (betting_tips_state_v2)', async () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal');
         await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
         await waitFor(() => {
-            const saved = localStorage.getItem('betting_tips_state');
+            const saved = localStorage.getItem('betting_tips_state_v2');
             expect(saved).not.toBeNull();
             expect(JSON.parse(saved as string).pendingLegs.length).toBe(1);
         });
