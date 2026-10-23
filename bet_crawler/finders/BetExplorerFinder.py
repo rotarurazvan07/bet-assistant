@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 BETEXPLORER_URL = ""
 BETEXPLORER_NAME = "betexplorer"
-MAX_CONCURRENCY = 10
+MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = [
     "https://www.betexplorer.com/football/europe/champions-league/",
