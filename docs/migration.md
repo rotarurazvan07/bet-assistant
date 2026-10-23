@@ -31,9 +31,9 @@ python scripts/migrate_slip_leg_keys.py --db workspace/data/slips.db --yes
 
 **Other databases:** `matches.db`, `odds_history` and risk profiles carry canonical field spellings already and need no migration.
 
-**Order note:** run this migration before (or right after) upgrading to a build without the `legacy_market_key` read shim. Until it runs, old legs still display — but re-saving an unmigrated leg fails loudly (`Invalid market`) instead of being auto-translated. The frontend `betting_tips_state` localStorage key was bumped in the same change so stale pending legs drop cleanly instead of failing validation.
+**Order note:** run this migration before (or right after) upgrading to a build without the one-cycle legacy read shim (removed in the same release). Until it runs, old legs still display — but re-saving an unmigrated leg fails loudly (`Invalid market`) instead of being auto-translated. The frontend `betting_tips_state` localStorage key was bumped in the same change so stale pending legs drop cleanly instead of failing validation.
 
 ## Exit codes
 
-`scripts/migrate_slip_leg_keys.py`: `0` ok / `1` database missing / `2` backup failed / `3` unknown values present / `4` verification failed after write.
+`scripts/migrate_slip_leg_keys.py`: `0` ok / `1` database missing / `2` backup failed (argparse usage errors, e.g. `--yes --dry-run` together, also exit `2`) / `3` unknown values present / `4` verification failed after write / `5` unreadable database (locked, corrupt, or not a slips database - e.g. pointing `--db` at `matches.db`).
 

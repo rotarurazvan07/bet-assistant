@@ -173,10 +173,11 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
     try:
         # Post-shim (issue #116): canonical keys only. Pre-U1 rows in old
         # slips.db files display fine (read path is passthrough) but re-saving
-        # an unmigrated leg now fails loudly here instead of auto-translating.
+        # validation rejects unknown/legacy labels with a 400 before this
+        # point (validate_manual_leg allow-list); see docs/migration.md.
         # See docs/migration.md for the one-time migrator.
         market = MarketKey(market_str)
-    except (ValueError, KeyError):
+    except ValueError:
         # Unknown market string: keep the raw value; validation surfaces the error.
         market = market_str
 

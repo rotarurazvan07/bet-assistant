@@ -45,17 +45,18 @@ SAFETY
   the run (exit 4) if any legacy value survives; the backup remains as the
   recovery path.
 
-Exit codes: 0 ok / 1 db missing / 2 backup failed / 3 unknown values /
-4 verification failed after write.
+Exit codes: 0 ok / 1 db missing / 2 backup failed (argparse usage errors
+also exit 2) / 3 unknown values / 4 verification failed after write /
+5 unreadable database (locked, corrupt, or not a slips database).
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sqlite3
 import sys
+import urllib.parse
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -69,14 +70,14 @@ from bet_framework.markets.catalog import MARKET_BY_KEY, MARKET_CATALOG  # noqa:
 # Single source of naming is the catalog: pre-U1 rows stored MarketSpec.label
 # ('1', 'BTTS Yes', ...); canonical rows store MarketSpec.key ('home', ...).
 # Derived at runtime - this script deliberately declares no market literals.
-LEGACY_LABEL_TO_KEY: dict[str, str] = {spec.label: spec.key for spec in MARKET_CATALOG}
+_LABEL_TO_KEY: dict[str, str] = {spec.label: spec.key for spec in MARKET_CATALOG}
 
 
 def _classify(value: str) -> str:
     """Classify one distinct legs.market value: canonical / legacy / unknown."""
     if value in MARKET_BY_KEY:
         return "canonical"
-    if value in LEGACY_LABEL_TO_KEY:
+    if value in _LABEL_TO_KEY:
         return "legacy"
     return "unknown"
 
@@ -103,12 +104,28 @@ def _print_table(table: list[tuple[str, str, int]]) -> None:
 
 
 def make_backup(db_path: Path) -> Path | None:
-    """Copy the DB next to itself; return the backup path (None on failure)."""
+    """Copy the DB next to itself via SQLite online backup; None on failure.
+
+    The online backup API (not shutil.copy2) captures a consistent snapshot even
+    when the source runs in WAL mode with un-checkpointed commits, so the backup
+    can never be silently torn/stale.
+    """
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     backup = db_path.with_name(f"{db_path.name}.bak-{stamp}")
+    if backup.exists():
+        print(f"BACKUP FAILED: {backup} already exists; refusing to overwrite it.", file=sys.stderr)
+        return None
     try:
-        shutil.copy2(db_path, backup)
-    except OSError as exc:
+        src = sqlite3.connect(f"file:{urllib.parse.quote(str(db_path))}?mode=ro", uri=True, timeout=30)
+        try:
+            dst = sqlite3.connect(backup)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+    except (OSError, sqlite3.Error) as exc:
         print(f"BACKUP FAILED: {exc}", file=sys.stderr)
         return None
     for path, label in ((db_path, "source"), (backup, "backup")):
@@ -117,17 +134,50 @@ def make_backup(db_path: Path) -> Path | None:
     return backup
 
 
+def _apply_updates(db_path: Path, planned: list[tuple[str, str, int]]) -> dict[str, int] | None:
+    """Apply planned updates in ONE transaction; re-classify after (None on error)."""
+    try:
+        conn = sqlite3.connect(f"file:{urllib.parse.quote(str(db_path))}", uri=True, timeout=30)
+    except sqlite3.Error as exc:
+        print(f"cannot open database for write: {exc}", file=sys.stderr)
+        return None
+    try:
+        with conn:  # single transaction: commits on success, rolls back on error
+            for value, key, _count in planned:
+                conn.execute("UPDATE legs SET market=? WHERE market=?", (key, value))
+        return _counts(conn)
+    except sqlite3.Error as exc:
+        print(f"write failed: {exc}", file=sys.stderr)
+        return None
+    finally:
+        conn.close()
+
+
+def _scan(db_path: Path) -> tuple[int, dict[str, int], list[tuple[str, str, int]]] | tuple[int, None, None]:
+    """Open read-only and classify; (exit_code, counts, table) or (5, None, None)."""
+    try:
+        conn = sqlite3.connect(f"file:{urllib.parse.quote(str(db_path))}?mode=ro", uri=True, timeout=30)
+    except sqlite3.Error as exc:
+        print(f"cannot open database: {exc}", file=sys.stderr)
+        return 5, None, None
+    try:
+        return 0, _counts(conn), _classification_table(conn)
+    except sqlite3.Error as exc:
+        print(f"cannot read legs table (wrong database file?): {exc}", file=sys.stderr)
+        return 5, None, None
+    finally:
+        conn.close()
+
+
 def migrate(db_path: Path, apply: bool) -> int:
+    """Scan, plan, and (with apply=True) back up + update legs.market keys."""
     if not db_path.exists():
         print(f"database not found: {db_path}", file=sys.stderr)
         return 1
 
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    try:
-        before = _counts(conn)
-        table = _classification_table(conn)
-    finally:
-        conn.close()
+    code, before, table = _scan(db_path)
+    if code != 0:
+        return code
 
     print(f"database: {db_path}")
     print(f"before: canonical={before['canonical']} legacy={before['legacy']} unknown={before['unknown']}")
@@ -144,7 +194,7 @@ def migrate(db_path: Path, apply: bool) -> int:
         print("nothing to do: no legacy labels remain (idempotent no-op)")
         return 0
 
-    planned = [(row[1], LEGACY_LABEL_TO_KEY[row[1]], row[2]) for row in table if row[0] == "legacy"]
+    planned = [(row[1], _LABEL_TO_KEY[row[1]], row[2]) for row in table if row[0] == "legacy"]
     if not apply:
         print("dry-run (no changes written). planned updates:")
         for value, key, count in planned:
@@ -156,15 +206,9 @@ def migrate(db_path: Path, apply: bool) -> int:
     if backup is None:
         return 2
 
-    conn = sqlite3.connect(db_path)
-    try:
-        with conn:  # single transaction: commits on success, rolls back on error
-            for value, key, _count in planned:
-                conn.execute("UPDATE legs SET market=? WHERE market=?", (key, value))
-        after = _counts(conn)
-    finally:
-        conn.close()
-
+    after = _apply_updates(db_path, planned)
+    if after is None:
+        return 5
     print(f"after: canonical={after['canonical']} legacy={after['legacy']} unknown={after['unknown']}")
     if after["legacy"] != 0 or after["unknown"] != 0:
         print("VERIFICATION FAILED: legacy/unknown values remain; backup retained.", file=sys.stderr)
@@ -175,6 +219,7 @@ def migrate(db_path: Path, apply: bool) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry: parse arguments and run the migration."""
     parser = argparse.ArgumentParser(
         description=(
             "One-time post-U1 migration: rewrite pre-U1 slip leg market labels to "

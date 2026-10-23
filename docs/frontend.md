@@ -750,6 +750,11 @@ Rules:
 
 ## Building for Production
 
+### Market display convention (single source of labels)
+
+All market surfaces render presentation labels via the `marketLabel()` helper (`src/config/marketConfig.ts`): the Build Markets filter chips, Analytics breakdown rows and Best/Avoid cards, Live Preview legs, Discover columns, and add-to-slip toasts. Wire payloads and config values stay canonical keys (`home`, `btts_yes`, `over_25` ...); never render a raw key as UI text.
+
+
 ```bash
 # Type check + build
 npm run build
