@@ -189,7 +189,7 @@ class ServicesSettingsIn(BaseModel):
     profile_schedules: list[ProfileScheduleIn] | None = None
 
     @model_validator(mode="after")
-    def _require_hour_without_profile_schedules(self) -> ServicesSettingsIn:
+    def _require_hour_without_profile_schedules(self) -> "ServicesSettingsIn":
         """Legacy body (no profile_schedules) still requires generate_hour."""
         if self.profile_schedules is None and self.generate_hour is None:
             raise ValueError("generate_hour is required when profile_schedules is absent")
