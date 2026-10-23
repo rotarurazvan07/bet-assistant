@@ -8,7 +8,6 @@ per-profile filtering, and the services router profile_schedules contract.
 from datetime import datetime
 
 import pytest
-
 from tests.logic_test_helpers import build_app
 
 PROFILE = {
