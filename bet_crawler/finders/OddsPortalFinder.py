@@ -19,7 +19,7 @@ from .BaseMatchFinder import BaseMatchFinder
 logger = get_logger(__name__)
 
 ODDSPORTAL_NAME = "oddsportal"
-MAX_CONCURRENCY = 10
+MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = [
     "https://www.oddsportal.com/football/europe/champions-league/",
