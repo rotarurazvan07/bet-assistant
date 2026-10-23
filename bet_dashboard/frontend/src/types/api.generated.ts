@@ -124,6 +124,12 @@ export interface paths {
     /**
      * Save Profile
      * @description Persist a named builder profile.
+     *
+     * Scheduling/ordering keys (run_daily_count, order, auto_generate,
+     * generate_hour, generate_minute) are tri-state in the payload: when the
+     * caller omits them, the values already persisted for this profile are
+     * carried over instead of being reset. That keeps a Smart Builder save from
+     * silently wiping a schedule configured on the Services page (review F1).
      */
     post: operations["save_profile_api_profiles_post"];
   };
@@ -151,7 +157,7 @@ export interface paths {
   "/api/services/settings": {
     /**
      * Save Settings
-     * @description Persist scheduler hour/minute settings.
+     * @description Persist scheduler hour/minute settings and per-profile schedules.
      */
     post: operations["save_settings_api_services_settings_post"];
   };
@@ -469,11 +475,16 @@ export interface components {
       units?: number;
       /** Target Payout */
       target_payout?: number | null;
-      /**
-       * Run Daily Count
-       * @default 0
-       */
-      run_daily_count?: number;
+      /** Run Daily Count */
+      run_daily_count?: number | null;
+      /** Order */
+      order?: number | null;
+      /** Auto Generate */
+      auto_generate?: boolean | null;
+      /** Generate Hour */
+      generate_hour?: number | null;
+      /** Generate Minute */
+      generate_minute?: number | null;
       /** Consensus Shrinkage K */
       consensus_shrinkage_k?: number | null;
       /** Min Source Edge */
@@ -497,17 +508,38 @@ export interface components {
       odds_movement_strength_min?: number | null;
     };
     /**
+     * ProfileScheduleIn
+     * @description Per-profile auto-generation schedule row (T4).
+     */
+    ProfileScheduleIn: {
+      /** Name */
+      name: string;
+      /** Auto Generate */
+      auto_generate?: boolean | null;
+      /** Generate Hour */
+      generate_hour?: number | null;
+      /** Generate Minute */
+      generate_minute?: number | null;
+      /** Units */
+      units?: number | null;
+      /** Target Payout */
+      target_payout?: number | null;
+      /** Run Daily Count */
+      run_daily_count?: number | null;
+      /** Order */
+      order?: number | null;
+    };
+    /**
      * ServicesSettingsIn
      * @description Payload for service scheduler settings.
      */
     ServicesSettingsIn: {
       /** Generate Hour */
-      generate_hour: number;
-      /**
-       * Generate Minute
-       * @default 0
-       */
-      generate_minute?: number;
+      generate_hour?: number | null;
+      /** Generate Minute */
+      generate_minute?: number | null;
+      /** Profile Schedules */
+      profile_schedules?: components["schemas"]["ProfileScheduleIn"][] | null;
     };
     /**
      * SlipIn
@@ -903,6 +935,12 @@ export interface operations {
   /**
    * Save Profile
    * @description Persist a named builder profile.
+   *
+   * Scheduling/ordering keys (run_daily_count, order, auto_generate,
+   * generate_hour, generate_minute) are tri-state in the payload: when the
+   * caller omits them, the values already persisted for this profile are
+   * carried over instead of being reset. That keeps a Smart Builder save from
+   * silently wiping a schedule configured on the Services page (review F1).
    */
   save_profile_api_profiles_post: {
     requestBody: {
@@ -997,7 +1035,7 @@ export interface operations {
   };
   /**
    * Save Settings
-   * @description Persist scheduler hour/minute settings.
+   * @description Persist scheduler hour/minute settings and per-profile schedules.
    */
   save_settings_api_services_settings_post: {
     requestBody: {
