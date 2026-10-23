@@ -27,6 +27,3 @@ MARKET_KEYS: tuple[str, ...] = tuple(spec.key for spec in MARKET_CATALOG)
 ALLOWED_MARKET_KEYS: frozenset[str] = frozenset(spec.key for spec in MARKET_CATALOG)
 CONSENSUS_COLUMN_NAMES: tuple[str, ...] = tuple(spec.cons_key for spec in MARKET_CATALOG)
 ODDS_COLUMN_NAMES: tuple[str, ...] = tuple(spec.odds_key for spec in MARKET_CATALOG)
-# label -> key lookup for the one-cycle legacy read (pre-U1 slips/DB rows and
-# browser storage persist display labels like '1'/'BTTS Yes'). See keys.py.
-LEGACY_LABEL_TO_KEY: dict[str, str] = {spec.label: spec.key for spec in MARKET_CATALOG}

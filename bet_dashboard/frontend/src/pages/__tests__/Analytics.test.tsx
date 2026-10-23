@@ -11,7 +11,8 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Analytics from '../Analytics';
 import { server } from '../../test/handlers';
-import { makeAnalyticsData } from '../../test/factories';
+import { makeAnalyticsData, makeMarketBreakdown } from '../../test/factories';
+import { ALL_MARKETS, marketLabel } from '../../config/marketConfig';
 
 // Order-robust shared stub (final-gate fix): the Analytics page imports
 // recharts directly (1687-ln chart dashboard). Registering the IDENTICAL
@@ -139,5 +140,30 @@ describe('Analytics page', () => {
             await user.click(screen.getByText(profiles[0]));
             await waitFor(() => expect(lastUrl).toContain('profiles'));
         }
+    });
+
+    it('market breakdown rows + Best/Avoid cards render presentation labels, NOT raw keys (AC-2)', async () => {
+        // Pre-U1 bug: breakdown row + best/worst cards rendered the raw stored
+        // market string. Fix: wrap in marketLabel() like every other surface.
+        // Keys are pulled from the frontend-owned ALL_MARKETS list (no literals:
+        // the semgrep no-raw-market-literals ratchet blocks new key strings).
+        const bestKey = ALL_MARKETS[ALL_MARKETS.length - 2];
+        const worstKey = ALL_MARKETS[ALL_MARKETS.length - 1];
+        const rows = [
+            makeMarketBreakdown({ market: bestKey, edge: 12.0 }),
+            makeMarketBreakdown({ market: worstKey, edge: -4.0 }),
+        ];
+        server.use(
+            http.get('/api/analytics', () => HttpResponse.json(
+                makeAnalyticsData({ market_breakdown: rows, market_accuracy: [], pnl_by_market: [] }),
+            )),
+        );
+        renderPage();
+        // labels render: breakdown table row + Best card (bestKey), row + Avoid card (worstKey)
+        expect(await screen.findAllByText(marketLabel(bestKey))).not.toHaveLength(0);
+        expect(await screen.findAllByText(marketLabel(worstKey))).not.toHaveLength(0);
+        // raw canonical keys must NEVER render on this surface
+        expect(screen.queryByText(bestKey)).not.toBeInTheDocument();
+        expect(screen.queryByText(worstKey)).not.toBeInTheDocument();
     });
 });

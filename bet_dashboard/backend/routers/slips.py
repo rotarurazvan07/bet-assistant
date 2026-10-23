@@ -8,7 +8,6 @@ from utils.profile_utils import get_profile_params
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.core.utils import is_valid_url
 from bet_framework.markets.enums import MarketKey, MarketType
-from bet_framework.markets.keys import legacy_market_key
 from bet_framework.markets.views import ALLOWED_MARKET_KEYS as ALLOWED_MARKETS
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
@@ -172,10 +171,14 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         raise ValueError("market_type is required")
 
     try:
-        market = MarketKey(legacy_market_key(market_str))
-    except (ValueError, KeyError):
+        # Post-shim (issue #116): canonical keys only. Pre-U1 rows in old
+        # slips.db files display fine (read path is passthrough) but re-saving
+        # validation rejects unknown/legacy labels with a 400 before this
+        # point (validate_manual_leg allow-list); see docs/migration.md.
+        # See docs/migration.md for the one-time migrator.
+        market = MarketKey(market_str)
+    except ValueError:
         # Unknown market string: keep the raw value; validation surfaces the error.
-        # (legacy_market_key translates pre-U1 labels for one cycle, see keys.py)
         market = market_str
 
     try:

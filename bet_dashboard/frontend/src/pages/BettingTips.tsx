@@ -19,7 +19,9 @@ import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, S
 const ALL_COLS = getTableColumns();
 
 const PAGE_SIZE = 40;
-const STORAGE_KEY = 'betting_tips_state';
+// v2 (post-U1): pending legs predating key unification carry legacy labels
+// and are dropped instead of failing validation after the legacy shim removal.
+const STORAGE_KEY = 'betting_tips_state_v2';
 
 interface Props { filters: GlobalFilters; refreshKey: number }
 
