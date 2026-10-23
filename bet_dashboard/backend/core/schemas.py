@@ -1,5 +1,7 @@
 """Pydantic request/response models for the API."""
 
+from typing import Self
+
 from pydantic import BaseModel, model_validator
 
 from bet_framework.markets.enums import MarketKey, MarketType
@@ -128,7 +130,9 @@ class ManualLegIn(BaseModel):
     consensus: float  # 0-100 percentage, required for scoring
     sources: int  # number of sources, required for scoring
     league: str | None = None
-    predictions: list[dict] | None = None  # Per-source predictions for source reliability tracking
+    predictions: list[dict] | None = (
+        None  # Per-source predictions for source reliability tracking
+    )
 
 
 class SlipIn(BaseModel):
@@ -189,10 +193,12 @@ class ServicesSettingsIn(BaseModel):
     profile_schedules: list[ProfileScheduleIn] | None = None
 
     @model_validator(mode="after")
-    def _require_hour_without_profile_schedules(self) -> ServicesSettingsIn:
+    def _require_hour_without_profile_schedules(self) -> Self:
         """Legacy body (no profile_schedules) still requires generate_hour."""
         if self.profile_schedules is None and self.generate_hour is None:
-            raise ValueError("generate_hour is required when profile_schedules is absent")
+            raise ValueError(
+                "generate_hour is required when profile_schedules is absent"
+            )
         return self
 
 
