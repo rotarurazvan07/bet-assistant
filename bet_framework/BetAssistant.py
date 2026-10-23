@@ -70,48 +70,19 @@ from bet_framework.core.Slip import (
     ValidationReport,
     get_profile,
 )
-from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
 from bet_framework.core.utils import coerce_datetime_str, is_valid_url
+from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
+from bet_framework.markets.keys import stripped_key
 
 logger = get_logger(__name__)
 
 # (cons_col, odds_col, display_label)
-MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketLabel]]] = {
-    MarketType.RESULT: [
-        ("cons_home", "odds_home", MarketLabel.HOME),
-        ("cons_draw", "odds_draw", MarketLabel.DRAW),
-        ("cons_away", "odds_away", MarketLabel.AWAY),
-    ],
-    MarketType.OVER_UNDER_25: [
-        ("cons_over_25", "odds_over_25", MarketLabel.OVER_25),
-        ("cons_under_25", "odds_under_25", MarketLabel.UNDER_25),
-    ],
-    MarketType.OVER_UNDER_15: [
-        ("cons_over_15", "odds_over_15", MarketLabel.OVER_15),
-        ("cons_under_15", "odds_under_15", MarketLabel.UNDER_15),
-    ],
-    MarketType.BTTS: [
-        ("cons_btts_yes", "odds_btts_yes", MarketLabel.BTTS_YES),
-        ("cons_btts_no", "odds_btts_no", MarketLabel.BTTS_NO),
-    ],
-    MarketType.OVER_UNDER_05: [
-        ("cons_over_05", "odds_over_05", MarketLabel.OVER_05),
-        ("cons_under_05", "odds_under_05", MarketLabel.UNDER_05),
-    ],
-    MarketType.OVER_UNDER_35: [
-        ("cons_over_35", "odds_over_35", MarketLabel.OVER_35),
-        ("cons_under_35", "odds_under_35", MarketLabel.UNDER_35),
-    ],
-    MarketType.OVER_UNDER_45: [
-        ("cons_over_45", "odds_over_45", MarketLabel.OVER_45),
-        ("cons_under_45", "odds_under_45", MarketLabel.UNDER_45),
-    ],
-    MarketType.DOUBLE_CHANCE: [
-        ("cons_dc_1x", "odds_dc_1x", MarketLabel.DC_1X),
-        ("cons_dc_12", "odds_dc_12", MarketLabel.DC_12),
-        ("cons_dc_x2", "odds_dc_x2", MarketLabel.DC_X2),
-    ],
-}
+# Key-indexed by MarketType, derived from the canonical catalog
+# (bet_framework/markets/catalog.py) — never a hand-written literal matrix.
+MARKET_MAP: dict[MarketType, list[tuple[str, str, MarketKey]]] = {}
+for _spec in MARKET_CATALOG:
+    MARKET_MAP.setdefault(MarketType(_spec.market_type), []).append((_spec.cons_key, _spec.odds_key, MarketKey(_spec.key)))
 
 
 def _parse_match_result_html(html: str, url: str) -> MatchResultInfo:
@@ -200,7 +171,7 @@ def _extract_score(soup: BeautifulSoup) -> str | None:
 
     if not match_score:
         # 2. Fallback: search in common score-like classes
-        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.I))
+        score_div = soup.find("div", class_=re.compile(r"font-bold.*text-center", re.IGNORECASE))
         if score_div:
             match_score = score_rx.search(score_div.get_text(strip=True))
 
@@ -300,7 +271,7 @@ class BetAssistant(BaseStorageManager):
         """Open the DB connection (context-manager support)."""
         return self
 
-    def __exit__(self, *_: Any) -> None:
+    def __exit__(self, *_: object) -> None:
         """Close the DB connection on context exit."""
         self.close()
 
@@ -332,7 +303,7 @@ class BetAssistant(BaseStorageManager):
         for idx, row in df.iterrows():
             try:
                 rows.append(self._build_match_row(idx, row, excluded))
-            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one bad row must not abort the load
+            except Exception as e:
                 logger.info(f"[BetAssistant] Skipping row {idx}: {e}")
 
         self._df = pd.DataFrame(rows)
@@ -382,26 +353,7 @@ class BetAssistant(BaseStorageManager):
         row_data.update(self._flatten_odds(odds))
         return row_data
 
-    _ODDS_KEY_MAP = {
-        "home": "home",
-        "draw": "draw",
-        "away": "away",
-        "over_15": "over_15",
-        "under_15": "under_15",
-        "over_25": "over_25",
-        "under_25": "under_25",
-        "btts_yes": "btts_y",
-        "btts_no": "btts_n",
-        "over_05": "over_05",
-        "under_05": "under_05",
-        "over_35": "over_35",
-        "under_35": "under_35",
-        "over_45": "over_45",
-        "under_45": "under_45",
-        "dc_1x": "dc_1x",
-        "dc_12": "dc_12",
-        "dc_x2": "dc_x2",
-    }
+    _ODDS_KEY_MAP = {spec.odds_key.removeprefix("odds_"): spec.key for spec in MARKET_CATALOG}
 
     def _flatten_odds(self, odds: dict) -> dict:
         """Flatten an odds dict into odds_* columns (None entries become 0.0)."""
@@ -761,7 +713,7 @@ class BetAssistant(BaseStorageManager):
         self,
         leg_id: int,
         info: MatchResultInfo,
-        market: MarketLabel,
+        market: MarketKey,
         market_type: MarketType,
         match_name: str,
     ) -> LegOutcomeInfo | None:
@@ -795,7 +747,7 @@ class BetAssistant(BaseStorageManager):
 
         return None
 
-    def validate_slips(self) -> ValidationReport:  # noqa: C901 - pre-existing complexity on main; refactor out of testing-cycle scope
+    def validate_slips(self) -> ValidationReport:
         """Scrape result pages, settle legs, and update slip statuses."""
         self.reopen_if_changed()
 
@@ -864,7 +816,8 @@ class BetAssistant(BaseStorageManager):
         with self.db_lock:
             if final_score is not None:
                 self.conn.execute(
-                    "UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?", (status, final_score, leg_id)
+                    "UPDATE legs SET status = ?, final_score = ? WHERE leg_id = ?",
+                    (status, final_score, leg_id),
                 )
             else:
                 self.conn.execute("UPDATE legs SET status = ? WHERE leg_id = ?", (status, leg_id))
@@ -907,7 +860,16 @@ class BetAssistant(BaseStorageManager):
             for m_type, market_cols in MARKET_MAP.items():
                 for cons_col, odds_col, label in market_cols:
                     leg = self._cell_to_candidate(
-                        row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores
+                        row,
+                        cfg,
+                        markets,
+                        m_type,
+                        cons_col,
+                        odds_col,
+                        label,
+                        match_name,
+                        league,
+                        filtered_scores,
                     )
                     if leg is not None:
                         candidates.append(leg)
@@ -930,7 +892,19 @@ class BetAssistant(BaseStorageManager):
             league = None
         return not (cfg.included_leagues and (league is None or league not in cfg.included_leagues))
 
-    def _cell_to_candidate(self, row, cfg, markets, m_type, cons_col, odds_col, label, match_name, league, filtered_scores):
+    def _cell_to_candidate(
+        self,
+        row,
+        cfg,
+        markets,
+        m_type,
+        cons_col,
+        odds_col,
+        label,
+        match_name,
+        league,
+        filtered_scores,
+    ):
         """Build a CandidateLeg from one market cell if it passes all gate filters."""
         if markets and label not in markets:
             return None
@@ -953,7 +927,7 @@ class BetAssistant(BaseStorageManager):
         if source_edge < min_edge:
             return None
         # Odds movement per market
-        mov_dir, mov_str = self._get_market_movement(row.get("odds"), odds_col.replace("odds_", ""))
+        mov_dir, mov_str = self._get_market_movement(row.get("odds"), stripped_key(odds_col))
 
         # Build per-source predictions for this leg's market
         leg_predictions = self._build_leg_predictions(filtered_scores, m_type)
@@ -1133,7 +1107,7 @@ class BetAssistant(BaseStorageManager):
                 if dt:
                     try:
                         leg_dt = datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         leg_dt = dt
 
                 # Parse predictions JSON
@@ -1143,7 +1117,7 @@ class BetAssistant(BaseStorageManager):
                 if predictions_json:
                     try:
                         predictions = json.loads(predictions_json)
-                    except json.JSONDecodeError, TypeError:
+                    except (json.JSONDecodeError, TypeError):
                         predictions = []
 
                 slips[slip_id].legs.append(

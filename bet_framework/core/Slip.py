@@ -22,7 +22,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any
 
-from bet_framework.core.type_defs import MarketLabel, MarketType, MatchStatus, Outcome
+from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
 
 # ── Candidate / Match / Leg data models ───────────────────────────────────────
 
@@ -53,7 +53,7 @@ class CandidateLeg:
 
     match_name: str
     datetime: Any  # pandas.Timestamp or datetime
-    market: MarketLabel
+    market: MarketKey
     market_type: MarketType
     consensus: float  # Must be provided, no default
     odds: float
@@ -95,7 +95,7 @@ class LegOutcomeInfo:
 
     leg_id: int
     match_name: str
-    market: MarketLabel
+    market: MarketKey
     score: str
     minute: str = ""
     outcome: Outcome | str = ""
@@ -121,7 +121,7 @@ class BetLeg:
 
     match_name: str
     datetime: Any  # ISO format or datetime
-    market: MarketLabel
+    market: MarketKey
     market_type: MarketType
     odds: float
     status: Outcome

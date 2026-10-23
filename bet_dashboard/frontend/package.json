@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:e2e": "playwright test",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "codegen:markets": "PYTHONPATH=../.. python ../backend/export_openapi.py && PYTHONPATH=../.. npx openapi-typescript ../backend/openapi.generated.json -o src/types/api.generated.ts && PYTHONPATH=../.. python -m bet_framework.markets.contract src/test/fixtures/markets-contract.snapshot.json && PYTHONPATH=../.. python -m bet_framework.markets.contract ../../bet_framework/markets/contract.snapshot.json",
+    "codegen:markets:check": "TMP=$(mktemp -d) && PYTHONPATH=../.. python ../backend/export_openapi.py $TMP/openapi.json && PYTHONPATH=../.. python -m bet_framework.markets.contract $TMP/frontend-snapshot.json && PYTHONPATH=../.. python -m bet_framework.markets.contract $TMP/framework-snapshot.json && PYTHONPATH=../.. python -m bet_framework.markets.contract $TMP/x.json >/dev/null; npx openapi-typescript ../backend/openapi.generated.json -o $TMP/api.ts && diff -q $TMP/openapi.json ../backend/openapi.generated.json && diff -q $TMP/api.ts src/types/api.generated.ts && diff -q $TMP/frontend-snapshot.json src/test/fixtures/markets-contract.snapshot.json && rm -rf $TMP && echo 'market contract artifacts in sync'"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -47,6 +49,7 @@
     "globals": "^17.4.0",
     "jsdom": "^30.1.1",
     "msw": "^2.15.0",
+    "openapi-typescript": "^6.7.6",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",

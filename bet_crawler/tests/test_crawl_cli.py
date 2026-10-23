@@ -5,10 +5,20 @@ real finder construction safety (offline ctor), skip-pattern injection,
 load_runtime/load_profile config plumbing, argparse mode validation.
 """
 
+import os
+import shutil
+
 import pytest
 import yaml
+from scrape_kit import SettingsManager, configure
 
-from bet_crawler.crawl import CrawlerFactory, CrawlerRuntimeSettings, build_parser, load_profile, load_runtime
+from bet_crawler.crawl import (
+    CrawlerFactory,
+    CrawlerRuntimeSettings,
+    build_parser,
+    load_profile,
+    load_runtime,
+)
 
 RUNNER_SETS = {
     "actions": ["alpha", "beta"],
@@ -16,10 +26,26 @@ RUNNER_SETS = {
     "test": ["delta"],
 }
 CRAWLER_KEYS = {
-    "alpha": {"class": "FakeFinderA", "contributes_odds": False, "top_leagues_only": True},
-    "beta": {"class": "FakeFinderB", "contributes_odds": True, "top_leagues_only": False},
-    "gamma": {"class": "FakeFinderA", "contributes_odds": False, "top_leagues_only": True},
-    "delta": {"class": "FakeFinderB", "contributes_odds": False, "top_leagues_only": True},
+    "alpha": {
+        "class": "FakeFinderA",
+        "contributes_odds": False,
+        "top_leagues_only": True,
+    },
+    "beta": {
+        "class": "FakeFinderB",
+        "contributes_odds": True,
+        "top_leagues_only": False,
+    },
+    "gamma": {
+        "class": "FakeFinderA",
+        "contributes_odds": False,
+        "top_leagues_only": True,
+    },
+    "delta": {
+        "class": "FakeFinderB",
+        "contributes_odds": False,
+        "top_leagues_only": True,
+    },
 }
 
 
@@ -54,7 +80,10 @@ def fake_finders(monkeypatch):
             self.skip_patterns = tuple(skip_patterns)
             self.received_callback = on_match_callback is not None
 
-    monkeypatch.setattr("bet_crawler.crawl.CrawlerFactory._load_class", staticmethod(lambda name: FakeFinder))
+    monkeypatch.setattr(
+        "bet_crawler.crawl.CrawlerFactory._load_class",
+        staticmethod(lambda name: FakeFinder),
+    )
     return FakeFinder
 
 
@@ -123,7 +152,16 @@ class TestLoadRuntimeP1:
         with open(tmp_path / "scraper_config.yaml", "w") as fh:
             yaml.safe_dump(scraper, fh)
         with open(tmp_path / "similarity_config.yaml", "w") as fh:
-            yaml.safe_dump({"threshold": 65, "weights": {"token": 0.4}, "acronyms": {}, "synonyms": {}, "weak_tokens": []}, fh)
+            yaml.safe_dump(
+                {
+                    "threshold": 65,
+                    "weights": {"token": 0.4},
+                    "acronyms": {},
+                    "synonyms": {},
+                    "weak_tokens": [],
+                },
+                fh,
+            )
         rt = load_runtime(str(tmp_path))
         assert rt["max_chunk_size"] == {"actions": 5, "test": 1}
         assert rt["similarity_config"]["threshold"] == 65
@@ -132,6 +170,40 @@ class TestLoadRuntimeP1:
         assert f.runtime_settings.local_timezone == "Europe/Berlin"
         assert f.runtime_settings.skip_patterns == (("\\bW\\b", "Women's team"),)
         assert f.runner_keys("test") == ["delta"]
+
+
+class TestStatusRetriesP1:
+    def test_repo_config_declares_status_retries(self) -> None:
+        """scraper_config.yaml declares per-HTTP-status retry budgets (scrape-kit v0.3.0):
+        429/503 budgets of 10 parse without SettingsError, keep int keys, and merge over
+        the built-in 403 default instead of replacing it."""
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        fetcher = configure(os.path.join(root, "config"))
+        assert fetcher._configured_status_retries == {429: 10, 503: 10}
+        assert fetcher.status_retries == {403: None, 429: 10, 503: 10}
+        body = SettingsManager(os.path.join(root, "config")).get("scraper_config")
+        assert body is not None
+        assert body["status_retries"] == {429: 10, 503: 10}
+
+    def test_status_retries_value_lands_not_shadowed_by_defaults(self, tmp_path) -> None:
+        """Configured values replace the built-in budgets for their status: a sentinel
+        429 budget of 7 must show up in the merged map (if the built-in default ever
+        equals the configured value, this catches the shadowing) while the built-in
+        403 entry stays intact."""
+        shutil.copyfile(
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                "config",
+                "scraper_config.yaml",
+            ),
+            tmp_path / "scraper_config.yaml",
+        )
+        text = (tmp_path / "scraper_config.yaml").read_text(encoding="utf-8")
+        (tmp_path / "scraper_config.yaml").write_text(text.replace("  429: 10", "  429: 7"), encoding="utf-8")
+        fetcher = configure(str(tmp_path))
+        assert fetcher._configured_status_retries == {429: 7, 503: 10}
+        assert fetcher.status_retries[429] == 7
+        assert fetcher.status_retries[403] is None
 
 
 class TestLoadProfileP1:

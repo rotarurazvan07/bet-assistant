@@ -23,7 +23,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from bet_framework.BetAssistant import BetAssistant
+from bet_framework.BetAssistant import MARKET_MAP, BetAssistant
 from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
@@ -41,14 +41,26 @@ from bet_framework.core.scoring import (
     score_sources,
 )
 from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
-from bet_framework.core.type_defs import MarketLabel, MarketType, Outcome
+from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.enums import MarketKey, MarketType, Outcome
+
+
+def test_candidate_market_map_matches_canonical_catalog() -> None:
+    configured = {
+        (cons_key, odds_key, market.value)
+        for market_columns in MARKET_MAP.values()
+        for cons_key, odds_key, market in market_columns
+    }
+    canonical = {(spec.cons_key, spec.odds_key, spec.key) for spec in MARKET_CATALOG}
+    assert configured == canonical
+
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 DT_BASE = datetime(2026, 4, 5, 15, 0, 0)
 
 
-def make_matches_df(n=5, sources_per_match=3, with_odds=True, with_url=True):
+def make_matches_df(n=5, sources_per_match=3, with_odds: bool = True, with_url: bool = True):
     """
     Create a match DataFrame with controllable parameters.
     Predictions with clear home win consensus for easy testing.
@@ -68,8 +80,8 @@ def make_matches_df(n=5, sources_per_match=3, with_odds=True, with_url=True):
                 "away": 5.00 + (i * 0.3),
                 "over": 1.80 + (i * 0.05),
                 "under": 2.00 + (i * 0.05),
-                "btts_y": 1.90 + (i * 0.1),
-                "btts_n": 1.90 + (i * 0.1),
+                "btts_yes": 1.90 + (i * 0.1),
+                "btts_no": 1.90 + (i * 0.1),
             }
 
         rows.append(
@@ -110,47 +122,47 @@ def loaded_ba(tmp_path):
 
 
 class TestBetSlipConfig:
-    def test_normal_defaults(self):
+    def test_normal_defaults(self) -> None:
         cfg = BetSlipConfig()
         assert cfg.target_odds == 3.0
         assert cfg.target_legs == 3
         assert cfg.consensus_floor == 50.0
 
-    def test_normal_custom_values(self):
+    def test_normal_custom_values(self) -> None:
         cfg = BetSlipConfig(target_odds=10.0, target_legs=5, consensus_floor=60.0)
         assert cfg.target_odds == 10.0
         assert cfg.target_legs == 5
         assert cfg.consensus_floor == 60.0
 
-    def test_edge_clamping_target_odds(self):
+    def test_edge_clamping_target_odds(self) -> None:
         cfg_low = BetSlipConfig(target_odds=0.5)
         assert cfg_low.target_odds == 1.10
         cfg_high = BetSlipConfig(target_odds=9999.0)
         assert cfg_high.target_odds == 1000.0
 
-    def test_edge_clamping_target_legs(self):
+    def test_edge_clamping_target_legs(self) -> None:
         cfg_low = BetSlipConfig(target_legs=-1)
         assert cfg_low.target_legs == 1
         cfg_high = BetSlipConfig(target_legs=101)
         assert cfg_high.target_legs == 100
 
-    def test_edge_clamping_consensus_floor(self):
+    def test_edge_clamping_consensus_floor(self) -> None:
         cfg = BetSlipConfig(consensus_floor=200.0)
         assert cfg.consensus_floor == 100.0
 
-    def test_edge_clamping_quality_vs_balance(self):
+    def test_edge_clamping_quality_vs_balance(self) -> None:
         cfg = BetSlipConfig(quality_vs_balance=-0.5)
         assert cfg.quality_vs_balance == 0.0
         cfg2 = BetSlipConfig(quality_vs_balance=1.5)
         assert cfg2.quality_vs_balance == 1.0
 
-    def test_edge_optional_fields_none_by_default(self):
+    def test_edge_optional_fields_none_by_default(self) -> None:
         cfg = BetSlipConfig()
         assert cfg.tolerance_factor is None
         assert cfg.stop_threshold is None
         assert cfg.max_legs_overflow is None
 
-    def test_edge_clamping_tolerance_factor(self):
+    def test_edge_clamping_tolerance_factor(self) -> None:
         cfg = BetSlipConfig(tolerance_factor=0.01)
         assert cfg.tolerance_factor == 0.05
         cfg2 = BetSlipConfig(tolerance_factor=0.99)
@@ -161,24 +173,24 @@ class TestBetSlipConfig:
 
 
 class TestGetProfile:
-    def test_normal_returns_known_profile(self):
+    def test_normal_returns_known_profile(self) -> None:
         cfg = get_profile("low_risk")
         assert isinstance(cfg, BetSlipConfig)
         assert cfg.target_odds == 2.0
 
-    def test_normal_returns_deep_copy(self):
+    def test_normal_returns_deep_copy(self) -> None:
         cfg1 = get_profile("medium_risk")
         cfg2 = get_profile("medium_risk")
         assert cfg1 is not cfg2
         cfg1.target_odds = 999
         assert cfg2.target_odds != 999
 
-    def test_normal_all_profiles_exist(self):
+    def test_normal_all_profiles_exist(self) -> None:
         for name in PROFILES:
             cfg = get_profile(name)
             assert isinstance(cfg, BetSlipConfig)
 
-    def test_error_unknown_profile_raises(self):
+    def test_error_unknown_profile_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown profile"):
             get_profile("nonexistent_profile")
 
@@ -187,37 +199,37 @@ class TestGetProfile:
 
 
 class TestResolveHelpers:
-    def test_tolerance_auto_derived(self):
+    def test_tolerance_auto_derived(self) -> None:
         cfg = BetSlipConfig(target_legs=3)
         tol = resolve_tolerance(cfg)
         assert 0.0 < tol < 1.0
 
-    def test_tolerance_explicit_returns_as_is(self):
+    def test_tolerance_explicit_returns_as_is(self) -> None:
         cfg = BetSlipConfig(tolerance_factor=0.25)
         assert resolve_tolerance(cfg) == 0.25
 
-    def test_stop_threshold_auto_derived(self):
+    def test_stop_threshold_auto_derived(self) -> None:
         cfg = BetSlipConfig(target_legs=3)
         st = resolve_stop_threshold(cfg)
         assert 0.5 <= st <= 1.0
 
-    def test_stop_threshold_explicit_returns_as_is(self):
+    def test_stop_threshold_explicit_returns_as_is(self) -> None:
         cfg = BetSlipConfig(stop_threshold=0.90)
         assert resolve_stop_threshold(cfg) == 0.90
 
-    def test_max_legs_with_overflow(self):
+    def test_max_legs_with_overflow(self) -> None:
         cfg = BetSlipConfig(target_legs=3, max_legs_overflow=2)
         assert resolve_max_legs(cfg) == 5
 
-    def test_max_legs_auto_single(self):
+    def test_max_legs_auto_single(self) -> None:
         cfg = BetSlipConfig(target_legs=1)
         assert resolve_max_legs(cfg) == 1
 
-    def test_max_legs_auto_small(self):
+    def test_max_legs_auto_small(self) -> None:
         cfg = BetSlipConfig(target_legs=3)
         assert resolve_max_legs(cfg) == 4
 
-    def test_max_legs_auto_large(self):
+    def test_max_legs_auto_large(self) -> None:
         cfg = BetSlipConfig(target_legs=6)
         assert resolve_max_legs(cfg) == 8
 
@@ -226,63 +238,63 @@ class TestResolveHelpers:
 
 
 class TestScoringFunctions:
-    def test_score_consensus_at_floor_returns_zero(self):
+    def test_score_consensus_at_floor_returns_zero(self) -> None:
         cfg = BetSlipConfig(consensus_floor=50.0)
         assert score_consensus(50.0, cfg) == 0.0
 
-    def test_score_consensus_at_100_returns_one(self):
+    def test_score_consensus_at_100_returns_one(self) -> None:
         cfg = BetSlipConfig(consensus_floor=50.0)
         assert score_consensus(100.0, cfg) == 1.0
 
-    def test_score_consensus_midpoint(self):
+    def test_score_consensus_midpoint(self) -> None:
         cfg = BetSlipConfig(consensus_floor=50.0)
         score = score_consensus(75.0, cfg)
         assert score == pytest.approx(0.5)
 
-    def test_score_consensus_floor_100_always_one(self):
+    def test_score_consensus_floor_100_always_one(self) -> None:
         cfg = BetSlipConfig(consensus_floor=100.0)
         assert score_consensus(100.0, cfg) == 1.0
 
-    def test_score_sources_zero_max(self):
+    def test_score_sources_zero_max(self) -> None:
         assert score_sources(5, 0) == 0.0
 
-    def test_score_sources_at_max(self):
+    def test_score_sources_at_max(self) -> None:
         assert score_sources(10, 10) == 1.0
 
-    def test_score_sources_half(self):
+    def test_score_sources_half(self) -> None:
         assert score_sources(5, 10) == 0.5
 
-    def test_score_balance_perfect_match(self):
+    def test_score_balance_perfect_match(self) -> None:
         cfg = BetSlipConfig()
         assert score_balance(1.50, 1.50, 0.20, cfg) == 1.0
 
-    def test_score_balance_at_edge_linear(self):
+    def test_score_balance_at_edge_linear(self) -> None:
         # With linear decay: deviation = tolerance → score 0.0
         cfg = BetSlipConfig(balance_decay="linear")
         assert score_balance(1.80, 1.50, 0.20, cfg) == pytest.approx(0.0)
 
-    def test_score_balance_at_edge_gaussian(self):
+    def test_score_balance_at_edge_gaussian(self) -> None:
         # With gaussian (default): score never reaches exactly 0
         cfg = BetSlipConfig()
         score = score_balance(1.80, 1.50, 0.20, cfg)
         assert 0.0 < score < 0.5  # Gaussian gives ~0.25 at 1σ
 
-    def test_score_balance_beyond_edge_linear(self):
+    def test_score_balance_beyond_edge_linear(self) -> None:
         cfg = BetSlipConfig(balance_decay="linear")
         assert score_balance(3.00, 1.50, 0.20, cfg) == 0.0
 
-    def test_score_balance_beyond_edge_gaussian(self):
+    def test_score_balance_beyond_edge_gaussian(self) -> None:
         # Gaussian never exactly 0, but very small far from ideal
         cfg = BetSlipConfig()
         score = score_balance(3.00, 1.50, 0.20, cfg)
         assert score > 0.0
         assert score < 0.01
 
-    def test_score_pick_returns_tier_score_quality(self):
+    def test_score_pick_returns_tier_score_quality(self) -> None:
         opt = CandidateLeg(
             match_name="A vs B",
             datetime="2025-01-01",
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -301,68 +313,68 @@ class TestScoringFunctions:
 
 class TestOddsMovementScoring:
     # resolve_odds_movement_weight
-    def test_resolve_weight_none_returns_default(self):
+    def test_resolve_weight_none_returns_default(self) -> None:
         assert resolve_odds_movement_weight(BetSlipConfig()) == 0.05
 
-    def test_resolve_weight_explicit(self):
+    def test_resolve_weight_explicit(self) -> None:
         assert resolve_odds_movement_weight(BetSlipConfig(odds_movement_weight=0.10)) == 0.10
 
-    def test_resolve_weight_capped(self):
+    def test_resolve_weight_capped(self) -> None:
         assert resolve_odds_movement_weight(BetSlipConfig(odds_movement_weight=0.50)) == 0.30
 
     # resolve_odds_movement_strength_min
-    def test_resolve_strength_min_none(self):
+    def test_resolve_strength_min_none(self) -> None:
         assert resolve_odds_movement_strength_min(BetSlipConfig()) == 0.05
 
-    def test_resolve_strength_min_explicit(self):
+    def test_resolve_strength_min_explicit(self) -> None:
         assert resolve_odds_movement_strength_min(BetSlipConfig(odds_movement_strength_min=0.10)) == 0.10
 
     # classify_odds_movement
-    def test_classify_down_confirm(self):
+    def test_classify_down_confirm(self) -> None:
         assert classify_odds_movement("down") == "confirm"
 
-    def test_classify_up_infirm(self):
+    def test_classify_up_infirm(self) -> None:
         assert classify_odds_movement("up") == "infirm"
 
-    def test_classify_stable(self):
+    def test_classify_stable(self) -> None:
         assert classify_odds_movement("stable") == "stable"
 
-    def test_classify_none(self):
+    def test_classify_none(self) -> None:
         assert classify_odds_movement(None) == "stable"
 
     # odds_movement_factor
-    def test_factor_confirm(self):
+    def test_factor_confirm(self) -> None:
         assert odds_movement_factor("confirm") == 1.0
 
-    def test_factor_infirm(self):
+    def test_factor_infirm(self) -> None:
         assert odds_movement_factor("infirm") == 0.0
 
-    def test_factor_stable(self):
+    def test_factor_stable(self) -> None:
         assert odds_movement_factor("stable") == 0.5
 
     # apply_odds_movement_adjustment
-    def test_confirm_boosts(self):
+    def test_confirm_boosts(self) -> None:
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.05)
         assert apply_odds_movement_adjustment(0.80, "down", 0.10, cfg) > 0.80
 
-    def test_infirm_penalizes(self):
+    def test_infirm_penalizes(self) -> None:
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.05)
         assert apply_odds_movement_adjustment(0.80, "up", 0.10, cfg) < 0.80
 
-    def test_below_threshold_skips(self):
+    def test_below_threshold_skips(self) -> None:
         cfg = BetSlipConfig(odds_movement_weight=0.10, odds_movement_strength_min=0.10)
         assert apply_odds_movement_adjustment(0.80, "down", 0.05, cfg) == 0.80
 
-    def test_zero_weight_no_change(self):
+    def test_zero_weight_no_change(self) -> None:
         cfg = BetSlipConfig(odds_movement_weight=0.0, odds_movement_strength_min=0.05)
         assert apply_odds_movement_adjustment(0.80, "down", 0.10, cfg) == 0.80
 
     # Integration: score_pick with movement
-    def test_score_pick_with_movement(self):
+    def test_score_pick_with_movement(self) -> None:
         opt = CandidateLeg(
             match_name="A vs B",
             datetime="2025-01-01",
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -375,11 +387,11 @@ class TestOddsMovementScoring:
         tier, score, quality = score_pick(opt, 1.50, 10, cfg)
         assert 0.0 <= score <= 1.0
 
-    def test_score_pick_without_movement_defaults(self):
+    def test_score_pick_without_movement_defaults(self) -> None:
         opt = CandidateLeg(
             match_name="A vs B",
             datetime="2025-01-01",
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -395,46 +407,46 @@ class TestOddsMovementScoring:
 
 
 class TestOutcomeFunctions:
-    def test_parsescore_normal(self):
+    def test_parsescore_normal(self) -> None:
         assert parse_score("2:1") == (2, 1)
 
-    def test_parsescore_draw(self):
+    def test_parsescore_draw(self) -> None:
         assert parse_score("0:0") == (0, 0)
 
-    def test_parsescore_error_invalid_format(self):
+    def test_parsescore_error_invalid_format(self) -> None:
         with pytest.raises(Exception):
             parse_score("invalid")
 
-    def test_determine_outcome_home_win(self):
-        assert determine_outcome(2, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.AWAY, MarketType.RESULT) == Outcome.LOST
-        assert determine_outcome(2, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.LOST
+    def test_determine_outcome_home_win(self) -> None:
+        assert determine_outcome(2, 1, MarketKey.HOME, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(2, 1, MarketKey.AWAY, MarketType.RESULT) == Outcome.LOST
+        assert determine_outcome(2, 1, MarketKey.DRAW, MarketType.RESULT) == Outcome.LOST
 
-    def test_determine_outcome_draw(self):
-        assert determine_outcome(1, 1, MarketLabel.DRAW, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(1, 1, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+    def test_determine_outcome_draw(self) -> None:
+        assert determine_outcome(1, 1, MarketKey.DRAW, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(1, 1, MarketKey.HOME, MarketType.RESULT) == Outcome.LOST
 
-    def test_determine_outcome_away_win(self):
-        assert determine_outcome(0, 2, MarketLabel.AWAY, MarketType.RESULT) == Outcome.WON
-        assert determine_outcome(0, 2, MarketLabel.HOME, MarketType.RESULT) == Outcome.LOST
+    def test_determine_outcome_away_win(self) -> None:
+        assert determine_outcome(0, 2, MarketKey.AWAY, MarketType.RESULT) == Outcome.WON
+        assert determine_outcome(0, 2, MarketKey.HOME, MarketType.RESULT) == Outcome.LOST
 
-    def test_determine_outcome_over_25(self):
-        assert determine_outcome(2, 1, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
-        assert determine_outcome(1, 0, MarketLabel.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
+    def test_determine_outcome_over_25(self) -> None:
+        assert determine_outcome(2, 1, MarketKey.OVER_25, MarketType.OVER_UNDER_25) == Outcome.WON
+        assert determine_outcome(1, 0, MarketKey.OVER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
-    def test_determine_outcome_under_25(self):
-        assert determine_outcome(1, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
+    def test_determine_outcome_under_25(self) -> None:
+        assert determine_outcome(1, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.WON
+        assert determine_outcome(2, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25) == Outcome.LOST
 
-    def test_determine_outcome_btts_yes(self):
-        assert determine_outcome(1, 1, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.WON
-        assert determine_outcome(1, 0, MarketLabel.BTTS_YES, MarketType.BTTS) == Outcome.LOST
+    def test_determine_outcome_btts_yes(self) -> None:
+        assert determine_outcome(1, 1, MarketKey.BTTS_YES, MarketType.BTTS) == Outcome.WON
+        assert determine_outcome(1, 0, MarketKey.BTTS_YES, MarketType.BTTS) == Outcome.LOST
 
-    def test_determine_outcome_btts_no(self):
-        assert determine_outcome(1, 0, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.WON
-        assert determine_outcome(2, 1, MarketLabel.BTTS_NO, MarketType.BTTS) == Outcome.LOST
+    def test_determine_outcome_btts_no(self) -> None:
+        assert determine_outcome(1, 0, MarketKey.BTTS_NO, MarketType.BTTS) == Outcome.WON
+        assert determine_outcome(2, 1, MarketKey.BTTS_NO, MarketType.BTTS) == Outcome.LOST
 
-    def test_determine_outcome_unknown_market_type(self):
+    def test_determine_outcome_unknown_market_type(self) -> None:
         assert determine_outcome(1, 0, "?", "unknown_type") == Outcome.PENDING
 
 
@@ -442,42 +454,42 @@ class TestOutcomeFunctions:
 
 
 class TestCalcConsensus:
-    def test_normal_all_home_wins(self):
+    def test_normal_all_home_wins(self) -> None:
         scores = [{"home": 2, "away": 0}, {"home": 3, "away": 1}]
         result = calc_consensus(scores)
         assert result[MarketType.RESULT]["home"] == 100.0
         assert result[MarketType.RESULT]["draw"] == 0.0
         assert result[MarketType.RESULT]["away"] == 0.0
 
-    def test_normal_all_draws(self):
+    def test_normal_all_draws(self) -> None:
         scores = [{"home": 1, "away": 1}, {"home": 0, "away": 0}]
         result = calc_consensus(scores)
         assert result[MarketType.RESULT]["draw"] == 100.0
 
-    def test_normal_over_under(self):
+    def test_normal_over_under(self) -> None:
         # Both predict 3+ total goals
         scores = [{"home": 2, "away": 1}, {"home": 3, "away": 2}]
         result = calc_consensus(scores)
         assert result[MarketType.OVER_UNDER_25]["over"] == 100.0
         assert result[MarketType.OVER_UNDER_25]["under"] == 0.0
 
-    def test_normal_btts(self):
+    def test_normal_btts(self) -> None:
         scores = [{"home": 1, "away": 1}, {"home": 2, "away": 3}]
         result = calc_consensus(scores)
         assert result[MarketType.BTTS]["yes"] == 100.0
         assert result[MarketType.BTTS]["no"] == 0.0
 
-    def test_edge_empty_scores(self):
+    def test_edge_empty_scores(self) -> None:
         result = calc_consensus([])
         assert result[MarketType.RESULT]["home"] == 0.0
         assert result[MarketType.OVER_UNDER_25]["over"] == 0.0
         assert result[MarketType.BTTS]["yes"] == 0.0
 
-    def test_edge_single_score(self):
+    def test_edge_single_score(self) -> None:
         result = calc_consensus([{"home": 2, "away": 1}])
         assert result[MarketType.RESULT]["home"] == 100.0
 
-    def test_edge_mixed_results(self):
+    def test_edge_mixed_results(self) -> None:
         scores = [
             {"home": 2, "away": 0},  # home win, under, btts no
             {"home": 0, "away": 1},  # away win, under, btts no
@@ -488,12 +500,12 @@ class TestCalcConsensus:
         assert result[MarketType.RESULT]["draw"] == pytest.approx(33.3, abs=0.1)
         assert result[MarketType.RESULT]["away"] == pytest.approx(33.3, abs=0.1)
 
-    def test_edge_none_values_treated_as_zero(self):
+    def test_edge_none_values_treated_as_zero(self) -> None:
         scores = [{"home": None, "away": None}]
         result = calc_consensus(scores)
         assert result[MarketType.RESULT]["draw"] == 100.0  # 0 == 0 → draw
 
-    def test_edge_with_source_field(self):
+    def test_edge_with_source_field(self) -> None:
         scores = [
             {"home": 2, "away": 0, "source": "src1"},
             {"home": 2, "away": 1, "source": "src2"},
@@ -509,39 +521,39 @@ class TestCalcConsensus:
 
 
 class TestLoadMatches:
-    def test_normal_loads_and_processes(self, ba):
+    def test_normal_loads_and_processes(self, ba) -> None:
         df = make_matches_df(5)
         ba.load_matches(df)
         assert len(ba._df) == 5
 
-    def test_normal_computes_consensus_columns(self, ba):
+    def test_normal_computes_consensus_columns(self, ba) -> None:
         df = make_matches_df(3, sources_per_match=4)
         ba.load_matches(df)
         for col in ["cons_home", "cons_draw", "cons_away", "cons_over_25", "cons_under_25"]:
             assert col in ba._df.columns
 
-    def test_normal_computes_odds_columns(self, ba):
+    def test_normal_computes_odds_columns(self, ba) -> None:
         df = make_matches_df(2)
         ba.load_matches(df)
         for col in ["odds_home", "odds_draw", "odds_away"]:
             assert col in ba._df.columns
             assert ba._df[col].iloc[0] > 0
 
-    def test_normal_counts_unique_sources(self, ba):
+    def test_normal_counts_unique_sources(self, ba) -> None:
         df = make_matches_df(1, sources_per_match=5)
         ba.load_matches(df)
         assert ba._df.iloc[0]["sources"] == 5
 
-    def test_edge_empty_dataframe(self, ba):
+    def test_edge_empty_dataframe(self, ba) -> None:
         ba.load_matches(pd.DataFrame())
         assert ba._df.empty
 
-    def test_edge_match_without_odds(self, ba):
+    def test_edge_match_without_odds(self, ba) -> None:
         df = make_matches_df(1, with_odds=False)
         ba.load_matches(df)
         assert ba._df.iloc[0]["odds_home"] == 0.0
 
-    def test_edge_match_without_scores(self, ba):
+    def test_edge_match_without_scores(self, ba) -> None:
         df = pd.DataFrame(
             [
                 {
@@ -557,7 +569,7 @@ class TestLoadMatches:
         ba.load_matches(df)
         assert ba._df.iloc[0]["sources"] == 0
 
-    def test_excluded_sources_filters_consensus(self, ba):
+    def test_excluded_sources_filters_consensus(self, ba) -> None:
         """Test that excluded_sources filters out specific sources from consensus calculation."""
         df = pd.DataFrame(
             [
@@ -586,7 +598,7 @@ class TestLoadMatches:
         assert ba2._df.iloc[0]["sources"] == 2
         ba2.close()
 
-    def test_excluded_sources_empty_list_unchanged(self, ba):
+    def test_excluded_sources_empty_list_unchanged(self, ba) -> None:
         """Test that empty excluded_sources list behaves like None."""
         df = make_matches_df(1, sources_per_match=3)
         ba.load_matches(df, excluded_sources=[])
@@ -601,29 +613,29 @@ class TestLoadMatches:
 
 
 class TestFilterMatches:
-    def test_normal_search_text(self, loaded_ba):
+    def test_normal_search_text(self, loaded_ba) -> None:
         result = loaded_ba.filter_matches(search_text="Home_0")
         assert len(result) == 1
 
-    def test_normal_date_from(self, loaded_ba):
+    def test_normal_date_from(self, loaded_ba) -> None:
         date_str = (DT_BASE + timedelta(hours=6)).strftime("%Y-%m-%d")
         result = loaded_ba.filter_matches(date_from=date_str)
         # All matches are within the same day range
         assert len(result) >= 0
 
-    def test_normal_min_sources(self, loaded_ba):
+    def test_normal_min_sources(self, loaded_ba) -> None:
         result = loaded_ba.filter_matches(min_sources=2)
         assert len(result) == 10  # all have 3 sources
 
-    def test_edge_empty_df(self, ba):
+    def test_edge_empty_df(self, ba) -> None:
         result = ba.filter_matches(search_text="anything")
         assert result.empty
 
-    def test_edge_no_filters_returns_all(self, loaded_ba):
+    def test_edge_no_filters_returns_all(self, loaded_ba) -> None:
         result = loaded_ba.filter_matches()
         assert len(result) == 10
 
-    def test_edge_min_sources_1_returns_all(self, loaded_ba):
+    def test_edge_min_sources_1_returns_all(self, loaded_ba) -> None:
         result = loaded_ba.filter_matches(min_sources=1)
         assert len(result) == 10
 
@@ -632,7 +644,7 @@ class TestFilterMatches:
 
 
 class TestBuildSlip:
-    def test_normal_returns_list_of_dicts(self, loaded_ba):
+    def test_normal_returns_list_of_dicts(self, loaded_ba) -> None:
         legs = loaded_ba.build_slip("medium_risk")
         assert isinstance(legs, list)
         if legs:
@@ -641,16 +653,16 @@ class TestBuildSlip:
             assert hasattr(legs[0], "odds")
             assert hasattr(legs[0], "market")
 
-    def test_normal_uses_named_profile(self, loaded_ba):
+    def test_normal_uses_named_profile(self, loaded_ba) -> None:
         legs = loaded_ba.build_slip("low_risk")
         assert isinstance(legs, list)
 
-    def test_normal_uses_config_object(self, loaded_ba):
+    def test_normal_uses_config_object(self, loaded_ba) -> None:
         cfg = BetSlipConfig(target_odds=2.0, target_legs=2)
         legs = loaded_ba.build_slip(cfg)
         assert isinstance(legs, list)
 
-    def test_normal_respects_extra_excluded_urls(self, loaded_ba):
+    def test_normal_respects_extra_excluded_urls(self, loaded_ba) -> None:
         # Exclude all but one URL
         urls_to_exclude = [f"https://example.com/match/{i}" for i in range(9)]
         legs = loaded_ba.build_slip("medium_risk", extra_excluded_urls=urls_to_exclude)
@@ -658,16 +670,16 @@ class TestBuildSlip:
             for leg in legs:
                 assert leg.result_url not in urls_to_exclude
 
-    def test_edge_empty_df_returns_empty(self, ba):
+    def test_edge_empty_df_returns_empty(self, ba) -> None:
         legs = ba.build_slip("medium_risk")
         assert legs == []
 
-    def test_edge_no_matches_pass_quality_gate(self, loaded_ba):
+    def test_edge_no_matches_pass_quality_gate(self, loaded_ba) -> None:
         cfg = BetSlipConfig(consensus_floor=100.0, min_odds=99.0)
         legs = loaded_ba.build_slip(cfg)
         assert legs == []
 
-    def test_normal_no_duplicate_matches_in_slip(self, loaded_ba):
+    def test_normal_no_duplicate_matches_in_slip(self, loaded_ba) -> None:
         cfg = BetSlipConfig(target_legs=5, target_odds=10.0)
         legs = loaded_ba.build_slip(cfg)
         match_names = [leg.match_name for leg in legs]
@@ -683,7 +695,7 @@ class TestSaveAndGetSlips:
             CandidateLeg(
                 match_name=f"Home_{i} vs Away_{i}",
                 datetime=DT_BASE + timedelta(hours=i),
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50 + (i * 0.1),
                 result_url=f"https://example.com/match/{i}",
@@ -693,7 +705,7 @@ class TestSaveAndGetSlips:
             for i in range(n)
         ]
 
-    def test_normal_save_and_retrieve(self, ba):
+    def test_normal_save_and_retrieve(self, ba) -> None:
         legs = self._make_legs(3)
         slip_id = ba.save_slip("test_profile", legs, units=1.0)
         assert isinstance(slip_id, int)
@@ -705,37 +717,37 @@ class TestSaveAndGetSlips:
         assert slips[0].profile == "test_profile"
         assert len(slips[0].legs) == 3
 
-    def test_normal_total_odds_computed(self, ba):
+    def test_normal_total_odds_computed(self, ba) -> None:
         legs = self._make_legs(2)
         ba.save_slip("p", legs)
         slips = ba.get_slips()
         expected_odds = math.prod(leg.odds for leg in legs)
         assert slips[0].total_odds == pytest.approx(expected_odds, rel=0.01)
 
-    def test_normal_units_stored(self, ba):
+    def test_normal_units_stored(self, ba) -> None:
         legs = self._make_legs(1)
         ba.save_slip("p", legs, units=2.5)
         slips = ba.get_slips()
         assert slips[0].units == 2.5
 
-    def test_normal_filter_by_profile(self, ba):
+    def test_normal_filter_by_profile(self, ba) -> None:
         ba.save_slip("profile_a", self._make_legs(2))
         ba.save_slip("profile_b", self._make_legs(2))
         slips_a = ba.get_slips(profile="profile_a")
         assert len(slips_a) == 1
         assert slips_a[0].profile == "profile_a"
 
-    def test_edge_get_slips_all_filter(self, ba):
+    def test_edge_get_slips_all_filter(self, ba) -> None:
         ba.save_slip("p1", self._make_legs(1))
         ba.save_slip("p2", self._make_legs(1))
         slips = ba.get_slips(profile="all")
         assert len(slips) == 2
 
-    def test_edge_get_slips_empty_db(self, ba):
+    def test_edge_get_slips_empty_db(self, ba) -> None:
         slips = ba.get_slips()
         assert slips == []
 
-    def test_normal_slip_status_pending(self, ba):
+    def test_normal_slip_status_pending(self, ba) -> None:
         ba.save_slip("p", self._make_legs(2))
         slips = ba.get_slips()
         assert slips[0].slip_status == Outcome.PENDING
@@ -745,12 +757,12 @@ class TestSaveAndGetSlips:
 
 
 class TestDeleteSlip:
-    def test_normal_deletes_slip_and_legs(self, ba):
+    def test_normal_deletes_slip_and_legs(self, ba) -> None:
         legs = [
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://x",
@@ -762,7 +774,7 @@ class TestDeleteSlip:
         ba.delete_slip(slip_id)
         assert ba.get_slips() == []
 
-    def test_edge_delete_nonexistent_slip_is_noop(self, ba):
+    def test_edge_delete_nonexistent_slip_is_noop(self, ba) -> None:
         ba.delete_slip(9999)  # should not raise
 
 
@@ -770,12 +782,12 @@ class TestDeleteSlip:
 
 
 class TestUpdateLeg:
-    def test_normal_updates_status(self, ba):
+    def test_normal_updates_status(self, ba) -> None:
         legs = [
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://x",
@@ -791,12 +803,12 @@ class TestUpdateLeg:
         updated = ba.fetch_rows("SELECT status FROM legs WHERE leg_id = ?", (leg_id,))
         assert updated[0]["status"] == Outcome.WON
 
-    def test_normal_update_to_lost(self, ba):
+    def test_normal_update_to_lost(self, ba) -> None:
         legs = [
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://x",
@@ -815,12 +827,12 @@ class TestUpdateLeg:
 
 
 class TestGetExcludedUrls:
-    def test_normal_pending_urls_excluded(self, ba):
+    def test_normal_pending_urls_excluded(self, ba) -> None:
         legs = [
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://pending-url",
@@ -832,12 +844,12 @@ class TestGetExcludedUrls:
         excluded = ba.get_excluded_urls()
         assert "http://pending-url" in excluded
 
-    def test_normal_won_urls_excluded(self, ba):
+    def test_normal_won_urls_excluded(self, ba) -> None:
         legs = [
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://won-url",
@@ -851,13 +863,13 @@ class TestGetExcludedUrls:
         excluded = ba.get_excluded_urls()
         assert "http://won-url" in excluded
 
-    def test_normal_pending_in_lost_slip_not_excluded(self, ba):
+    def test_normal_pending_in_lost_slip_not_excluded(self, ba) -> None:
         """If a slip has a Lost leg, other Pending legs should NOT be excluded."""
         legs = [
             CandidateLeg(
                 match_name="A vs B",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://lost-slip-pending",
@@ -867,7 +879,7 @@ class TestGetExcludedUrls:
             CandidateLeg(
                 match_name="C vs D",
                 datetime=DT_BASE,
-                market=MarketLabel.AWAY,
+                market=MarketKey.AWAY,
                 market_type=MarketType.RESULT,
                 odds=2.0,
                 result_url="http://lost-slip-lost",
@@ -888,7 +900,7 @@ class TestGetExcludedUrls:
         # The Pending URL in the lost slip is NOT excluded
         assert "http://lost-slip-pending" not in excluded
 
-    def test_edge_empty_db_returns_empty_list(self, ba):
+    def test_edge_empty_db_returns_empty_list(self, ba) -> None:
         assert ba.get_excluded_urls() == []
 
 
@@ -896,7 +908,7 @@ class TestGetExcludedUrls:
 
 
 class TestRowsToSlips:
-    def test_normal_groups_legs_under_slip(self):
+    def test_normal_groups_legs_under_slip(self) -> None:
         rows = [
             (
                 1,
@@ -906,7 +918,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.PENDING,
@@ -923,7 +935,7 @@ class TestRowsToSlips:
                 1.0,
                 "C vs D",
                 "2026-04-01T18:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
@@ -937,7 +949,7 @@ class TestRowsToSlips:
         assert len(slips) == 1
         assert len(slips[0].legs) == 2
 
-    def test_normal_status_pending(self):
+    def test_normal_status_pending(self) -> None:
         rows = [
             (
                 1,
@@ -947,7 +959,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.PENDING,
@@ -960,7 +972,7 @@ class TestRowsToSlips:
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0].slip_status == Outcome.PENDING
 
-    def test_normal_status_won(self):
+    def test_normal_status_won(self) -> None:
         rows = [
             (
                 1,
@@ -970,7 +982,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
@@ -983,7 +995,7 @@ class TestRowsToSlips:
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0].slip_status == Outcome.WON
 
-    def test_normal_status_lost(self):
+    def test_normal_status_lost(self) -> None:
         rows = [
             (
                 1,
@@ -993,7 +1005,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.WON,
@@ -1010,7 +1022,7 @@ class TestRowsToSlips:
                 1.0,
                 "C vs D",
                 "2026-04-01T18:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.LOST,
@@ -1023,7 +1035,7 @@ class TestRowsToSlips:
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0].slip_status == Outcome.LOST
 
-    def test_normal_status_live(self):
+    def test_normal_status_live(self) -> None:
         rows = [
             (
                 1,
@@ -1033,7 +1045,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.LIVE,
@@ -1050,7 +1062,7 @@ class TestRowsToSlips:
                 1.0,
                 "C vs D",
                 "2026-04-01T18:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.PENDING,
@@ -1063,7 +1075,7 @@ class TestRowsToSlips:
         slips = BetAssistant._rows_to_slips(rows)
         assert slips[0].slip_status == Outcome.LIVE
 
-    def test_edge_multiple_slips(self):
+    def test_edge_multiple_slips(self) -> None:
         rows = [
             (
                 1,
@@ -1073,7 +1085,7 @@ class TestRowsToSlips:
                 1.0,
                 "A vs B",
                 "2026-04-01T15:00:00",
-                MarketLabel.HOME,
+                MarketKey.HOME,
                 MarketType.RESULT,
                 1.5,
                 Outcome.PENDING,
@@ -1090,7 +1102,7 @@ class TestRowsToSlips:
                 2.0,
                 "C vs D",
                 "2026-04-02T15:00:00",
-                MarketLabel.AWAY,
+                MarketKey.AWAY,
                 MarketType.RESULT,
                 2.0,
                 Outcome.WON,
@@ -1108,12 +1120,12 @@ class TestRowsToSlips:
 
 
 class TestContextManager:
-    def test_normal_with_statement(self, tmp_path):
+    def test_normal_with_statement(self, tmp_path) -> None:
         with BetAssistant(str(tmp_path / "ctx.db")) as ba:
             ba.load_matches(make_matches_df(2))
             assert len(ba._df) == 2
 
-    def test_normal_close_called_on_exit(self, tmp_path):
+    def test_normal_close_called_on_exit(self, tmp_path) -> None:
         path = str(tmp_path / "ctx2.db")
         with BetAssistant(path) as ba:
             ba.load_matches(make_matches_df(1))
@@ -1125,7 +1137,7 @@ class TestContextManager:
 
 
 class TestBetAssistantScenarios:
-    def test_scenario_full_workflow(self, tmp_path):
+    def test_scenario_full_workflow(self, tmp_path) -> None:
         """load → build → save → retrieve → verify."""
         with BetAssistant(str(tmp_path / "workflow.db")) as ba:
             ba.load_matches(make_matches_df(10))
@@ -1137,7 +1149,7 @@ class TestBetAssistantScenarios:
                 assert slips[0].slip_id == slip_id
                 assert len(slips[0].legs) == len(legs)
 
-    def test_scenario_auto_exclude_prevents_duplicates(self, tmp_path):
+    def test_scenario_auto_exclude_prevents_duplicates(self, tmp_path) -> None:
         """build_slip_auto_exclude must not reuse URLs from existing slips."""
         with BetAssistant(str(tmp_path / "auto_excl.db")) as ba:
             ba.load_matches(make_matches_df(20, sources_per_match=5))
@@ -1154,7 +1166,7 @@ class TestBetAssistantScenarios:
                     used_urls_2 = {leg.result_url for leg in legs2}
                     assert used_urls_1.isdisjoint(used_urls_2)
 
-    def test_scenario_multiple_profiles(self, tmp_path):
+    def test_scenario_multiple_profiles(self, tmp_path) -> None:
         """Save slips from different profiles; filter retrieval by profile."""
         with BetAssistant(str(tmp_path / "profiles.db")) as ba:
             ba.load_matches(make_matches_df(20, sources_per_match=5))
@@ -1171,7 +1183,7 @@ class TestBetAssistantScenarios:
             for slip in low_slips:
                 assert slip.profile == "low_risk"
 
-    def test_scenario_settle_legs_manually(self, tmp_path):
+    def test_scenario_settle_legs_manually(self, tmp_path) -> None:
         """Save a slip, manually settle all legs, verify slip status transitions."""
         with BetAssistant(str(tmp_path / "settle.db")) as ba:
             ba.load_matches(make_matches_df(5))
@@ -1192,7 +1204,7 @@ class TestBetAssistantScenarios:
                 slips = ba.get_slips()
                 assert slips[0].slip_status == Outcome.LOST
 
-    def test_scenario_delete_and_regenrate(self, tmp_path):
+    def test_scenario_delete_and_regenrate(self, tmp_path) -> None:
         """Save, delete, verify gone, regenerate fresh slip."""
         with BetAssistant(str(tmp_path / "del_regen.db")) as ba:
             ba.load_matches(make_matches_df(10))
@@ -1208,7 +1220,7 @@ class TestBetAssistantScenarios:
                 legs2 = ba.build_slip_auto_exclude("medium_risk")
                 assert isinstance(legs2, list)
 
-    def test_scenario_manual_slip_with_btts_preserves_market_type(self, tmp_path):
+    def test_scenario_manual_slip_with_btts_preserves_market_type(self, tmp_path) -> None:
         """Manual slips (from BettingTips/SmartBuilder) must preserve market_type for BTTS."""
         from bet_framework.core.Slip import CandidateLeg
 
@@ -1219,7 +1231,7 @@ class TestBetAssistantScenarios:
             leg = CandidateLeg(
                 match_name="Home_0 vs Away_0",
                 datetime=DT_BASE,
-                market=MarketLabel.BTTS_YES,
+                market=MarketKey.BTTS_YES,
                 market_type=MarketType.BTTS,
                 odds=1.90,
                 result_url="https://example.com/match/0",
@@ -1234,7 +1246,7 @@ class TestBetAssistantScenarios:
             rows = ba.fetch_rows("SELECT market, market_type FROM legs WHERE slip_id = ?", (slip_id,))
             assert len(rows) == 1
             market, market_type = rows[0]
-            assert market == "BTTS Yes"
+            assert market == "btts_yes"
             assert market_type == "btts"
 
 
@@ -1244,13 +1256,13 @@ class TestBetAssistantScenarios:
 class TestSourceReliabilityTracking:
     """Tests for the source reliability tracking feature (predictions per leg, excluded sources)."""
 
-    def test_save_slip_stores_predictions(self, ba):
+    def test_save_slip_stores_predictions(self, ba) -> None:
         """Test that predictions are stored when saving a slip."""
         legs = [
             CandidateLeg(
                 match_name="Home_0 vs Away_0",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="https://example.com/match/0",
@@ -1277,13 +1289,13 @@ class TestSourceReliabilityTracking:
         # predicted_outcome should NOT be stored (computed at query time)
         assert "predicted_outcome" not in stored[0]
 
-    def test_get_slips_returns_predictions(self, ba):
+    def test_get_slips_returns_predictions(self, ba) -> None:
         """Test that get_slips parses and returns predictions."""
         legs = [
             CandidateLeg(
                 match_name="Home_0 vs Away_0",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="https://example.com/match/0",
@@ -1305,7 +1317,7 @@ class TestSourceReliabilityTracking:
         # final_score should be None for unsettled legs
         assert slips[0].legs[0].final_score is None
 
-    def test_get_slips_backward_compatibility_no_predictions(self, ba):
+    def test_get_slips_backward_compatibility_no_predictions(self, ba) -> None:
         """Test that slips without predictions column still work."""
         # Manually insert a leg without predictions
         ba.conn.execute(
@@ -1323,7 +1335,7 @@ class TestSourceReliabilityTracking:
         assert slips[0].legs[0].predictions == []
         assert slips[0].legs[0].final_score is None
 
-    def test_build_slip_includes_predictions(self, loaded_ba):
+    def test_build_slip_includes_predictions(self, loaded_ba) -> None:
         """Test that build_slip generates predictions for each leg."""
         legs = loaded_ba.build_slip("medium_risk")
         if legs:
@@ -1334,7 +1346,7 @@ class TestSourceReliabilityTracking:
                 # but the field should exist
                 assert isinstance(leg.predictions, list)
 
-    def test_excluded_sources_not_in_stored_predictions(self, ba):
+    def test_excluded_sources_not_in_stored_predictions(self, ba) -> None:
         """Test that excluded sources are not stored in predictions."""
         df = pd.DataFrame(
             [
@@ -1364,12 +1376,12 @@ class TestSourceReliabilityTracking:
             # Check final_score is None for unsettled
             assert slips[0].legs[0].final_score is None
 
-    def test_candidate_leg_has_predictions_field(self):
+    def test_candidate_leg_has_predictions_field(self) -> None:
         """Test that CandidateLeg dataclass has predictions field."""
         leg = CandidateLeg(
             match_name="A vs B",
             datetime=DT_BASE,
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             consensus=70.0,
             odds=1.50,
@@ -1380,12 +1392,12 @@ class TestSourceReliabilityTracking:
         assert isinstance(leg.predictions, list)
         assert leg.predictions == []
 
-    def test_bet_leg_has_predictions_field(self):
+    def test_bet_leg_has_predictions_field(self) -> None:
         """Test that BetLeg dataclass has predictions field."""
         leg = BetLeg(
             match_name="A vs B",
             datetime=DT_BASE,
-            market=MarketLabel.HOME,
+            market=MarketKey.HOME,
             market_type=MarketType.RESULT,
             odds=1.50,
             status=Outcome.PENDING,
@@ -1397,7 +1409,7 @@ class TestSourceReliabilityTracking:
         assert hasattr(leg, "final_score")
         assert leg.final_score is None
 
-    def test_bet_slip_config_has_excluded_sources(self):
+    def test_bet_slip_config_has_excluded_sources(self) -> None:
         """Test that BetSlipConfig has excluded_sources field."""
         cfg = BetSlipConfig()
         assert hasattr(cfg, "excluded_sources")
@@ -1406,7 +1418,7 @@ class TestSourceReliabilityTracking:
         cfg2 = BetSlipConfig(excluded_sources=["src1", "src2"])
         assert cfg2.excluded_sources == ["src1", "src2"]
 
-    def test_load_matches_stores_filtered_scores(self, ba):
+    def test_load_matches_stores_filtered_scores(self, ba) -> None:
         """Test that load_matches stores filtered scores in _filtered_scores column."""
         df = pd.DataFrame(
             [
@@ -1429,7 +1441,7 @@ class TestSourceReliabilityTracking:
         assert len(filtered) == 1
         assert filtered[0]["source"] == "src_good"
 
-    def test_build_leg_predictions_for_different_markets(self, ba):
+    def test_build_leg_predictions_for_different_markets(self, ba) -> None:
         """Test that _build_leg_predictions works for different market types."""
         df = pd.DataFrame(
             [
@@ -1448,8 +1460,8 @@ class TestSourceReliabilityTracking:
                         "away": 5.0,
                         "over_25": 1.8,
                         "under_25": 2.0,
-                        "btts_y": 1.9,
-                        "btts_n": 1.9,
+                        "btts_yes": 1.9,
+                        "btts_no": 1.9,
                     },
                     "result_url": "http://test",
                 }
@@ -1479,13 +1491,13 @@ class TestSourceReliabilityTracking:
         assert ou_preds[1] == {"source": "src2", "home": 1, "away": 1}
         assert ou_preds[2] == {"source": "src3", "home": 0, "away": 2}
 
-    def test_final_score_stored_on_settlement(self, ba):
+    def test_final_score_stored_on_settlement(self, ba) -> None:
         """Test that final_score is stored when settling a leg."""
         legs = [
             CandidateLeg(
                 match_name="Home vs Away",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://test",
@@ -1504,7 +1516,7 @@ class TestSourceReliabilityTracking:
         leg_id = rows[0]["leg_id"]
 
         # Use settle_leg_manually which stores final_score
-        outcome = ba.settle_leg_manually(leg_id, "2:1", "1", "result")
+        outcome = ba.settle_leg_manually(leg_id, "2:1", "home", "result")
         assert outcome == "Won"
 
         # Check final_score is stored
@@ -1516,13 +1528,13 @@ class TestSourceReliabilityTracking:
         slips = ba.get_slips()
         assert slips[0].legs[0].final_score == "2:1"
 
-    def test_source_accuracy_computed_from_final_score(self, ba):
+    def test_source_accuracy_computed_from_final_score(self, ba) -> None:
         """Test that source accuracy can be computed from final_score."""
         legs = [
             CandidateLeg(
                 match_name="Home vs Away",
                 datetime=DT_BASE,
-                market=MarketLabel.HOME,
+                market=MarketKey.HOME,
                 market_type=MarketType.RESULT,
                 odds=1.50,
                 result_url="http://test1",
@@ -1536,7 +1548,7 @@ class TestSourceReliabilityTracking:
             CandidateLeg(
                 match_name="Home2 vs Away2",
                 datetime=DT_BASE,
-                market=MarketLabel.OVER_25,
+                market=MarketKey.OVER_25,
                 market_type=MarketType.OVER_UNDER_25,
                 odds=1.80,
                 result_url="http://test2",

@@ -97,7 +97,18 @@ class TestGetMatches:
 
         finder.get_matches(urls)
 
-        assert sorted(len(batch) for batch in captured["batches"]) == [3, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        assert sorted(len(batch) for batch in captured["batches"]) == [
+            3,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+            4,
+        ]
         assert sorted(sum(captured["batches"], [])) == urls
 
 
@@ -130,10 +141,15 @@ class TestProcessUrlBatch:
         return fake_browser(monkeypatch, be, content_map, fetch_error_urls=err)
 
     def test_full_odds_flow_adds_match(self, monkeypatch) -> None:
-        self._session_map(monkeypatch)
+        session = self._session_map(monkeypatch)
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.betexplorer.com/match/in-window-1/"])
         assert len(collector) == 1
+        assert session.default_timeout == session.navigation_timeout == 60_000
+        assert all(call[2] == 60_000 for call in session.wait_for_selector_calls)
+        assert all(timeout == 60_000 for _, timeout in session.wait_for_function_calls)
+        assert all(kwargs["timeout"] == 60_000 for kwargs in session.fetch_kwargs)
+        assert all(kwargs["hard_cap_ms"] == 60_000 for kwargs in session.click_kwargs)
         m = collector.first
         assert m.home_team == "Arsenal"
         assert m.away_team == "Chelsea"
@@ -142,8 +158,8 @@ class TestProcessUrlBatch:
         assert odds.home == 2.10
         assert odds.draw == 3.40
         assert odds.away == 3.75
-        assert odds.btts_y == 1.57
-        assert odds.btts_n == 2.34
+        assert odds.btts_yes == 1.57
+        assert odds.btts_no == 2.34
         assert odds.dc_1x == 1.67
         assert odds.dc_12 == 1.30
         assert odds.dc_x2 == 1.36
@@ -153,11 +169,11 @@ class TestProcessUrlBatch:
         assert odds.under_25 == 2.10
         assert odds.over_45 == 6.50
         assert (odds.dc_1x, odds.dc_12, odds.dc_x2) != (odds.home, odds.draw, odds.away)
-        assert (odds.btts_y, odds.btts_n) != (odds.home, odds.draw)
+        assert (odds.btts_yes, odds.btts_no) != (odds.home, odds.draw)
 
     def test_stale_1x2_averages_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
         """Live t+0: BTTS/DC click still shows 1X2 averages."""
-        monkeypatch.setattr(BetExplorerFinder, "_TAB_SETTLE_S", 0)
+        monkeypatch.setattr(BetExplorerFinder, "_BROWSER_TIMEOUT_MS", 0)
         base_html = load_fixture("betexplorer", "match_base.html")
         x2 = load_fixture("betexplorer", "match_1x2.html")
         ou = load_fixture("betexplorer", "match_ou.html")
@@ -182,7 +198,7 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
         odds = collector.first.odds
         assert odds.home == 2.10
-        assert odds.btts_y is None
+        assert odds.btts_yes is None
         assert odds.dc_1x is None
         assert odds.over_25 == 1.70
 

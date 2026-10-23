@@ -4,7 +4,8 @@ import re
 from datetime import datetime
 
 from bs4 import BeautifulSoup, Tag
-from scrape_kit import get_logger
+
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -74,6 +75,15 @@ class VitibetFinder(BaseMatchFinder):
                 if isinstance(sibling, Tag) and sibling.name == "li":
                     link = sibling.find("a")
                     if not link:
+                        log_event(
+                            logger,
+                            event="source.discovery.candidate_skipped",
+                            outcome="warning",
+                            reason_code="league_link_missing",
+                            level=30,
+                            message="Skipping Vitibet league entry without a link",
+                            source_key="vitibet",
+                        )
                         continue
                     href = link.get("href", "")
                     league_urls.append("https://www.vitibet.com" + href)
@@ -85,7 +95,7 @@ class VitibetFinder(BaseMatchFinder):
         """Scrape all vitibet URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -115,13 +125,31 @@ class VitibetFinder(BaseMatchFinder):
                     tokens = [] if score_div is None else score_div.text.strip().split(" : ")
                     # AC-09: skip if token is not a number
                     if len(tokens) < 2:
-                        logger.info("SKIPPED [%s]: incomplete score", url)
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="warning",
+                            reason_code="score_incomplete",
+                            level=30,
+                            message=f"Skipping Vitibet row with incomplete score: {url}",
+                            source_key="vitibet",
+                            url=url,
+                        )
                         continue
                     try:
                         home_score = float(tokens[0])
                         away_score = float(tokens[1])
                     except ValueError:
-                        logger.info("SKIPPED [%s]: non-numeric score %r", url, score_div.text)
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="warning",
+                            reason_code="score_invalid",
+                            level=30,
+                            message=f"Skipping Vitibet row with non-numeric score {score_div.text!r}",
+                            source_key="vitibet",
+                            url=url,
+                        )
                         continue
                     predictions = [Score(VITIBET_NAME, home_score, away_score)]
 
@@ -137,8 +165,22 @@ class VitibetFinder(BaseMatchFinder):
                         )
                     )
 
-                except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                except Exception as e:
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed Vitibet candidate on {url}: {e}",
+                        source_key="vitibet",
+                        url=url,
+                    )
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse Vitibet page {url}: {e}",
+                source_key="vitibet",
+                url=url,
+            )

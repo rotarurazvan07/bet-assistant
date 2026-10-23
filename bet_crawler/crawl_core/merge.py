@@ -7,7 +7,13 @@ from collections import defaultdict
 from urllib.parse import urlparse
 
 import pandas as pd
-from scrape_kit import get_logger
+
+from bet_crawler.crawler_logging import (
+    get_event_totals,
+    get_logger,
+    log_event,
+    reset_event_totals,
+)
 
 logger = get_logger(__name__)
 
@@ -20,12 +26,37 @@ def merge(
     runner_sets: dict[str, list[str]],
 ) -> None:
     """Merge multiple chunk databases into a single database and generate summary."""
+    reset_event_totals(stage="merge")
     if not os.path.isdir(chunks_dir):
-        logger.error(f"❌ Not a valid directory: {chunks_dir}")
+        log_event(
+            logger,
+            event="stage.failed",
+            outcome="error",
+            reason_code="chunk_directory_missing",
+            level=40,
+            message=f"Not a valid chunks directory: {chunks_dir}",
+            stage="merge",
+            url=chunks_dir,
+        )
         raise SystemExit(1)
 
-    matches_df = _perform_merge(db_path, chunks_dir, similarity_config)
-    _generate_merge_summary(matches_df, chunks_dir, db_path, crawler_keys, runner_sets)
+    try:
+        matches_df = _perform_merge(db_path, chunks_dir, similarity_config)
+        _generate_merge_summary(matches_df, chunks_dir, db_path, crawler_keys, runner_sets)
+    except Exception as exc:
+        logger.exception(
+            "Merge stage failed for chunks directory %s",
+            chunks_dir,
+            extra={
+                "event": "stage.failed",
+                "outcome": "error",
+                "reason_code": "merge_operation_failed",
+                "stage": "merge",
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            },
+        )
+        raise
 
 
 def _perform_merge(db_path: str, chunks_dir: str, similarity_config: dict | None) -> pd.DataFrame:
@@ -55,9 +86,30 @@ def _generate_merge_summary(
 
     _log_summary_header(matches_count, len(chunk_files))
     _log_source_details(source_to_matches)
-    _log_missing_crawlers(source_to_matches, crawler_keys)
-    _validate_runner_sets(source_to_matches, chunk_files, runner_sets)
+    missing_crawlers = _log_missing_crawlers(source_to_matches, crawler_keys)
+    missing_runner_sets = _validate_runner_sets(source_to_matches, chunk_files, runner_sets)
     _log_footer(db_path)
+    event_totals = get_event_totals(stage="merge")
+    has_missing_data = bool(missing_crawlers or missing_runner_sets or event_totals["warnings"] or event_totals["errors"])
+    log_event(
+        logger,
+        event="stage.completed",
+        outcome="partial" if has_missing_data else "success",
+        reason_code=(
+            "runner_set_missing_data" if missing_runner_sets else "crawler_sources_missing" if missing_crawlers else None
+        ),
+        level=40 if missing_runner_sets or event_totals["errors"] else 30 if has_missing_data else 20,
+        message="Merge stage completed",
+        stage="merge",
+        counts={
+            "matches": matches_count,
+            "chunks": len(chunk_files),
+            "sources": len(source_to_matches),
+            "crawlers_missing": len(missing_crawlers),
+            "runner_sets_missing": len(missing_runner_sets),
+            **event_totals,
+        },
+    )
 
 
 def _build_source_mapping(matches_df: pd.DataFrame) -> dict[str, set]:
@@ -72,7 +124,18 @@ def _build_source_mapping(matches_df: pd.DataFrame) -> dict[str, set]:
         if isinstance(url, str) and url.strip():
             try:
                 domain = urlparse(url).netloc
-            except Exception:
+            except Exception as exc:
+                log_event(
+                    logger,
+                    event="merge.source_mapping.warning",
+                    outcome="warning",
+                    reason_code="result_url_parse_failed",
+                    level=30,
+                    message=f"Could not infer match source from result URL {url!r}: {exc}",
+                    url=url,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
                 domain = ""
             if domain:
                 core_name = domain.split(".")[-2] if "." in domain else domain
@@ -110,18 +173,21 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
         logger.info(f"    - {k}: {v} matches")
 
 
-def _log_missing_crawlers(source_to_matches: dict[str, set], crawler_keys: dict) -> None:
+def _log_missing_crawlers(source_to_matches: dict[str, set], crawler_keys: dict) -> set[str]:
     """Identify configured crawlers that did not contribute matches."""
+    missing_crawlers = set()
     for crawler in sorted(crawler_keys.keys()):
         if crawler not in source_to_matches:
+            missing_crawlers.add(crawler)
             logger.warning(f"    - {crawler}: 0 matches (MISSING)")
+    return missing_crawlers
 
 
 def _validate_runner_sets(
     source_to_matches: dict[str, set],
     chunk_files: list[str],
     runner_sets: dict[str, list[str]],
-) -> None:
+) -> set[str]:
     """Validate that all expected runner sets contributed data."""
     seen_runners = set()
     for source in source_to_matches:
@@ -138,6 +204,7 @@ def _validate_runner_sets(
     missing_runner_sets = expected_runners - seen_runners
     if missing_runner_sets:
         logger.error(f"  ❌ Full runner sets missing data: {missing_runner_sets}")
+    return missing_runner_sets
 
 
 def _log_footer(db_path: str) -> None:

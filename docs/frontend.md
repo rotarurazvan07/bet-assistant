@@ -434,7 +434,7 @@ Main API functions grouped by domain:
 
 ### `marketConfig.ts`
 
-**Single source of truth for market columns** - reorder here to change table column order.
+**Presentation order + label overrides ONLY.** Market identity (keys, column keys, market types) is owned by the canonical backend catalog (`bet_framework/markets/`) and mirrored into the frontend via generated types (`src/types/api.generated.ts`, `npm run codegen:markets`). Reorder entries here to change column order in the betting tips table; reordering cannot change any backend behavior - keys are bound by identity, not position.
 
 ```typescript
 export const MARKET_COLUMNS: MarketColumn[] = [
@@ -749,6 +749,11 @@ Rules:
 ---
 
 ## Building for Production
+
+### Market display convention (single source of labels)
+
+All market surfaces render presentation labels via the `marketLabel()` helper (`src/config/marketConfig.ts`): the Build Markets filter chips, Analytics breakdown rows and Best/Avoid cards, Live Preview legs, Discover columns, and add-to-slip toasts. Wire payloads and config values stay canonical keys (`home`, `btts_yes`, `over_25` ...); never render a raw key as UI text.
+
 
 ```bash
 # Type check + build

@@ -11,6 +11,7 @@ import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
 import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, SourceBreakdown, SourceMarketCorrelation } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
+import { marketLabel } from '../config/marketConfig';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
 
@@ -412,7 +413,7 @@ function MarketSignalsCard({ marketBreakdown }: { marketBreakdown: MarketBreakdo
                         style={{ color: 'var(--win)' }}>↑ Best Market</span>
                     <span className="font-display font-bold text-lg leading-none"
                         style={{ color: 'var(--text-bright)' }}>
-                        {best ? best.market : '—'}
+                        {best ? marketLabel(best.market) : '—'}
                     </span>
                     {best && (
                         <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--win)' }}>
@@ -425,7 +426,7 @@ function MarketSignalsCard({ marketBreakdown }: { marketBreakdown: MarketBreakdo
                         style={{ color: 'var(--loss)' }}>↓ Avoid</span>
                     <span className="font-display font-bold text-lg leading-none"
                         style={{ color: 'var(--text-bright)' }}>
-                        {worst && worst.edge < 0 ? worst.market : '—'}
+                        {worst && worst.edge < 0 ? marketLabel(worst.market) : '—'}
                     </span>
                     {worst && worst.edge < 0 && (
                         <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--loss)' }}>
@@ -568,7 +569,7 @@ function MarketTable({ data }: { data: MarketBreakdown[] }) {
                             }} title={lowSample ? `Low sample size (n=${row.legs})` : undefined}>
                                 <td className="px-4 py-3">
                                     <span className="font-mono font-bold text-sm"
-                                        style={{ color: 'var(--text-bright)' }}>{row.market}</span>
+                                        style={{ color: 'var(--text-bright)' }}>{marketLabel(row.market)}</span>
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>

@@ -91,8 +91,8 @@ def _count_votes(scores: list[dict]):
         "under_35": 0,
         "over_45": 0,
         "under_45": 0,
-        "btts_y": 0,
-        "btts_n": 0,
+        "btts_yes": 0,
+        "btts_no": 0,
         "dc_1x": 0,
         "dc_12": 0,
         "dc_x2": 0,
@@ -122,9 +122,9 @@ def _count_votes(scores: list[dict]):
                     counts["under_" + key.split("_")[1]] += 1
 
             if h > 0 and a > 0:
-                counts["btts_y"] += 1
+                counts["btts_yes"] += 1
             else:
-                counts["btts_n"] += 1
+                counts["btts_no"] += 1
 
             _tally_double_chance(h, a, counts)
     except Exception as e:
@@ -162,8 +162,8 @@ def _pct_map(counts: dict, total: int) -> dict[str, dict[str, float]]:
             "under": to_pct(counts["under_45"], total),
         },
         "btts": {
-            "yes": to_pct(counts["btts_y"], total),
-            "no": to_pct(counts["btts_n"], total),
+            "yes": to_pct(counts["btts_yes"], total),
+            "no": to_pct(counts["btts_no"], total),
         },
         "double_chance": {
             "1x": to_pct(counts["dc_1x"], total),

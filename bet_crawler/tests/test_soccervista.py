@@ -42,7 +42,9 @@ class TestSoccerVistaPerLeague:
     def test_ongoing_match_row_skipped(self) -> None:
         """Row whose date-cell is empty (ongoing) is skipped via date-parse failure."""
         html = load_fixture("soccervista", "league.html").replace(
-            "</td><td><span>x</span><span>Arsenal", "</td><td></td><td><span>x</span><span>Arsenal", 1
+            "</td><td><span>x</span><span>Arsenal",
+            "</td><td></td><td><span>x</span><span>Arsenal",
+            1,
         )
         finder, collector = _finder(SoccerVistaFinder_per_league)
         url = next(iter(sv_pl.TOP_LEAGUES))
@@ -70,7 +72,7 @@ class TestSoccerVistaPerMatch:
         assert m.odds.draw == 3.40
         assert m.odds.away == 3.75
         assert m.odds.over_25 == 1.70
-        assert m.odds.btts_y == 1.85
+        assert m.odds.btts_yes == 1.85
         assert m.result_url == url
 
     def test_missing_prediction_raises_no_match(self) -> None:

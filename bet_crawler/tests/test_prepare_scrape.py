@@ -9,6 +9,7 @@ import json
 import pytest
 
 from bet_crawler.crawl_core.prepare_scrape import prepare_scrape
+from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 
 from .conftest import StubCrawler, StubFactory
 
@@ -42,7 +43,10 @@ class TestPrepareScrapeP0:
         factory = StubFactory(
             {
                 "actions": [StubCrawler(["https://a.com/1"])],
-                "local": [StubCrawler(["https://b.com/1"]), StubCrawler(["https://c.com/1"])],
+                "local": [
+                    StubCrawler(["https://b.com/1"]),
+                    StubCrawler(["https://c.com/1"]),
+                ],
             }
         )
         prepare_scrape("local", factory, {"local": 100})
@@ -62,7 +66,12 @@ class TestPrepareScrapeP0:
 
     def test_chunk_size_floor_is_20(self, tmp_cwd, capsys) -> None:
         """chunk_size = max(20, ceil(n/max_runners)) — small collections stay in one chunk."""
-        out = _run(tmp_cwd, [StubCrawler(["https://a.com/1"] * 5)], max_chunk_size={"actions": 10}, capsys=capsys)
+        out = _run(
+            tmp_cwd,
+            [StubCrawler(["https://a.com/1"] * 5)],
+            max_chunk_size={"actions": 10},
+            capsys=capsys,
+        )
         tasks = json.loads(out.strip())
         assert len(tasks) == 1
 
@@ -140,6 +149,27 @@ class TestPrepareScrapeRetryP1:
             got.extend(_read_urls(f))
         assert sorted(got) == sorted(urls)
 
+    def test_exhausted_discovery_retries_emit_error_and_partial_stage(self, tmp_cwd, capsys, monkeypatch) -> None:
+        monkeypatch.setattr("time.sleep", lambda _seconds: None)
+        event_path = tmp_cwd / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+        try:
+            _run(tmp_cwd, [FlakyCrawler(99, [])], capsys=capsys)
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            failed = [record for record in records if record["event"] == "source.discovery.failed"]
+            completed = [record for record in records if record["event"] == "stage.completed"]
+            assert failed and failed[0]["severity"] == "ERROR"
+            assert failed[0]["error_type"] == "RuntimeError"
+            assert "transient" in failed[0]["exception"]
+            assert failed[0]["stage"] == "prepare-scrape"
+            assert failed[0]["source_key"] == "flaky_crawler"
+            assert completed and completed[-1]["outcome"] == "partial"
+            assert completed[-1]["counts"]["sources_failed"] == 1
+            assert completed[-1]["counts"]["errors"] > 0
+        finally:
+            disable_event_logging()
+
     def test_retry_loop_breaks_on_success_no_extra_sleep(self, tmp_cwd, capsys, monkeypatch) -> None:
         sleeps = []
         monkeypatch.setattr("time.sleep", lambda s: sleeps.append(s))
@@ -165,7 +195,13 @@ class TestPrepareScrapeP2:
     def test_unknown_runner_defaults_chunk_size_1(self, tmp_cwd, capsys) -> None:
         """max_chunk_size.get(runner, 1) → chunk_size = max(20, n)."""
         urls = [f"https://a.com/{i}" for i in range(45)]
-        out = _run(tmp_cwd, [StubCrawler(urls)], runner="ghost", max_chunk_size={}, capsys=capsys)
+        out = _run(
+            tmp_cwd,
+            [StubCrawler(urls)],
+            runner="ghost",
+            max_chunk_size={},
+            capsys=capsys,
+        )
         tasks = json.loads(out.strip())
         # chunk_size = max(20, ceil(45/1)=45) → single chunk of 45
         assert len(tasks) == 1

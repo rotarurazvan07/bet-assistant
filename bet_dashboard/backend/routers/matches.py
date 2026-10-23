@@ -2,8 +2,11 @@
 
 import math
 
-from core.market_config import CONSENSUS_COLUMNS, MARKET_DEFINITIONS
 from fastapi import APIRouter, Query, Request
+
+from bet_framework.markets.catalog import MARKET_CATALOG
+from bet_framework.markets.keys import stripped_key
+from bet_framework.markets.views import CONSENSUS_COLUMN_NAMES as CONSENSUS_COLUMNS
 
 router = APIRouter(prefix="/api/matches", tags=["matches"])
 
@@ -39,7 +42,7 @@ def _significant_mask(df, sig_data, odds_key):
     """Boolean mask of rows whose movement for this market is significant."""
     import pandas as pd
 
-    market_key = odds_key.replace("odds_", "")
+    market_key = stripped_key(odds_key)
     sig_mask = pd.Series(False, index=df.index)
     for idx in df.index:
         s = sig_data.get(idx)
@@ -60,7 +63,7 @@ def _apply_cell_filters(logic, df, has_cons, has_odds, has_sig, min_consensus, m
                 sig_data[idx] = strength
 
     mask = pd.Series(False, index=df.index)
-    for md in MARKET_DEFINITIONS:
+    for md in MARKET_CATALOG:
         if md.cons_key not in df.columns:
             continue
         cell_ok = pd.Series(True, index=df.index)

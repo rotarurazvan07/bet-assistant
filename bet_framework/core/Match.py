@@ -59,7 +59,7 @@ def ensure_decimal_odds(odds_value) -> float | None:
             # Already decimal odds
             return round(val, 2)
 
-    except ValueError, TypeError, AttributeError:
+    except (ValueError, TypeError, AttributeError):
         return None
 
 
@@ -83,8 +83,8 @@ class Odds:
     under_35: float | None = None
     over_45: float | None = None
     under_45: float | None = None
-    btts_y: float | None = None
-    btts_n: float | None = None
+    btts_yes: float | None = None
+    btts_no: float | None = None
     dc_1x: float | None = None
     dc_12: float | None = None
     dc_x2: float | None = None
@@ -104,8 +104,8 @@ class Odds:
         self.under_35 = ensure_decimal_odds(self.under_35)
         self.over_45 = ensure_decimal_odds(self.over_45)
         self.under_45 = ensure_decimal_odds(self.under_45)
-        self.btts_y = ensure_decimal_odds(self.btts_y)
-        self.btts_n = ensure_decimal_odds(self.btts_n)
+        self.btts_yes = ensure_decimal_odds(self.btts_yes)
+        self.btts_no = ensure_decimal_odds(self.btts_no)
         self.dc_1x = ensure_decimal_odds(self.dc_1x)
         self.dc_12 = ensure_decimal_odds(self.dc_12)
         self.dc_x2 = ensure_decimal_odds(self.dc_x2)

@@ -1,6 +1,6 @@
 import type { Match, CandidateLeg, OddsMovementSummary, OddsMovementDirection } from '../types';
 import { BaseDataRow } from './ui/BaseDataRow';
-import { MARKET_COLUMNS } from '../config/marketConfig';
+import { MARKET_COLUMNS, strippedKey } from '../config/marketConfig';
 import { OddsMovementIndicator } from './OddsMovementIndicator';
 
 /**
@@ -183,7 +183,7 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
      */
     const marketToMovementKey: Record<string, keyof OddsMovementSummary> = {};
     MARKET_COLUMNS.forEach(col => {
-      const movementKey = col.oddsKey.replace('odds_', '') as keyof OddsMovementSummary;
+      const movementKey = strippedKey(col.oddsKey) as keyof OddsMovementSummary;
       marketToMovementKey[col.market] = movementKey;
     });
 

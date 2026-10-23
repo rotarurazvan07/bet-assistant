@@ -1,14 +1,14 @@
 """Slips API: add, list, delete, validate and generate."""
 
-from core.market_config import ALLOWED_MARKETS
 from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 from bet_framework.core.Slip import CandidateLeg
-from bet_framework.core.type_defs import MarketLabel, MarketType
 from bet_framework.core.utils import is_valid_url
+from bet_framework.markets.enums import MarketKey, MarketType
+from bet_framework.markets.views import ALLOWED_MARKET_KEYS as ALLOWED_MARKETS
 
 router = APIRouter(prefix="/api/slips", tags=["slips"])
 
@@ -80,7 +80,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
         odds_val = float(odds)
         if odds_val <= 0:
             raise ValueError()
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return {"valid": False, "error": f"Invalid odds: {odds}"}
 
     # 4 — optional URL format
@@ -171,8 +171,14 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         raise ValueError("market_type is required")
 
     try:
-        market = MarketLabel(market_str)
+        # Post-shim (issue #116): canonical keys only. Pre-U1 rows in old
+        # slips.db files display fine (read path is passthrough) but re-saving
+        # validation rejects unknown/legacy labels with a 400 before this
+        # point (validate_manual_leg allow-list); see docs/migration.md.
+        # See docs/migration.md for the one-time migrator.
+        market = MarketKey(market_str)
     except ValueError:
+        # Unknown market string: keep the raw value; validation surfaces the error.
         market = market_str
 
     try:

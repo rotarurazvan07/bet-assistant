@@ -1,6 +1,6 @@
 """Match finder for windrawwin.com league pages."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger
 
 logger = get_logger(__name__)
 
@@ -83,7 +83,7 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
         """Scrape all windrawwin league URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -128,15 +128,38 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         away=mo_tag.contents[3].get_text() if mo_tag else None,
                         over_25=ou_tag.contents[1].get_text() if ou_tag else None,
                         under_25=ou_tag.contents[2].get_text() if ou_tag else None,
-                        btts_y=bt_tag.contents[1].get_text() if bt_tag else None,
-                        btts_n=bt_tag.contents[2].get_text() if bt_tag else None,
+                        btts_yes=bt_tag.contents[1].get_text() if bt_tag else None,
+                        btts_no=bt_tag.contents[2].get_text() if bt_tag else None,
                     )
 
                     league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
-                    self.add_match(Match(home_team, away_team, current_date, predictions, odds, league=league))
+                    self.add_match(
+                        Match(
+                            home_team,
+                            away_team,
+                            current_date,
+                            predictions,
+                            odds,
+                            league=league,
+                        )
+                    )
 
                 except Exception as e:
-                    logger.error(f"SKIPPED [{url}]: {e}")
+                    exception_event(
+                        logger,
+                        event="match.parse.failed",
+                        reason_code="candidate_parse_failed",
+                        message=f"Skipping malformed WinDrawWin candidate on {url}: {e}",
+                        source_key="windrawwin",
+                        url=url,
+                    )
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse WinDrawWin league page {url}: {e}",
+                source_key="windrawwin",
+                url=url,
+            )

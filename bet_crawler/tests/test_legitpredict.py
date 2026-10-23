@@ -3,8 +3,10 @@ test_legitpredict.py
 """
 
 import importlib
+import json
 from datetime import date, timedelta
 
+from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
 from bet_crawler.finders.LegitPredictFinder import LEGITPREDICT_NAME as NAME
 from bet_crawler.finders.LegitPredictFinder import LegitPredictFinder
 
@@ -49,14 +51,23 @@ class TestLegitPredict:
         assert m.predictions[0].source == NAME
         assert m.predictions[0].home == 2
 
-    def test_bad_row_skipped_not_fatal(self, caplog) -> None:
+    def test_bad_row_skipped_not_fatal(self, tmp_path, monkeypatch) -> None:
         finder, collector = _finder()
-        with caplog.at_level("INFO", logger="bet_crawler.finders.LegitPredictFinder"):
+        event_path = tmp_path / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+        try:
             finder._parse_page(
                 lp.LEGITPREDICT_URL + "25-09-2026",
                 load_fixture("legitpredict", "page.html"),
             )
-        assert any("SKIPPED" in r.getMessage() for r in caplog.records)
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            skipped = [record for record in records if record["reason_code"] == "score_or_time_incomplete"]
+            assert skipped
+            assert skipped[0]["severity"] == "WARNING"
+            assert skipped[0]["event"] == "match.skipped"
+        finally:
+            disable_event_logging()
 
     def test_broken_page_no_crash(self) -> None:
         finder, collector = _finder()

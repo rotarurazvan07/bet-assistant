@@ -1,6 +1,8 @@
 """Match finder for forebet.com predictions."""
 
-from scrape_kit import ScrapeMode, get_logger, scrape
+from scrape_kit import ScrapeMode, scrape
+
+from bet_crawler.crawler_logging import exception_event, get_logger
 
 logger = get_logger(__name__)
 
@@ -241,7 +243,7 @@ class ForebetFinder(BaseMatchFinder):
         """Scrape all forebet URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -276,7 +278,22 @@ class ForebetFinder(BaseMatchFinder):
                     away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
                 )
 
-                self.add_match(Match(home_team, away_team, match_date, predictions, odds, league=league))
+                self.add_match(
+                    Match(
+                        home_team,
+                        away_team,
+                        match_date,
+                        predictions,
+                        odds,
+                        league=league,
+                    )
+                )
 
             except Exception as e:
-                logger.error(f"SKIPPED: Parse error - {e}")
+                exception_event(
+                    logger,
+                    event="match.parse.failed",
+                    reason_code="candidate_parse_failed",
+                    message=f"Skipping Forebet candidate: {e}",
+                    source_key="forebet",
+                )

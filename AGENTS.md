@@ -23,7 +23,7 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - Framework: `bet_framework/` — `BetAssistant` (slip build/validate), `MatchesManager` (buffered SQLite + fuzzy dedup), `consensus.py`, `scoring.py`
 - Config (source of truth): `config/` — `scraper_config.yaml` (crawler keys, runner sets, skip patterns), `similarity_config.yaml` (team matching), `profiles/*.yaml` (risk profiles)
 - Docker stack: `setup/compose.yaml` — 3 services (bet-assistant, runner, bet-updater)
-- Tests: `tests/` — pytest for Python, Vitest for frontend
+- Tests: `bet_framework/tests/`, `bet_crawler/tests/`, `bet_dashboard/backend/tests/`, and frontend Vitest/Playwright suites
 
 ## Running and verifying
 
@@ -31,7 +31,7 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - **Frontend dev**: `cd bet_dashboard/frontend && npm run dev` → http://localhost:5173 (proxies `/api`, `/ws` to backend)
 - **Backend dev**: `cd bet_dashboard/backend && export MATCHES_DB_PATH=../../workspace/data/matches.db SLIPS_DB_PATH=../../workspace/data/slips.db CONFIG_PATH=../../workspace/config && uvicorn main:app --reload --port 8000`
 - **Crawler**: `python -m bet_crawler.crawl --mode <mode> --config_dir config` (runner sets: `actions` cloud, `local` self-hosted, `test`)
-- **Python tests**: `cd bet_dashboard/backend && python -m pytest tests/ -v`
+- **Python tests**: `cd bet_framework && python -m pytest`; `cd bet_crawler && python -m pytest tests/`; `cd bet_dashboard/backend && python -m pytest tests/ -v`
 - **Frontend tests**: `cd bet_dashboard/frontend && npm test`
 - **Lint/format**: `ruff check . --fix && ruff format .` (Python, line-length 127, py314); `cd bet_dashboard/frontend && npm run lint` (TypeScript strict, ESLint flat)
 - **CI pipeline**: auto-fix → test (3.14 only) → audit (mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate) → gate
@@ -82,3 +82,11 @@ Any frontend test that needs **populated** data must grow **both tracks together
 - `e2e-seed` touches only the throwaway compose volume.
 
 <!-- /bmad:context -->
+
+## Canonical market keys (single source of truth)
+
+- Market identity lives ONLY in `bet_framework/markets/`: `catalog.py` (18 `MarketSpec` rows, order-free, values frozen — renaming a persisted key is a data migration), `enums.py` (`MarketKey`/`MarketType` StrEnums — values ARE the persisted DB/Odds field spellings, U1), `keys.py` (`stripped_key`/`ODDS_PREFIX` movement-payload helpers), `views.py` (key-indexed dicts + derived views), `contract.py` (JSON snapshot). No facades, no compat layer: market identity is one spelling everywhere.
+- Wire contract: backend response schemas type `market`/`market_type` with the canonical enums (serialized by `.value` — payloads are byte-identical to the old hand-built strings; inputs stay validated strings in routers).
+- Frontend: `npm run codegen:markets` (in `bet_dashboard/frontend`) regenerates `src/types/api.generated.ts` + the contract snapshot fixture from the backend; `config/marketConfig.ts` is presentation order + labels ONLY. CI fails on drift (`codegen:markets:check`).
+- Adding a market = 1 row in `markets/catalog.py` + 1 frontend order entry + parity tests cover the rest (`tests/test_markets_contract.py`, `src/test/marketsContract.test.ts`).
+- Burn-down gate: semgrep `no-raw-market-literals` with `.semgrep/baseline.json` — the baseline may only shrink (ratchet), new raw literals block CI.

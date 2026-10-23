@@ -1,6 +1,8 @@
 """Match finder for footballpredictions daily tips."""
 
-from scrape_kit import ScrapeMode, get_logger, scrape
+from scrape_kit import ScrapeMode, scrape
+
+from bet_crawler.crawler_logging import exception_event, get_logger
 
 logger = get_logger(__name__)
 
@@ -56,7 +58,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
         """Scrape all footballpredictions URLs and emit matches via callback."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -94,7 +96,23 @@ class FootballPredictionsFinder(BaseMatchFinder):
 
                 # Add match to the collector
                 league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
-                self.add_match(Match(home_team, away_team, match_date, [prediction], None, league=league))
+                self.add_match(
+                    Match(
+                        home_team,
+                        away_team,
+                        match_date,
+                        [prediction],
+                        None,
+                        league=league,
+                    )
+                )
 
-            except Exception as e:  # noqa: PERF203 - intentional per-row fault isolation: one malformed page/row must not kill the scrape batch
-                logger.error(f"SKIPPED: Parse error - {e}")
+            except Exception as e:
+                exception_event(
+                    logger,
+                    event="match.parse.failed",
+                    reason_code="candidate_parse_failed",
+                    message=f"Skipping FootballPredictions candidate on {url}: {e}",
+                    source_key="footballpredictions",
+                    url=url,
+                )

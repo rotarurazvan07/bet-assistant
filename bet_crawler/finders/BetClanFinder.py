@@ -1,6 +1,6 @@
 """Match finder for betclan.com daily tips."""
 
-from scrape_kit import get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger
 
 logger = get_logger(__name__)
 
@@ -49,7 +49,7 @@ class BetClanFinder(BaseMatchFinder):
         """Scrape match details from a list of URLs."""
         scrape(
             urls,
-            self._parse_page,
+            self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
             max_concurrency=MAX_CONCURRENCY,
         )
@@ -64,10 +64,23 @@ class BetClanFinder(BaseMatchFinder):
             date_str = soup.find("span", class_="dategamedetailsis").get_text().strip().replace("Date ", "").split(" ")[0]
             current_date = datetime.strptime(date_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
             score_str = soup.find("div", class_="predione").find("div", class_="parttwo").find_all("h5")[-1].get_text().strip()
-            predictions = [Score(BETCLAN_NAME, home=(score_str.split("-")[0]), away=(score_str.split("-")[1]))]
+            predictions = [
+                Score(
+                    BETCLAN_NAME,
+                    home=(score_str.split("-")[0]),
+                    away=(score_str.split("-")[1]),
+                )
+            ]
             odds = None
 
             self.add_match(Match(home_team, away_team, current_date, predictions, odds))
 
         except Exception as e:
-            logger.error(f"Error parsing {url}: {e}")
+            exception_event(
+                logger,
+                event="source.page.failed",
+                reason_code="page_parse_failed",
+                message=f"Failed to parse BetClan page {url}: {e}",
+                source_key="betclan",
+                url=url,
+            )

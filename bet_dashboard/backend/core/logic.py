@@ -189,6 +189,7 @@ class AppLogic:
             if hour is not None and minute is not None and self._profile_schedule_met(name, cfg, now=now):
                 return True
 
+        # No global window: the generator fires only on per-profile windows.
         return False
 
     def _check_for_changes(self) -> bool:
