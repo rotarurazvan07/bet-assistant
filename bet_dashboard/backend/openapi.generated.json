@@ -689,7 +689,7 @@
           "profiles"
         ],
         "summary": "Save Profile",
-        "description": "Persist a named builder profile.",
+        "description": "Persist a named builder profile.\n\nScheduling/ordering keys (run_daily_count, order, auto_generate,\ngenerate_hour, generate_minute) are tri-state in the payload: when the\ncaller omits them, the values already persisted for this profile are\ncarried over instead of being reset. That keeps a Smart Builder save from\nsilently wiping a schedule configured on the Services page (review F1).",
         "operationId": "save_profile_api_profiles_post",
         "requestBody": {
           "content": {
@@ -874,7 +874,7 @@
           "services"
         ],
         "summary": "Save Settings",
-        "description": "Persist scheduler hour/minute settings.",
+        "description": "Persist scheduler hour/minute settings and per-profile schedules.",
         "operationId": "save_settings_api_services_settings_post",
         "requestBody": {
           "content": {
@@ -1878,9 +1878,59 @@
             "title": "Target Payout"
           },
           "run_daily_count": {
-            "type": "integer",
-            "title": "Run Daily Count",
-            "default": 0
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Daily Count"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "auto_generate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Generate"
+          },
+          "generate_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Hour"
+          },
+          "generate_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Minute"
           },
           "consensus_shrinkage_k": {
             "anyOf": [
@@ -1983,22 +2033,137 @@
         "title": "ProfileIn",
         "description": "Payload for saving a named builder profile."
       },
-      "ServicesSettingsIn": {
+      "ProfileScheduleIn": {
         "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "auto_generate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Generate"
+          },
           "generate_hour": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Generate Hour"
           },
           "generate_minute": {
-            "type": "integer",
-            "title": "Generate Minute",
-            "default": 0
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Minute"
+          },
+          "units": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units"
+          },
+          "target_payout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Payout"
+          },
+          "run_daily_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Daily Count"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
           }
         },
         "type": "object",
         "required": [
-          "generate_hour"
+          "name"
         ],
+        "title": "ProfileScheduleIn",
+        "description": "Per-profile auto-generation schedule row (T4)."
+      },
+      "ServicesSettingsIn": {
+        "properties": {
+          "generate_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Hour"
+          },
+          "generate_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Minute"
+          },
+          "profile_schedules": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ProfileScheduleIn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Schedules"
+          }
+        },
+        "type": "object",
         "title": "ServicesSettingsIn",
         "description": "Payload for service scheduler settings."
       },
