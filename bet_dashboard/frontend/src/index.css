@@ -98,27 +98,43 @@
     color: var(--text-muted);
   }
 
-  /* Number inputs — clean monospace, no spinners */
-  input[type=number].field {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 500;
-    text-align: right;
-    letter-spacing: 0.02em;
-    -moz-appearance: textfield;
-    padding-right: 10px;
-  }
+/* Number inputs: custom stepper arrows (pair with <NumberField />) */
+input[type="number"].field {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  letter-spacing: 0.02em;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  padding-right: 2px;
+}
 
-  input[type=number].field::-webkit-outer-spin-button,
-  input[type=number].field::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+input[type="number"].field::-webkit-inner-spin-button,
+input[type="number"].field::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
-  input[type=number].field:focus {
-    border-color: var(--accent);
-    background: rgba(61, 123, 255, .04);
-  }
+.num-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.num-step:hover { opacity: 1; color: var(--accent); }
+
+input[type="number"].field:focus {
+  border-color: var(--accent);
+  background: rgba(61, 123, 255, .04);
+}
 
   /* Select */
   select.field {

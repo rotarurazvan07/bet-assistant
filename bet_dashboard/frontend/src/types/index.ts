@@ -61,12 +61,12 @@ export interface BuilderConfig {
     target_legs: number;
     max_legs_overflow: number | null;
     consensus_floor: number;
-    min_odds: number;
+    min_leg_odds: number;
     included_markets: string[] | null;
     included_leagues: string[] | null;
     tolerance_factor: number | null;
     stop_threshold: number | null;
-    min_legs_fill_ratio: number;
+    min_legs_fill_ratio: number | null;
     quality_vs_balance: number;   // 0-1
     consensus_vs_sources: number; // 0-1
     date_from: string | null;
@@ -75,7 +75,7 @@ export interface BuilderConfig {
     // Advanced
     consensus_shrinkage_k: number | null;
     min_source_edge: number | null;
-    max_single_leg_odds: number | null;
+    max_leg_odds: number;
     tol_lower: number | null;
     tol_upper: number | null;
     balance_decay: 'linear' | 'gaussian';
@@ -119,20 +119,24 @@ export interface PreviewResult {
 export interface Profile {
     target_odds: number; target_legs: number;
     max_legs_overflow: number | null;
-    consensus_floor: number; min_odds: number;
+    order?: number | string | null;
+    consensus_floor: number; min_leg_odds: number;
     included_markets: string[] | null;
     included_leagues: string[] | null;
     excluded_sources: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
-    min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
-    units: number;
+    min_legs_fill_ratio: number | null; quality_vs_balance: number; consensus_vs_sources: number;
+    // Stake defaults live on disk (Services-owned); a builder save never sends them.
+    units?: number;
     target_payout?: number | null;
-    run_daily_count: number;
+    // Scheduling moved to the Services page (issue #41 note 6 / #95); the Smart
+    // Builder no longer writes it, so profiles read from disk may omit it.
+    run_daily_count?: number;
     date_from?: null; date_to?: null; excluded_urls?: null;
     // Advanced
     consensus_shrinkage_k: number | null;
     min_source_edge: number | null;
-    max_single_leg_odds: number | null;
+    max_leg_odds: number;
     tol_lower: number | null;
     tol_upper: number | null;
     balance_decay: 'linear' | 'gaussian';
@@ -316,6 +320,19 @@ export interface AnalyticsData {
 
 // ── Services ──────────────────────────────────────────────────────────────────
 
+/** Per-profile auto-generation schedule (issue #95). Position drives the order
+ * in which the generator builds slips — the most important profile first. */
+export interface ProfileSchedule {
+    name: string;
+    auto_generate: boolean;
+    generate_hour: number;
+    generate_minute: number;
+    units: number | null;
+    target_payout: number | null;
+    run_daily_count: number;
+    order: number;
+}
+
 export interface ServiceInfo {
     name: string; description: string;
     enabled: boolean; alive: boolean;
@@ -331,6 +348,9 @@ export interface ServicesData {
     generate_hour: number;
     generate_minute: number;
     server_time: string;
+    /** Per-profile auto-generation schedule (issue #95). Optional: absent when
+     * the backend serves the legacy global shape only. */
+    profile_schedules?: ProfileSchedule[];
 }
 
 // ── WebSocket events ──────────────────────────────────────────────────────────

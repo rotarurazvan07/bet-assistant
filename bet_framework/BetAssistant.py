@@ -52,8 +52,8 @@ from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
 from bet_framework.core.scoring import (
     adjusted_consensus,
+    resolve_max_leg_odds,
     resolve_max_legs,
-    resolve_max_single_leg_odds,
     resolve_min_pick_quality,
     resolve_min_source_edge,
     resolve_shrinkage_k,
@@ -655,7 +655,7 @@ class BetAssistant(BaseStorageManager):
                     continue
                 consensus = float(row.get(cons_col, 0))
                 odds = float(row.get(odds_col, 0))
-                if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
+                if consensus >= cfg.consensus_floor and odds >= cfg.min_leg_odds:
                     sources = int(row.get("sources", 0))
                     opt = CandidateLeg(
                         match_name=match_name,
@@ -910,10 +910,10 @@ class BetAssistant(BaseStorageManager):
             return None
         consensus = float(row.get(cons_col, 0))
         odds = float(row.get(odds_col, 0))
-        if not (consensus >= cfg.consensus_floor and odds >= cfg.min_odds):
+        if not (consensus >= cfg.consensus_floor and odds >= cfg.min_leg_odds):
             return None
         # Hard filter for max single leg odds
-        if odds > resolve_max_single_leg_odds(cfg):
+        if odds > resolve_max_leg_odds(cfg):
             return None
 
         # Apply shrinkage BEFORE edge check (Phase 1 fix)

@@ -1,6 +1,8 @@
 """Pydantic request/response models for the API."""
 
-from pydantic import BaseModel
+from typing import Self
+
+from pydantic import BaseModel, model_validator
 
 from bet_framework.markets.enums import MarketKey, MarketType
 
@@ -14,10 +16,10 @@ class BetSlipConfigIn(BaseModel):
     target_legs: int = 3
     max_legs_overflow: int | None = None
     consensus_floor: float = 50.0
-    min_odds: float = 1.05
+    min_leg_odds: float = 1.05
     tolerance_factor: float | None = None
     stop_threshold: float | None = None
-    min_legs_fill_ratio: float = 0.70
+    min_legs_fill_ratio: float | None = 0.70
     quality_vs_balance: float = 0.5
     consensus_vs_sources: float = 0.5
     included_markets: list[str] | None = None
@@ -28,7 +30,7 @@ class BetSlipConfigIn(BaseModel):
     # Advanced
     consensus_shrinkage_k: float | None = None
     min_source_edge: float | None = None
-    max_single_leg_odds: float | None = None
+    max_leg_odds: float = 3.5
     tol_lower: float | None = None
     tol_upper: float | None = None
     balance_decay: str = "linear"
@@ -81,22 +83,32 @@ class ProfileIn(BaseModel):
     target_legs: int = 3
     max_legs_overflow: int | None = None
     consensus_floor: float = 50.0
-    min_odds: float = 1.05
+    min_leg_odds: float = 1.05
     tolerance_factor: float | None = None
     stop_threshold: float | None = None
-    min_legs_fill_ratio: float = 0.70
+    min_legs_fill_ratio: float | None = 0.70
     quality_vs_balance: float = 0.5
     consensus_vs_sources: float = 0.5
     included_markets: list[str] | None = None
     included_leagues: list[str] | None = None
     excluded_sources: list[str] | None = None
-    units: float = 1.0
+    # None = "not provided" → keep whatever is already persisted (desync C:
+    # the Build tab no longer owns stake values; only the Services page does).
+    units: float | None = None
     target_payout: float | None = None
-    run_daily_count: int = 0
+    # None = "not provided" → keep whatever is already persisted (legacy
+    # run_daily_count / per-profile schedule set on the Services page survive
+    # a Smart Builder save instead of being reset to 0).
+    run_daily_count: int | None = None
+    # T4: auto-generation ordering and per-profile schedule (tri-state: keep when omitted)
+    order: int | None = None
+    auto_generate: bool | None = None
+    generate_hour: int | None = None
+    generate_minute: int | None = None
     # Advanced
     consensus_shrinkage_k: float | None = None
     min_source_edge: float | None = None
-    max_single_leg_odds: float | None = None
+    max_leg_odds: float = 3.5
     tol_lower: float | None = None
     tol_upper: float | None = None
     balance_decay: str = "linear"
@@ -160,11 +172,32 @@ class BetSlipOut(BaseModel):
 # ── Services ──────────────────────────────────────────────────────────────────
 
 
+class ProfileScheduleIn(BaseModel):
+    """Per-profile auto-generation schedule row (T4)."""
+
+    name: str
+    auto_generate: bool | None = None
+    generate_hour: int | None = None
+    generate_minute: int | None = None
+    units: float | None = None
+    target_payout: float | None = None
+    run_daily_count: int | None = None
+    order: int | None = None
+
+
 class ServicesSettingsIn(BaseModel):
     """Payload for service scheduler settings."""
 
-    generate_hour: int
-    generate_minute: int = 0
+    generate_hour: int | None = None
+    generate_minute: int | None = None
+    profile_schedules: list[ProfileScheduleIn] | None = None
+
+    @model_validator(mode="after")
+    def _require_hour_without_profile_schedules(self) -> Self:
+        """Legacy body (no profile_schedules) still requires generate_hour."""
+        if self.profile_schedules is None and self.generate_hour is None:
+            raise ValueError("generate_hour is required when profile_schedules is absent")
+        return self
 
 
 # ── Odds History ──────────────────────────────────────────────────────────────

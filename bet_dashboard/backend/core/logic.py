@@ -5,6 +5,8 @@ import os
 import urllib.error
 import urllib.request
 from datetime import datetime
+from pathlib import Path
+from threading import RLock
 from typing import Any
 from urllib.parse import urlparse
 
@@ -29,6 +31,40 @@ from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.core import leagues
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.MatchesManager import MatchesManager
+
+
+class ThreadSafeSettingsManager(SettingsManager):
+    """Serialize settings reloads and writes shared by API worker threads."""
+
+    def __init__(self, directory: str) -> None:
+        self._access_lock = RLock()
+        super().__init__(directory)
+
+    def get(self, *keys: str) -> Any | None:
+        with self._access_lock:
+            return super().get(*keys)
+
+    def write(self, name: str, data: dict[str, Any], *, subpath: str | Path | None = None) -> None:
+        with self._access_lock:
+            super().write(name, data, subpath=subpath)
+
+    def delete(self, name: str, *, subpath: str | Path | None = None) -> None:
+        with self._access_lock:
+            super().delete(name, subpath=subpath)
+
+
+def _order_sort_key(value: Any) -> tuple[int, float]:
+    """Sort key for profile ``order`` values that must never raise.
+
+    Hand-edited profile YAML can hold "2" (string) or 2.5 (float) next to an
+    int, and a TypeError inside the generator ticker predicate would kill the
+    daemon thread (review F4). Numeric values sort first by their number;
+    anything unparseable sorts last, alphabetically.
+    """
+    try:
+        return (0, float(value))
+    except TypeError, ValueError:
+        return (1, 0.0)
 
 
 def _units_std(settled, n_settled: int, avg_units: float) -> float:
@@ -91,7 +127,7 @@ class AppLogic:
         self._config_path = config_path
 
         configure(config_path)
-        self._settings = SettingsManager(config_path)
+        self._settings = ThreadSafeSettingsManager(config_path)
         ensure_default_profiles(config_path + "/profiles", self._settings)
 
         # Initialize core assistants
@@ -160,42 +196,14 @@ class AppLogic:
     # ── TickerService callbacks ───────────────────────────────────────────────
 
     def _is_generator_hour_met(self) -> bool:
-        """Predicate to check if it's time to run the generator (once per daily window)."""
+        """Predicate: any active profile's daily window is due.
+
+        Per-profile generate_hour/generate_minute take priority; profiles
+        without their own window fall back to the legacy global services
+        window (AC-7.6).
+        """
         now = datetime.now()
-        today_key = now.strftime("%Y-%m-%d")
-
-        # Get target hour and minute from current settings
-        svc_cfg = self._settings.get("services") or {}
-        target_hour = int(svc_cfg.get("generate_hour", 8))
-        target_minute = int(svc_cfg.get("generate_minute", 0))
-
-        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
-
-        # If the scheduled time hasn't arrived yet, nothing to do
-        if now < target_time:
-            return False
-
-        # Check in-memory guard first (fastest path during normal operation)
-        if self._last_generator_run == today_key:
-            return False
-
-        # On restart, _last_generator_run is None — fall back to persisted timestamp.
-        # If last_time_generated is from today and the scheduled time has already
-        # passed, we treat generation as already done for today.
-        runtime_cfg = self._settings.get("runtime_state") or {}
-        last_generated = runtime_cfg.get("last_time_generated")
-        if last_generated:
-            try:
-                last_dt = datetime.fromisoformat(last_generated)
-                if last_dt.strftime("%Y-%m-%d") == today_key:
-                    # Already ran today — sync in-memory guard and skip
-                    self._last_generator_run = today_key
-                    return False
-            except (ValueError, TypeError):
-                pass
-
-        self._last_generator_run = today_key
-        return True
+        return any(self._profile_schedule_met(name, now=now) for name in self._get_active_profiles())
 
     def _check_for_changes(self) -> bool:
         """HEAD request to check if GitHub release has changed via ETag."""
@@ -263,17 +271,132 @@ class AppLogic:
         ]
 
     def _do_generate(self) -> None:
-        """Ticker daemon: generate slips for active profiles at the scheduled hour."""
+        """Ticker daemon: generate slips for due profiles at their scheduled hour."""
         try:
             profiles = self._get_active_profiles()
+            profiles = {name: tup for name, tup in profiles.items() if self._is_profile_due(name)}
             if profiles:
                 self.generate_slips(profiles)
+                self._claim_profile_runs(profiles)
                 runtime = self._settings.get("runtime_state") or {}
                 runtime["last_time_generated"] = datetime.now().isoformat()
                 self._settings.write("runtime_state", runtime)
-            self._broadcast_slips_updated()
+                self._broadcast_slips_updated()
         except Exception as exc:
             print(f"[Generator] ERROR: {exc}")
+
+    # ── Per-profile generation schedule (T4) ──────────────────────────────────
+
+    def _profile_cfg(self, name: str) -> dict:
+        """Return the stored YAML dict for a profile (empty when missing)."""
+        return (self._settings.get("profiles") or {}).get(name) or {}
+
+    def _profile_schedule_met(self, name: str, cfg: dict | None = None, now: datetime | None = None) -> bool:
+        """True when the profile's daily window has arrived today.
+
+        With a per-profile generate_hour/generate_minute the window is that
+        profile's own time; without it the legacy global services window is
+        used (AC-7.6 backward compatibility). A once-per-day guard (persisted
+        per profile) blocks re-runs.
+        """
+        cfg = self._profile_cfg(name) if cfg is None else cfg
+        if not (cfg.get("auto_generate") or cfg.get("run_daily_count")):
+            return False
+        now = now or datetime.now()
+        today_key = now.strftime("%Y-%m-%d")
+        hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
+        if hour is None or minute is None:
+            # AC-7.6: legacy profiles with no per-profile window fall back to
+            # the global services window (default 08:00, as in routers/services.py).
+            svc = self._settings.get("services") or {}
+            hour, minute = svc.get("generate_hour", 8), svc.get("generate_minute", 0)
+        target = now.replace(
+            hour=int(hour) if hour is not None else 8,
+            minute=int(minute or 0),
+            second=0,
+            microsecond=0,
+        )
+        if now < target:
+            return False
+        stamps = (self._settings.get("runtime_state") or {}).get("profile_last_generated") or {}
+        return stamps.get(name) != today_key
+
+    def _is_profile_due(self, name: str, now: datetime | None = None) -> bool:
+        """Daemon due-check.
+
+        Legacy profiles (no per-profile hour/minute) are gated by the same
+        once-per-day stamp as per-profile ones, so a profile invoked directly
+        (manual generation, tests) cannot regenerate twice in one day
+        (review F2).
+        """
+        return self._profile_schedule_met(name, now=now)
+
+    def _claim_profile_runs(self, profiles: dict) -> None:
+        """Persist today's run stamps for every generated profile.
+
+        Stamping all profiles (not only per-profile ones) keeps the claim
+        symmetric with ``_is_profile_due`` so a legacy profile cannot
+        regenerate twice in a day (review F2).
+        """
+        today_key = datetime.now().strftime("%Y-%m-%d")
+        runtime = self._settings.get("runtime_state") or {}
+        stamps = runtime.get("profile_last_generated") or {}
+        for name in profiles:
+            stamps[name] = today_key
+        runtime["profile_last_generated"] = stamps
+        self._settings.write("runtime_state", runtime)
+
+    def get_profile_schedules(self) -> list[dict]:
+        """Profile schedule rows for the Services UI (every saved profile).
+
+        Persisted values only: a profile without its own order/window reports
+        ``None`` rather than a fabricated default, so a later Save cannot
+        materialize ``order: 0`` or pin a legacy window into YAML (review F3).
+        """
+        rows = []
+        for name, cfg in (self._settings.get("profiles") or {}).items():
+            rows.append(
+                {
+                    "name": name,
+                    "auto_generate": bool(cfg.get("auto_generate") or cfg.get("run_daily_count", 0) > 0),
+                    "generate_hour": cfg.get("generate_hour"),
+                    "generate_minute": cfg.get("generate_minute"),
+                    "units": cfg.get("units", 1.0),
+                    "target_payout": cfg.get("target_payout"),
+                    "run_daily_count": cfg.get("run_daily_count")
+                    or (1 if (cfg.get("auto_generate") or cfg.get("run_daily_count")) else 0),
+                    "order": cfg.get("order"),
+                }
+            )
+        return rows
+
+    def save_profile_schedules(self, rows: list[dict]) -> None:
+        """Merge per-profile schedule rows into each profile's YAML (T4)."""
+        for row in rows:
+            name = row.get("name")
+            if not name:
+                continue
+            cfg = dict(self._profile_cfg(name))
+            if not cfg and name not in (self._settings.get("profiles") or {}):
+                continue
+            cfg.update(
+                {
+                    k: row[k]
+                    for k in (
+                        "auto_generate",
+                        "generate_hour",
+                        "generate_minute",
+                        "units",
+                        "target_payout",
+                        "run_daily_count",
+                        "order",
+                    )
+                    if k in row
+                }
+            )
+            if row.get("run_daily_count") is not None:
+                cfg["run_daily_count"] = row["run_daily_count"]
+            self._settings.write(name, cfg, subpath="profiles")
 
     def _do_verify(self) -> None:
         """Ticker daemon: poll live scores and settle active slips."""
@@ -778,15 +901,26 @@ class AppLogic:
     # ── Helpers ──────────────────────────────────────────────────────────[...]
 
     def _get_active_profiles(self) -> dict[str, tuple]:
-        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
+        """Active profiles as {name: (BetSlipConfig, units, count, target_payout)}.
+
+        Ordering: explicit ``order`` ascending first, unordered profiles keep their
+        settings-dict (insertion) order after them. A profile is active when
+        ``auto_generate`` is set or it has a legacy truthy ``run_daily_count``;
+        auto_generate-only profiles run once per day (count 1).
+        """
         profiles_raw = self._settings.get("profiles") or {}
+        active = {name: cfg for name, cfg in profiles_raw.items() if cfg.get("auto_generate") or cfg.get("run_daily_count")}
+        ordered = sorted(
+            (n for n, c in active.items() if c.get("order") is not None),
+            key=lambda n: _order_sort_key(active[n]["order"]),
+        )
+        unordered = [n for n, c in active.items() if c.get("order") is None]
         return {
             name: (
-                _yaml_to_config(cfg),
-                cfg.get("units", 1.0),
-                cfg.get("run_daily_count", 0),
-                cfg.get("target_payout"),
+                _yaml_to_config(active[name]),
+                active[name].get("units", 1.0),
+                active[name].get("run_daily_count") or (1 if active[name].get("auto_generate") else 0),
+                active[name].get("target_payout"),
             )
-            for name, cfg in profiles_raw.items()
-            if cfg.get("run_daily_count")
+            for name in ordered + unordered
         }

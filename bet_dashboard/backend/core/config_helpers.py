@@ -22,6 +22,10 @@ def _config_to_yaml_dict(
     units: float = 1.0,
     target_payout: float | None = None,
     run_daily_count: int = 0,
+    order: int | None = None,
+    auto_generate: bool | None = None,
+    generate_hour: int | None = None,
+    generate_minute: int | None = None,
 ) -> dict:
     """Convert a config object to a plain dict for YAML serialization."""
     d = asdict(cfg)
@@ -29,7 +33,20 @@ def _config_to_yaml_dict(
         d[k] = None
     d["units"] = units
     d["target_payout"] = target_payout
-    d["run_daily_count"] = run_daily_count
+    # run_daily_count is opt-in like the scheduling keys below: an omitted
+    # (None) value keeps whatever is already persisted instead of resetting
+    # a legacy auto-generation profile to 0.
+    if run_daily_count is not None:
+        d["run_daily_count"] = run_daily_count
+    # T4 scheduling/ordering keys are opt-in: only persisted when explicitly set
+    if order is not None:
+        d["order"] = order
+    if auto_generate is not None:
+        d["auto_generate"] = auto_generate
+    if generate_hour is not None:
+        d["generate_hour"] = generate_hour
+    if generate_minute is not None:
+        d["generate_minute"] = generate_minute
     return d
 
 

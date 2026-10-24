@@ -26,6 +26,7 @@ def services_client():
     # services router reads app.settings (AppLogic property), not app.logic.settings —
     # bind it to the fake's settings facade so per-test _settings mutations are visible.
     mock.settings = mock.logic.settings
+    mock.get_profile_schedules.return_value = []
     mock.services = {
         "puller": SimpleNamespace(enabled=True, is_alive=lambda: True, interval=300),
         "generator": SimpleNamespace(enabled=False, is_alive=lambda: False, interval=300),
@@ -51,7 +52,13 @@ class TestGetServices:
     def test_services_envelope_shape(self, services_client) -> None:
         tc, _ = services_client
         data = tc.get(BASE).json()
-        assert set(data) == {"services", "generate_hour", "generate_minute", "server_time"}
+        assert set(data) == {
+            "services",
+            "generate_hour",
+            "generate_minute",
+            "profile_schedules",
+            "server_time",
+        }
 
     def test_generator_next_run_today_when_hour_ahead(self, services_client, frozen_clock) -> None:
         tc, mock = services_client
@@ -174,7 +181,10 @@ class TestToggleService:
     def test_toggle_unknown_service_returns_enabled_false(self, services_client) -> None:
         tc, mock = services_client
         mock.toggle_service.return_value = False
-        assert tc.post(f"{BASE}/ghost/toggle").json() == {"name": "ghost", "enabled": False}
+        assert tc.post(f"{BASE}/ghost/toggle").json() == {
+            "name": "ghost",
+            "enabled": False,
+        }
 
     def test_toggle_broadcasts_service_toggled_event(self, services_client, broadcast_capture) -> None:
         """Contract: toggling must notify WS clients with service_toggled payload."""
@@ -184,7 +194,12 @@ class TestToggleService:
 
         def toggle_side_effect(name) -> bool:
             ws_module.ws_manager.broadcast_sync(
-                {"event": "service_toggled", "name": name, "enabled": False, "timestamp": "2030-01-01T00:00:00"}
+                {
+                    "event": "service_toggled",
+                    "name": name,
+                    "enabled": False,
+                    "timestamp": "2030-01-01T00:00:00",
+                }
             )
             return False
 

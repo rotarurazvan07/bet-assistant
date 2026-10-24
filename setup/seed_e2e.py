@@ -15,7 +15,10 @@ expand demo-data.ts AND this seed in the same change. Two jobs:
      Arsenal   75% home @1.90 — 3/4 home votes, 4 sources
      Liverpool 42/28/30 @2.40/3.20/2.90 — 21/14/15 of 50 votes, 5 sources
      Barcelona 38/26/36 @2.70/3.30/2.50 — 19/13/18 of 50 votes, 6 sources
-2. Park the puller/generator/verifier daemons via services.yaml so the seeded
+2. Write the per-profile auto-generation schedule rows shared with
+   bet_dashboard/frontend/e2e/fixtures/demo-data.ts into ``profiles/<name>.yaml``
+   — the layout SettingsManager reads back through ``get_profile_schedules``.
+3. Park the puller/generator/verifier daemons via services.yaml so the seeded
    rows survive the whole playwright run — the puller would otherwise merge
    the upstream prod DB on its first 5-minute tick and evict the past-dated
    Arsenal row mid-run.
@@ -38,6 +41,8 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
+import yaml
+
 # Container: /app (image WORKDIR). Local runs: repo root next to setup/.
 _APP_ROOT = os.environ.get("E2E_SEED_APP_ROOT", "/app")
 _REPO_ROOT = str(Path(__file__).resolve().parents[1])
@@ -45,7 +50,9 @@ sys.path.insert(
     0, _APP_ROOT if Path(_APP_ROOT, "bet_framework").is_dir() else _REPO_ROOT
 )
 
+from bet_dashboard.backend.core.config_helpers import _config_to_yaml_dict
 from bet_framework.core.Match import Odds, Score
+from bet_framework.core.Slip import BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
 
 MATCHES_DB = os.environ.get("MATCHES_DB_PATH", "/app/workspace/data/matches.db")
@@ -134,6 +141,43 @@ DEMO_MATCHES = [
 
 # All three daemons parked: puller would merge the upstream DB (evicting the
 # past-dated Arsenal row), generator/verifier would touch slips mid-run.
+# Two-track: per-profile schedule rows IDENTICAL to DEMO_PROFILE_SCHEDULES in
+# bet_dashboard/frontend/e2e/fixtures/demo-data.ts. SettingsManager nests
+# ``profiles/<name>.yaml`` as settings['profiles'][name], which is what
+# AppLogic.get_profile_schedules() reads for the Services page.
+_PROFILE_SCHEDULES = [
+    {
+        "name": "low",
+        "auto_generate": True,
+        "generate_hour": 8,
+        "generate_minute": 30,
+        "units": 1.0,
+        "target_payout": None,
+        "run_daily_count": 1,
+        "order": 0,
+    },
+    {
+        "name": "medium",
+        "auto_generate": True,
+        "generate_hour": 10,
+        "generate_minute": 0,
+        "units": None,
+        "target_payout": 50.0,
+        "run_daily_count": 2,
+        "order": 1,
+    },
+    {
+        "name": "high_risk",
+        "auto_generate": False,
+        "generate_hour": 12,
+        "generate_minute": 15,
+        "units": None,
+        "target_payout": None,
+        "run_daily_count": 0,
+        "order": 2,
+    },
+]
+
 _SERVICES_YAML = (
     "services:\n"
     "  generate_hour: 9\n"
@@ -161,6 +205,29 @@ def main() -> None:
     if not any(CONFIG_DIR.iterdir()):
         shutil.copytree(_SRC_CONFIG, CONFIG_DIR, dirs_exist_ok=True)
     (CONFIG_DIR / "services.yaml").write_text(_SERVICES_YAML, encoding="utf-8")
+
+    # Per-profile schedules: the CI delivery of the same rows as demo-data.ts
+    # (SettingsManager nests profiles/<name>.yaml). The YAML carries the FULL
+    # builder-profile shape (BetSlipConfig defaults + units/target_payout/
+    # run_daily_count) merged with that profile's schedule keys, exactly like
+    # the local track's DEMO_PROFILES (review F7 — one mocked database, two
+    # delivery paths).
+    profiles_dir = CONFIG_DIR / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    for row in _PROFILE_SCHEDULES:
+        profile = _config_to_yaml_dict(
+            BetSlipConfig(),
+            units=row["units"],
+            target_payout=row["target_payout"],
+            run_daily_count=row["run_daily_count"],
+            order=row["order"],
+            auto_generate=row["auto_generate"],
+            generate_hour=row["generate_hour"],
+            generate_minute=row["generate_minute"],
+        )
+        (profiles_dir / f"{row['name']}.yaml").write_text(
+            yaml.safe_dump(profile, sort_keys=False), encoding="utf-8"
+        )
 
     # MatchesManager creates the `matches` schema on init; then write rows.
     MatchesManager(MATCHES_DB)
@@ -193,8 +260,29 @@ def main() -> None:
         assert cons["result"]["home"] == expected, (
             f"{name}: cons_home {cons['result']['home']} != {expected}"
         )
+    # Two-track self-check: the schedule rows survive as the exact same values
+    # the frontend fixtures serve (catches drift at seed time, not in CI).
+    for row in _PROFILE_SCHEDULES:
+        stored = yaml.safe_load(
+            (profiles_dir / f"{row['name']}.yaml").read_text(encoding="utf-8")
+        )
+        for key in (
+            "auto_generate",
+            "generate_hour",
+            "generate_minute",
+            "units",
+            "target_payout",
+            "run_daily_count",
+            "order",
+        ):
+            assert stored.get(key) == row[key], (
+                f"profile schedule drift for {row['name']}: "
+                f"{key}={stored.get(key)} != {row[key]}"
+            )
+
     print(
-        f"e2e seed OK: 3 demo matches in {MATCHES_DB}; daemons parked in {CONFIG_DIR / 'services.yaml'}"
+        f"e2e seed OK: 3 demo matches + {len(_PROFILE_SCHEDULES)} profile schedules "
+        f"in {MATCHES_DB}; daemons parked in {CONFIG_DIR / 'services.yaml'}"
     )
 
 

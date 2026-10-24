@@ -2,7 +2,7 @@
 Gap tests for bet_framework/core/scoring.py (GitHub issue #70).
 
 Covered public API:
-  resolve_shrinkage_k / resolve_max_single_leg_odds / resolve_min_pick_quality /
+  resolve_shrinkage_k / resolve_max_leg_odds / resolve_min_pick_quality /
   resolve_min_source_edge      - auto-defaults vs explicit config values
   adjusted_consensus           - Bayesian shrinkage formula spot checks
   classify_odds_movement       - case-insensitive and whitespace variants
@@ -29,7 +29,7 @@ from bet_framework.core.scoring import (
     apply_odds_movement_adjustment,
     classify_odds_movement,
     odds_movement_factor,
-    resolve_max_single_leg_odds,
+    resolve_max_leg_odds,
     resolve_min_pick_quality,
     resolve_min_source_edge,
     resolve_shrinkage_k,
@@ -87,11 +87,11 @@ class TestResolveHelpers:
         # BetSlipConfig clamps shrinkage_k to [1.0, 10.0] in __post_init__.
         assert resolve_shrinkage_k(make_cfg(consensus_shrinkage_k=0.2)) == 1.0
 
-    def test_max_single_leg_odds_none_defaults_to_35(self) -> None:
-        assert resolve_max_single_leg_odds(make_cfg()) == 3.5
+    def test_max_leg_odds_none_defaults_to_35(self) -> None:
+        assert resolve_max_leg_odds(make_cfg()) == 3.5
 
-    def test_max_single_leg_odds_explicit(self) -> None:
-        assert resolve_max_single_leg_odds(make_cfg(max_single_leg_odds=2.0)) == 2.0
+    def test_max_leg_odds_explicit(self) -> None:
+        assert resolve_max_leg_odds(make_cfg(max_leg_odds=2.0)) == 2.0
 
     def test_min_pick_quality_none_defaults(self) -> None:
         assert resolve_min_pick_quality(make_cfg()) == 0.20
@@ -332,7 +332,7 @@ class TestScorePickTiers:
 
 class TestScorePickMaxOddsGate:
     def test_odds_above_default_gate_returns_tier_two_zeros(self) -> None:
-        # [P0] Line 216: hard gate at resolve_max_single_leg_odds() default 3.5.
+        # [P0] Line 216: hard gate at resolve_max_leg_odds() default 3.5.
         leg = make_leg(odds=3.6)
         assert score_pick(leg, 1.5, 10, make_cfg()) == (2, 0.0, 0.0)
 
@@ -342,13 +342,13 @@ class TestScorePickMaxOddsGate:
         assert (tier, score) != (2, 0.0)
 
     def test_explicit_lower_gate(self) -> None:
-        cfg = make_cfg(max_single_leg_odds=2.0)
+        cfg = make_cfg(max_leg_odds=2.0)
         leg = make_leg(odds=2.5)
         assert score_pick(leg, 1.5, 10, cfg) == (2, 0.0, 0.0)
 
     def test_gate_fires_before_any_tier_logic(self) -> None:
         # Even a perfect-balance pick above the gate returns zeros.
-        cfg = make_cfg(max_single_leg_odds=2.0)
+        cfg = make_cfg(max_leg_odds=2.0)
         leg = make_leg(odds=2.5)
         assert score_pick(leg, 2.5, 10, cfg) == (2, 0.0, 0.0)
 

@@ -5,7 +5,6 @@ import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
 import { FirstSlipToast } from '../components/OnboardingTour';
 import { markFirstSlip } from '../components/tourStorage';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
-import { TooltipIcon } from '../components/ui';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
@@ -17,14 +16,14 @@ import type { BuilderConfig, Profile, ProfilesMap, PreviewResult, ManualLegIn } 
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
-    consensus_floor: 50, min_odds: 1.05, included_markets: null, included_leagues: null,
-    tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
+    consensus_floor: 50, min_leg_odds: 1.05, included_markets: null, included_leagues: null,
+    tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: null,
     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
     date_from: null, date_to: null,
     excluded_sources: null,
     consensus_shrinkage_k: null,
     min_source_edge: null,
-    max_single_leg_odds: null,
+    max_leg_odds: 3.5,
     tol_lower: null,
     tol_upper: null,
     balance_decay: 'gaussian',
@@ -33,38 +32,162 @@ const DEFAULT_CFG: BuilderConfig = {
     odds_movement_strength_min: null,
 };
 
+function orderedProfileNames(profiles: ProfilesMap): string[] {
+    return Object.keys(profiles).sort((a, b) => {
+        const orderA = Number(profiles[a].order) || 0;
+        const orderB = Number(profiles[b].order) || 0;
+        return orderA - orderB || a.localeCompare(b);
+    });
+}
+
 interface Props { filters: GlobalFilters; refreshKey: number }
+
+// Units and Target Payout are mutually exclusive: the filled one drives the
+// slip stake, the other shows a live calculated preview while disabled.
+interface AddToSlipsModalProps {
+    legsCount: number;
+    totalOdds: number;
+    units: number;
+    targetPayout: number;
+    onUnitsChange: (units: number) => void;
+    onTargetPayoutChange: (payout: number) => void;
+    onConfirm: () => void;
+    onClose: () => void;
+}
+
+function AddToSlipsModal({
+    legsCount, totalOdds, units, targetPayout,
+    onUnitsChange, onTargetPayoutChange, onConfirm, onClose,
+}: AddToSlipsModalProps) {
+    // Escape closes (matches SlipDetailModal overlay contract).
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
+
+    // Both inputs start EMPTY on open (no placeholder text). Typing a number
+    // in one field claims it: the other field becomes disabled and shows the
+    // live calculated preview. Clearing the field releases it back to empty
+    // and re-enables the other input. One field is active at a time.
+    const [mode, setMode] = useState<'units' | 'payout' | null>(null);
+    const [unitsText, setUnitsText] = useState('');
+    const [payoutText, setPayoutText] = useState('');
+
+    const payoutActive = mode === 'payout';
+    const unitsActive = mode === 'units';
+    // required units for the typed payout = payout / total odds, 1dp
+    const previewUnits = Math.round((targetPayout / (totalOdds || 1)) * 10) / 10;
+    // resulting payout for the typed units = units × total odds, 1dp
+    const previewPayout = Math.round(units * (totalOdds || 1) * 10) / 10;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+            <div role="dialog" aria-modal="true" aria-label="Add to Slips"
+                className="relative w-full max-w-md rounded-xl shadow-2xl"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                <div className="px-5 py-4 border-b flex items-center justify-between"
+                    style={{ borderColor: 'var(--border)' }}>
+                    <h2 className="text-lg font-display font-bold" style={{ color: 'var(--text-bright)' }}>
+                        Add to Slips
+                    </h2>
+                    <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
+                        {legsCount} legs @ {totalOdds.toFixed(2)}
+                    </span>
+                </div>
+                <div className="px-5 py-4 space-y-4">
+                    <p className="text-[11px] font-sans" style={{ color: 'var(--text-secondary)' }}>
+                        Units and Target Payout are mutually exclusive — fill one, the other previews the calculated value.
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Units</span>
+                        <input
+                            aria-label="Units"
+                            className="field w-24"
+                            type="number"
+                            min={0.1}
+                            step={0.1}
+                            autoFocus
+                            disabled={payoutActive}
+                            style={{
+                                opacity: payoutActive ? 0.5 : 1,
+                                cursor: payoutActive ? 'not-allowed' : 'text',
+                                color: payoutActive ? 'var(--text-secondary)' : undefined,
+                            }}
+                            value={payoutActive ? String(previewUnits) : unitsText}
+                            onChange={e => {
+                                const v = e.target.value;
+                                setUnitsText(v);
+                                setMode(v === '' ? null : 'units');
+                                onUnitsChange(v === '' ? 1 : +v);
+                            }} />
+                        {payoutActive && (
+                            <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
+                        <input
+                            aria-label="Target Payout"
+                            className="field w-24"
+                            type="number"
+                            min={0}
+                            step={0.1}
+                            disabled={unitsActive}
+                            style={{
+                                opacity: unitsActive ? 0.5 : 1,
+                                cursor: unitsActive ? 'not-allowed' : 'text',
+                                color: unitsActive ? 'var(--text-secondary)' : undefined,
+                            }}
+                            value={unitsActive ? String(previewPayout) : payoutText}
+                            onChange={e => {
+                                const v = e.target.value;
+                                setPayoutText(v);
+                                setMode(v === '' ? null : 'payout');
+                                onTargetPayoutChange(v === '' ? 0 : +v);
+                            }} />
+                        {unitsActive && (
+                            <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
+                        )}
+                    </div>
+                </div>
+                <div className="px-5 py-4 border-t flex justify-end gap-2"
+                    style={{ borderColor: 'var(--border)' }}>
+                    <button className="btn-ghost" onClick={onClose}>Cancel</button>
+                    <button className="btn-success" onClick={onConfirm}>Add to Slips</button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const STORAGE_KEY = 'smart_builder_state';
 
+// Corrupt or partial payloads must never crash the page: a failed parse
+// yields an empty object and the writer effect overwrites storage on first
+// state change.
+function readStoredState(): Record<string, unknown> {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? (JSON.parse(saved) as Record<string, unknown>) : {};
+    } catch {
+        return {};
+    }
+}
+
 export default function SmartBuilder({ filters, refreshKey }: Props) {
     // Load persisted state from localStorage
-    const [cfg, setCfg] = useState<BuilderConfig>(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            return { ...DEFAULT_CFG, ...parsed.cfg };
-        }
-        return DEFAULT_CFG;
-    });
-    const [activeName, setActiveName] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).activeName : 'manual';
-    });
-    const [units, setUnits] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).units : 1.0;
-    });
-    const [runDaily, setRunDaily] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved).runDaily : 0;
-    });
+    const [cfg, setCfg] = useState<BuilderConfig>(() => ({
+        ...DEFAULT_CFG,
+        ...(readStoredState().cfg as BuilderConfig | undefined),
+    }));
+    // The 'manual' profile is gone: the active selection is always a saved
+    // profile and defaults to the first one served by the backend.
+    const [activeName, setActiveName] = useState(() => (readStoredState().activeName as string) || '');
+    const [units, setUnits] = useState(() => (readStoredState().units as number) ?? 1.0);
 
-    // New: Target Payout logic
-    const [targetPayout, setTargetPayout] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? (JSON.parse(saved).targetPayout ?? 0) : 0;
-    });
+    const [targetPayout, setTargetPayout] = useState(() => (readStoredState().targetPayout as number) ?? 0);
 
     const [preview, setPreview] = useState<PreviewResult | null>(null);
     const [loading, setLoading] = useState(false);
@@ -74,7 +197,13 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [availableSources, setAvailableSources] = useState<string[]>([]);
     const [status, setStatus] = useState('');
     const [milestoneOpen, setMilestoneOpen] = useState(false);
+    const [slipModalOpen, setSlipModalOpen] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Auto-save to the active profile: only a real profile-config edit sets this
+    // flag — profile switches/loads and session-only stake/payout entry in the
+    // Add-to-Slips modal must not rewrite disk.
+    const dirtyRef = useRef(false);
+    const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Persist state to localStorage
     useEffect(() => {
@@ -82,18 +211,56 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             cfg: { ...cfg, date_from: null, date_to: null },
             activeName,
             units,
-            runDaily,
             targetPayout
         }));
-    }, [cfg, activeName, units, runDaily, targetPayout]);
+    }, [cfg, activeName, units, targetPayout]);
 
     // Load profiles + excluded on mount
     useEffect(() => {
-        fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
+        // Legacy payloads kept a `runDaily` key that no longer exists in this
+        // page (moved to Services); drop it once so storage stays clean.
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved) as Record<string, unknown>;
+                if ('runDaily' in parsed) {
+                    delete parsed.runDaily;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+                }
+            } catch {
+                // Corrupt payload: leave it for the writer to overwrite.
+            }
+        }
+        fetchProfiles()
+            .then(p => setProfiles(p))
+            .catch(() => setStatus('⚠ Profiles could not be loaded — check the server and refresh to retry'));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
         fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
         fetchSourcesConfig().then(c => setAvailableSources(c.sources)).catch(() => setAvailableSources([]));
     }, []);
+
+    // Once profiles arrive: disk is the single source of truth. A persisted
+    // selection that still exists is re-hydrated from disk (stale localStorage
+    // cfg/units never win); nothing persisted selects the first profile. A
+    // user edit in flight is never clobbered and any pending debounced save
+    // is cancelled.
+    useEffect(() => {
+        if (Object.keys(profiles).length === 0) return;
+        if (dirtyRef.current) return;
+        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        if (activeName && activeName in profiles) {
+            loadProfile(activeName, profiles[activeName]);
+            return;
+        }
+        const first = orderedProfileNames(profiles)[0];
+        setActiveName(first);
+        const data = profiles[first];
+        setCfg(cfgFromProfile(data));
+        setUnits(data.units ?? 1);
+        setTargetPayout(data.target_payout ?? 0);
+        dirtyRef.current = false;
+        // preview triggered by the effect below via mergedCfg dependency chain
+    }, [profiles]); // eslint-disable-line react-hooks/exhaustive-deps -- one-shot default selection when profiles load
 
     // Compute merged config with global date filters (for preview only)
     const mergedCfg = { ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null };
@@ -113,9 +280,17 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }, 350);
     }, []);
 
+    // Stake fields are deliberately NOT sent: units/target_payout are owned by
+    // the Services page (desync C). Omitting them keeps the backend's
+    // merge-on-write behaviour — persisted values survive a builder save.
+    function profileFromConfig(name: string) {
+        return { name, ...cfg, date_from: null, date_to: null };
+    }
+
     function handleCfgChange(next: BuilderConfig) {
         setCfg(next);
-        setActiveName('manual');
+        dirtyRef.current = true;
+        setStatus('');
         triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
 
@@ -125,10 +300,37 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
 
     // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: fires ONLY on excluded_sources changes; other cfg fields flow through handleCfgChange
+    const lastExcluded = useRef<string | null>(null);
     useEffect(() => {
+        if (lastExcluded.current === JSON.stringify(cfg.excluded_sources ?? null)) return;
+        lastExcluded.current = JSON.stringify(cfg.excluded_sources ?? null);
         triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
-    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]);
+    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- cfg is read, not tracked: exclusion-only trigger with a change guard
+
+    // Auto-save to the ACTIVE profile (debounced). The manual Save button is
+    // gone — every config change lands on the selected profile on disk.
+    // Session-only stake/payout entry (Add-to-Slips modal, auto-calc from target
+    // payout) never sets dirtyRef, so it cannot reach disk; units/targetPayout
+    // are no longer deps because the payload no longer carries them.
+    useEffect(() => {
+        if (!activeName || !dirtyRef.current) return;
+        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        saveDebounceRef.current = setTimeout(async () => {
+            dirtyRef.current = false;
+            try {
+                await saveProfile(profileFromConfig(activeName));
+                const updated = await fetchProfiles();
+                setProfiles(updated ?? {});
+                setStatus(`✓ Saved to '${activeName}'`);
+            } catch {
+                dirtyRef.current = true;
+                setStatus('⚠ Save failed — will retry on next change');
+            }
+        }, 600);
+        return () => {
+            if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        };
+    }, [cfg, activeName]); // eslint-disable-line react-hooks/exhaustive-deps -- profileFromConfig/filters read at call time; deps cover every payload input (stake fields excluded)
 
     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
     useEffect(() => {
@@ -162,18 +364,18 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         triggerPreview(mergedCfg);
     }
 
-    function loadProfile(name: string, data: Profile) {
-        const next: BuilderConfig = {
+    function cfgFromProfile(data: Profile): BuilderConfig {
+        return {
             target_odds: data.target_odds ?? 3,
             target_legs: data.target_legs ?? 3,
             max_legs_overflow: data.max_legs_overflow ?? null,
             consensus_floor: data.consensus_floor ?? 50,
-            min_odds: data.min_odds ?? 1.05,
+            min_leg_odds: data.min_leg_odds ?? 1.05,
             included_markets: data.included_markets ?? null,
             included_leagues: data.included_leagues ?? null,
             tolerance_factor: data.tolerance_factor ?? null,
             stop_threshold: data.stop_threshold ?? null,
-            min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
+            min_legs_fill_ratio: data.min_legs_fill_ratio ?? null,
             quality_vs_balance: data.quality_vs_balance ?? 0.5,
             consensus_vs_sources: data.consensus_vs_sources ?? 0.5,
             date_from: null,
@@ -181,7 +383,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             excluded_sources: data.excluded_sources ?? null,
             consensus_shrinkage_k: data.consensus_shrinkage_k ?? null,
             min_source_edge: data.min_source_edge ?? null,
-            max_single_leg_odds: data.max_single_leg_odds ?? null,
+            max_leg_odds: data.max_leg_odds ?? 3.5,
             tol_lower: data.tol_lower ?? null,
             tol_upper: data.tol_upper ?? null,
             balance_decay: data.balance_decay ?? 'gaussian',
@@ -189,34 +391,60 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             odds_movement_weight: data.odds_movement_weight ?? null,
             odds_movement_strength_min: data.odds_movement_strength_min ?? null,
         };
-        setCfg(next);
+    }
+
+    function loadProfile(name: string, data: Profile) {
+        setCfg(cfgFromProfile(data));
         setActiveName(name);
         setUnits(data.units ?? 1);
-        setRunDaily(data.run_daily_count ?? 0);
         setTargetPayout(data.target_payout ?? 0);
-        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+        dirtyRef.current = false;
+        triggerPreview({ ...cfgFromProfile(data), date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
     }
 
-    async function handleSaveProfile() {
-        const clean = activeName.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
-        if (!clean || clean === 'manual') {
-            setStatus('Enter a profile name first.'); return;
+    // Per-card delete. Deleting the ACTIVE profile re-selects the first
+    // remaining profile (there is no 'manual' fallback anymore).
+    async function handleDeleteProfile(name: string) {
+        if (!name || !(name in profiles)) {
+            setStatus(`'${name}' is not a saved profile`);
+            return;
         }
-        // Profile accepts null dates (cycle-6 pin: runtime-only keys nulled on
-        // disk) — null them explicitly instead of destructuring them out.
-        await saveProfile({ name: clean, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout, run_daily_count: runDaily });
+        await deleteProfile(name);
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
-        setStatus(`✓ Profile '${clean}' saved`);
+        const remaining = orderedProfileNames(updated ?? {});
+        if (activeName === name) {
+            if (remaining.length > 0) {
+                loadProfile(remaining[0], (updated as ProfilesMap)[remaining[0]]);
+            } else {
+                setActiveName('');
+            }
+        }
+        setStatus(`Deleted '${name}'`);
     }
 
-    async function handleDeleteProfile() {
-        if (!activeName || activeName === 'manual') return;
-        await deleteProfile(activeName);
-        const updated = await fetchProfiles();
-        setProfiles(updated ?? {});
-        setActiveName('manual');
-        setStatus(`Deleted '${activeName}'`);
+    // '+' creates a profile copying the CURRENT builder config. Name is the
+    // smallest unused new{N} — deterministic even after deletions.
+    const createBusy = useRef(false);
+    async function handleCreateProfile() {
+        // Two fast clicks would both read the same stale profiles map and
+        // both save 'new1' (POST overwrites same-name profiles) — guard the
+        // in-flight save so '+' is single-shot until the refetch lands.
+        if (createBusy.current) return;
+        createBusy.current = true;
+        try {
+            let n = 1;
+            while (`new${n}` in profiles) n += 1;
+            const name = `new${n}`;
+            const payload = profileFromConfig(name);
+            await saveProfile(payload);
+            const updated = await fetchProfiles();
+            setProfiles(updated ?? {});
+            loadProfile(name, updated?.[name] ?? (payload as unknown as Profile));
+            setStatus(`✓ Saved to '${name}'`);
+        } finally {
+            createBusy.current = false;
+        }
     }
 
     async function handleAddToSlips() {
@@ -254,7 +482,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }));
 
         const id = await addSlip(activeName, manualLegs, units);
-        // AC-06: first successful addSlip (Build) counts as first slip.
+        setSlipModalOpen(false);
+        // first successful addSlip (Build) counts as first slip.
         if (markFirstSlip()) setMilestoneOpen(true);
         setStatus(`✓ Slip #${id} added to '${activeName}'`);
         triggerPreview(mergedCfg);
@@ -267,44 +496,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             {/* ── Left Sidebar — Responsive width ─────────────────────────────── */}
             <div className="w-full xl:w-[350px] 2xl:w-[400px] shrink-0">
                 <div className="sticky top-4 space-y-4">
-                    <div className="rounded-xl overflow-hidden"
-                        style={{
-                            background: 'linear-gradient(180deg, var(--bg-base) 0%, var(--bg-surface) 100%)',
-                            border: '1px solid var(--border)',
-                            boxShadow: 'var(--shadow-lg)',
-                        }}>
-                        <div className="px-5 pt-5 pb-4"
-                            style={{ borderBottom: '1px solid var(--border)' }}>
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-sm">👤</span>
-                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
-                                    style={{ color: 'var(--text-secondary)' }}>Profiles</span>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                {Object.keys(profiles).map(name => (
-                                    <button key={name}
-                                        data-profile-chip
-                                        className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-lg transition-all duration-200"
-                                        style={{
-                                            background: activeName === name
-                                                ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
-                                                : 'var(--bg-card)',
-                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border)'}`,
-                                            color: activeName === name ? 'var(--text-bright)' : 'var(--text-secondary)',
-                                            boxShadow: activeName === name ? 'var(--accent-glow)' : 'none',
-                                        }}
-                                        onClick={() => loadProfile(name, profiles[name])}>
-                                        {name}
-                                    </button>
-                                ))}
-                                {!Object.keys(profiles).length && (
-                                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-                                        No saved profiles yet
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                        <div className="px-3 py-4">
+                    <div className="rounded-xl overflow-hidden">
+                        <div>
                             <BuilderPanel
                                 cfg={cfg}
                                 availableLeagues={availableLeagues}
@@ -325,39 +518,84 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         border: '1px solid var(--border)',
                         backdropFilter: 'blur(10px)',
                     }}>
-                    {/* AC-03: page heading in the management bar */}
-                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Build</h1>
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <input className="field w-40" placeholder="profile name"
-                            value={activeName} onChange={e => setActiveName(e.target.value)} />
-                        <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
-                        <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
-
-                        {/* Units & Target Payout */}
-                        <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Units</span>
-                                <input className="field w-16" type="number" min={0.1} step={0.1}
-                                    disabled={targetPayout > 0}
-                                    style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
-                                    value={units} onChange={e => setUnits(+e.target.value)} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
-                                <TooltipIcon text="Automatically calculates units based on desired payout. Enter your target payout amount and the system will determine the required units to achieve it." align="right" />
-                                <input className="field w-20" type="number" min={0} step={5}
-                                    placeholder="Off"
-                                    value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
-                            </div>
-                        </div>
-
-                        <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
-                        <button className="btn-ghost" onClick={handleClearExcluded}>Reset excluded</button>
-
-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
-                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Run Daily</span>
-                            <input className="field w-16" type="number" min={0} step={1}
-                                value={runDaily} onChange={e => setRunDaily(+e.target.value)} />
+                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Profiles</h1>
+                    <div className="flex items-start gap-3 flex-wrap mt-2">
+                        {/* Profile cards: every saved profile renders as a card;
+                            click selects+loads it; edits auto-save to it. */}
+                        <div className="flex items-center gap-2 flex-wrap" data-testid="profile-cards">
+                            {orderedProfileNames(profiles).map(name => {
+                                const active = activeName === name;
+                                return (
+                                    <div key={name}
+                                        data-profile-chip={name}
+                                        className="inline-flex items-center rounded-xl px-1 transition-all duration-200"
+                                        style={{
+                                            background: active
+                                                ? 'linear-gradient(180deg, var(--accent-glow) 0%, var(--bg-raised) 100%)'
+                                                : 'var(--bg-raised)',
+                                            border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                                            boxShadow: active ? 'var(--shadow-md)' : 'none',
+                                        }}>
+                                        {/* select the profile */}
+                                        <button
+                                            type="button"
+                                            aria-pressed={active}
+                                            onClick={() => loadProfile(name, profiles[name])}
+                                            className="px-3 py-2 text-sm font-sans font-semibold rounded-xl"
+                                            style={{
+                                                color: active ? 'var(--accent)' : 'var(--text-primary)',
+                                                cursor: 'pointer',
+                                                background: 'transparent',
+                                                border: 'none',
+                                            }}>
+                                            {name}
+                                        </button>
+                                        {/* per-card X: transparent until hover, then loss-red */}
+                                        <button
+                                            type="button"
+                                            className="w-6 h-6 mr-1 flex items-center justify-center rounded-lg transition-all duration-200"
+                                            style={{
+                                                color: 'var(--text-secondary)',
+                                                background: 'transparent',
+                                                border: '1px solid transparent',
+                                                opacity: 0.55,
+                                                cursor: 'pointer',
+                                            }}
+                                            title={`Delete profile '${name}'`}
+                                            aria-label={`Delete profile '${name}'`}
+                                            onMouseEnter={e => {
+                                                e.currentTarget.style.opacity = '1';
+                                                e.currentTarget.style.color = 'var(--loss)';
+                                                e.currentTarget.style.background = 'var(--loss-glow, rgba(239, 68, 68, 0.12))';
+                                                e.currentTarget.style.borderColor = 'var(--loss-border, rgba(239, 68, 68, 0.35))';
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.opacity = '0.55';
+                                                e.currentTarget.style.color = 'var(--text-secondary)';
+                                                e.currentTarget.style.background = 'transparent';
+                                                e.currentTarget.style.borderColor = 'transparent';
+                                            }}
+                                            onClick={() => void handleDeleteProfile(name)}
+                                        >✕</button>
+                                    </div>
+                                );
+                            })}
+                            {/* trailing '+': same card treatment, accent-tinted */}
+                            <button
+                                aria-label="Create new profile"
+                                className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-lg font-bold transition-all duration-200"
+                                style={{
+                                    background: activeName && profiles[activeName]
+                                        ? 'linear-gradient(180deg, var(--accent-glow) 0%, var(--bg-raised) 100%)'
+                                        : 'var(--bg-raised)',
+                                    border: `1px solid ${activeName && profiles[activeName] ? 'var(--accent)' : 'var(--border)'}`,
+                                    color: 'var(--accent)',
+                                    cursor: 'pointer',
+                                    boxShadow: 'var(--shadow-sm, none)',
+                                }}
+                                title="Create a new profile from the current config"
+                                onClick={() => void handleCreateProfile()}
+                            >+</button>
                         </div>
 
                         {status && (
@@ -396,32 +634,34 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             style={{ color: 'var(--text-secondary)' }}>
                             Live Preview — updates with every config change
                         </span>
+                        {/* Add to Slips OPENS the confirmation modal (Units +
+                            Target Payout live there); confirm posts the slip.
+                            Hidden when the preview is empty. */}
+                        {(preview?.legs?.length ?? 0) > 0 && (
+                            <button className="btn-success ml-auto" onClick={() => setSlipModalOpen(true)}>+ Add to Slips</button>
+                        )}
                         {loading && (
                             <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
-                                style={{
-                                    color: 'var(--accent)',
-                                    background: 'var(--accent-glow)',
-                                }}>building…</span>
+                                style={{ color: 'var(--accent)', background: 'var(--accent-glow)' }}>building…</span>
                         )}
                     </div>
 
                     <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .2s ease' }}>
-                        {/* AC-03: replace BetPreview empty branch only; populated cards stay */}
                         {!(preview?.legs?.length) ? (
                             <EmptyState
                                 icon={<BuildEmptyIcon />}
                                 title="No preview yet"
-                                steps={['Select a preset', 'Test config', 'Add to Slips']}
+                                steps={['Select a profile', 'Tweak the config', 'Add to Slips']}
                                 primary={{
-                                    label: 'Select a Preset',
+                                    label: 'Select a Profile',
                                     onClick: () => {
-                                        const first = document.querySelector<HTMLElement>('[data-profile-chip]');
-                                        const target = first ?? document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
+                                        // Focus the first profile card button so
+                                        // keyboard users land on the control.
+                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] button');
                                         target?.focus();
                                         target?.scrollIntoView({ block: 'center' });
                                     },
                                 }}
-                                secondary={{ label: 'Add to Slips', onClick: () => { void handleAddToSlips(); } }}
                             />
                         ) : (
                             <BetPreview
@@ -506,6 +746,18 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 )}
             </div>
         </div>
+        {slipModalOpen && (
+            <AddToSlipsModal
+                legsCount={preview?.legs?.length ?? 0}
+                totalOdds={preview?.total_odds ?? 1}
+                units={units}
+                targetPayout={targetPayout}
+                onUnitsChange={(u) => { setUnits(u); setTargetPayout(0); }}
+                onTargetPayoutChange={(p) => { setTargetPayout(p); }}
+                onConfirm={() => void handleAddToSlips()}
+                onClose={() => setSlipModalOpen(false)}
+            />
+        )}
         <FirstSlipToast open={milestoneOpen} onClose={() => setMilestoneOpen(false)} />
         </>
     );
