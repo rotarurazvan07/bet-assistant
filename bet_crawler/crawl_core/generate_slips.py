@@ -46,7 +46,7 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, 
             "target_legs",
             "max_legs_overflow",
             "consensus_floor",
-            "min_odds",
+            "min_leg_odds",
             "tolerance_factor",
             "stop_threshold",
             "min_legs_fill_ratio",
@@ -58,6 +58,7 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, 
             "excluded_urls",
             "odds_movement_weight",
             "odds_movement_strength_min",
+            "max_leg_odds",
         )
         cfg_kwargs = {k: profile_data[k] for k in _cfg_keys if k in profile_data}
         cfg = BetSlipConfig(**cfg_kwargs)

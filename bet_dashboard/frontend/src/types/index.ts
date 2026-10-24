@@ -61,12 +61,12 @@ export interface BuilderConfig {
     target_legs: number;
     max_legs_overflow: number | null;
     consensus_floor: number;
-    min_odds: number;
+    min_leg_odds: number;
     included_markets: string[] | null;
     included_leagues: string[] | null;
     tolerance_factor: number | null;
     stop_threshold: number | null;
-    min_legs_fill_ratio: number;
+    min_legs_fill_ratio: number | null;
     quality_vs_balance: number;   // 0-1
     consensus_vs_sources: number; // 0-1
     date_from: string | null;
@@ -75,7 +75,7 @@ export interface BuilderConfig {
     // Advanced
     consensus_shrinkage_k: number | null;
     min_source_edge: number | null;
-    max_single_leg_odds: number | null;
+    max_leg_odds: number;
     tol_lower: number | null;
     tol_upper: number | null;
     balance_decay: 'linear' | 'gaussian';
@@ -119,12 +119,13 @@ export interface PreviewResult {
 export interface Profile {
     target_odds: number; target_legs: number;
     max_legs_overflow: number | null;
-    consensus_floor: number; min_odds: number;
+    order?: number | string | null;
+    consensus_floor: number; min_leg_odds: number;
     included_markets: string[] | null;
     included_leagues: string[] | null;
     excluded_sources: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
-    min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
+    min_legs_fill_ratio: number | null; quality_vs_balance: number; consensus_vs_sources: number;
     units: number;
     target_payout?: number | null;
     // Scheduling moved to the Services page (issue #41 note 6 / #95); the Smart
@@ -134,7 +135,7 @@ export interface Profile {
     // Advanced
     consensus_shrinkage_k: number | null;
     min_source_edge: number | null;
-    max_single_leg_odds: number | null;
+    max_leg_odds: number;
     tol_lower: number | null;
     tol_upper: number | null;
     balance_decay: 'linear' | 'gaussian';

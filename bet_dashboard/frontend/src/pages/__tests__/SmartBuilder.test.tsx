@@ -23,8 +23,8 @@ vi.mock('recharts', async () => (await import('../../test/recharts-stub')).recha
 
 // Distinct configs so tests can prove a card click actually LOADED a profile.
 const PROFILES = {
-    cautious: makeProfile({ target_odds: 4, target_legs: 4, units: 2 }),
-    bold: makeProfile({ target_odds: 8, target_legs: 5, units: 3 }),
+    cautious: { ...makeProfile({ target_odds: 4, target_legs: 4, units: 2 }), order: 1 },
+    bold: { ...makeProfile({ target_odds: 8, target_legs: 5, units: 3 }), order: 2 },
 };
 
 const PREVIEW = makePreviewResult();
@@ -89,6 +89,22 @@ describe('SmartBuilder page', () => {
         await renderAndHydrate();
         expect(screen.getByText('Live Preview — updates with every config change')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
+    });
+
+    it('uses saved profile order instead of relying on response object order', async () => {
+        profileMap = { bold: PROFILES.bold, cautious: PROFILES.cautious };
+        await renderAndHydrate();
+        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('reports a failed profile fetch instead of hiding it as an empty profile list', async () => {
+        server.use(
+            http.get('/api/profiles', () => HttpResponse.json({ detail: 'settings unavailable' }, { status: 500 })),
+        );
+        await renderAndHydrate();
+        expect(await screen.findByText(/Profiles could not be loaded/)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'cautious' })).not.toBeInTheDocument();
     });
 
     it('config change triggers a NEW debounced preview (count increments)', async () => {

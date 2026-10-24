@@ -246,10 +246,10 @@ export interface components {
        */
       consensus_floor?: number;
       /**
-       * Min Odds
+       * Min Leg Odds
        * @default 1.05
        */
-      min_odds?: number;
+      min_leg_odds?: number;
       /** Tolerance Factor */
       tolerance_factor?: number | null;
       /** Stop Threshold */
@@ -258,7 +258,7 @@ export interface components {
        * Min Legs Fill Ratio
        * @default 0.7
        */
-      min_legs_fill_ratio?: number;
+      min_legs_fill_ratio?: number | null;
       /**
        * Quality Vs Balance
        * @default 0.5
@@ -283,8 +283,11 @@ export interface components {
       consensus_shrinkage_k?: number | null;
       /** Min Source Edge */
       min_source_edge?: number | null;
-      /** Max Single Leg Odds */
-      max_single_leg_odds?: number | null;
+      /**
+       * Max Leg Odds
+       * @default 3.5
+       */
+      max_leg_odds?: number;
       /** Tol Lower */
       tol_lower?: number | null;
       /** Tol Upper */
@@ -439,10 +442,10 @@ export interface components {
        */
       consensus_floor?: number;
       /**
-       * Min Odds
+       * Min Leg Odds
        * @default 1.05
        */
-      min_odds?: number;
+      min_leg_odds?: number;
       /** Tolerance Factor */
       tolerance_factor?: number | null;
       /** Stop Threshold */
@@ -451,7 +454,7 @@ export interface components {
        * Min Legs Fill Ratio
        * @default 0.7
        */
-      min_legs_fill_ratio?: number;
+      min_legs_fill_ratio?: number | null;
       /**
        * Quality Vs Balance
        * @default 0.5
@@ -489,8 +492,11 @@ export interface components {
       consensus_shrinkage_k?: number | null;
       /** Min Source Edge */
       min_source_edge?: number | null;
-      /** Max Single Leg Odds */
-      max_single_leg_odds?: number | null;
+      /**
+       * Max Leg Odds
+       * @default 3.5
+       */
+      max_leg_odds?: number;
       /** Tol Lower */
       tol_lower?: number | null;
       /** Tol Upper */
