@@ -8,7 +8,16 @@ import { installDemoApi, suppressTour } from './fixtures/mock-api';
 test.beforeEach(async ({ page }) => {
     await suppressTour(page);
     page.on('pageerror', (err) => {
-        if (!String(err).includes('AxiosError')) throw err;
+        // Axios proxy failures are environmental noise; WebKit additionally
+        // surfaces CORS-blocked XHR as pageerror on the external stack (see
+        // landing.spec.ts + PR #106 remediation) - filter the same class.
+        const msg = String(err);
+        const isNoise =
+            msg.includes('AxiosError')
+            || msg.includes('XMLHttpRequest cannot load')
+            || msg.includes('due to access control checks')
+            || msg.includes('Access-Control-Allow-Origin');
+        if (!isNoise) throw err;
     });
     if (!process.env.E2E_BASE_URL) await installDemoApi(page);
 });
@@ -55,6 +64,14 @@ test.describe('mobile bottom sheet 375x667', () => {
 
     test('minimized pill is keyboard-reachable and expands', async ({ page }) => {
         await page.goto('/');
+        const panel = page.locator('.floating-slip-panel');
+        await expect(panel).toBeVisible();
+        // The Escape handler lives on the sheet (SlipBuilderPanel keydown) —
+        // focus it first, exactly like the desktop test focuses the dialog.
+        // WebKit drops key events with no active element, so the un-focused
+        // variant minimized nothing and the pill never rendered (flake seen on
+        // run 40051098136); focus makes the assertion deterministic.
+        await panel.focus();
         await page.keyboard.press('Escape');
         const pill = page.locator('.floating-slip-minimized');
         await expect(pill).toBeVisible();

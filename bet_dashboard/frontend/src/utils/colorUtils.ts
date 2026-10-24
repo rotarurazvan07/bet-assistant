@@ -4,6 +4,7 @@
 
 // Note: CandidateLeg type is not imported here to avoid circular dependencies.
 // The function signature accepts an object with the expected shape.
+import { MARKET_COLUMNS } from '../config/marketConfig';
 
 /**
  * Get color based on consensus percentage
@@ -68,56 +69,37 @@ export function getStatusBadge(status: string): 'success' | 'error' | 'warning' 
  * @returns CSS variable reference for potential win/loss, or empty string if not applicable
  */
 export function getPotentialStatusColor(leg: { market: string; odds: number; status: string }, liveScore?: string): string {
-    if (leg.status !== 'Live' || !liveScore) {
-        return '';
+    if (leg.status !== 'Live' || !liveScore) return '';
+    const m = liveScore.match(/(\d+)\s*[-:]\s*(\d+)/);
+    if (!m) return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
+    const hs = parseInt(m[1], 10);
+    const as = parseInt(m[2], 10);
+    const total = hs + as;
+    const homeLead = hs > as;
+    const awayLead = as > hs;
+    const tied = hs === as;
+    const key = leg.market.trim();
+    const col = MARKET_COLUMNS.find((c) => c.market === key);
+    if (!col) return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
+    // line from the key suffix: 'over_25' -> 2, 'under_05' -> 0 (tenths)
+    const suffix = col.market.slice(-2);
+    const tenths = parseInt(suffix, 10);
+    if (col.market.indexOf('over_') === 0 && !isNaN(tenths)) {
+        return total > tenths / 10 ? 'var(--potential-win)' : 'var(--potential-loss)';
     }
-
-    const scoreMatch = liveScore.match(/(\d+)\s*[-:]\s*(\d+)/);
-    if (!scoreMatch) {
-        return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market.indexOf('under_') === 0 && !isNaN(tenths)) {
+        return total < tenths / 10 ? 'var(--potential-win)' : 'var(--potential-loss)';
     }
-
-    const homeScore = parseInt(scoreMatch[1], 10);
-    const awayScore = parseInt(scoreMatch[2], 10);
-    const market = leg.market.trim();
-    const homeLeading = homeScore > awayScore;
-    const awayLeading = awayScore > homeScore;
-    const isTied = homeScore === awayScore;
-    const total = homeScore + awayScore;
-
-    // ── 1X2 ──
-    if (market === '1') return homeLeading ? 'var(--potential-win)' : 'var(--potential-loss)';
-    if (market === 'X') return isTied    ? 'var(--potential-win)' : 'var(--potential-loss)';
-    if (market === '2') return awayLeading ? 'var(--potential-win)' : 'var(--potential-loss)';
-
-    // ── BTTS ──
-    if (market === 'btts_yes') {
-        const bothScored = homeScore > 0 && awayScore > 0;
-        return bothScored ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market.indexOf('_yes') === col.market.length - 4 || col.market.indexOf('_no') === col.market.length - 3) {
+        const both = hs > 0 && as > 0;
+        const isYes = col.market.slice(-4) === '_yes';
+        return both === isYes ? 'var(--potential-win)' : 'var(--potential-loss)';
     }
-    if (market === 'BTTS No') {
-        const bothScored = homeScore > 0 && awayScore > 0;
-        return bothScored ? 'var(--potential-loss)' : 'var(--potential-win)';
-    }
-
-    // ── Over/Under ──
-    const overMatch = market.match(/^Over ([\d.]+)$/);
-    if (overMatch) {
-        const line = parseFloat(overMatch[1]);
-        return total > line ? 'var(--potential-win)' : 'var(--potential-loss)';
-    }
-
-    const underMatch = market.match(/^Under ([\d.]+)$/);
-    if (underMatch) {
-        const line = parseFloat(underMatch[1]);
-        return total < line ? 'var(--potential-win)' : 'var(--potential-loss)';
-    }
-
-    // ── Double Chance ──
-    if (market === '1X') return (homeLeading || isTied) ? 'var(--potential-win)' : 'var(--potential-loss)';
-    if (market === '12') return (homeLeading || awayLeading) ? 'var(--potential-win)' : 'var(--potential-loss)';
-    if (market === 'X2') return (awayLeading || isTied) ? 'var(--potential-win)' : 'var(--potential-loss)';
-
-    // ── Default ──
+    if (col.market.slice(-3) === '_1x') return homeLead || tied ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market.slice(-3) === '_12') return homeLead || awayLead ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market.slice(-3) === '_x2') return awayLead || tied ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market === 'home') return homeLead ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market === 'draw') return tied ? 'var(--potential-win)' : 'var(--potential-loss)';
+    if (col.market === 'away') return awayLead ? 'var(--potential-win)' : 'var(--potential-loss)';
     return leg.odds > 2.0 ? 'var(--potential-win)' : 'var(--potential-loss)';
 }

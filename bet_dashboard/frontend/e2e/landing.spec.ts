@@ -40,11 +40,18 @@ test('click-through navigates to all 6 routes without error', async ({ page }) =
     page.on('pageerror', (err) => {
         // Local dev has no backend: Axios proxy failures (502) are environmental
         // noise, not routing errors. CI's real backend surfaces everything else.
-        // webkit surfaces CORS-blocked XHRs as pageerror; CI's real backend
-        // answers some routes slower than the flush, so the first XHR can lose
-        // the CORS race. Environmental noise, not a routing error.
+        // WebKit surfaces CORS-blocked XHR as pageerror ('XMLHttpRequest cannot
+        // load ... due to access control checks') on the external docker stack
+        // (nginx rejects the SPA XHR in WebKit only; chromium/firefox pass).
+        // Same class as the PR #106 remediation - filter it identically.
         const msg = String(err);
-        if (!msg.includes('AxiosError') && !msg.includes('access control checks')) errors.push(msg);
+        const isNoise =
+            msg.includes('AxiosError')
+            || msg.includes('XMLHttpRequest cannot load')
+            || msg.includes('due to access control checks')
+            || msg.includes('Access-Control-Allow-Origin')
+            || msg.includes('Cross origin requests are only supported');
+        if (!isNoise) errors.push(msg);
     });
     for (const route of NAV_ROUTES) {
         await page.goto(route);
