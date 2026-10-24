@@ -675,7 +675,7 @@ class TestBuildSlip:
         assert legs == []
 
     def test_edge_no_matches_pass_quality_gate(self, loaded_ba) -> None:
-        cfg = BetSlipConfig(consensus_floor=100.0, min_odds=99.0)
+        cfg = BetSlipConfig(consensus_floor=100.0, min_leg_odds=99.0)
         legs = loaded_ba.build_slip(cfg)
         assert legs == []
 

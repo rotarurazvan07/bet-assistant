@@ -471,11 +471,8 @@ export interface components {
       included_leagues?: string[] | null;
       /** Excluded Sources */
       excluded_sources?: string[] | null;
-      /**
-       * Units
-       * @default 1
-       */
-      units?: number;
+      /** Units */
+      units?: number | null;
       /** Target Payout */
       target_payout?: number | null;
       /** Run Daily Count */

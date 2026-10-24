@@ -1,7 +1,10 @@
-// BuilderPanel (issue #64 P2). ACTUAL (cycle-12 divergence): immediate
-// onChange (NO debounce); AccordionSection sections; market toggle
-// null-means-all; league/source multi-selects; balance_decay select;
-// NO date pickers (Layout owns dates).
+// BuilderPanel (issue #64 P2). ACTUAL (post-#118 merge contract): immediate
+// onChange (NO debounce); AccordionSection sections (Bet Shape, Filters >
+// Markets/Leagues/Sources, Quality, Strategy, Advanced); ChipGrid market /
+// league / source toggles with null-means-all semantics (chip renders the
+// presentation label via marketLabel, title keeps the canonical key);
+// NullableRow toggles gate their slider body (enabled-only render);
+// balance_decay select; NO date pickers (Layout owns dates).
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -17,7 +20,7 @@ function baseCfg(overrides: Partial<BuilderConfig> = {}): BuilderConfig {
         target_legs: 3,
         max_legs_overflow: null,
         consensus_floor: 50,
-        min_odds: 1.05,
+        min_leg_odds: 1.05,
         included_markets: null,
         included_leagues: null,
         tolerance_factor: null,
@@ -30,7 +33,7 @@ function baseCfg(overrides: Partial<BuilderConfig> = {}): BuilderConfig {
         excluded_sources: null,
         consensus_shrinkage_k: null,
         min_source_edge: null,
-        max_single_leg_odds: null,
+        max_leg_odds: 10.0,
         tol_lower: null,
         tol_upper: null,
         balance_decay: 'gaussian',
@@ -62,11 +65,30 @@ function dualSliderInput(label: string): HTMLInputElement | undefined {
     return (row?.querySelector('input[type="range"]') as HTMLInputElement | undefined) ?? undefined;
 }
 
+// ToggleSwitch's clickable <button> ('w-10 h-5') contains only the knob span —
+// the 'Auto'/'Set' labels are OUTSIDE the button, so text queries can't reach it.
+function toggleButtons(): HTMLElement[] {
+    return Array.from(document.querySelectorAll('button')).filter(
+        (b) => b.className.includes('w-10 h-5'),
+    ) as HTMLElement[];
+}
+
+// Sections render collapsed children with opacity 0 + pointerEvents none, but
+// they stay in the DOM — open the section by clicking its header button first.
+async function openSection(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
+    await user.click(screen.getByRole('button', { name }));
+}
+
+
 describe('BuilderPanel', () => {
     it('renders all accordion section titles', () => {
         renderPanel();
-        for (const title of ['Bet Shape', 'Odds & Limits', 'Quality & Consensus', 'Markets', 'Build Stop Rules', 'Selection Trade-offs', 'Odds Movement', 'Advanced']) {
-            expect(screen.getByText(title)).toBeInTheDocument();
+        // section headers are the only BUTTONS with these names (Strategy's
+        // 'Agreement Logic' caption span also says 'Quality' — role query
+        // disambiguates headers from caption text). Header buttons prefix an
+        // emoji icon, so match the title as a substring.
+        for (const title of ['Bet Shape', 'Filters', 'Quality', 'Strategy', 'Advanced']) {
+            expect(screen.getByRole('button', { name: new RegExp(title) })).toBeInTheDocument();
         }
     });
 
@@ -95,75 +117,70 @@ describe('BuilderPanel', () => {
         expect(screen.getByText(/Leagues/)).toBeInTheDocument();
     });
 
-    it('league toggle: single add from null cfg, add to populated, remove, remove-to-null', async () => {
+    it('league toggle: single add from null cfg, add to populated, remove', async () => {
         // Controlled component: each click computes next state from the CURRENT
-        // cfg prop. Multi-click sequences in one render drift (the parent
-        // applies onChange → re-renders; a test that doesn't rerender keeps
-        // stale cfg). Fresh render per toggle keeps assertions deterministic.
+        // cfg prop. A test that doesn't rerender keeps a stale cfg, so fresh
+        // render per toggle keeps assertions deterministic.
         const user = userEvent.setup();
 
-        // 1. add England from null cfg → ['England']
+        // 1. null cfg selects ALL leagues — chip is active; removing England
+        //    leaves ['Spain'] (null → array transition).
         const t1 = renderPanel({}, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
+        // Filters is defaultOpen — do NOT click its header (it would close it).
+        await openSection(user, /Leagues/);
         await user.click(screen.getByTitle('England'));
         let last = t1.onChange.mock.calls[t1.onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.included_leagues).toEqual(['England']);
-
+        expect(last.included_leagues).toEqual(['Spain']);
         t1.unmount();
 
-        // 2. add Spain to cfg already containing England → ['England', 'Spain']
-        const t2 = renderPanel({ included_leagues: ['England'] }, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
-        await user.click(screen.getByTitle('Spain'));
+        // 2. remove England from a FULL explicit set → ['Spain'].
+        const t2 = renderPanel({ included_leagues: ['England', 'Spain'] }, ['England', 'Spain']);
+        await openSection(user, /Leagues/);
+        await user.click(screen.getByTitle('England'));
         last = t2.onChange.mock.calls[t2.onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.included_leagues).toEqual(['England', 'Spain']);
-
+        expect(last.included_leagues).toEqual(['Spain']);
         t2.unmount();
 
-        // 3. remove England from populated cfg → ['Spain']
-        const t3 = renderPanel({ included_leagues: ['England', 'Spain'] }, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
+        // 3. re-adding the removed league completes the set → null (all).
+        const t3 = renderPanel({ included_leagues: ['Spain'] }, ['England', 'Spain']);
+        await openSection(user, /Leagues/);
         await user.click(screen.getByTitle('England'));
         last = t3.onChange.mock.calls[t3.onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.included_leagues).toEqual(['Spain']);
-
-        t3.unmount();
-
-        // 4. remove last remaining → null (all)
-        const t4 = renderPanel({ included_leagues: ['Spain'] }, ['England', 'Spain']);
-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
-        await user.click(screen.getByTitle('Spain'));
-        last = t4.onChange.mock.calls[t4.onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.included_leagues).toBeNull();
+        t3.unmount();
     });
 
     it('source toggle adds to excluded_sources', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({}, [], ['forebet', 'predictz']);
-        await user.click(screen.getByRole('button', { name: /Sources/ }));
+        await openSection(user, /Sources/);
+        // all sources selected (excluded_sources null) → clicking excludes it.
         await user.click(screen.getByTitle('forebet'));
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.excluded_sources).toEqual(['forebet']);
     });
 
-    it('Clear All leagues resets to null', async () => {
+    it('market toggle: complete-set chip click → null; partial set stays array', async () => {
         const user = userEvent.setup();
-        const { onChange } = renderPanel({ included_leagues: ['England'] }, ['England']);
-        await user.click(screen.getByText(/Leagues/));
-        await user.click(screen.getByText('Clear All'));
-        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.included_leagues).toBeNull();
-    });
+        // null cfg = ALL markets selected. Clicking one chip excludes it →
+        // an all-but-one array (first click never jumps straight to null;
+        // only completing the set again does).
+        const t1 = renderPanel({ included_markets: null });
+        await openSection(user, /Markets/);
+        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
+        let last = t1.onChange.mock.calls[t1.onChange.mock.calls.length - 1][0] as BuilderConfig;
+        expect(last.included_markets).toHaveLength(ALL_MARKETS.length - 1);
+        expect(last.included_markets).not.toContain(ALL_MARKETS[0]);
+        t1.unmount();
 
-    it('market toggle: removing last-but-one market keeps array; removing to all → null', async () => {
-        const user = userEvent.setup();
-        // cfg has ONE market excluded → included_markets is array of all-but-one
-        const allButOne = ALL_MARKETS.slice(1);
-        const { onChange } = renderPanel({ included_markets: allButOne });
-        // toggle the one market NOT in the list (ALL_MARKETS[0]) → adds it back → all → null
-        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) })); // chip renders the presentation label
-        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.included_markets).toBeNull(); // complete set → null (all)
+        // cfg already EXCLUDES one market — clicking that same market chip
+        // re-completes the set → null (means all).
+        const t2 = renderPanel({ included_markets: ALL_MARKETS.slice(1) });
+        await openSection(user, /Markets/);
+        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
+        last = t2.onChange.mock.calls[t2.onChange.mock.calls.length - 1][0] as BuilderConfig;
+        expect(last.included_markets).toBeNull();
+        t2.unmount();
     });
 
     it('Markets filter chips render presentation labels, NOT raw canonical keys (AC-1 regression)', () => {
@@ -174,8 +191,10 @@ describe('BuilderPanel', () => {
             const label = marketLabel(m);
             expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
             if (label !== m) {
-                // the raw key text must NOT be rendered anywhere
-                expect(screen.queryByText(m)).not.toBeInTheDocument();
+                // the raw key text must NOT be rendered as a chip button name
+                // (title attribute keeps the canonical key for identity — see
+                // the getByTitle locators above — which is intentional).
+                expect(screen.queryByRole('button', { name: m })).not.toBeInTheDocument();
             }
         }
         // pin a known key/label pair so a catalog rename cannot silently pass
@@ -183,19 +202,18 @@ describe('BuilderPanel', () => {
         expect(marketLabel(ALL_MARKETS[0])).not.toBe(ALL_MARKETS[0]);
     });
 
-    it('market toggle still identifies markets by canonical key in included_markets (identity unchanged)', async () => {
-        const user = userEvent.setup();
-        const { onChange } = renderPanel();
-        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
-        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
-        // first click on an all-selected board excludes that one market (all-but-one array)
-        expect(last.included_markets).toHaveLength(ALL_MARKETS.length - 1);
-        expect(last.included_markets).not.toContain(ALL_MARKETS[0]);
+    it('market identity stays canonical in included_markets (chip title = key)', () => {
+        renderPanel();
+        // ChipGrid sets title={item} (canonical key) for every market chip.
+        for (const m of ALL_MARKETS) {
+            expect(screen.getByTitle(m)).toBeInTheDocument();
+        }
     });
 
     it('balance_decay select switches linear/gaussian', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({ balance_decay: 'gaussian' });
+        await openSection(user, /Advanced/);
         const select = screen.getByDisplayValue('Gaussian');
         await user.selectOptions(select, 'linear');
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
@@ -204,47 +222,38 @@ describe('BuilderPanel', () => {
 });
 
 // ── Gap-closing: NullableRow toggles + slider helpers (coverage cycle) ──
-// NOTE: ToggleSwitch's clickable <button> contains only the knob span — the
-// 'Auto'/'Set' labels are OUTSIDE the button, so text queries can't reach it.
-// Select toggle buttons structurally (className 'w-10 h-5').
 
-function toggleButtons(): HTMLElement[] {
-    return Array.from(document.querySelectorAll('button')).filter(
-        (b) => b.className.includes('w-10 h-5'),
-    ) as HTMLElement[];
-}
-
-describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () => {
-    it('NullableRow toggle (Max Overflow) fires onChange with the enabled default', async () => {
+describe('BuilderPanel — Quality / Strategy / Advanced sections', () => {
+    it('NullableRow toggle (Min Quality) fires onChange with the enabled default', async () => {
         const user = userEvent.setup();
-        const { onChange } = renderPanel({ max_legs_overflow: null });
-        // Bet Shape is defaultOpen; Max Overflow is its only toggle (toggles[0])
+        const { onChange } = renderPanel({ min_pick_quality: null });
+        // Quality is defaultOpen; Min Quality is its only toggle (toggles[0]).
         const toggles = toggleButtons();
         expect(toggles.length).toBeGreaterThan(0);
         await user.click(toggles[0]);
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.max_legs_overflow).toBe(1);
+        expect(last.min_pick_quality).toBe(0.2);
     });
 
-    it('InlineSlider onChange fires via range input (Tolerance Factor)', () => {
-        // Controlled panel: the test cfg is what renders — pass tolerance_factor
+    it('Min Quality InlineSlider onChange fires via range input', () => {
+        // Controlled panel: the test cfg is what renders — pass min_pick_quality
         // ENABLED from the start so the InlineSlider mounts (the toggle-onclick
-        // path is covered by the Max Overflow test; the parent applying onChange
-        // and re-rendering is the app's job, not the test's).
-        const { onChange } = renderPanel({ tolerance_factor: 0.25 });
-        // find the TolFactor slider by its rendered value (0.25 * 100 = 25)
+        // path is covered by the test above; the parent applying onChange and
+        // re-rendering is the app's job, not the test's).
+        const { onChange } = renderPanel({ min_pick_quality: 0.2 });
+        // find the slider by its rendered value (0.2 * 100 = 20)
         const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
-        const tolSlider = sliders.find((s) => s.value === '25');
-        expect(tolSlider).toBeDefined();
-        fireEvent.change(tolSlider as HTMLInputElement, { target: { value: '50' } });
+        const qSlider = sliders.find((s) => s.value === '20');
+        expect(qSlider).toBeDefined();
+        fireEvent.change(qSlider as HTMLInputElement, { target: { value: '45' } });
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.tolerance_factor).toBe(0.5);
+        expect(last.min_pick_quality).toBe(0.45);
     });
 
-    it('Selection Trade-offs fire quality_vs_balance and consensus_vs_sources', async () => {
+    it('Strategy DualSliders fire quality_vs_balance and consensus_vs_sources', async () => {
         const user = userEvent.setup();
         const { onChange } = renderPanel({ consensus_floor: 80 });
-        await user.click(screen.getByRole('button', { name: /Selection Trade-offs/ }));
+        await openSection(user, /Strategy/);
         // DualSlider renders SliderWithTicks (range input, no aria-label) between
         // its left/right caption spans — locate each row by its label text.
         const quality = dualSliderInput('Distribution Logic');
@@ -260,8 +269,8 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
     });
 
     it('Advanced NullableRow slider (Shrinkage k) change', () => {
-        // Same controlled-panel pattern as TolFactor: pass enabled cfg so the
-        // InlineSlider mounts. Find by rendered value (cfg 3 → '3').
+        // Same controlled-panel pattern: pass enabled cfg so the InlineSlider
+        // mounts. Find by rendered value (cfg 3 → '3').
         const { onChange } = renderPanel({ consensus_shrinkage_k: 3 });
         const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
         const shrinkSlider = sliders.find((s) => s.value === '3');
@@ -271,10 +280,10 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
         expect(last.consensus_shrinkage_k).toBe(6);
     });
 
-    it('Quality & Consensus SliderRow (Consensus Floor) fires onChange', () => {
+    it('Quality SliderRow (Consensus Floor) fires onChange', () => {
         const { onChange } = renderPanel({ consensus_floor: 70 });
         const sliders = document.querySelectorAll('input[type="range"]');
-        // Quality & Consensus is defaultOpen — its slider is the first in the DOM
+        // Quality is defaultOpen — its slider is the first in the DOM
         fireEvent.change(sliders[0], { target: { value: '85' } });
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
         expect(last.consensus_floor).toBe(85);
@@ -283,22 +292,23 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
     it('Agreement Logic disabled at consensus_floor 100 (DualSlider disabled)', async () => {
         const user = userEvent.setup();
         renderPanel({ consensus_floor: 100 });
-        await user.click(screen.getByRole('button', { name: /Selection Trade-offs/ }));
+        await openSection(user, /Strategy/);
         const agreement = dualSliderInput('Agreement Logic');
         expect(agreement, 'Agreement Logic DualSlider not found').toBeDefined();
         expect((agreement as HTMLInputElement).disabled).toBe(true);
     });
 });
 
-describe('BuilderPanel — parametrized slider onChange paths', () => {
+describe('BuilderPanel — Advanced slider onChange paths', () => {
     // Each field: [cfgValue, renderedSliderValue, fireValue, expected]
     // Unique slider values per render (others null) disambiguate the by-value find.
+    // All these sliders live in the (closed-by-default) Advanced section — its
+    // children stay in the DOM, so the by-value query reaches them directly.
     const cases: Array<[keyof BuilderConfig, number, string, string, number]> = [
         ['stop_threshold', 0.92, '92', '95', 0.95],
         ['odds_movement_weight', 0.06, '6', '10', 0.1],
         ['odds_movement_strength_min', 0.07, '7', '12', 0.12],
         ['min_source_edge', 0.04, '4', '10', 0.1],
-        ['max_single_leg_odds', 3.7, '37', '40', 4.0],
         ['min_pick_quality', 0.23, '23', '30', 0.3],
         ['tol_lower', 0.21, '21', '30', 0.3],
         ['tol_upper', 0.16, '16', '25', 0.25],
@@ -316,11 +326,22 @@ describe('BuilderPanel — parametrized slider onChange paths', () => {
         unmount();
     });
 
-    it('NullableRow toggle-off fires onChange with null (Max Overflow enabled → off)', async () => {
+    it('Max Leg Odds number input fires onChange with updated cfg', () => {
+        // WS-D rename pin: max_single_leg_odds → max_leg_odds. Bet Shape renders
+        // Max Leg Odds as a number input (min 1.01, step 0.01), not a slider.
+        const { onChange } = renderPanel({ max_leg_odds: 3.7 });
+        const input = screen.getByDisplayValue('3.7') as HTMLInputElement;
+        expect(input.type).toBe('number');
+        fireEvent.change(input, { target: { value: '4.5' } });
+        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+        expect(last.max_leg_odds).toBe(4.5);
+    });
+
+    it('NullableRow toggle-off fires onChange with null (Min Quality enabled → off)', async () => {
         const user = userEvent.setup();
-        const { onChange } = renderPanel({ max_legs_overflow: 1 });
+        const { onChange } = renderPanel({ min_pick_quality: 0.2 });
         await user.click(toggleButtons()[0]);
         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
-        expect(last.max_legs_overflow).toBeNull();
+        expect(last.min_pick_quality).toBeNull();
     });
 });

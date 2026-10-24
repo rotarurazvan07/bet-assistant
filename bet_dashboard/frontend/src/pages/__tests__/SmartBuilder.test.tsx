@@ -207,6 +207,50 @@ describe('SmartBuilder page', () => {
         expect(savedPosts.length).toBe(before);
     });
 
+    // ── Desync C: stake fields are Services-owned ──────────────────────────
+
+    it('config auto-save payload omits units/target_payout (Services-owned)', async () => {
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        const before = savedPosts.length;
+        const oddsInput = screen.getAllByDisplayValue('4')[0];
+        await user.clear(oddsInput);
+        await user.type(oddsInput, '6');
+        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
+        const body = savedPosts[savedPosts.length - 1];
+        expect(body.name).toBe('cautious');
+        expect(body).not.toHaveProperty('units');
+        expect(body).not.toHaveProperty('target_payout');
+    });
+
+    it('Add-to-Slips modal stake entry never persists to the profile', async () => {
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
+        const unitsInput = await screen.findByLabelText('Units');
+        await user.clear(unitsInput);
+        await user.type(unitsInput, '5');
+        await user.click(screen.getByRole('button', { name: 'Add to Slips' }));
+        await waitFor(() => expect(slipPosts).toBe(1), { timeout: 3000 });
+        await new Promise(r => setTimeout(r, 900));
+        expect(savedPosts.length).toBe(0);
+    });
+
+    it('mount hydrates cfg/units from disk when the persisted selection still exists', async () => {
+        localStorage.setItem('smart_builder_state', JSON.stringify({
+            cfg: { target_odds: 99 },
+            activeName: 'bold',
+            units: 9.9,
+            targetPayout: 9.9,
+        }));
+        await renderAndHydrate();
+        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
+        const saved = JSON.parse(localStorage.getItem('smart_builder_state')!);
+        expect(saved.units).toBe(3);
+        expect(saved.targetPayout).toBe(0);
+        expect(saved.cfg.target_odds).toBe(8);
+    });
+
     // ── '+' creates new{N} from the current config ──────────────────────────
 
     it('+ saves the current cfg as new1 and selects it', async () => {

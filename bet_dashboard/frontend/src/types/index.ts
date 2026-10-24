@@ -126,7 +126,8 @@ export interface Profile {
     excluded_sources: string[] | null;
     tolerance_factor: number | null; stop_threshold: number | null;
     min_legs_fill_ratio: number | null; quality_vs_balance: number; consensus_vs_sources: number;
-    units: number;
+    // Stake defaults live on disk (Services-owned); a builder save never sends them.
+    units?: number;
     target_payout?: number | null;
     // Scheduling moved to the Services page (issue #41 note 6 / #95); the Smart
     // Builder no longer writes it, so profiles read from disk may omit it.

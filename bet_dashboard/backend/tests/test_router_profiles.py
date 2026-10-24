@@ -131,3 +131,61 @@ class TestDeleteProfile:
         assert r.status_code == 200
         assert r.json() == {"deleted": "gone"}
         fake_app.settings.delete.assert_called_once_with("gone", subpath="profiles")
+
+
+class TestSaveProfileMergeOnWrite:
+    """[P0] Desync C: a Builder save must not clobber Services-owned units/target_payout."""
+
+    def test_omitted_units_target_payout_keep_persisted(self, client, fake_app) -> None:
+        """[P0] Omitted units/target_payload preserve the persisted profile values."""
+        fake_app.settings.get.return_value = {"safebet": {"units": 2.5, "target_payout": 42.0}}
+        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["units"] == 2.5
+        assert written["target_payout"] == 42.0
+
+    def test_explicit_units_target_payout_persist(self, client, fake_app) -> None:
+        """[P0] Explicitly sent units/target_payout are written through."""
+        fake_app.settings.get.return_value = {"safebet": {"units": 2.5, "target_payout": 42.0}}
+        r = client.post(
+            BASE,
+            json={"name": "Safe Bet", "target_odds": 4.0, "units": 7.0, "target_payout": 100.0},
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["units"] == 7.0
+        assert written["target_payout"] == 100.0
+
+    def test_new_profile_omitted_gets_defaults(self, client, fake_app) -> None:
+        """[P0] A brand-new profile with omitted stake fields gets defaults."""
+        fake_app.settings.get.return_value = None
+        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["units"] == 1.0
+        assert written["target_payout"] is None
+
+
+class TestSaveProfileFillRatioAutoRoundTrip:
+    """[P0] AUTO B: min_legs_fill_ratio=null must persist as null (Auto), not 0.90."""
+
+    def test_null_fill_ratio_persists_as_null(self, client, fake_app) -> None:
+        """[P0] Explicit null survives the save verbatim -- no 0.90 coercion."""
+        r = client.post(
+            BASE,
+            json={"name": "Safe Bet", "target_odds": 4.0, "units": 1.0, "min_legs_fill_ratio": None},
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["min_legs_fill_ratio"] is None
+
+    def test_explicit_fill_ratio_persists(self, client, fake_app) -> None:
+        """[P0] An explicit fill ratio is written through unchanged."""
+        r = client.post(
+            BASE,
+            json={"name": "Safe Bet", "target_odds": 4.0, "units": 1.0, "min_legs_fill_ratio": 0.62},
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["min_legs_fill_ratio"] == 0.62

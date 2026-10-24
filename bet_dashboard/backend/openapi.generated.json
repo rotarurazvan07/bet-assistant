@@ -1870,9 +1870,15 @@
             "title": "Excluded Sources"
           },
           "units": {
-            "type": "number",
-            "title": "Units",
-            "default": 1.0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units"
           },
           "target_payout": {
             "anyOf": [
