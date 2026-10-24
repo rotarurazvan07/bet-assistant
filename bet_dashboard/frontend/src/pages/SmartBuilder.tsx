@@ -240,11 +240,19 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         fetchSourcesConfig().then(c => setAvailableSources(c.sources)).catch(() => setAvailableSources([]));
     }, []);
 
-    // Once profiles arrive: default-select the first profile when nothing is
-    // selected (or the persisted selection no longer exists).
+    // Once profiles arrive: disk is the single source of truth. A persisted
+    // selection that still exists is re-hydrated from disk (stale localStorage
+    // cfg/units never win); nothing persisted selects the first profile. A
+    // user edit in flight is never clobbered and any pending debounced save
+    // is cancelled.
     useEffect(() => {
         if (Object.keys(profiles).length === 0) return;
-        if (activeName && activeName in profiles) return;
+        if (dirtyRef.current) return;
+        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        if (activeName && activeName in profiles) {
+            loadProfile(activeName, profiles[activeName]);
+            return;
+        }
         const first = orderedProfileNames(profiles)[0];
         setActiveName(first);
         const data = profiles[first];
@@ -273,11 +281,11 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }, 350);
     }, []);
 
-    // units/target_payout are always sent: the backend treats them as
-    // authoritative for profile YAML, and the Build tab is their only writer
-    // outside the Services page's own scheduler keys.
+    // Stake fields are deliberately NOT sent: units/target_payout are owned by
+    // the Services page (desync C). Omitting them keeps the backend's
+    // merge-on-write behaviour — persisted values survive a builder save.
     function profileFromConfig(name: string) {
-        return { name, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout };
+        return { name, ...cfg, date_from: null, date_to: null };
     }
 
     function handleCfgChange(next: BuilderConfig) {
@@ -304,7 +312,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     // gone — every config change lands on the selected profile on disk.
     // Session-only stake/payout entry (Add-to-Slips modal, auto-calc from target
     // payout) never sets dirtyRef, so it cannot reach disk; units/targetPayout
-    // are deps only because the payload carries them.
+    // are no longer deps because the payload no longer carries them.
     useEffect(() => {
         if (!activeName || !dirtyRef.current) return;
         if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
@@ -323,7 +331,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         return () => {
             if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         };
-    }, [cfg, activeName, units, targetPayout]); // eslint-disable-line react-hooks/exhaustive-deps -- profileFromConfig/filters read at call time; deps cover every input to the payload
+    }, [cfg, activeName]); // eslint-disable-line react-hooks/exhaustive-deps -- profileFromConfig/filters read at call time; deps cover every payload input (stake fields excluded)
 
     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
     useEffect(() => {

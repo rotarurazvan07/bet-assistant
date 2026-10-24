@@ -92,7 +92,9 @@ class ProfileIn(BaseModel):
     included_markets: list[str] | None = None
     included_leagues: list[str] | None = None
     excluded_sources: list[str] | None = None
-    units: float = 1.0
+    # None = "not provided" → keep whatever is already persisted (desync C:
+    # the Build tab no longer owns stake values; only the Services page does).
+    units: float | None = None
     target_payout: float | None = None
     # None = "not provided" → keep whatever is already persisted (legacy
     # run_daily_count / per-profile schedule set on the Services page survive

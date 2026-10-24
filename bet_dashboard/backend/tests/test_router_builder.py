@@ -73,7 +73,7 @@ class TestPreview:
         cfg = fake_app.build_preview.call_args[0][0]
         assert cfg.target_odds == 3.0
         assert cfg.target_legs == 3
-        assert cfg.min_odds == 1.05
+        assert cfg.min_leg_odds == 1.05
         assert cfg.balance_decay == "linear"
 
     def test_preview_enum_market_serialized_to_value(self, client, fake_app) -> None:
@@ -223,7 +223,7 @@ class TestToConfigUnit:
             target_legs=5,
             max_legs_overflow=2,
             consensus_floor=60.0,
-            min_odds=1.2,
+            min_leg_odds=1.2,
             tolerance_factor=0.3,
             stop_threshold=0.9,
             min_legs_fill_ratio=0.8,
@@ -236,7 +236,7 @@ class TestToConfigUnit:
             excluded_sources=["forebet"],
             consensus_shrinkage_k=2.0,
             min_source_edge=0.1,
-            max_single_leg_odds=3.0,
+            max_leg_odds=3.0,
             tol_lower=0.2,
             tol_upper=0.15,
             balance_decay="gaussian",
@@ -249,7 +249,7 @@ class TestToConfigUnit:
         assert cfg.target_legs == 5
         assert cfg.max_legs_overflow == 2
         assert cfg.consensus_floor == 60.0
-        assert cfg.min_odds == 1.2
+        assert cfg.min_leg_odds == 1.2
         assert cfg.tolerance_factor == 0.3
         assert cfg.stop_threshold == 0.9
         assert cfg.min_legs_fill_ratio == 0.8
@@ -262,7 +262,7 @@ class TestToConfigUnit:
         assert cfg.excluded_sources == ["forebet"]
         assert cfg.consensus_shrinkage_k == 2.0
         assert cfg.min_source_edge == 0.1
-        assert cfg.max_single_leg_odds == 3.0
+        assert cfg.max_leg_odds == 3.0
         assert cfg.tol_lower == 0.2
         assert cfg.tol_upper == 0.15
         assert cfg.balance_decay == "gaussian"

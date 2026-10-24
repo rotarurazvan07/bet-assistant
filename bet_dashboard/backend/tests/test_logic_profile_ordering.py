@@ -14,7 +14,7 @@ PROFILE = {
     "target_odds": 2.0,
     "target_legs": 1,
     "consensus_floor": 50.0,
-    "min_odds": 1.05,
+    "min_leg_odds": 1.05,
     "tolerance_factor": 0.30,
     "stop_threshold": 0.50,
     "odds_movement_weight": 0.0,

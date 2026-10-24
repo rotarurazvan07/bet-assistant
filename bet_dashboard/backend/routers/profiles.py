@@ -38,6 +38,15 @@ def save_profile(request: Request, body: ProfileIn):
         raise HTTPException(400, "Invalid profile name")
 
     existing = (app.settings.get("profiles") or {}).get(name, {})
+    if not isinstance(existing, dict):
+        existing = {}
+
+    # Desync C: units/target_payout are owned by the Services page. A
+    # Smart Builder save omits them (they are session-only in the Build tab),
+    # so an omitted value keeps whatever is already persisted; only an
+    # explicit body value writes through.
+    units = body.units if body.units is not None else existing.get("units", 1.0)
+    target_payout = body.target_payout if body.target_payout is not None else existing.get("target_payout")
 
     # Use shared helper to convert ProfileIn to YAML dict
     data = _config_to_yaml_dict(
@@ -66,8 +75,8 @@ def save_profile(request: Request, body: ProfileIn):
             odds_movement_weight=body.odds_movement_weight,
             odds_movement_strength_min=body.odds_movement_strength_min,
         ),
-        units=body.units,
-        target_payout=body.target_payout,
+        units=units,
+        target_payout=target_payout,
         run_daily_count=body.run_daily_count,
         order=body.order,
         auto_generate=body.auto_generate,
@@ -85,6 +94,10 @@ def save_profile(request: Request, body: ProfileIn):
     ):
         if key not in data and key in existing:
             data[key] = existing[key]
+    # AUTO B: min_legs_fill_ratio=None means Auto. BetSlipConfig.__post_init__
+    # resolves None to 0.90 and asdict would persist that explicit number, so
+    # the request value is restored verbatim — null stays null (Auto).
+    data["min_legs_fill_ratio"] = body.min_legs_fill_ratio
     for key, value in existing.items():
         data.setdefault(key, value)
     app.settings.write(name, data, subpath="profiles")

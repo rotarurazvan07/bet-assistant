@@ -4,7 +4,7 @@ Scope (per issue #62 spec, testing-subissues-58-71.md):
 - _yaml_to_config() parses ALL BetSlipConfig fields
 - ensure_default_profiles() seeds built-in profiles into a fresh config dir
 - Clamping boundaries for every clamped field (target_odds [1.10, 1000],
-  target_legs [1, 100], consensus_floor, min_odds, tolerances, advanced ...)
+  target_legs [1, 100], consensus_floor, min_leg_odds, tolerances, advanced ...)
 - excluded_sources list preserved through the YAML -> config path
 - Advanced fields parsed and preserved
 - Profile YAML round-trip (save -> load -> verify) via SettingsManager
@@ -47,7 +47,7 @@ CLAMP_BOUNDS = [
     ("target_odds", 1.10, 1000.0),
     ("target_legs", 1, 100),
     ("consensus_floor", 0.0, 100.0),
-    ("min_odds", 1.01, 10.0),
+    ("min_leg_odds", 1.01, 10.0),
     ("min_legs_fill_ratio", 0.50, 1.00),
     ("quality_vs_balance", 0.0, 1.0),
     ("consensus_vs_sources", 0.0, 1.0),
@@ -56,7 +56,7 @@ CLAMP_BOUNDS = [
     ("max_legs_overflow", 0, 5),
     ("consensus_shrinkage_k", 1.0, 10.0),
     ("min_source_edge", 0.0, 0.50),
-    ("max_single_leg_odds", 1.0, 10.0),
+    ("max_leg_odds", 1.01, 10.0),
     ("tol_lower", 0.01, 1.00),
     ("tol_upper", 0.01, 1.00),
     ("min_pick_quality", 0.0, 1.00),
@@ -81,7 +81,6 @@ OPTIONAL_CLAMP_FIELDS = [
     "max_legs_overflow",
     "consensus_shrinkage_k",
     "min_source_edge",
-    "max_single_leg_odds",
     "tol_lower",
     "tol_upper",
     "min_pick_quality",
@@ -108,7 +107,7 @@ def make_full_profile_dict(**overrides) -> dict:
         "target_legs": 4,
         "max_legs_overflow": 2,
         "consensus_floor": 60.0,
-        "min_odds": 1.20,
+        "min_leg_odds": 1.20,
         "tolerance_factor": 0.30,
         "stop_threshold": 0.85,
         "min_legs_fill_ratio": 0.75,
@@ -116,7 +115,7 @@ def make_full_profile_dict(**overrides) -> dict:
         "consensus_vs_sources": 0.55,
         "consensus_shrinkage_k": 4.0,
         "min_source_edge": 0.06,
-        "max_single_leg_odds": 3.50,
+        "max_leg_odds": 3.50,
         "tol_lower": 0.35,
         "tol_upper": 0.20,
         "balance_decay": "linear",
@@ -149,7 +148,7 @@ class TestYamlToConfig:
         assert cfg.target_legs == 4
         assert cfg.max_legs_overflow == 2
         assert cfg.consensus_floor == 60.0
-        assert cfg.min_odds == 1.20
+        assert cfg.min_leg_odds == 1.20
         assert cfg.tolerance_factor == 0.30
         assert cfg.stop_threshold == 0.85
         assert cfg.min_legs_fill_ratio == 0.75
@@ -157,7 +156,7 @@ class TestYamlToConfig:
         assert cfg.consensus_vs_sources == 0.55
         assert cfg.consensus_shrinkage_k == 4.0
         assert cfg.min_source_edge == 0.06
-        assert cfg.max_single_leg_odds == 3.50
+        assert cfg.max_leg_odds == 3.50
         assert cfg.tol_lower == 0.35
         assert cfg.tol_upper == 0.20
         assert cfg.balance_decay == "linear"
@@ -196,7 +195,7 @@ class TestYamlToConfig:
         assert cfg.target_odds == 4.5
         assert cfg.target_legs == 5
         assert cfg.consensus_floor == defaults.consensus_floor
-        assert cfg.min_odds == defaults.min_odds
+        assert cfg.min_leg_odds == defaults.min_leg_odds
         assert cfg.balance_decay == defaults.balance_decay
 
     def test_excluded_sources_list_preserved(self) -> None:
@@ -231,10 +230,10 @@ class TestYamlToConfig:
     def test_clamping_applied_through_yaml_path(self) -> None:
         """[P0] Values outside bounds are clamped by BetSlipConfig.__post_init__
         when constructed through _yaml_to_config (end-to-end YAML -> clamp)."""
-        cfg = _yaml_to_config({"target_odds": 5000.0, "target_legs": 999, "min_odds": 0.2})
+        cfg = _yaml_to_config({"target_odds": 5000.0, "target_legs": 999, "min_leg_odds": 0.2})
         assert cfg.target_odds == 1000.0
         assert cfg.target_legs == 100
-        assert cfg.min_odds == 1.01
+        assert cfg.min_leg_odds == 1.01
 
 
 class TestConfigClamping:
@@ -271,11 +270,11 @@ class TestConfigClamping:
                 "target_odds": 99.0,
                 "target_legs": 0,
                 "consensus_floor": 250.0,
-                "min_odds": 42.0,
+                "min_leg_odds": 42.0,
                 "tolerance_factor": 5.0,
                 "consensus_shrinkage_k": -1.0,
                 "min_source_edge": 9.0,
-                "max_single_leg_odds": 50.0,
+                "max_leg_odds": 50.0,
                 "tol_lower": 7.0,
                 "tol_upper": 0.0,
                 "min_pick_quality": 4.0,
@@ -286,11 +285,11 @@ class TestConfigClamping:
         assert cfg.target_odds == 99.0
         assert cfg.target_legs == 1
         assert cfg.consensus_floor == 100.0
-        assert cfg.min_odds == 10.0
+        assert cfg.min_leg_odds == 10.0
         assert cfg.tolerance_factor == 0.80
         assert cfg.consensus_shrinkage_k == 1.0
         assert cfg.min_source_edge == 0.50
-        assert cfg.max_single_leg_odds == 10.0
+        assert cfg.max_leg_odds == 10.0
         assert cfg.tol_lower == 1.00
         assert cfg.tol_upper == 0.01
         assert cfg.min_pick_quality == 1.00
@@ -413,7 +412,7 @@ class TestProfileRoundTrip:
             target_legs=4,
             max_legs_overflow=1,
             consensus_floor=65.0,
-            min_odds=1.25,
+            min_leg_odds=1.25,
             tolerance_factor=0.28,
             stop_threshold=0.90,
             min_legs_fill_ratio=0.80,
@@ -421,7 +420,7 @@ class TestProfileRoundTrip:
             consensus_vs_sources=0.40,
             consensus_shrinkage_k=2.5,
             min_source_edge=0.04,
-            max_single_leg_odds=3.80,
+            max_leg_odds=3.80,
             tol_lower=0.30,
             tol_upper=0.15,
             balance_decay="linear",

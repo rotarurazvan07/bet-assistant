@@ -46,13 +46,13 @@ describe('builder endpoints', () => {
         }));
         const cfg = {
             target_odds: 6.0, target_legs: 3, max_legs_overflow: null,
-            consensus_floor: 50.0, min_odds: 1.05,
+            consensus_floor: 50.0, min_leg_odds: 1.05,
             included_markets: null, included_leagues: null,
             tolerance_factor: null, stop_threshold: null,
             min_legs_fill_ratio: 0.7, quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
             date_from: null, date_to: null, excluded_sources: null,
             consensus_shrinkage_k: null, min_source_edge: null,
-            max_single_leg_odds: null, tol_lower: null, tol_upper: null,
+            max_leg_odds: 10.0, tol_lower: null, tol_upper: null,
             balance_decay: 'gaussian', min_pick_quality: null,
             odds_movement_weight: null, odds_movement_strength_min: null,
         } as Parameters<typeof fetchPreview>[0];
