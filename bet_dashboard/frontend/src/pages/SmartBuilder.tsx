@@ -164,31 +164,30 @@ function AddToSlipsModal({
 
 const STORAGE_KEY = 'smart_builder_state';
 
+// Corrupt or partial payloads must never crash the page: a failed parse
+// yields an empty object and the writer effect overwrites storage on first
+// state change.
+function readStoredState(): Record<string, unknown> {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? (JSON.parse(saved) as Record<string, unknown>) : {};
+    } catch {
+        return {};
+    }
+}
+
 export default function SmartBuilder({ filters, refreshKey }: Props) {
     // Load persisted state from localStorage
-    const [cfg, setCfg] = useState<BuilderConfig>(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            return { ...DEFAULT_CFG, ...parsed.cfg };
-        }
-        return DEFAULT_CFG;
-    });
+    const [cfg, setCfg] = useState<BuilderConfig>(() => ({
+        ...DEFAULT_CFG,
+        ...(readStoredState().cfg as BuilderConfig | undefined),
+    }));
     // The 'manual' profile is gone: the active selection is always a saved
     // profile and defaults to the first one served by the backend.
-    const [activeName, setActiveName] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? (JSON.parse(saved).activeName || '') : '';
-    });
-    const [units, setUnits] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? (JSON.parse(saved).units ?? 1.0) : 1.0;
-    });
+    const [activeName, setActiveName] = useState(() => (readStoredState().activeName as string) || '');
+    const [units, setUnits] = useState(() => (readStoredState().units as number) ?? 1.0);
 
-    const [targetPayout, setTargetPayout] = useState(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? (JSON.parse(saved).targetPayout ?? 0) : 0;
-    });
+    const [targetPayout, setTargetPayout] = useState(() => (readStoredState().targetPayout as number) ?? 0);
 
     const [preview, setPreview] = useState<PreviewResult | null>(null);
     const [loading, setLoading] = useState(false);

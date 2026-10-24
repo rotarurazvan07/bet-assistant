@@ -251,6 +251,18 @@ describe('SmartBuilder page', () => {
         expect(saved.cfg.target_odds).toBe(8);
     });
 
+    it('mount survives a corrupt localStorage payload (defaults, no crash)', async () => {
+        localStorage.setItem('smart_builder_state', '{not valid json');
+        await renderAndHydrate();
+        // No crash: the page renders profile cards and the writer effect
+        // repairs storage into a valid payload with a selected profile.
+        expect(screen.getByTestId('profile-cards')).toBeInTheDocument();
+        const saved = JSON.parse(localStorage.getItem('smart_builder_state')!);
+        expect(saved.cfg).toBeTruthy();
+        expect(typeof saved.activeName).toBe('string');
+        expect(saved.activeName.length).toBeGreaterThan(0);
+    });
+
     // ── '+' creates new{N} from the current config ──────────────────────────
 
     it('+ saves the current cfg as new1 and selects it', async () => {
