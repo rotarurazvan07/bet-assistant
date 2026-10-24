@@ -434,3 +434,61 @@ class TestDetermineOutcomePending:
         for market_type, label in known:
             result = determine_outcome(home, away, label, market_type)
             assert result in (Outcome.WON, Outcome.LOST)
+
+
+# ── U1 all-markets proof matrix (story 115-2, AC-4) ──────────────────────────
+# Every canonical market key x representative scores, pinning that the BACKEND
+# outcome dispatch under U1 is correct per key. The user-reported live RED
+# ('U2.5' at 1-0) was a FRONTEND badge defect; this matrix proves the backend
+# math was already right, and guards it against future key changes.
+MATRIX_CASES = [
+    (1, 0, MarketKey.UNDER_25, MarketType.OVER_UNDER_25, Outcome.WON),
+    (0, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25, Outcome.WON),
+    (1, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25, Outcome.WON),
+    (2, 0, MarketKey.UNDER_25, MarketType.OVER_UNDER_25, Outcome.WON),
+    (2, 1, MarketKey.UNDER_25, MarketType.OVER_UNDER_25, Outcome.LOST),
+    (1, 0, MarketKey.OVER_25, MarketType.OVER_UNDER_25, Outcome.LOST),
+    (1, 1, MarketKey.OVER_25, MarketType.OVER_UNDER_25, Outcome.LOST),
+    (2, 0, MarketKey.OVER_25, MarketType.OVER_UNDER_25, Outcome.LOST),
+    (3, 1, MarketKey.OVER_25, MarketType.OVER_UNDER_25, Outcome.WON),
+    (1, 0, MarketKey.OVER_05, MarketType.OVER_UNDER_05, Outcome.WON),
+    (0, 0, MarketKey.OVER_05, MarketType.OVER_UNDER_05, Outcome.LOST),
+    (0, 0, MarketKey.UNDER_05, MarketType.OVER_UNDER_05, Outcome.WON),
+    (1, 0, MarketKey.UNDER_05, MarketType.OVER_UNDER_05, Outcome.LOST),
+    (1, 0, MarketKey.OVER_15, MarketType.OVER_UNDER_15, Outcome.LOST),
+    (1, 0, MarketKey.UNDER_15, MarketType.OVER_UNDER_15, Outcome.WON),
+    (2, 0, MarketKey.OVER_15, MarketType.OVER_UNDER_15, Outcome.WON),
+    (2, 0, MarketKey.OVER_35, MarketType.OVER_UNDER_35, Outcome.LOST),
+    (2, 0, MarketKey.UNDER_35, MarketType.OVER_UNDER_35, Outcome.WON),
+    (5, 0, MarketKey.OVER_45, MarketType.OVER_UNDER_45, Outcome.WON),
+    (2, 2, MarketKey.UNDER_45, MarketType.OVER_UNDER_45, Outcome.WON),
+    (0, 3, MarketKey.UNDER_45, MarketType.OVER_UNDER_45, Outcome.WON),
+    (2, 1, MarketKey.HOME, MarketType.RESULT, Outcome.WON),
+    (1, 1, MarketKey.HOME, MarketType.RESULT, Outcome.LOST),
+    (1, 1, MarketKey.DRAW, MarketType.RESULT, Outcome.WON),
+    (0, 2, MarketKey.AWAY, MarketType.RESULT, Outcome.WON),
+    (2, 2, MarketKey.AWAY, MarketType.RESULT, Outcome.LOST),
+    (1, 1, MarketKey.BTTS_YES, MarketType.BTTS, Outcome.WON),
+    (1, 0, MarketKey.BTTS_YES, MarketType.BTTS, Outcome.LOST),
+    (1, 0, MarketKey.BTTS_NO, MarketType.BTTS, Outcome.WON),
+    (0, 0, MarketKey.BTTS_NO, MarketType.BTTS, Outcome.WON),
+    (1, 1, MarketKey.BTTS_NO, MarketType.BTTS, Outcome.LOST),
+    (1, 1, MarketKey.DC_1X, MarketType.DOUBLE_CHANCE, Outcome.WON),
+    (0, 1, MarketKey.DC_1X, MarketType.DOUBLE_CHANCE, Outcome.LOST),
+    (1, 0, MarketKey.DC_12, MarketType.DOUBLE_CHANCE, Outcome.WON),
+    (1, 1, MarketKey.DC_12, MarketType.DOUBLE_CHANCE, Outcome.LOST),
+    (0, 1, MarketKey.DC_X2, MarketType.DOUBLE_CHANCE, Outcome.WON),
+    (1, 0, MarketKey.DC_X2, MarketType.DOUBLE_CHANCE, Outcome.LOST),
+]
+
+
+@pytest.mark.parametrize("home,away,market,market_type,expected", MATRIX_CASES)
+def test_u1_all_markets_outcome_matrix(home, away, market, market_type, expected) -> None:
+    assert determine_outcome(home, away, market, market_type) == expected
+
+
+def test_u1_matrix_covers_every_canonical_key() -> None:
+    from bet_framework.markets.catalog import MARKET_CATALOG
+
+    covered = {case[2] for case in MATRIX_CASES}
+    assert covered == {spec.key for spec in MARKET_CATALOG}
