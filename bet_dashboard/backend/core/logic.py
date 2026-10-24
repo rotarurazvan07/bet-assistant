@@ -196,22 +196,15 @@ class AppLogic:
     # ── TickerService callbacks ───────────────────────────────────────────────
 
     def _is_generator_hour_met(self) -> bool:
-        """Predicate: any active profile's own daily window is due.
+        """Predicate: any active profile's daily window is due.
 
-        There is no global schedule time anymore: a profile without its own
-        generate_hour/generate_minute never fires (per-profile windows only).
+        Per-profile generate_hour/generate_minute take priority; profiles
+        without their own window fall back to the legacy global services
+        window (AC-7.6).
         """
         now = datetime.now()
 
-        # Per-profile windows: fire as soon as one active profile is due.
-        profiles_raw = self._settings.get("profiles") or {}
-        for name in self._get_active_profiles():
-            cfg = profiles_raw.get(name) or {}
-            hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
-            if hour is not None and minute is not None and self._profile_schedule_met(name, cfg, now=now):
-                return True
-
-        return False
+        return any(self._profile_schedule_met(name, now=now) for name in self._get_active_profiles())
 
     def _check_for_changes(self) -> bool:
         """HEAD request to check if GitHub release has changed via ETag."""
@@ -300,11 +293,12 @@ class AppLogic:
         return (self._settings.get("profiles") or {}).get(name) or {}
 
     def _profile_schedule_met(self, name: str, cfg: dict | None = None, now: datetime | None = None) -> bool:
-        """True when the profile's own daily window has arrived today.
+        """True when the profile's daily window has arrived today.
 
         With a per-profile generate_hour/generate_minute the window is that
         profile's own time; without it the legacy global services window is
-        used. A once-per-day guard (persisted per profile) blocks re-runs.
+        used (AC-7.6 backward compatibility). A once-per-day guard (persisted
+        per profile) blocks re-runs.
         """
         cfg = self._profile_cfg(name) if cfg is None else cfg
         if not (cfg.get("auto_generate") or cfg.get("run_daily_count")):
@@ -312,9 +306,11 @@ class AppLogic:
         now = now or datetime.now()
         today_key = now.strftime("%Y-%m-%d")
         hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
-        # No global fallback: a profile without its own window never fires.
         if hour is None or minute is None:
-            return False
+            # AC-7.6: legacy profiles with no per-profile window fall back to
+            # the global services window (default 08:00, as in routers/services.py).
+            svc = self._settings.get("services") or {}
+            hour, minute = svc.get("generate_hour", 8), svc.get("generate_minute", 0)
         target = now.replace(
             hour=int(hour) if hour is not None else 8,
             minute=int(minute or 0),
