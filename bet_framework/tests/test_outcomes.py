@@ -435,6 +435,7 @@ class TestDetermineOutcomePending:
             result = determine_outcome(home, away, label, market_type)
             assert result in (Outcome.WON, Outcome.LOST)
 
+
 # ── U1 all-markets proof matrix (story 115-2, AC-4) ──────────────────────────
 # Every canonical market key x representative scores, pinning that the BACKEND
 # outcome dispatch under U1 is correct per key. The user-reported live RED
