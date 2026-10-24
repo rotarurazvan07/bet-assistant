@@ -16,14 +16,14 @@ import type { BuilderConfig, Profile, ProfilesMap, PreviewResult, ManualLegIn } 
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
-    consensus_floor: 50, min_odds: 1.05, included_markets: null, included_leagues: null,
-    tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
+    consensus_floor: 50, min_leg_odds: 1.05, included_markets: null, included_leagues: null,
+    tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: null,
     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
     date_from: null, date_to: null,
     excluded_sources: null,
     consensus_shrinkage_k: null,
     min_source_edge: null,
-    max_single_leg_odds: null,
+    max_leg_odds: 3.5,
     tol_lower: null,
     tol_upper: null,
     balance_decay: 'gaussian',
@@ -31,6 +31,14 @@ const DEFAULT_CFG: BuilderConfig = {
     odds_movement_weight: null,
     odds_movement_strength_min: null,
 };
+
+function orderedProfileNames(profiles: ProfilesMap): string[] {
+    return Object.keys(profiles).sort((a, b) => {
+        const orderA = Number(profiles[a].order) || 0;
+        const orderB = Number(profiles[b].order) || 0;
+        return orderA - orderB || a.localeCompare(b);
+    });
+}
 
 interface Props { filters: GlobalFilters; refreshKey: number }
 
@@ -192,8 +200,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     const [milestoneOpen, setMilestoneOpen] = useState(false);
     const [slipModalOpen, setSlipModalOpen] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // Auto-save to the active profile: only a real config edit (or a stake
-    // edit) sets this flag — profile switches/loads must not rewrite disk.
+    // Auto-save to the active profile: only a real profile-config edit sets this
+    // flag — profile switches/loads and session-only stake/payout entry in the
+    // Add-to-Slips modal must not rewrite disk.
     const dirtyRef = useRef(false);
     const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -223,7 +232,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 // Corrupt payload: leave it for the writer to overwrite.
             }
         }
-        fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
+        fetchProfiles()
+            .then(p => setProfiles(p))
+            .catch(() => setStatus('⚠ Profiles could not be loaded — check the server and refresh to retry'));
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
         fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
         fetchSourcesConfig().then(c => setAvailableSources(c.sources)).catch(() => setAvailableSources([]));
@@ -234,7 +245,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     useEffect(() => {
         if (Object.keys(profiles).length === 0) return;
         if (activeName && activeName in profiles) return;
-        const first = Object.keys(profiles)[0];
+        const first = orderedProfileNames(profiles)[0];
         setActiveName(first);
         const data = profiles[first];
         setCfg(cfgFromProfile(data));
@@ -262,6 +273,9 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         }, 350);
     }, []);
 
+    // units/target_payout are always sent: the backend treats them as
+    // authoritative for profile YAML, and the Build tab is their only writer
+    // outside the Services page's own scheduler keys.
     function profileFromConfig(name: string) {
         return { name, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout };
     }
@@ -287,7 +301,10 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
     }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- cfg is read, not tracked: exclusion-only trigger with a change guard
 
     // Auto-save to the ACTIVE profile (debounced). The manual Save button is
-    // gone — every config/stake change lands on the selected profile on disk.
+    // gone — every config change lands on the selected profile on disk.
+    // Session-only stake/payout entry (Add-to-Slips modal, auto-calc from target
+    // payout) never sets dirtyRef, so it cannot reach disk; units/targetPayout
+    // are deps only because the payload carries them.
     useEffect(() => {
         if (!activeName || !dirtyRef.current) return;
         if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
@@ -346,12 +363,12 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             target_legs: data.target_legs ?? 3,
             max_legs_overflow: data.max_legs_overflow ?? null,
             consensus_floor: data.consensus_floor ?? 50,
-            min_odds: data.min_odds ?? 1.05,
+            min_leg_odds: data.min_leg_odds ?? 1.05,
             included_markets: data.included_markets ?? null,
             included_leagues: data.included_leagues ?? null,
             tolerance_factor: data.tolerance_factor ?? null,
             stop_threshold: data.stop_threshold ?? null,
-            min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
+            min_legs_fill_ratio: data.min_legs_fill_ratio ?? null,
             quality_vs_balance: data.quality_vs_balance ?? 0.5,
             consensus_vs_sources: data.consensus_vs_sources ?? 0.5,
             date_from: null,
@@ -359,7 +376,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             excluded_sources: data.excluded_sources ?? null,
             consensus_shrinkage_k: data.consensus_shrinkage_k ?? null,
             min_source_edge: data.min_source_edge ?? null,
-            max_single_leg_odds: data.max_single_leg_odds ?? null,
+            max_leg_odds: data.max_leg_odds ?? 3.5,
             tol_lower: data.tol_lower ?? null,
             tol_upper: data.tol_upper ?? null,
             balance_decay: data.balance_decay ?? 'gaussian',
@@ -388,7 +405,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         await deleteProfile(name);
         const updated = await fetchProfiles();
         setProfiles(updated ?? {});
-        const remaining = Object.keys(updated ?? {});
+        const remaining = orderedProfileNames(updated ?? {});
         if (activeName === name) {
             if (remaining.length > 0) {
                 loadProfile(remaining[0], (updated as ProfilesMap)[remaining[0]]);
@@ -472,13 +489,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             {/* ── Left Sidebar — Responsive width ─────────────────────────────── */}
             <div className="w-full xl:w-[350px] 2xl:w-[400px] shrink-0">
                 <div className="sticky top-4 space-y-4">
-                    <div className="rounded-xl overflow-hidden"
-                        style={{
-                            background: 'linear-gradient(180deg, var(--bg-base) 0%, var(--bg-surface) 100%)',
-                            border: '1px solid var(--border)',
-                            boxShadow: 'var(--shadow-lg)',
-                        }}>
-                        <div className="px-3 py-4">
+                    <div className="rounded-xl overflow-hidden">
+                        <div>
                             <BuilderPanel
                                 cfg={cfg}
                                 availableLeagues={availableLeagues}
@@ -504,7 +516,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         {/* Profile cards: every saved profile renders as a card;
                             click selects+loads it; edits auto-save to it. */}
                         <div className="flex items-center gap-2 flex-wrap" data-testid="profile-cards">
-                            {Object.keys(profiles).map(name => {
+                            {orderedProfileNames(profiles).map(name => {
                                 const active = activeName === name;
                                 return (
                                     <div key={name}
@@ -733,8 +745,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 totalOdds={preview?.total_odds ?? 1}
                 units={units}
                 targetPayout={targetPayout}
-                onUnitsChange={(u) => { setUnits(u); setTargetPayout(0); dirtyRef.current = true; }}
-                onTargetPayoutChange={(p) => { setTargetPayout(p); dirtyRef.current = true; }}
+                onUnitsChange={(u) => { setUnits(u); setTargetPayout(0); }}
+                onTargetPayoutChange={(p) => { setTargetPayout(p); }}
                 onConfirm={() => void handleAddToSlips()}
                 onClose={() => setSlipModalOpen(false)}
             />

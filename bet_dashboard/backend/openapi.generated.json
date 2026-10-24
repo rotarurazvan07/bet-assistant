@@ -1176,9 +1176,9 @@
             "title": "Consensus Floor",
             "default": 50.0
           },
-          "min_odds": {
+          "min_leg_odds": {
             "type": "number",
-            "title": "Min Odds",
+            "title": "Min Leg Odds",
             "default": 1.05
           },
           "tolerance_factor": {
@@ -1204,7 +1204,14 @@
             "title": "Stop Threshold"
           },
           "min_legs_fill_ratio": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Min Legs Fill Ratio",
             "default": 0.7
           },
@@ -1304,16 +1311,10 @@
             ],
             "title": "Min Source Edge"
           },
-          "max_single_leg_odds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Single Leg Odds"
+          "max_leg_odds": {
+            "type": "number",
+            "title": "Max Leg Odds",
+            "default": 3.5
           },
           "tol_lower": {
             "anyOf": [
@@ -1777,9 +1778,9 @@
             "title": "Consensus Floor",
             "default": 50.0
           },
-          "min_odds": {
+          "min_leg_odds": {
             "type": "number",
-            "title": "Min Odds",
+            "title": "Min Leg Odds",
             "default": 1.05
           },
           "tolerance_factor": {
@@ -1805,7 +1806,14 @@
             "title": "Stop Threshold"
           },
           "min_legs_fill_ratio": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Min Legs Fill Ratio",
             "default": 0.7
           },
@@ -1954,16 +1962,10 @@
             ],
             "title": "Min Source Edge"
           },
-          "max_single_leg_odds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Single Leg Odds"
+          "max_leg_odds": {
+            "type": "number",
+            "title": "Max Leg Odds",
+            "default": 3.5
           },
           "tol_lower": {
             "anyOf": [

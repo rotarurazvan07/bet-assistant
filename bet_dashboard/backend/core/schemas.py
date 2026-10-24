@@ -16,10 +16,10 @@ class BetSlipConfigIn(BaseModel):
     target_legs: int = 3
     max_legs_overflow: int | None = None
     consensus_floor: float = 50.0
-    min_odds: float = 1.05
+    min_leg_odds: float = 1.05
     tolerance_factor: float | None = None
     stop_threshold: float | None = None
-    min_legs_fill_ratio: float = 0.70
+    min_legs_fill_ratio: float | None = 0.70
     quality_vs_balance: float = 0.5
     consensus_vs_sources: float = 0.5
     included_markets: list[str] | None = None
@@ -30,7 +30,7 @@ class BetSlipConfigIn(BaseModel):
     # Advanced
     consensus_shrinkage_k: float | None = None
     min_source_edge: float | None = None
-    max_single_leg_odds: float | None = None
+    max_leg_odds: float = 3.5
     tol_lower: float | None = None
     tol_upper: float | None = None
     balance_decay: str = "linear"
@@ -83,10 +83,10 @@ class ProfileIn(BaseModel):
     target_legs: int = 3
     max_legs_overflow: int | None = None
     consensus_floor: float = 50.0
-    min_odds: float = 1.05
+    min_leg_odds: float = 1.05
     tolerance_factor: float | None = None
     stop_threshold: float | None = None
-    min_legs_fill_ratio: float = 0.70
+    min_legs_fill_ratio: float | None = 0.70
     quality_vs_balance: float = 0.5
     consensus_vs_sources: float = 0.5
     included_markets: list[str] | None = None
@@ -106,7 +106,7 @@ class ProfileIn(BaseModel):
     # Advanced
     consensus_shrinkage_k: float | None = None
     min_source_edge: float | None = None
-    max_single_leg_odds: float | None = None
+    max_leg_odds: float = 3.5
     tol_lower: float | None = None
     tol_upper: float | None = None
     balance_decay: str = "linear"

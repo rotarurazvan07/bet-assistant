@@ -481,7 +481,7 @@ export interface BuilderConfig {
   target_legs: number;
   max_legs_overflow: number | null;
   consensus_floor: number;
-  min_odds: number;
+  min_leg_odds: number;
   included_markets: string[] | null;
   included_leagues: string[] | null;
   tolerance_factor: number | null;

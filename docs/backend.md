@@ -724,7 +724,7 @@ target_odds: 2.0
 target_legs: 2
 max_legs_overflow: 0
 consensus_floor: 75.0
-min_odds: 1.10
+min_leg_odds: 1.10
 tolerance_factor: 0.20
 stop_threshold: 0.92
 min_legs_fill_ratio: 1.00
@@ -732,7 +732,7 @@ quality_vs_balance: 0.70
 consensus_vs_sources: 0.70
 consensus_shrinkage_k: 4.0
 min_source_edge: 0.05
-max_single_leg_odds: 2.00
+max_leg_odds: 2.00
 balance_decay: "gaussian"
 min_pick_quality: 0.30
 units: 1.0

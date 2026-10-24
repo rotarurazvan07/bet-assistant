@@ -5,6 +5,8 @@ import os
 import urllib.error
 import urllib.request
 from datetime import datetime
+from pathlib import Path
+from threading import RLock
 from typing import Any
 from urllib.parse import urlparse
 
@@ -29,6 +31,26 @@ from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.core import leagues
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.MatchesManager import MatchesManager
+
+
+class ThreadSafeSettingsManager(SettingsManager):
+    """Serialize settings reloads and writes shared by API worker threads."""
+
+    def __init__(self, directory: str) -> None:
+        self._access_lock = RLock()
+        super().__init__(directory)
+
+    def get(self, *keys: str) -> Any | None:
+        with self._access_lock:
+            return super().get(*keys)
+
+    def write(self, name: str, data: dict[str, Any], *, subpath: str | Path | None = None) -> None:
+        with self._access_lock:
+            super().write(name, data, subpath=subpath)
+
+    def delete(self, name: str, *, subpath: str | Path | None = None) -> None:
+        with self._access_lock:
+            super().delete(name, subpath=subpath)
 
 
 def _order_sort_key(value: Any) -> tuple[int, float]:
@@ -105,7 +127,7 @@ class AppLogic:
         self._config_path = config_path
 
         configure(config_path)
-        self._settings = SettingsManager(config_path)
+        self._settings = ThreadSafeSettingsManager(config_path)
         ensure_default_profiles(config_path + "/profiles", self._settings)
 
         # Initialize core assistants
