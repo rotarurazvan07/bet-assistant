@@ -72,3 +72,4 @@ describe('getPotentialStatusColor canonical keys (U1)', () => {
         expect(getPotentialStatusColor({ market: k('U2.5'), odds: 1.5, status: 'Pending' }, '1 - 0')).toBe('');
         expect(col(k('U2.5'), 'nope')).toBe(LOSS);
     });
+});
