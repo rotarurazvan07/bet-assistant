@@ -521,7 +521,7 @@ Get service status and configuration.
     },
     "generator": {
       "name": "generator",
-      "description": "Checks every 5 minutes if the scheduled generation hour has arrived...",
+      "description": "Checks every 5 minutes whether any profile's own scheduled time has arrived...",
       "enabled": true,
       "alive": true,
       "hour": 8,
@@ -541,18 +541,19 @@ Get service status and configuration.
       "next_run": "Every 1 min"
     }
   },
-  "generate_hour": 8,
-  "generate_minute": 0,
+  "profile_schedules": [
+    { "name": "low", "auto_generate": true, "generate_hour": 8, "generate_minute": 30, "units": 1.0, "target_payout": null, "run_daily_count": 1, "order": 0 }
+  ],
   "server_time": "2026-08-22T05:30:00"
 }
 ```
 
 #### POST `/api/services/settings`
 
-Update scheduled generation time.
+Update per-profile auto-generation schedules. There is no global generation time — each profile schedules itself.
 
-**Request**: `{ "generate_hour": 8, "generate_minute": 0 }`
-**Response**: `{ "generate_hour": 8, "generate_minute": 0 }`
+**Request**: `{ "profile_schedules": [{ "name": "low", "auto_generate": true, "generate_hour": 8, "generate_minute": 30 }] }`
+**Response**: `{ "profile_schedules": [{ "name": "low", "auto_generate": true, "generate_hour": 8, "generate_minute": 30 }] }`
 
 #### POST `/api/services/{name}/toggle`
 

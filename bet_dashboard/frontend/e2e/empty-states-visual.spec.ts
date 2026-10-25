@@ -37,8 +37,6 @@ async function mockServicesGeneratorOff(page: Page) {
                     generator: { name: 'generator', description: 'gen', enabled: false, alive: false },
                     verifier: { name: 'verifier', description: 'verify', enabled: true, alive: true },
                 },
-                generate_hour: 9,
-                generate_minute: 0,
                 server_time: '2026-09-24T12:00:00',
             }),
         });

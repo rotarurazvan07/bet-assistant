@@ -63,8 +63,6 @@ async function mockServicesGeneratorOff(page: import('@playwright/test').Page) {
                     generator: { name: 'generator', description: 'gen', enabled: false, alive: false },
                     verifier: { name: 'verifier', description: 'verify', enabled: true, alive: true },
                 },
-                generate_hour: 9,
-                generate_minute: 0,
                 server_time: '2026-09-24T12:00:00',
                 // The real backend always serves profile rows (get_profile_schedules);
                 // the per-profile table and its Save CTA depend on them.

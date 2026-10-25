@@ -73,11 +73,9 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
             body: JSON.stringify({
                 services: {
                     puller: { name: 'puller', description: 'Checks every 5 minutes', enabled: false, alive: false, hour: null, minute: null, interval_seconds: 300, next_run: 'Every 5 min', last_time_generated: null },
-                    generator: { name: 'generator', description: 'Checks every 5 minutes', enabled: true, alive: true, hour: 9, minute: 0, interval_seconds: 300, next_run: 'Today 09:00 (in 1h 0m)', last_time_generated: null },
+                    generator: { name: 'generator', description: 'Checks every 5 minutes', enabled: true, alive: true, hour: 8, minute: 30, interval_seconds: 300, next_run: 'Tomorrow 08:30 (in 22h 30m)', last_time_generated: null },
                     verifier: { name: 'verifier', description: 'Polls every 60 seconds', enabled: true, alive: true, hour: null, minute: null, interval_seconds: 60, next_run: 'Every 1 min', last_time_generated: null },
                 },
-                generate_hour: 9,
-                generate_minute: 0,
                 server_time: '2026-10-07T10:00:00',
                 profile_schedules: DEMO_PROFILE_SCHEDULES,
             }),

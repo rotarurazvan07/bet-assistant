@@ -180,8 +180,6 @@ _PROFILE_SCHEDULES = [
 
 _SERVICES_YAML = (
     "services:\n"
-    "  generate_hour: 9\n"
-    "  generate_minute: 0\n"
     "  toggles:\n"
     "    puller: false\n"
     "    generator: false\n"

@@ -286,7 +286,7 @@ def validate_manual_leg(leg: dict, logic) -> dict:
 
 **Endpoints**:
 - `GET /api/services` - All service status + schedule
-- `POST /api/services/settings` - Update generation hour/minute
+- `POST /api/services/settings` - Update per-profile auto-generation schedules (`profile_schedules` only; no global generation time)
 - `POST /api/services/{name}/toggle` - Toggle service enabled
 
 **Service Status Calculation**:
