@@ -2,7 +2,7 @@
 
 Covers: __init__ TickerService wiring, properties, refresh_data,
 pull_matches_db (mocked HTTP + real merge), toggle_service persistence +
-WS broadcast, save_service_settings, _is_generator_hour_met daily guard,
+WS broadcast, _is_generator_hour_met daily guard,
 _check_for_changes HEAD/ETag paths, odds movement/history delegation, and
 ticker callback paths (_do_pull/_do_generate/_do_verify).
 
@@ -243,13 +243,20 @@ class TestAppLogicLifecycle:
         assert app_env.app.settings.get("services")["toggles"] == {}
         assert not broadcast_capture
 
-    def test_save_service_settings_persists_hour_and_minute(self, app_env) -> None:
-        """[P0] save_service_settings writes generate_hour/minute to config."""
+    def test_generator_predicate_false_without_per_profile_window(self, app_env, monkeypatch) -> None:
+        """[P0] No global window: stale services.generate_hour cannot fire the generator.
+
+        Per-profile windows only (user decision 2026-10-25): an active profile
+        with no own generate_hour/generate_minute never fires even if the
+        legacy global window sits in config at 08:00 (now 09:00, past it).
+        """
         app = app_env.app
-        app.save_service_settings(9, 30)
-        svc = app.settings.get("services")
-        assert svc["generate_hour"] == 9
-        assert svc["generate_minute"] == 30
+        # A stale legacy global window in config — must be ignored entirely.
+        app.settings.write("services", {"generate_hour": 8, "generate_minute": 0, "toggles": {}})
+        app.settings.write("legacyonly", {"run_daily_count": 1, "units": 1.0}, subpath="profiles")
+        self._freeze_now(monkeypatch)
+        assert app._is_generator_hour_met() is False
+        assert app._last_generator_run is None
 
     # ── _is_generator_hour_met: daily guard ─────────────────────────────────
 
@@ -264,9 +271,9 @@ class TestAppLogicLifecycle:
         monkeypatch.setattr("core.logic.datetime", self._Frozen)
 
     def test_generator_predicate_false_before_target_time(self, app_env, monkeypatch) -> None:
-        """[P0] Before the configured generate time the predicate never fires."""
+        """[P0] Before the profile's own window the predicate never fires."""
         app = app_env.app
-        app.save_service_settings(12, 0)  # target 12:00; frozen now is 09:00
+        app.settings.write("late", {"auto_generate": True, "generate_hour": 12, "generate_minute": 0, "units": 1.0}, subpath="profiles")
         self._freeze_now(monkeypatch)
         assert app._is_generator_hour_met() is False
         assert app._last_generator_run is None

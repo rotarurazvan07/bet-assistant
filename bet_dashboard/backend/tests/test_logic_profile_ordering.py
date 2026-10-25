@@ -118,15 +118,18 @@ class TestProfileScheduleMet:
         _freeze(monkeypatch, hour=9)
         assert env.app._profile_schedule_met("p", cfg) is True
 
-    def test_no_per_profile_window_uses_global(self, env, monkeypatch) -> None:
-        """[P0] AC-7.6: a profile without its own window uses the global services window."""
-        env.app.save_service_settings(8, 0)
+    def test_no_per_profile_window_never_met(self, env, monkeypatch) -> None:
+        """[P0] No global fallback: a profile without its own window never fires.
+
+        Per-profile windows only: a windowless profile NEVER fires even when a
+        stale legacy ``services.generate_hour`` exists in config.
+        """
         _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
         _freeze(monkeypatch, hour=7)
         assert env.app._profile_schedule_met("legacy") is False
         _freeze(monkeypatch, hour=9)
-        assert env.app._profile_schedule_met("legacy") is True
-        assert env.app._is_generator_hour_met() is True
+        assert env.app._profile_schedule_met("legacy") is False
+        assert env.app._is_generator_hour_met() is False
 
     def test_daily_guard_blocks_second_run(self, env, monkeypatch) -> None:
         """[P0] A per-profile stamp for today blocks a second run today."""
@@ -153,8 +156,7 @@ class TestGeneratorPredicatePerProfile:
     """[P0] _is_generator_hour_met fires on any active profile's window."""
 
     def test_per_profile_due_fires_predicate(self, env, monkeypatch) -> None:
-        """[P0] A due per-profile window returns True even outside global window."""
-        env.app.save_service_settings(23, 0)  # global window not reached at 09:00
+        """[P0] A due per-profile window returns True (no global window exists)."""
         _save_profiles(
             env.app,
             {
@@ -169,14 +171,11 @@ class TestGeneratorPredicatePerProfile:
         _freeze(monkeypatch, hour=9)
         assert env.app._is_generator_hour_met() is True
 
-    def test_legacy_only_uses_global_window(self, env, monkeypatch) -> None:
-        """[P0] Legacy-only setups fire on the global services window (AC-7.6)."""
-        env.app.save_service_settings(8, 0)
+    def test_legacy_only_no_window_never_fires(self, env, monkeypatch) -> None:
+        """[P0] Legacy-only setups (no per-profile window) never fire."""
         _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
-        _freeze(monkeypatch, hour=7)
-        assert env.app._is_generator_hour_met() is False
         _freeze(monkeypatch, hour=9)
-        assert env.app._is_generator_hour_met() is True
+        assert env.app._is_generator_hour_met() is False
 
 
 class TestDoGeneratePerProfile:
@@ -250,8 +249,7 @@ class TestProfileSchedulesAPI:
     """[P0] GET/POST /api/services profile_schedules contract."""
 
     def test_get_includes_profile_schedules_rows(self, env) -> None:
-        """[P0] Every saved profile appears with defaults from legacy config."""
-        env.app.save_service_settings(8, 30)
+        """[P0] Every saved profile appears with persisted values only."""
         _save_profiles(
             env.app,
             {
