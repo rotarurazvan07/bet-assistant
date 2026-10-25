@@ -232,7 +232,6 @@ export function makeServicesData(overrides: Partial<ServicesData> = {}): Service
             generator: makeServiceInfo({ name: 'generator', interval_seconds: 300 }),
             verifier: makeServiceInfo({ name: 'verifier', interval_seconds: 60 }),
         },
-        generate_hour: 9, generate_minute: 0,
         server_time: '2026-09-24T12:00:00',
         ...overrides,
     };

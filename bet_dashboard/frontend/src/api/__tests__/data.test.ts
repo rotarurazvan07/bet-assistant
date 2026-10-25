@@ -1,6 +1,6 @@
 // data.ts tests (issue #67). Covers ALL 22 exported functions (the issue
 // lists only 13 — divergence: spec missed the 7 excluded-URL functions,
-// deleteProfile/deleteSlip/saveServiceSettings, and matches/oddsHistory
+// deleteProfile/deleteSlip, and matches/oddsHistory
 // modules entirely). Response shapes ground-truthed against src/types +
 // cycle-2 backend router contracts.
 
@@ -17,7 +17,7 @@ import {
     addExcluded, removeExcluded, clearExcluded,
     fetchProfiles, saveProfile, deleteProfile,
     fetchSlips, addSlip, deleteSlip, validateSlips, generateSlips,
-    fetchAnalytics, fetchServices, saveServiceSettings, toggleService,
+    fetchAnalytics, fetchServices, toggleService,
     pullDb, fetchStatus, fetchSourcesConfig,
 } from '../data';
 
@@ -243,22 +243,13 @@ describe('analytics endpoint', () => {
 
 
 describe('services endpoints', () => {
-    it('fetchServices returns services map + generate time', async () => {
-        server.use(http.get('/api/services', () => HttpResponse.json(makeServicesData({ generate_hour: 8 }))));
+    it('fetchServices returns services map + profile schedules', async () => {
+        server.use(http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: [] }))));
         const data = await fetchServices();
-        expect(data.generate_hour).toBe(8);
+        expect(data.profile_schedules).toEqual([]);
         expect(data.services.verifier.interval_seconds).toBe(60);
         expect(data.services.puller.enabled).toBe(true);
-    });
-
-    it('saveServiceSettings POSTs hour/minute', async () => {
-        let body: Record<string, unknown> | null = null;
-        server.use(http.post('/api/services/settings', async ({ request }) => {
-            body = await request.json() as Record<string, unknown>;
-            return HttpResponse.json({ ok: true });
-        }));
-        await saveServiceSettings(10, 30);
-        expect(body).toEqual({ generate_hour: 10, generate_minute: 30 });
+        expect('generate_hour' in data).toBe(false);
     });
 
     it('toggleService templated POST returns name/enabled', async () => {

@@ -345,11 +345,9 @@ export interface ServiceInfo {
 
 export interface ServicesData {
     services: Record<string, ServiceInfo>;
-    generate_hour: number;
-    generate_minute: number;
     server_time: string;
-    /** Per-profile auto-generation schedule (issue #95). Optional: absent when
-     * the backend serves the legacy global shape only. */
+    /** Per-profile auto-generation schedule (issue #95). The only scheduling
+     * contract — there is no global generation time (user decision 2026-10-25). */
     profile_schedules?: ProfileSchedule[];
 }
 

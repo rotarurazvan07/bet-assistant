@@ -157,7 +157,7 @@ export interface paths {
   "/api/services/settings": {
     /**
      * Save Settings
-     * @description Persist scheduler hour/minute settings and per-profile schedules.
+     * @description Persist per-profile schedules (the only scheduling payload).
      */
     post: operations["save_settings_api_services_settings_post"];
   };
@@ -535,14 +535,14 @@ export interface components {
     /**
      * ServicesSettingsIn
      * @description Payload for service scheduler settings.
+     *
+     * Per-profile schedules only — there is no global generation time anymore
+     * (user decision 2026-10-25): a legacy hour-only body fails validation
+     * because profile_schedules is required.
      */
     ServicesSettingsIn: {
-      /** Generate Hour */
-      generate_hour?: number | null;
-      /** Generate Minute */
-      generate_minute?: number | null;
       /** Profile Schedules */
-      profile_schedules?: components["schemas"]["ProfileScheduleIn"][] | null;
+      profile_schedules: components["schemas"]["ProfileScheduleIn"][];
     };
     /**
      * SlipIn
@@ -1038,7 +1038,7 @@ export interface operations {
   };
   /**
    * Save Settings
-   * @description Persist scheduler hour/minute settings and per-profile schedules.
+   * @description Persist per-profile schedules (the only scheduling payload).
    */
   save_settings_api_services_settings_post: {
     requestBody: {
