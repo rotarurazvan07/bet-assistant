@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/services", tags=["services"])
 
 _DESCRIPTIONS = {
     "puller": "Checks every 5 minutes if a new database exists on GitHub (via ETag) and downloads it when updated.",
-    "generator": "Checks every 5 minutes if the scheduled generation hour has arrived to build today's betting slips.",
+    "generator": "Checks every 5 minutes whether any profile's own scheduled time has arrived to build today's betting slips.",
     "verifier": "Polls every 60 seconds to fetch live scores and settle completed matches on pending slips.",
 }
 
@@ -44,13 +44,31 @@ def _next_run_interval(interval_seconds: int | None) -> str | None:
     return f"Every {minutes} min"
 
 
+def _earliest_profile_window(rows: list[dict]) -> tuple[int, int] | None:
+    """Earliest per-profile generate window among active profiles.
+
+    Per-profile windows only (user decision 2026-10-25): a profile without its
+    own generate_hour/generate_minute has no window at all. Returns None when
+    no active profile carries a window.
+    """
+    windows = [
+        (int(r["generate_hour"]), int(r["generate_minute"] or 0))
+        for r in rows
+        if r.get("auto_generate") and r.get("generate_hour") is not None and r.get("generate_minute") is not None
+    ]
+    return min(windows) if windows else None
+
+
 @router.get("")
 def get_services(request: Request):
     """Return service info plus scheduler settings."""
     app = _get(request)
-    svc_cfg = app.settings.get("services") or {}
     runtime_cfg = app.settings.get("runtime_state") or {}
     now = datetime.now().isoformat()
+    profile_rows = app.get_profile_schedules()
+    # Generator scheduling is per-profile only: the generator card mirrors the
+    # earliest active per-profile window (None when no profile has one).
+    generator_window = _earliest_profile_window(profile_rows)
 
     services_out = {}
     for name, svc in app.services.items():
@@ -58,12 +76,15 @@ def get_services(request: Request):
         # We now look at the config for 'hour' metadata as TickerService is pure polling
         hour = None
         minute = None
-        if name == "generator":
-            hour = svc_cfg.get("generate_hour")
-            minute = svc_cfg.get("generate_minute", 0)
+        if name == "generator" and generator_window is not None:
+            hour, minute = generator_window
 
         if hour is not None:
             next_run = _next_run_hour(hour, minute)
+        elif name == "generator":
+            # Per-profile windows only: no active profile window -> no scheduled
+            # next run (the ticker just polls and fires nothing).
+            next_run = None
         elif svc.interval is not None:
             next_run = _next_run_interval(svc.interval)
         else:
@@ -83,28 +104,18 @@ def get_services(request: Request):
 
     return {
         "services": services_out,
-        "generate_hour": svc_cfg.get("generate_hour", 8),
-        "generate_minute": svc_cfg.get("generate_minute", 0),
-        "profile_schedules": app.get_profile_schedules(),
+        "profile_schedules": profile_rows,
         "server_time": now,
     }
 
 
 @router.post("/settings")
 def save_settings(request: Request, body: ServicesSettingsIn):
-    """Persist scheduler hour/minute settings and per-profile schedules."""
+    """Persist per-profile schedules (the only scheduling payload)."""
     app = _get(request)
-    if body.profile_schedules is not None:
-        rows = [row.model_dump() for row in body.profile_schedules]
-        app.save_profile_schedules(rows)
-        if body.generate_hour is not None:
-            app.save_service_settings(body.generate_hour, body.generate_minute or 0)
-        return {"profile_schedules": rows}
-    app.save_service_settings(body.generate_hour, body.generate_minute or 0)
-    return {
-        "generate_hour": body.generate_hour,
-        "generate_minute": body.generate_minute,
-    }
+    rows = [row.model_dump() for row in body.profile_schedules]
+    app.save_profile_schedules(rows)
+    return {"profile_schedules": rows}
 
 
 @router.post("/{name}/toggle")

@@ -186,18 +186,14 @@ class ProfileScheduleIn(BaseModel):
 
 
 class ServicesSettingsIn(BaseModel):
-    """Payload for service scheduler settings."""
+    """Payload for service scheduler settings.
 
-    generate_hour: int | None = None
-    generate_minute: int | None = None
-    profile_schedules: list[ProfileScheduleIn] | None = None
+    Per-profile schedules only — there is no global generation time anymore
+    (user decision 2026-10-25): a legacy hour-only body fails validation
+    because profile_schedules is required.
+    """
 
-    @model_validator(mode="after")
-    def _require_hour_without_profile_schedules(self) -> Self:
-        """Legacy body (no profile_schedules) still requires generate_hour."""
-        if self.profile_schedules is None and self.generate_hour is None:
-            raise ValueError("generate_hour is required when profile_schedules is absent")
-        return self
+    profile_schedules: list[ProfileScheduleIn]
 
 
 # ── Odds History ──────────────────────────────────────────────────────────────

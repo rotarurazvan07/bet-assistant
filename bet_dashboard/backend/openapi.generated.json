@@ -874,7 +874,7 @@
           "services"
         ],
         "summary": "Save Settings",
-        "description": "Persist scheduler hour/minute settings and per-profile schedules.",
+        "description": "Persist per-profile schedules (the only scheduling payload).",
         "operationId": "save_settings_api_services_settings_post",
         "requestBody": {
           "content": {
@@ -2134,46 +2134,20 @@
       },
       "ServicesSettingsIn": {
         "properties": {
-          "generate_hour": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generate Hour"
-          },
-          "generate_minute": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Generate Minute"
-          },
           "profile_schedules": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ProfileScheduleIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "items": {
+              "$ref": "#/components/schemas/ProfileScheduleIn"
+            },
+            "type": "array",
             "title": "Profile Schedules"
           }
         },
         "type": "object",
+        "required": [
+          "profile_schedules"
+        ],
         "title": "ServicesSettingsIn",
-        "description": "Payload for service scheduler settings."
+        "description": "Payload for service scheduler settings.\n\nPer-profile schedules only \u2014 there is no global generation time anymore\n(user decision 2026-10-25): a legacy hour-only body fails validation\nbecause profile_schedules is required."
       },
       "SlipIn": {
         "properties": {
