@@ -129,6 +129,6 @@ RUNNER_SETS:
 
 MAX_CHUNK_SIZE:
   actions: 100
-  local: 1
+  local: 2
   all: 1
   test: 1
