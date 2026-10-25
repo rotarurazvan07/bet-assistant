@@ -122,7 +122,7 @@ class VitibetFinder(BaseMatchFinder):
 
                     # Score prediction
                     score_div = match_link.find("div", class_="mc-score")
-                    if score_div.text == '- : -':
+                    if score_div.text == "- : -":
                         log_event(
                             logger,
                             event="match.skipped",
