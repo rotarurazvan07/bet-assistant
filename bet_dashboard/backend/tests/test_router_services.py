@@ -68,7 +68,6 @@ class TestGetServices:
         assert nxt.startswith("Today 11:00")
         assert "1h" in nxt
 
-
     def test_generator_next_run_none_without_any_window(self, services_client, frozen_clock) -> None:
         tc, mock = services_client
         mock.get_profile_schedules.return_value = [
@@ -83,7 +82,6 @@ class TestGetServices:
             {"name": "early", "auto_generate": True, "generate_hour": 8, "generate_minute": 0},
         ]
         assert tc.get(BASE).json()["services"]["generator"]["next_run"].startswith("Tomorrow 08:00")
-
 
     def test_interval_services_label_every_n_minutes(self, services_client) -> None:
         tc, _ = services_client

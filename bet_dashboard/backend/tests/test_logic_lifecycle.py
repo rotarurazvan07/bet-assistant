@@ -273,7 +273,9 @@ class TestAppLogicLifecycle:
     def test_generator_predicate_false_before_target_time(self, app_env, monkeypatch) -> None:
         """[P0] Before the profile's own window the predicate never fires."""
         app = app_env.app
-        app.settings.write("late", {"auto_generate": True, "generate_hour": 12, "generate_minute": 0, "units": 1.0}, subpath="profiles")
+        app.settings.write(
+            "late", {"auto_generate": True, "generate_hour": 12, "generate_minute": 0, "units": 1.0}, subpath="profiles"
+        )
         self._freeze_now(monkeypatch)
         assert app._is_generator_hour_met() is False
         assert app._last_generator_run is None

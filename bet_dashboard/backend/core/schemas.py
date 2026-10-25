@@ -1,8 +1,6 @@
 """Pydantic request/response models for the API."""
 
-from typing import Self
-
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 from bet_framework.markets.enums import MarketKey, MarketType
 
