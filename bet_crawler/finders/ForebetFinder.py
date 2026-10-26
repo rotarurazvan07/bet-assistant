@@ -18,7 +18,7 @@ from .BaseMatchFinder import BaseMatchFinder
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-MAX_CONCURRENCY = 10
+MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = {
     "https://www.forebet.com/en/predictions-europe/uefa-champions-league": CHAMPIONS_LEAGUE,
