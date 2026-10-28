@@ -122,6 +122,18 @@ class VitibetFinder(BaseMatchFinder):
 
                     # Score prediction
                     score_div = match_link.find("div", class_="mc-score")
+                    if score_div.text == "- : -":
+                        log_event(
+                            logger,
+                            event="match.skipped",
+                            outcome="info",
+                            reason_code="score_unavailable",
+                            level=30,
+                            message=f"Skipping Vitibet row with unavailable score: {url}",
+                            source_key="vitibet",
+                            url=url,
+                        )
+                        continue
                     tokens = [] if score_div is None else score_div.text.strip().split(" : ")
                     # AC-09: skip if token is not a number
                     if len(tokens) < 2:

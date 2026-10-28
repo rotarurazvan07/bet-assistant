@@ -1,6 +1,6 @@
 """Match finder for soccervista.com league pages."""
 
-from bet_crawler.crawler_logging import exception_event, get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 import datetime
@@ -139,7 +139,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                         ).replace(hour=0, minute=0, second=0, microsecond=0)
                     except ValueError as exc:
                         date_text = match_tr.find_all("td")[0].get_text(strip=True)
-                        if any(token in date_text.casefold() for token in ("live", "ongoing", "in play")):
+                        if any(token in date_text.casefold() for token in ("live", "ongoing", "in play", "'")):
                             logger.info("%s vs %s: Match ongoing", home_team, away_team)
                         else:
                             logger.warning(

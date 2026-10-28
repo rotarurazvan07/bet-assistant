@@ -296,6 +296,18 @@ class OddsPortalFinder(BaseMatchFinder):
                     event_types = event_type if isinstance(event_type, list) else [event_type]
                     if "SportsEvent" not in event_types:
                         continue
+                    if "inplay-odds" in event.get("url"):
+                        log_event(
+                            logger,
+                            event="source.discovery.in_play",
+                            outcome="info",
+                            reason_code="in_play",
+                            level=30,
+                            message="Skipping ongoing match",
+                            source_key="oddsportal",
+                            url=event.get("url"),
+                        )
+                        continue
                     match_url = self._normalize_match_url(event.get("url"))
                     start_date_str = event.get("startDate")
                     if not match_url or not start_date_str:
@@ -402,7 +414,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     identity = self._parse_identity(soup)
                     if identity is None:
                         # AC-03: skip only when teams+date cannot be read
-                        logger.info(
+                        logger.warning(
                             "[%s] SKIPPED [%s]: missing SportsEvent identity",
                             thread_name,
                             url,
@@ -528,8 +540,6 @@ class OddsPortalFinder(BaseMatchFinder):
         if not isinstance(match_url, str) or not match_url.strip():
             return None
         url = match_url.strip()
-        if "inplay-odds" in url:
-            return None
         if url.startswith("#"):
             return None
         if url.startswith("//"):
