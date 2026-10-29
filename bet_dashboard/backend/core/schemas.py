@@ -171,7 +171,14 @@ class BetSlipOut(BaseModel):
 
 
 class ProfileScheduleIn(BaseModel):
-    """Per-profile auto-generation schedule row (T4)."""
+    """Per-profile auto-generation schedule row (T4).
+
+    Issue #95: BOTH ``units`` and ``target_payout`` are always preserved on
+    disk; ``stake_mode`` ("units" | "payout") only selects which one is active
+    at generation time. A null ``units``/``target_payout`` means "not
+    provided" and the persisted value is kept — switching the segmented
+    control can never lose the other field's number.
+    """
 
     name: str
     auto_generate: bool | None = None
@@ -179,6 +186,7 @@ class ProfileScheduleIn(BaseModel):
     generate_minute: int | None = None
     units: float | None = None
     target_payout: float | None = None
+    stake_mode: str | None = None
     run_daily_count: int | None = None
     order: int | None = None
 

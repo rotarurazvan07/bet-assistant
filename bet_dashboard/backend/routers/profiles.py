@@ -1,6 +1,6 @@
 """Profiles API: list, save and delete builder profiles."""
 
-from core.config_helpers import _config_to_yaml_dict
+from core.config_helpers import _RUNTIME_ONLY, _config_to_yaml_dict
 from core.schemas import ProfileIn
 from fastapi import APIRouter, HTTPException, Request
 
@@ -100,6 +100,10 @@ def save_profile(request: Request, body: ProfileIn):
     data["min_legs_fill_ratio"] = body.min_legs_fill_ratio
     for key, value in existing.items():
         data.setdefault(key, value)
+    # Runtime-only keys (date_from/date_to/excluded_urls) are Build-page
+    # filters and must never be persisted into profile YAML (issue #95).
+    for k in _RUNTIME_ONLY:
+        data.pop(k, None)
     app.settings.write(name, data, subpath="profiles")
     return {"name": name, "data": data}
 

@@ -107,11 +107,23 @@ class TestGetServices:
             assert key in svc
         assert svc["description"]
 
-    def test_generator_last_time_generated_from_runtime_state(self, services_client) -> None:
-        tc, _ = services_client
+    def test_generator_last_time_generated_derived_from_profile_rows(self, services_client) -> None:
+        """[P0] The generator card's last_time_generated is derived as the max
+        of the per-profile profile_last_run 'at' values — no separate stored key."""
+        tc, mock = services_client
+        mock.get_profile_schedules.return_value = [
+            {"name": "a", "last_generated_at": "2030-01-01T08:30:00+00:00"},
+            {"name": "b", "last_generated_at": "2030-01-01T09:45:00+00:00"},
+            {"name": "c", "last_generated_at": None},
+        ]
         data = tc.get(BASE).json()
-        assert data["services"]["generator"]["last_time_generated"] == "2030-01-01T08:30:00"
+        assert data["services"]["generator"]["last_time_generated"] == "2030-01-01T09:45:00+00:00"
         assert data["services"]["puller"]["last_time_generated"] is None
+
+    def test_generator_last_time_generated_none_without_runs(self, services_client) -> None:
+        tc, mock = services_client
+        mock.get_profile_schedules.return_value = [{"name": "a", "last_generated_at": None}]
+        assert tc.get(BASE).json()["services"]["generator"]["last_time_generated"] is None
 
     def test_unknown_service_next_run_unknown(self, services_client) -> None:
         tc, mock = services_client

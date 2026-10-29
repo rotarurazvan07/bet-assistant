@@ -53,9 +53,10 @@ class TestAppLogicLifecycle:
         assert puller.predicate == app_env.app._check_for_changes
 
     def test_init_generator_interval_and_predicate(self, app_env) -> None:
-        """[P0] Generator polls every 5 min gated by _is_generator_hour_met."""
+        """[P0] Generator polls every 60s gated by _is_generator_hour_met so a
+        due window fires promptly instead of up to 5 min late."""
         gen = app_env.app.services["generator"]
-        assert gen.interval == 5 * 60
+        assert gen.interval == 60
         assert gen.predicate == app_env.app._is_generator_hour_met
 
     def test_init_verifier_interval_and_no_predicate(self, app_env) -> None:
@@ -339,7 +340,8 @@ class TestAppLogicLifecycle:
                     "units": 1.0,
                 },
             },
-            runtime_state={"profile_last_generated": {"due": "2026-09-24"}},
+            # Same local day (2026-09-24 09:00 EEST = 06:00Z) → blocks today's run
+            runtime_state={"profile_last_run": {"due": {"at": "2026-09-24T06:00:00+00:00", "status": "ok", "error": None}}},
         )
         app = env.app
         try:
@@ -362,7 +364,8 @@ class TestAppLogicLifecycle:
                     "units": 1.0,
                 },
             },
-            runtime_state={"profile_last_generated": {"due": "2026-09-23"}},
+            # Yesterday local (2026-09-23 09:00 EEST = 06:00Z) → allows today
+            runtime_state={"profile_last_run": {"due": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None}}},
         )
         app = env.app
         try:
@@ -385,7 +388,7 @@ class TestAppLogicLifecycle:
                     "units": 1.0,
                 },
             },
-            runtime_state={"profile_last_generated": {"due": "garbage-not-a-date"}},
+            runtime_state={"profile_last_run": {"due": {"at": "garbage-not-a-date", "status": "ok", "error": None}}},
         )
         app = env.app
         try:
@@ -554,7 +557,13 @@ class TestAppLogicLifecycle:
             assert len(slips) == 1
             assert slips[0].profile == "p1"
             runtime = app.settings.get("runtime_state") or {}
-            assert runtime.get("last_time_generated")
+            entry = (runtime.get("profile_last_run") or {}).get("p1")
+            assert entry and entry["status"] == "ok" and entry["at"]
+            # Legacy keys are gone after a write — no fallback
+            assert "last_time_generated" not in runtime
+            assert "profile_last_generated" not in runtime
+            assert "profile_last_generated_at" not in runtime
+            assert "profile_run_status" not in runtime
             assert broadcast_capture[-1]["event"] == "slips_updated"
         finally:
             app._assistant.conn.close()

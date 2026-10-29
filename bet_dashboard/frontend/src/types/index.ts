@@ -322,15 +322,29 @@ export interface AnalyticsData {
 
 /** Per-profile auto-generation schedule (issue #95). Position drives the order
  * in which the generator builds slips — the most important profile first. */
+export type StakeMode = 'units' | 'payout';
+export type RunStatus = 'ok' | 'failed' | 'running' | null;
+
 export interface ProfileSchedule {
     name: string;
     auto_generate: boolean;
-    generate_hour: number;
-    generate_minute: number;
+    /** null when the profile has no window of its own — never a fabricated default. */
+    generate_hour: number | null;
+    generate_minute: number | null;
     units: number | null;
     target_payout: number | null;
+    /** Which stake input is active — persisted server-side; BOTH values are always kept on disk. */
+    stake_mode?: StakeMode;
     run_daily_count: number;
     order: number;
+    /** ISO UTC of the last successful generation, or null when never generated. */
+    last_generated_at?: string | null;
+    /** ISO UTC of the next scheduled run (server-computed), null when auto is off. */
+    next_run_at?: string | null;
+    /** Status of the last run: ok / failed / running / null. */
+    last_run_status?: RunStatus;
+    /** Optional error message from a failed run. */
+    last_run_error?: string | null;
 }
 
 export interface ServiceInfo {

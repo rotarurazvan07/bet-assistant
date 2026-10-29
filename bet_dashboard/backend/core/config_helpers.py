@@ -29,8 +29,11 @@ def _config_to_yaml_dict(
 ) -> dict:
     """Convert a config object to a plain dict for YAML serialization."""
     d = asdict(cfg)
+    # Runtime-only keys (date_from/date_to/excluded_urls) are Build-page
+    # filters, never persisted to profile YAML — drop them entirely instead
+    # of writing explicit nulls (issue #95 cleanup).
     for k in _RUNTIME_ONLY:
-        d[k] = None
+        d.pop(k, None)
     d["units"] = units
     d["target_payout"] = target_payout
     # run_daily_count is opt-in like the scheduling keys below: an omitted

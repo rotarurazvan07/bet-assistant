@@ -44,6 +44,16 @@ def _next_run_interval(interval_seconds: int | None) -> str | None:
     return f"Every {minutes} min"
 
 
+def _last_generated_at(rows: list[dict]) -> str | None:
+    """Latest ``last_generated_at`` among profile rows, or None.
+
+    Derived from the single per-profile ``profile_last_run`` map — no separate
+    global ``last_time_generated`` key is persisted anymore.
+    """
+    stamps = [r.get("last_generated_at") for r in rows if r.get("last_generated_at")]
+    return max(stamps) if stamps else None
+
+
 def _earliest_profile_window(rows: list[dict]) -> tuple[int, int] | None:
     """Earliest per-profile generate window among active profiles.
 
@@ -63,9 +73,11 @@ def _earliest_profile_window(rows: list[dict]) -> tuple[int, int] | None:
 def get_services(request: Request):
     """Return service info plus scheduler settings."""
     app = _get(request)
-    runtime_cfg = app.settings.get("runtime_state") or {}
     now = datetime.now().isoformat()
     profile_rows = app.get_profile_schedules()
+    # Global generator "last generated" is derived from the per-profile
+    # profile_last_run entries (max at) — not stored as a separate key.
+    last_generated = _last_generated_at(profile_rows)
     # Generator scheduling is per-profile only: the generator card mirrors the
     # earliest active per-profile window (None when no profile has one).
     generator_window = _earliest_profile_window(profile_rows)
@@ -99,7 +111,7 @@ def get_services(request: Request):
             "minute": minute,
             "interval_seconds": svc.interval,
             "next_run": next_run,
-            "last_time_generated": runtime_cfg.get("last_time_generated") if name == "generator" else None,
+            "last_time_generated": last_generated if name == "generator" else None,
         }
 
     return {

@@ -8,7 +8,7 @@ import type {
     AnalyticsData, HistoryRecord, MarketAccuracy, PnlByMarket, OddsDistBucket,
     CorrelationRecord, ProfileScatterPoint, MarketBreakdown, LeagueBreakdown,
     RollingEdgePoint, DrawdownPoint, ReturnDistribution, TimePatternItem,
-    ServiceInfo, ServicesData, Profile, ProfilesMap,
+    ServiceInfo, ServicesData, Profile, ProfilesMap, ProfileSchedule,
     CandidateLeg, PreviewResult, OddsHistory, OddsSnapshot, OddsMovementSummary,
 } from '../types';
 
@@ -233,6 +233,25 @@ export function makeServicesData(overrides: Partial<ServicesData> = {}): Service
             verifier: makeServiceInfo({ name: 'verifier', interval_seconds: 60 }),
         },
         server_time: '2026-09-24T12:00:00',
+        ...overrides,
+    };
+}
+
+export function makeProfileSchedule(overrides: Partial<ProfileSchedule> = {}): ProfileSchedule {
+    return {
+        name: 'low',
+        auto_generate: true,
+        generate_hour: 8,
+        generate_minute: 30,
+        units: 1.0,
+        target_payout: null,
+        stake_mode: 'units',
+        run_daily_count: 1,
+        order: 0,
+        last_generated_at: null,
+        next_run_at: null,
+        last_run_status: null,
+        last_run_error: null,
         ...overrides,
     };
 }

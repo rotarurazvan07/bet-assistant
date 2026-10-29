@@ -33,6 +33,7 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
 
 from core.config_helpers import (  # noqa: E402
     _config_to_yaml_dict,
+    _RUNTIME_ONLY,
     _yaml_to_config,
     ensure_default_profiles,
 )
@@ -347,18 +348,19 @@ class TestEnsureDefaultProfiles:
             assert raw["target_payout"] is None, name
             assert raw["run_daily_count"] == 0, name
 
-    def test_runtime_only_keys_nulled_on_disk(self, tmp_path) -> None:
-        """[P1] date_from/date_to/excluded_urls are stored as explicit None
-        so profile files round-trip without dragging stale window state."""
+    def test_runtime_only_keys_absent_on_disk(self, tmp_path) -> None:
+        """[P1] date_from/date_to/excluded_urls are runtime-only (Build page
+        filters) and are dropped entirely from profile YAML — never written,
+        not even as explicit nulls (issue #95 cleanup)."""
         import yaml
 
         config_dir = tmp_path / "cfg"
         settings = SettingsManager(str(config_dir))
         ensure_default_profiles(str(config_dir / "profiles"), settings)
         raw = yaml.safe_load((config_dir / "profiles" / "low_risk.yaml").read_text())
-        assert raw["date_from"] is None
-        assert raw["date_to"] is None
-        assert raw["excluded_urls"] is None
+        assert "date_from" not in raw
+        assert "date_to" not in raw
+        assert "excluded_urls" not in raw
 
     def test_idempotent_when_profiles_exist(self, tmp_path) -> None:
         """[P1] Second run is a no-op: pre-existing profile yaml files
@@ -509,16 +511,21 @@ class TestProfileRoundTrip:
         assert data["target_payout"] is None
         assert data["run_daily_count"] == 0
         for key in ("date_from", "date_to", "excluded_urls"):
-            assert data[key] is None
+            assert key not in data
 
     def test_yaml_dict_contains_every_config_field(self) -> None:
-        """[P0] asdict-based serialization must cover the full field set --
-        guards against a field added to BetSlipConfig without making it
-        into profile files (silent default on round-trip would follow)."""
+        """[P0] asdict-based serialization must cover the full persisted field
+        set -- guards against a field added to BetSlipConfig without making it
+        into profile files (silent default on round-trip would follow).
+        Runtime-only keys (date_from/date_to/excluded_urls) are deliberately
+        excluded from profile YAML (issue #95)."""
         data = _config_to_yaml_dict(BetSlipConfig())
         for field_name in BetSlipConfig.__dataclass_fields__:
-            assert field_name in data, field_name
-        assert set(data) == set(BetSlipConfig.__dataclass_fields__) | {
+            if field_name in _RUNTIME_ONLY:
+                assert field_name not in data, field_name
+            else:
+                assert field_name in data, field_name
+        assert set(data) == (set(BetSlipConfig.__dataclass_fields__) - set(_RUNTIME_ONLY)) | {
             "units",
             "target_payout",
             "run_daily_count",

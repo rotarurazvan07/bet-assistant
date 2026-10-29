@@ -354,7 +354,8 @@ class TestAppLogicSlipOperations:
             result = app.generate_and_broadcast()
             assert result == {"p1": [1]}
             runtime = app.settings.get("runtime_state") or {}
-            assert runtime.get("last_time_generated")
+            entry = (runtime.get("profile_last_run") or {}).get("p1")
+            assert entry and entry["status"] == "ok" and entry["at"]
             assert broadcast_capture[-1]["event"] == "slips_updated"
         finally:
             app._assistant.conn.close()

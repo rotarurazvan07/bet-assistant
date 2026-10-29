@@ -144,12 +144,51 @@ class TestProfileScheduleMet:
         """[P1] A yesterday stamp does not block today's run."""
         cfg = {"auto_generate": True, "generate_hour": 8, "generate_minute": 0}
         _save_profiles(env.app, {"p": {**PROFILE, **cfg}})
+        # Frozen now is 2026-09-24 09:00 local (EEST) = 06:00Z; a run yesterday
+        # local (2026-09-23 06:00Z) must not block today.
         env.app.settings.write(
             "runtime_state",
-            {"profile_last_generated": {"p": "2026-09-23"}},
+            {"profile_last_run": {"p": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None}}},
         )
         _freeze(monkeypatch, hour=9)
         assert env.app._profile_schedule_met("p") is True
+
+
+class TestGeneratorPredicateTimezone:
+    """[P0] Regression: the gate interprets windows in the configured
+    local_timezone (Europe/Bucharest), NOT container-local time (UTC in
+    Docker) — otherwise a window set "2 minutes ahead" in the Services UI
+    is hours away for the backend and generation never fires on time."""
+
+    @staticmethod
+    def _freeze_utc(monkeypatch, utc_hour: int, utc_minute: int = 0) -> None:
+        """Pin datetime.now(tz) to a fixed AWARE UTC time."""
+        from datetime import timezone
+
+        class FrozenUTC(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                base = cls(2026, 9, 24, utc_hour, utc_minute, tzinfo=timezone.utc)
+                return base if tz is None else base.astimezone(tz)
+
+        monkeypatch.setattr("core.logic.datetime", FrozenUTC)
+
+    def test_window_fires_in_local_tz_not_container_utc(self, env, monkeypatch) -> None:
+        """Window 09:00 Europe/Bucharest (=06:00 UTC in summer). At 07:30 UTC
+        (=10:30 local) the profile IS due — container-UTC comparison would say no."""
+        _save_profiles(env.app, {"p": {**PROFILE, "auto_generate": True, "generate_hour": 9, "generate_minute": 0}})
+        env.app.settings.write("scraper_config", {"local_timezone": "Europe/Bucharest"})
+        self._freeze_utc(monkeypatch, utc_hour=7, utc_minute=30)
+        assert env.app._is_generator_hour_met() is True
+        assert env.app._profile_schedule_met("p") is True
+
+    def test_window_not_yet_due_in_local_tz(self, env, monkeypatch) -> None:
+        """At 05:30 UTC (=08:30 local) a 09:00 local window is NOT due yet."""
+        _save_profiles(env.app, {"p": {**PROFILE, "auto_generate": True, "generate_hour": 9, "generate_minute": 0}})
+        env.app.settings.write("scraper_config", {"local_timezone": "Europe/Bucharest"})
+        self._freeze_utc(monkeypatch, utc_hour=5, utc_minute=30)
+        assert env.app._is_generator_hour_met() is False
+        assert env.app._profile_schedule_met("p") is False
 
 
 class TestGeneratorPredicatePerProfile:
@@ -214,8 +253,13 @@ class TestDoGeneratePerProfile:
         env.app._do_generate()
         assert generated == ["due"]
         runtime = env.app.settings.get("runtime_state") or {}
-        assert (runtime.get("profile_last_generated") or {}).get("due") == "2026-09-24"
-        assert "later" not in (runtime.get("profile_last_generated") or {})
+        runs = runtime.get("profile_last_run") or {}
+        # Single consolidated entry: at/status/error, no legacy keys
+        assert runs.get("due", {}).get("status") == "ok"
+        assert runs.get("due", {}).get("at")
+        assert "later" not in runs
+        for legacy in ("profile_last_generated", "profile_last_generated_at", "profile_run_status", "last_time_generated"):
+            assert legacy not in runtime
         assert broadcast_capture[-1]["event"] == "slips_updated"
 
     def test_nothing_due_generates_nothing(self, env, monkeypatch, broadcast_capture) -> None:
@@ -269,26 +313,60 @@ class TestProfileSchedulesAPI:
                 "off": {**PROFILE},
             },
         )
-        rows = {r["name"]: r for r in env.app.get_profile_schedules()}
+        all_rows = env.app.get_profile_schedules()
+        rows = {r["name"]: r for r in all_rows}
         assert {"legacy", "auto", "off"} <= set(rows)
-        # F3: GET reports persisted values only — a legacy profile has no
-        # per-profile window/order of its own, so the row carries None instead
-        # of a fabricated default that a later Save would materialize.
-        assert rows["legacy"] == {
-            "name": "legacy",
-            "auto_generate": True,
-            "generate_hour": None,
-            "generate_minute": None,
-            "units": 2.0,
-            "target_payout": 50.0,
-            "run_daily_count": 1,
-            "order": None,
-        }
+        # Issue #95: rows carry computed scheduler state (stake_mode,
+        # last_generated_at/next_run_at/last_run_status/last_run_error), and
+        # "order" is the EFFECTIVE UI position (0-based), never the raw null —
+        # a profile without order on disk still has a concrete row position.
+        # legacy is active (run_daily_count=1) but has no window of its own →
+        # next_run_at is None (no fabricated 08:00 fallback); the daemon never
+        # fires a windowless profile, so the column shows "—".
+        legacy_row = rows["legacy"]
+        assert legacy_row["name"] == "legacy"
+        assert legacy_row["auto_generate"] is True
+        assert legacy_row["generate_hour"] is None
+        assert legacy_row["units"] == 2.0
+        assert legacy_row["target_payout"] == 50.0
+        assert legacy_row["stake_mode"] == "payout"
+        assert legacy_row["run_daily_count"] == 1
+        assert legacy_row["last_generated_at"] is None
+        assert legacy_row["last_run_status"] is None
+        assert legacy_row["last_run_error"] is None
+        assert legacy_row["next_run_at"] is None # windowless active profile never fires
         assert rows["auto"]["generate_hour"] == 6
         assert rows["auto"]["generate_minute"] == 15
-        assert rows["auto"]["order"] == 3
         assert rows["off"]["auto_generate"] is False
-        assert rows["off"]["order"] is None
+        assert rows["off"]["next_run_at"] is None  # auto off → no next run
+        # Effective order = position in UI-sorted rows (built-ins included):
+        # every row carries its 0-based position, never the raw null.
+        assert [r["order"] for r in all_rows] == list(range(len(all_rows)))
+        assert rows["legacy"]["order"] is not None  # was null on disk → positional
+        assert rows["off"]["order"] is not None
+        # auto has explicit order 3 → sorts after all order-0 (null) rows
+        assert rows["auto"]["order"] == len(all_rows) - 1
+
+    def test_get_profile_schedules_order_reflects_ui_position(self, env) -> None:
+        """[P0] Issue #95 follow-up: a NEW profile has order=null in YAML, but
+        the Services tab shows it at a concrete position — the GET row must
+        report that effective position (and rows come back in UI order), not
+        the raw null. The autosave writes these back, so YAML converges."""
+        _save_profiles(
+            env.app,
+            {
+                "b_new": {**PROFILE, "auto_generate": True, "order": None},  # no order on disk
+                "a_old": {**PROFILE, "auto_generate": True, "order": 7},
+            },
+        )
+        rows = env.app.get_profile_schedules()
+        by_name = {r["name"]: r for r in rows}
+        # null order sorts as 0 → b_new ahead of a_old (order 7); both rows
+        # carry concrete positional ints (never the raw null from disk)
+        assert isinstance(by_name["b_new"]["order"], int)
+        assert isinstance(by_name["a_old"]["order"], int)
+        assert by_name["b_new"]["order"] < by_name["a_old"]["order"]
+        assert [r["order"] for r in rows] == list(range(len(rows)))
 
     def test_save_profile_schedules_merges_without_dropping_keys(self, env) -> None:
         """[P0] POSTed rows merge into YAML and keep unrelated profile keys."""
@@ -316,22 +394,70 @@ class TestProfileSchedulesAPI:
         assert stored["run_daily_count"] == 1  # untouched keys survive
         assert stored["target_odds"] == PROFILE["target_odds"]
 
-    def test_save_profile_schedules_clears_target_payout_with_explicit_null(self, env) -> None:
-        """[P1] F5: an explicit null clears target_payout instead of being ignored."""
-        _save_profiles(
-            env.app,
-            {"p": {**PROFILE, "auto_generate": True, "target_payout": 99.0}},
-        )
-        env.app.save_profile_schedules([{"name": "p", "auto_generate": True, "target_payout": None}])
+    def test_save_profile_schedules_stake_mode_switch_preserves_both_fields(self, env) -> None:
+        """[P0] Issue #95: switching stake_mode units→payout keeps BOTH values on
+        disk — stake_mode only selects which is active, never nulls the other."""
+        _save_profiles(env.app, {"p": {**PROFILE, "units": 1.0, "target_payout": 25.0}})
+        env.app.save_profile_schedules([{"name": "p", "stake_mode": "payout", "units": 1.0, "target_payout": 50.0}])
         stored = env.app.settings.get("profiles")["p"]
-        assert stored["target_payout"] is None
-        assert stored["auto_generate"] is True
+        assert stored["stake_mode"] == "payout"
+        assert stored["units"] == 1.0  # preserved, not nulled
+        assert stored["target_payout"] == 50.0
+
+    def test_save_profile_schedules_without_stake_mode_keeps_null_fields(self, env) -> None:
+        """[P0] Issue #95: no stake_mode → null units/payout means 'not provided', persisted value kept."""
+        _save_profiles(env.app, {"p": {**PROFILE, "units": 2.0, "target_payout": 30.0}})
+        env.app.save_profile_schedules([{"name": "p", "units": None, "target_payout": None}])
+        stored = env.app.settings.get("profiles")["p"]
+        assert stored["units"] == 2.0
+        assert stored["target_payout"] == 30.0
+
+    def test_save_profile_schedules_value_edit_in_units_mode_keeps_payout(self, env) -> None:
+        """[P0] Issue #95: editing units while stake_mode=units (no mode switch) must not null payout."""
+        _save_profiles(env.app, {"p": {**PROFILE, "units": 1.0, "target_payout": 50.0, "stake_mode": "units"}})
+        env.app.save_profile_schedules([{"name": "p", "stake_mode": "units", "units": 3.0}])
+        stored = env.app.settings.get("profiles")["p"]
+        assert stored["units"] == 3.0
+        assert stored["target_payout"] == 50.0  # untouched — not nulled
+
+    def test_get_profile_schedules_returns_persisted_stake_mode(self, env) -> None:
+        """[P0] Issue #95: GET returns the persisted stake_mode (not just inferred)."""
+        _save_profiles(env.app, {"p": {**PROFILE, "units": 1.0, "target_payout": 50.0, "stake_mode": "payout"}})
+        rows = {r["name"]: r for r in env.app.get_profile_schedules()}
+        assert rows["p"]["stake_mode"] == "payout"
+        assert rows["p"]["units"] == 1.0
+        assert rows["p"]["target_payout"] == 50.0
 
     def test_save_profile_schedules_ignores_unknown_profile(self, env) -> None:
         """[P1] Rows for unknown profiles are skipped, existing data untouched."""
         _save_profiles(env.app, {"p": {**PROFILE, "run_daily_count": 1}})
         env.app.save_profile_schedules([{"name": "ghost", "auto_generate": True}])
         assert "ghost" not in env.app.settings.get("profiles")
+
+    def test_services_scope_payout_defaults_to_1_not_null(self, env) -> None:
+        """[P0] Services-tab scope only: a profile with no target_payout on
+        disk reports 1 (like units) in GET and gets 1 persisted on save —
+        never null in the YAML through this path."""
+        _save_profiles(env.app, {"p": {**PROFILE, "run_daily_count": 1}})  # no target_payout key
+        rows = {r["name"]: r for r in env.app.get_profile_schedules()}
+        assert rows["p"]["target_payout"] == 1.0
+        assert rows["p"]["units"] == 1.0
+        env.app.save_profile_schedules([{"name": "p", "auto_generate": True}])
+        stored = env.app.settings.get("profiles")["p"]
+        assert stored["target_payout"] == 1.0
+        assert stored["units"] == 1.0
+
+    def test_save_profile_schedules_strips_runtime_only_keys(self, env) -> None:
+        """[P0] date_from/date_to/excluded_urls are runtime-only (Build page
+        filters) and must never persist into profile YAML — stripped on save."""
+        _save_profiles(env.app, {
+            "p": {**PROFILE, "run_daily_count": 1, "date_from": "2030-01-01", "date_to": "2030-01-02", "excluded_urls": ["x"]},
+        })
+        env.app.save_profile_schedules([{"name": "p", "auto_generate": True}])
+        stored = env.app.settings.get("profiles")["p"]
+        assert "date_from" not in stored
+        assert "date_to" not in stored
+        assert "excluded_urls" not in stored
 
 
 class TestOrderingRobustness:
@@ -359,5 +485,43 @@ class TestOrderingRobustness:
         monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {})
         _freeze(monkeypatch, hour=9)
         env.app._do_generate()
-        stamps = (env.app.settings.get("runtime_state") or {}).get("profile_last_generated") or {}
-        assert stamps.get("due") == "2026-09-24"
+        runs = (env.app.settings.get("runtime_state") or {}).get("profile_last_run") or {}
+        entry = runs.get("due") or {}
+        assert entry.get("status") == "ok"
+        # Frozen now is 2026-09-24 09:00 EEST → 06:00Z; entry must be today local
+        assert env.app._last_run_local_date("due") == "2026-09-24"
+
+    def test_claim_writes_single_entry_and_drops_legacy_keys(self, env) -> None:
+        """[P0] runtime_state holds ONE entry per profile (profile_last_run with
+        at/status/error); legacy keys present on disk are removed on write."""
+        env.app.settings.write(
+            "runtime_state",
+            {
+                "last_time_generated": "2026-09-23T20:00:00",
+                "profile_last_generated": {"p": "2026-09-23"},
+                "profile_last_generated_at": {"p": "2026-09-23T20:00:00+00:00"},
+                "profile_run_status": {"p": {"status": "ok", "error": None, "at": "2026-09-23T20:00:00"}},
+                "profile_last_run": {"p": {"at": "2026-09-23T20:00:00+00:00", "status": "ok", "error": None}},
+            },
+        )
+        env.app._claim_profile_runs({"p": (None, 1.0, 1, None), "q": (None, 1.0, 1, None)}, status="failed", error="boom")
+        runtime = env.app.settings.get("runtime_state") or {}
+        assert set(runtime) == {"profile_last_run"}
+        runs = runtime["profile_last_run"]
+        assert runs["p"] == {"at": runs["p"]["at"], "status": "failed", "error": "boom"}
+        assert runs["q"]["status"] == "failed" and runs["q"]["error"] == "boom"
+        assert datetime.fromisoformat(runs["p"]["at"]).tzinfo is not None
+
+    def test_manual_slip_save_never_touches_generation_state(self, env) -> None:
+        """[P0] Build-independence: saving a manual slip (Build page) must not
+        write or modify profile_last_run — only the generator claims runs."""
+        env.app.settings.write("runtime_state", {"profile_last_run": {"p": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None}}})
+        before = env.app.settings.get("runtime_state")
+        # Manual path: save_slip_and_broadcast -> save_slip only; empty legs may
+        # raise inside BetAssistant, but generation state must stay untouched.
+        try:
+            env.app.save_slip_and_broadcast("manual", [], 1.0)
+        except Exception:
+            pass
+        after = env.app.settings.get("runtime_state")
+        assert after == before
