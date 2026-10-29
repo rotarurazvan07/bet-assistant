@@ -9,6 +9,7 @@ from datetime import datetime
 
 import pytest
 from tests.logic_test_helpers import build_app
+import contextlib
 
 PROFILE = {
     "target_odds": 2.0,
@@ -334,7 +335,7 @@ class TestProfileSchedulesAPI:
         assert legacy_row["last_generated_at"] is None
         assert legacy_row["last_run_status"] is None
         assert legacy_row["last_run_error"] is None
-        assert legacy_row["next_run_at"] is None # windowless active profile never fires
+        assert legacy_row["next_run_at"] is None  # windowless active profile never fires
         assert rows["auto"]["generate_hour"] == 6
         assert rows["auto"]["generate_minute"] == 15
         assert rows["off"]["auto_generate"] is False
@@ -450,9 +451,18 @@ class TestProfileSchedulesAPI:
     def test_save_profile_schedules_strips_runtime_only_keys(self, env) -> None:
         """[P0] date_from/date_to/excluded_urls are runtime-only (Build page
         filters) and must never persist into profile YAML — stripped on save."""
-        _save_profiles(env.app, {
-            "p": {**PROFILE, "run_daily_count": 1, "date_from": "2030-01-01", "date_to": "2030-01-02", "excluded_urls": ["x"]},
-        })
+        _save_profiles(
+            env.app,
+            {
+                "p": {
+                    **PROFILE,
+                    "run_daily_count": 1,
+                    "date_from": "2030-01-01",
+                    "date_to": "2030-01-02",
+                    "excluded_urls": ["x"],
+                },
+            },
+        )
         env.app.save_profile_schedules([{"name": "p", "auto_generate": True}])
         stored = env.app.settings.get("profiles")["p"]
         assert "date_from" not in stored
@@ -515,13 +525,13 @@ class TestOrderingRobustness:
     def test_manual_slip_save_never_touches_generation_state(self, env) -> None:
         """[P0] Build-independence: saving a manual slip (Build page) must not
         write or modify profile_last_run — only the generator claims runs."""
-        env.app.settings.write("runtime_state", {"profile_last_run": {"p": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None}}})
+        env.app.settings.write(
+            "runtime_state", {"profile_last_run": {"p": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None}}}
+        )
         before = env.app.settings.get("runtime_state")
         # Manual path: save_slip_and_broadcast -> save_slip only; empty legs may
         # raise inside BetAssistant, but generation state must stay untouched.
-        try:
+        with contextlib.suppress(Exception):
             env.app.save_slip_and_broadcast("manual", [], 1.0)
-        except Exception:
-            pass
         after = env.app.settings.get("runtime_state")
         assert after == before

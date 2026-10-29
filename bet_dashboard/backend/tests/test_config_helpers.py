@@ -32,8 +32,8 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
         sys.path.insert(0, _p)
 
 from core.config_helpers import (  # noqa: E402
-    _config_to_yaml_dict,
     _RUNTIME_ONLY,
+    _config_to_yaml_dict,
     _yaml_to_config,
     ensure_default_profiles,
 )

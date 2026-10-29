@@ -186,7 +186,9 @@ class FakeDashboardLogic:
         self._last_pull = "2030-01-01 09:00"
         self._settings = {
             "services": {"generate_hour": 8, "generate_minute": 30, "toggles": {}},
-            "runtime_state": {"profile_last_run": {"low_risk": {"at": "2030-01-01T08:30:00+00:00", "status": "ok", "error": None}}},
+            "runtime_state": {
+                "profile_last_run": {"low_risk": {"at": "2030-01-01T08:30:00+00:00", "status": "ok", "error": None}}
+            },
             "scraper_config": {"RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]}},
         }
         self.calls: list[str] = []

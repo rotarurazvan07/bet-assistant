@@ -5,11 +5,11 @@ import os
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 from pathlib import Path
 from threading import RLock
 from typing import Any
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
