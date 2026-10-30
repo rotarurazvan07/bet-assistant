@@ -210,18 +210,44 @@ def main() -> None:
     # run_daily_count) merged with that profile's schedule keys, exactly like
     # the local track's DEMO_PROFILES (review F7 — one mocked database, two
     # delivery paths).
+    # IMPORTANT: Use exact makeProfile() factory defaults so the two tracks are
+    # byte-identical (review H6).
     profiles_dir = CONFIG_DIR / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
+    
+    # makeProfile() factory defaults (must match frontend/src/test/factories.ts)
+    MAKE_PROFILE_DEFAULTS = {
+        "target_odds": 2.0, "target_legs": 3,
+        "max_legs_overflow": None,
+        "consensus_floor": 50.0, "min_leg_odds": 1.05,
+        "included_markets": None, "included_leagues": None, "excluded_sources": None,
+        "tolerance_factor": None, "stop_threshold": None,
+        "min_legs_fill_ratio": 0.7, "quality_vs_balance": 0.5, "consensus_vs_sources": 0.5,
+        "units": 1.0, "target_payout": None, "run_daily_count": 0,
+        "date_from": None, "date_to": None, "excluded_urls": None,
+        "consensus_shrinkage_k": None, "min_source_edge": None,
+        "max_leg_odds": 10.0, "tol_lower": None, "tol_upper": None,
+        "balance_decay": "gaussian", "min_pick_quality": None,
+        "odds_movement_weight": None, "odds_movement_strength_min": None,
+    }
+    
     for row in _PROFILE_SCHEDULES:
+        # Start with exact makeProfile defaults
+        profile_overrides = dict(MAKE_PROFILE_DEFAULTS)
+        # Apply per-profile consensus_floor overrides (matching demo-data.ts)
+        if row["name"] == "medium":
+            profile_overrides["consensus_floor"] = 60.0
+        elif row["name"] == "high_risk":
+            profile_overrides["consensus_floor"] = 40.0
+        # Apply schedule-specific overrides from _PROFILE_SCHEDULES
+        for key in ("units", "target_payout", "run_daily_count", "order",
+                    "auto_generate", "generate_hour", "generate_minute"):
+            if row[key] is not None:
+                profile_overrides[key] = row[key]
+        
         profile = _config_to_yaml_dict(
             BetSlipConfig(),
-            units=row["units"],
-            target_payout=row["target_payout"],
-            run_daily_count=row["run_daily_count"],
-            order=row["order"],
-            auto_generate=row["auto_generate"],
-            generate_hour=row["generate_hour"],
-            generate_minute=row["generate_minute"],
+            **profile_overrides
         )
         (profiles_dir / f"{row['name']}.yaml").write_text(
             yaml.safe_dump(profile, sort_keys=False), encoding="utf-8"
@@ -260,19 +286,31 @@ def main() -> None:
         )
     # Two-track self-check: the schedule rows survive as the exact same values
     # the frontend fixtures serve (catches drift at seed time, not in CI).
+    # IMPORTANT: Verify ALL builder fields, not just schedule keys (review H6).
     for row in _PROFILE_SCHEDULES:
         stored = yaml.safe_load(
             (profiles_dir / f"{row['name']}.yaml").read_text(encoding="utf-8")
         )
-        for key in (
-            "auto_generate",
-            "generate_hour",
-            "generate_minute",
-            "units",
-            "target_payout",
-            "run_daily_count",
-            "order",
-        ):
+        # Build expected profile with the same logic as the creation loop
+        expected = dict(MAKE_PROFILE_DEFAULTS)
+        if row["name"] == "medium":
+            expected["consensus_floor"] = 60.0
+        elif row["name"] == "high_risk":
+            expected["consensus_floor"] = 40.0
+        for key in ("units", "target_payout", "run_daily_count", "order",
+                    "auto_generate", "generate_hour", "generate_minute"):
+            if row[key] is not None:
+                expected[key] = row[key]
+        
+        # Verify EVERY builder field matches (not just schedule keys)
+        for key, expected_val in expected.items():
+            assert stored.get(key) == expected_val, (
+                f"profile builder drift for {row['name']}: "
+                f"{key}={stored.get(key)} != {expected_val}"
+            )
+        # Also verify schedule keys explicitly (for clarity)
+        for key in ("auto_generate", "generate_hour", "generate_minute",
+                    "units", "target_payout", "run_daily_count", "order"):
             assert stored.get(key) == row[key], (
                 f"profile schedule drift for {row['name']}: "
                 f"{key}={stored.get(key)} != {row[key]}"

@@ -729,7 +729,7 @@
           "profiles"
         ],
         "summary": "Delete Profile",
-        "description": "Delete a named builder profile.",
+        "description": "Delete a named builder profile and its runtime_state entry.",
         "operationId": "delete_profile_api_profiles__name__delete",
         "parameters": [
           {
@@ -2102,6 +2102,17 @@
             ],
             "title": "Target Payout"
           },
+          "stake_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stake Mode"
+          },
           "run_daily_count": {
             "anyOf": [
               {
@@ -2130,7 +2141,7 @@
           "name"
         ],
         "title": "ProfileScheduleIn",
-        "description": "Per-profile auto-generation schedule row (T4)."
+        "description": "Per-profile auto-generation schedule row (T4).\n\nIssue #95: BOTH ``units`` and ``target_payout`` are always preserved on\ndisk; ``stake_mode`` (\"units\" | \"payout\") only selects which one is active\nat generation time. A null ``units``/``target_payout`` means \"not\nprovided\" and the persisted value is kept \u2014 switching the segmented\ncontrol can never lose the other field's number."
       },
       "ServicesSettingsIn": {
         "properties": {

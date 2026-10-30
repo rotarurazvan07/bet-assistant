@@ -333,7 +333,11 @@ class TestAppLogicSlipOperations:
         assert "live_data" not in broadcast_capture[-1]
 
     def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
-        """[P0] generate_and_broadcast runs active profiles and persists the timestamp."""
+        """[P0] generate_and_broadcast runs DUE profiles and persists the timestamp."""
+        from datetime import datetime
+        now = datetime.now()
+        due_hour = now.hour
+        due_minute = 0
         profiles = {
             "p1": {
                 "target_odds": 2.0,
@@ -346,6 +350,8 @@ class TestAppLogicSlipOperations:
                 "odds_movement_strength_min": 0.2,
                 "units": 1.0,
                 "run_daily_count": 1,
+                "generate_hour": due_hour,
+                "generate_minute": due_minute,
             }
         }
         env = build_app(tmp_path, monkeypatch, profiles=profiles)

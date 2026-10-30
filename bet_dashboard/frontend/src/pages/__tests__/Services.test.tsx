@@ -206,6 +206,15 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
     });
 
     it('Stake column has a radiogroup segmented control [Units | Payout] and one numeric input per row', async () => {
+        server.use(
+            http.get('/api/services', () => HttpResponse.json(makeServicesData({
+                profile_schedules: [
+                    makeProfileSchedule({ name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, stake_mode: 'units', run_daily_count: 1, order: 0 }),
+                    makeProfileSchedule({ name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50.0, stake_mode: 'payout', run_daily_count: 2, order: 1 }),
+                    makeProfileSchedule({ name: 'high_risk', auto_generate: true, generate_hour: 12, generate_minute: 15, units: 1.0, target_payout: null, stake_mode: 'units', run_daily_count: 0, order: 2 }),
+                ],
+            }))),
+        );
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
         const group = screen.getByRole('radiogroup', { name: 'Stake mode for low' });
@@ -287,6 +296,15 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
     });
 
     it('shows Last generated relative time and Next run relative time', async () => {
+        server.use(
+            http.get('/api/services', () => HttpResponse.json(makeServicesData({
+                profile_schedules: [
+                    makeProfileSchedule({ name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, stake_mode: 'units', run_daily_count: 1, order: 0, last_generated_at: '2026-10-29T06:30:00Z', next_run_at: '2026-10-30T08:30:00Z', last_run_status: 'ok' }),
+                    makeProfileSchedule({ name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50.0, stake_mode: 'payout', run_daily_count: 2, order: 1, last_generated_at: null, next_run_at: '2026-10-30T10:00:00Z', last_run_status: null }),
+                    makeProfileSchedule({ name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: 1.0, target_payout: null, stake_mode: 'units', run_daily_count: 0, order: 2, last_generated_at: null, next_run_at: null, last_run_status: null }),
+                ],
+            }))),
+        );
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
         // low has last_generated_at → not "Never"
@@ -320,10 +338,17 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
 
     it('shows "Generating…" with spinner when last_run_status is running', async () => {
         server.use(http.get('/api/services', () => HttpResponse.json(makeServicesData({
-            profile_schedules: [makeProfileSchedule({
-                name: 'p', auto_generate: true, last_run_status: 'running',
-                last_generated_at: '2026-10-29T06:30:00Z', next_run_at: null,
-            })],
+            profile_schedules: [
+                makeProfileSchedule({
+                    name: 'p', auto_generate: true, last_run_status: 'running',
+                    last_generated_at: '2026-10-29T06:30:00Z', next_run_at: null,
+                    generate_hour: 8, generate_minute: 0, units: 1.0,
+                    target_payout: null, stake_mode: 'units', run_daily_count: 1, order: 0,
+                }),
+                // Other profiles with non-running status to avoid multiple 'Generating...' elements
+                makeProfileSchedule({ name: 'low', auto_generate: true, last_run_status: 'ok', generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, stake_mode: 'units', run_daily_count: 1, order: 0, last_generated_at: '2026-10-29T06:30:00Z' }),
+                makeProfileSchedule({ name: 'medium', auto_generate: false, last_run_status: null, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50.0, stake_mode: 'payout', run_daily_count: 0, order: 1 }),
+            ],
         }))));
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
@@ -340,6 +365,9 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
     });
 
     it('hides the per-profile section when the backend serves no rows', async () => {
+        server.use(
+            http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: [] }))),
+        );
         render(<Services />);
         await screen.findByText('Automation Services');
         expect(screen.queryByText('Per-Profile Scheduling')).not.toBeInTheDocument();
@@ -395,7 +423,8 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
         await screen.findByText('Per-Profile Scheduling');
         expect(screen.getByRole('combobox', { name: 'Generation hour for p' })).toHaveValue('');
         expect(screen.getByRole('combobox', { name: 'Generation minute for p' })).toHaveValue('');
-        expect(screen.getByText('--')).toBeInTheDocument();
+        // Two '--' placeholders (hour + minute) when both are null
+        expect(screen.getAllByText('--')).toHaveLength(2);
     });
 
     it('changing the hour updates Next run in-page without a reload', async () => {

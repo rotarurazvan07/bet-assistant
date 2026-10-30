@@ -115,7 +115,10 @@ function AddToSlipsModal({
                             onRawChange={v => {
                                 setUnitsText(v);
                                 setMode(v === '' ? null : 'units');
-                                onUnitsChange(v === '' ? 1 : +v);
+                                if (v === '') { onUnitsChange(1); return; }
+                                const n = +v;
+                                if (!Number.isFinite(n)) return;
+                                onUnitsChange(n);
                             }}
                             value={unitsText === '' ? 0 : +unitsText}
                             onChange={n => {
@@ -141,7 +144,10 @@ function AddToSlipsModal({
                             onRawChange={v => {
                                 setPayoutText(v);
                                 setMode(v === '' ? null : 'payout');
-                                onTargetPayoutChange(v === '' ? 0 : +v);
+                                if (v === '') { onTargetPayoutChange(0); return; }
+                                const n = +v;
+                                if (!Number.isFinite(n)) return;
+                                onTargetPayoutChange(n);
                             }}
                             value={payoutText === '' ? 0 : +payoutText}
                             onChange={n => {
@@ -411,6 +417,12 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         if (!name || !(name in profiles)) {
             setStatus(`'${name}' is not a saved profile`);
             return;
+        }
+        // Clear any pending autosave for the profile being deleted to prevent
+        // resurrection via the debounced saveProfile (review H8).
+        if (saveDebounceRef.current) {
+            clearTimeout(saveDebounceRef.current);
+            saveDebounceRef.current = null;
         }
         await deleteProfile(name);
         const updated = await fetchProfiles();

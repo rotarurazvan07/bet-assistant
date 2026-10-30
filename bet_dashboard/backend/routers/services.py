@@ -9,7 +9,7 @@ router = APIRouter(prefix="/api/services", tags=["services"])
 
 _DESCRIPTIONS = {
     "puller": "Checks every 5 minutes if a new database exists on GitHub (via ETag) and downloads it when updated.",
-    "generator": "Checks every 5 minutes whether any profile's own scheduled time has arrived to build today's betting slips.",
+    "generator": "Checks every minute whether any profile's own scheduled time has arrived to build today's betting slips.",
     "verifier": "Polls every 60 seconds to fetch live scores and settle completed matches on pending slips.",
 }
 

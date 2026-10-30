@@ -59,6 +59,8 @@ function computeNextRun(row: ProfileSchedule, now: Date): string | null {
     const next = new Date(now);
     next.setHours(row.generate_hour, row.generate_minute, 0, 0);
     if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1);
+    // Guard: invalid date (e.g. from malformed hour/minute) throws RangeError
+    if (!Number.isFinite(next.getTime())) return null;
     return next.toISOString();
 }
 
@@ -119,11 +121,12 @@ export default function Services() {
                 for (const r of sorted) {
                     // Seed BOTH values from the row so switching modes (or
                     // navigating away and back) never loses the other field.
+                    // Preserve null values (meaning "not provided") so they
+                    // don't get overwritten on first save (review M4).
                     ss[r.name] = {
                         mode: r.stake_mode ?? 'units',
-                        units: r.units ?? 1,
-                        // Services-tab scope: payout defaults to 1 like units — never null
-                        payout: r.target_payout ?? 1,
+                        units: r.units,
+                        payout: r.target_payout,
                     };
                 }
                 setStakeState(ss);
@@ -183,6 +186,9 @@ export default function Services() {
                 savedFadeRef.current = setTimeout(() => { setRowsSaved(''); setRowsSavedAt(null); }, 3000);
             } catch {
                 dirtyRef.current = true;
+                // Clear rowsSavedAt so the error toast restarts its animation and
+                // becomes visible (review M3: forwards fill kept opacity at 0).
+                setRowsSavedAt(null);
                 setRowsSaved('⚠ Failed to save profile schedules — will retry on next change');
             }
         }, 600);
@@ -407,7 +413,7 @@ export default function Services() {
                                                                 tabIndex={autoOn ? 0 : -1}
                                                                 aria-disabled={!autoOn}
                                                                 value={row.generate_hour ?? ''}
-                                                                onChange={(e) => patchRow(i, { generate_hour: Number(e.target.value) })}
+                                                                onChange={(e) => patchRow(i, { generate_hour: e.target.value === '' ? null : Number(e.target.value) })}
                                                             >
                                                                 {/* null in YAML = no window — show an explicit
                                                                     placeholder instead of fabricating 08:00 */}
@@ -423,7 +429,7 @@ export default function Services() {
                                                                 tabIndex={autoOn ? 0 : -1}
                                                                 aria-disabled={!autoOn}
                                                                 value={row.generate_minute ?? ''}
-                                                                onChange={(e) => patchRow(i, { generate_minute: Number(e.target.value) })}
+                                                                onChange={(e) => patchRow(i, { generate_minute: e.target.value === '' ? null : Number(e.target.value) })}
                                                             >
                                                                 {row.generate_minute == null && <option value="">--</option>}
                                                                 {Array.from({ length: 60 }, (_, m) => (
