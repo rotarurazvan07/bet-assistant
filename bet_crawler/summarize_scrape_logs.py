@@ -59,18 +59,13 @@ def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, s
 
 def _is_near_miss_message(message: str) -> bool:
     """True when a log message belongs to the merge NEAR-MISS REPORT block (issue #113)."""
-    return bool(
-        _NEAR_MISS_START.match(message)
-        or _NEAR_MISS_END.match(message)
-        or _NEAR_MISS_LINE.match(message)
-    )
+    return bool(_NEAR_MISS_START.match(message) or _NEAR_MISS_END.match(message) or _NEAR_MISS_LINE.match(message))
 
 
 def _is_near_miss_issue(issue: dict[str, Any]) -> bool:
     """Near-miss lines from MatchesManager are reported separately, not as problems."""
-    return (
-        str(issue.get("logger", "")) == "bet_framework.MatchesManager"
-        and _is_near_miss_message(str(issue.get("message", "")))
+    return str(issue.get("logger", "")) == "bet_framework.MatchesManager" and _is_near_miss_message(
+        str(issue.get("message", ""))
     )
 
 
@@ -116,9 +111,7 @@ def _read_legacy_issues(
     return issues, legacy_lines_by_artifact
 
 
-_NEAR_MISS_START = re.compile(
-    r"^\s*=== NEAR-MISS REPORT:\s*(\d+)\s+pairs \(score 40-65\) ==="
-)
+_NEAR_MISS_START = re.compile(r"^\s*=== NEAR-MISS REPORT:\s*(\d+)\s+pairs \(score 40-65\) ===")
 _NEAR_MISS_END = re.compile(r"^\s*=== END NEAR-MISS REPORT ===\s*$")
 _NEAR_MISS_LINE = re.compile(r"^\s*\[(\d+)\]\s+(.+?)\s+vs\s+(.+?)\s+<->\s+(.+?)\s+vs\s+(.+?)\s*$")
 
@@ -155,7 +148,7 @@ def _extract_near_misses(
     # 1. Legacy text lines: look for the NEAR-MISS REPORT block in each artifact
     for lines in legacy_lines_by_artifact.values():
         in_block = False
-        for line_number, raw_line in lines:
+        for _line_number, raw_line in lines:
             line = _ANSI_ESCAPE.sub("", raw_line).strip()
             if not line:
                 continue
@@ -163,7 +156,7 @@ def _extract_near_misses(
             message = _extract_message_from_legacy_line(line)
             if message is None:
                 message = line
-            
+
             start_match = _NEAR_MISS_START.match(message)
             if start_match:
                 in_block = True
@@ -536,8 +529,10 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
     lines.extend(
         [
-            ("> This report is diagnostic and does not change the workflow conclusion. "
-            "Raw logs and machine-readable details are retained in the `unified-logs` artifact."),
+            (
+                "> This report is diagnostic and does not change the workflow conclusion. "
+                "Raw logs and machine-readable details are retained in the `unified-logs` artifact."
+            ),
             "",
         ]
     )
