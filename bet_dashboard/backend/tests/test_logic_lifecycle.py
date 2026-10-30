@@ -17,7 +17,6 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
-
 from tests.logic_test_helpers import (
     FakeHTTPResponse,
     FakeTicker,

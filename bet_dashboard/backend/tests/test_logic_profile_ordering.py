@@ -5,11 +5,11 @@ _profile_schedule_met windows and once-per-day guards, _do_generate
 per-profile filtering, and the services router profile_schedules contract.
 """
 
+import contextlib
 from datetime import datetime
 
 import pytest
 from tests.logic_test_helpers import build_app
-import contextlib
 
 PROFILE = {
     "target_odds": 2.0,
