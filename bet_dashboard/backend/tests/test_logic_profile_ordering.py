@@ -535,3 +535,31 @@ class TestOrderingRobustness:
             env.app.save_slip_and_broadcast("manual", [], 1.0)
         after = env.app.settings.get("runtime_state")
         assert after == before
+
+
+class TestDeleteProfilePurgesRuntimeState:
+    """[P0] Deleting a profile must also delete its profile_last_run entry."""
+
+    def test_delete_removes_last_run_entry_and_keeps_others(self, env) -> None:
+        """[P0] The deleted profile's stamp is gone; other profiles keep theirs."""
+        _save_profiles(env.app, {"gone": dict(PROFILE), "keep": dict(PROFILE)})
+        env.app.settings.write(
+            "runtime_state",
+            {
+                "profile_last_run": {
+                    "gone": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None},
+                    "keep": {"at": "2026-09-23T07:00:00+00:00", "status": "ok", "error": None},
+                }
+            },
+        )
+        env.app.delete_profile("gone")
+        assert "gone" not in (env.app.settings.get("profiles") or {})
+        runs = (env.app.settings.get("runtime_state") or {}).get("profile_last_run") or {}
+        assert "gone" not in runs
+        assert runs["keep"]["status"] == "ok"
+
+    def test_delete_without_runtime_entry_writes_no_runtime_state(self, env) -> None:
+        """[P1] Deleting a never-run profile creates no runtime_state file."""
+        _save_profiles(env.app, {"fresh": dict(PROFILE)})
+        env.app.delete_profile("fresh")
+        assert env.app.settings.get("runtime_state") is None

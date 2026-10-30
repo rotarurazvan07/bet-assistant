@@ -416,6 +416,21 @@ class AppLogic:
             runtime.pop(legacy_key, None)
         self._settings.write("runtime_state", runtime)
 
+    def delete_profile(self, name: str) -> None:
+        """Delete a profile YAML and purge its ``profile_last_run`` entry.
+
+        The stamp must not outlive the profile, or a recreated profile would
+        inherit the old once-per-day guard. runtime_state is rewritten only
+        when an entry existed, so deleting a never-run profile creates nothing.
+        """
+        self._settings.delete(name, subpath="profiles")
+        runtime = self._settings.get("runtime_state") or {}
+        runs = runtime.get("profile_last_run") or {}
+        if name in runs:
+            runs.pop(name, None)
+            runtime["profile_last_run"] = runs
+            self._settings.write("runtime_state", runtime)
+
     def get_profile_schedules(self) -> list[dict]:
         """Profile schedule rows for the Services UI (every saved profile).
 

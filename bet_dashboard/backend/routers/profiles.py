@@ -110,6 +110,6 @@ def save_profile(request: Request, body: ProfileIn):
 
 @router.delete("/{name}")
 def delete_profile(request: Request, name: str):
-    """Delete a named builder profile."""
-    _get(request).settings.delete(name, subpath="profiles")
+    """Delete a named builder profile and its runtime_state entry."""
+    _get(request).delete_profile(name)
     return {"deleted": name}

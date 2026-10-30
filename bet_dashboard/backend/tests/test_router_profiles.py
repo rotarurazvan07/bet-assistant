@@ -126,11 +126,13 @@ class TestSaveProfile:
 
 
 class TestDeleteProfile:
-    def test_delete_delegates_to_settings(self, client, fake_app) -> None:
+    def test_delete_delegates_to_app_logic(self, client, fake_app) -> None:
+        """DELETE must go through AppLogic.delete_profile so the runtime_state
+        profile_last_run entry is purged together with the profile YAML."""
         r = client.delete(f"{BASE}/gone")
         assert r.status_code == 200
         assert r.json() == {"deleted": "gone"}
-        fake_app.settings.delete.assert_called_once_with("gone", subpath="profiles")
+        fake_app.delete_profile.assert_called_once_with("gone")
 
 
 class TestSaveProfileMergeOnWrite:
