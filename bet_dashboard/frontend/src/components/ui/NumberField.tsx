@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 /**
  * Number input with up/down steppers.
  *
@@ -18,6 +20,17 @@ export interface NumberFieldProps {
     /** Accessible name — required wherever the input has no visible <label>. */
     label?: string;
     disabled?: boolean;
+    autoFocus?: boolean;
+    /**
+     * Free-text mode: when set, the input is controlled by this string (''
+     * allowed) and every keystroke goes to onRawChange instead of onChange.
+     * Used for fields that must stay empty while typing (Add-to-Slips modal),
+     * or to show a computed preview string in the disabled twin field.
+     */
+    rawValue?: string;
+    onRawChange?: (raw: string) => void;
+    /** Extra styles for the <input> itself (e.g. muted color when disabled). */
+    inputStyle?: CSSProperties;
 }
 
 const CHEVRON = {
@@ -34,6 +47,10 @@ export function NumberField({
     className = 'w-20',
     label,
     disabled = false,
+    autoFocus = false,
+    rawValue,
+    onRawChange,
+    inputStyle,
 }: NumberFieldProps) {
     const decimals = (String(step).split('.')[1] ?? '').length;
     const clamp = (n: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n));
@@ -65,10 +82,15 @@ export function NumberField({
                 step={step}
                 aria-label={label}
                 disabled={disabled}
-                style={{ paddingRight: 16, cursor: disabled ? 'not-allowed' : 'text' }}
-                value={value}
+                autoFocus={autoFocus}
+                style={{ paddingRight: 16, cursor: disabled ? 'not-allowed' : 'text', ...inputStyle }}
+                value={rawValue ?? value}
                 onChange={(e) => {
                     const raw = e.target.value;
+                    if (rawValue !== undefined) {
+                        onRawChange?.(raw);
+                        return;
+                    }
                     // Typed text is authoritative: '' keeps the last value out of
                     // view rather than silently writing 0 over it.
                     if (raw === '') return;
@@ -78,10 +100,10 @@ export function NumberField({
             {/* Steppers: tabIndex -1 keeps a single tab stop per field (keyboard
                 users still get the native arrow keys on the number input). */}
             <div className="absolute right-0 inset-y-0 w-4 flex flex-col">
-                <button type="button" tabIndex={-1} className="num-step" aria-hidden="true" onClick={() => bump(1)}>
+                <button type="button" tabIndex={-1} className="num-step" aria-hidden="true" disabled={disabled} onClick={() => bump(1)}>
                     {chevron(CHEVRON.up)}
                 </button>
-                <button type="button" tabIndex={-1} className="num-step" aria-hidden="true" onClick={() => bump(-1)}>
+                <button type="button" tabIndex={-1} className="num-step" aria-hidden="true" disabled={disabled} onClick={() => bump(-1)}>
                     {chevron(CHEVRON.down)}
                 </button>
             </div>

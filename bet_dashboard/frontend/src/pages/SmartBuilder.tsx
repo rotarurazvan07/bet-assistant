@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import BuilderPanel from '../components/BuilderPanel';
+import { NumberField } from '../components/ui/NumberField';
 import { BetPreview } from '../components/BetComponents';
 import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
 import { FirstSlipToast } from '../components/OnboardingTour';
@@ -102,51 +103,53 @@ function AddToSlipsModal({
                     </p>
                     <div className="flex items-center gap-3">
                         <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Units</span>
-                        <input
-                            aria-label="Units"
-                            className="field w-24"
-                            type="number"
+                        <NumberField
+                            label="Units"
+                            className="w-24"
                             min={0.1}
                             step={0.1}
                             autoFocus
                             disabled={payoutActive}
-                            style={{
-                                opacity: payoutActive ? 0.5 : 1,
-                                cursor: payoutActive ? 'not-allowed' : 'text',
-                                color: payoutActive ? 'var(--text-secondary)' : undefined,
-                            }}
-                            value={payoutActive ? String(previewUnits) : unitsText}
-                            onChange={e => {
-                                const v = e.target.value;
+                            inputStyle={{ color: payoutActive ? 'var(--text-secondary)' : undefined }}
+                            rawValue={payoutActive ? String(previewUnits) : unitsText}
+                            onRawChange={v => {
                                 setUnitsText(v);
                                 setMode(v === '' ? null : 'units');
                                 onUnitsChange(v === '' ? 1 : +v);
-                            }} />
+                            }}
+                            value={unitsText === '' ? 0 : +unitsText}
+                            onChange={n => {
+                                setUnitsText(String(n));
+                                setMode('units');
+                                onUnitsChange(n);
+                            }}
+                        />
                         {payoutActive && (
                             <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
                         )}
                     </div>
                     <div className="flex items-center gap-3">
                         <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
-                        <input
-                            aria-label="Target Payout"
-                            className="field w-24"
-                            type="number"
+                        <NumberField
+                            label="Target Payout"
+                            className="w-24"
                             min={0}
                             step={0.1}
                             disabled={unitsActive}
-                            style={{
-                                opacity: unitsActive ? 0.5 : 1,
-                                cursor: unitsActive ? 'not-allowed' : 'text',
-                                color: unitsActive ? 'var(--text-secondary)' : undefined,
-                            }}
-                            value={unitsActive ? String(previewPayout) : payoutText}
-                            onChange={e => {
-                                const v = e.target.value;
+                            inputStyle={{ color: unitsActive ? 'var(--text-secondary)' : undefined }}
+                            rawValue={unitsActive ? String(previewPayout) : payoutText}
+                            onRawChange={v => {
                                 setPayoutText(v);
                                 setMode(v === '' ? null : 'payout');
                                 onTargetPayoutChange(v === '' ? 0 : +v);
-                            }} />
+                            }}
+                            value={payoutText === '' ? 0 : +payoutText}
+                            onChange={n => {
+                                setPayoutText(String(n));
+                                setMode('payout');
+                                onTargetPayoutChange(n);
+                            }}
+                        />
                         {unitsActive && (
                             <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
                         )}
