@@ -335,6 +335,7 @@ class TestAppLogicSlipOperations:
     def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
         """[P0] generate_and_broadcast runs DUE profiles and persists the timestamp."""
         from datetime import datetime
+
         now = datetime.now()
         due_hour = now.hour
         due_minute = 0

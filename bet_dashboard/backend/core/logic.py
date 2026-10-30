@@ -464,7 +464,12 @@ class AppLogic:
                 runs[name] = {"at": iso_now, "status": status, "error": error}
             runtime["profile_last_run"] = runs
             # Drop superseded keys — no legacy fallback.
-            for legacy_key in ("profile_last_generated", "profile_last_generated_at", "profile_run_status", "last_time_generated"):
+            for legacy_key in (
+                "profile_last_generated",
+                "profile_last_generated_at",
+                "profile_run_status",
+                "last_time_generated",
+            ):
                 runtime.pop(legacy_key, None)
             self._settings.write("runtime_state", runtime)
 
