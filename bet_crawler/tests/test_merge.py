@@ -211,3 +211,55 @@ class TestMergeP2:
         # expected runners derive from chunk filename prefixes — no chunks → nothing expected,
         # so an empty dir logs no missing-runner-set errors (pinned actual semantics)
         assert errs == []
+
+    def test_near_miss_reports_flow_into_ci_step_summary(self, tmp_path, caplog) -> None:
+        """AC-7 (issue #113): merge near-miss logs land in the scheduled step summary.
+
+        End-to-end: two chunks carry a below-threshold team pair → MatchesManager logs the
+        NEAR-MISS REPORT block (job_log.txt in the merge artifact) → summarize_scrape_logs
+        renders a dedicated "## Near-miss reports" section in the markdown summary.
+        """
+        from datetime import datetime
+
+        from bet_crawler.summarize_scrape_logs import render_markdown, summarize
+        from bet_framework.core.Match import Score
+
+        chunks = tmp_path / "chunks"
+        chunks.mkdir()
+        dt = datetime(2026, 9, 25, 15, 0, 0)
+        # 'Ajax' vs 'Ajax Cape Town' scores 50.0 and 'Feyenoord' vs 'Feyenoord Academy' scores 62.7.
+        # Combined similarity = (50.0 + 62.7) / 2 = 56.4: inside the near-miss window [40, 65).
+        m1 = make_match(home="Ajax", away="Feyenoord", dt=dt, preds=None, url="https://a.com/1")
+        m1.predictions = [Score(source="srcA", home=1, away=0)]
+        m2 = make_match(home="Ajax Cape Town", away="Feyenoord Academy", dt=dt, preds=None, url="https://b.com/1")
+        m2.predictions = [Score(source="srcB", home=2, away=0)]
+        make_chunk_db(chunks / "actions-1.db", [m1])
+        make_chunk_db(chunks / "actions-2.db", [m2])
+        final = tmp_path / "final.db"
+
+        logs_dir = tmp_path / "logs-merge"
+        logs_dir.mkdir()
+
+        with caplog.at_level("WARNING", logger="bet_framework.MatchesManager"):
+            merge(str(final), str(chunks), SIM, {"a": {}}, {"actions": ["a"]})
+
+        near_miss_lines = [r for r in caplog.records if "NEAR-MISS" in r.getMessage()]
+        assert near_miss_lines, "merge must emit NEAR-MISS REPORT lines for the 56.4 pair"
+
+        # Simulate the CI job log artifact (console lines tee'd to job_log.txt).
+        log_lines = ["=== Job: merge started at 2026-10-30 00:00:00 ==="]
+        for record in caplog.records:
+            timestamp = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S")
+            log_lines.append(f"{timestamp} - {record.name} - {record.levelname} - {record.getMessage()}")
+        (logs_dir / "job_log.txt").write_text("\n".join(log_lines) + "\n", encoding="utf-8")
+
+        summary = summarize(logs_dir, {"merge": "success"})
+        markdown = render_markdown(summary)
+
+        assert "## Near-miss reports" in markdown
+        assert summary["near_misses"], "near-miss pairs must reach the summary payload"
+        assert any(
+            {nm["home_a"], nm["home_b"]} == {"Ajax", "Ajax Cape Town"}
+            and {nm["away_a"], nm["away_b"]} == {"Feyenoord", "Feyenoord Academy"}
+            for nm in summary["near_misses"]
+        )

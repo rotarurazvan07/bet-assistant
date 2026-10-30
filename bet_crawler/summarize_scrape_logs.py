@@ -57,8 +57,32 @@ def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, s
     return events, malformed
 
 
-def _read_legacy_issues(logs_dir: Path, structured_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Read actionable text log records not already represented by JSONL."""
+def _is_near_miss_message(message: str) -> bool:
+    """True when a log message belongs to the merge NEAR-MISS REPORT block (issue #113)."""
+    return bool(
+        _NEAR_MISS_START.match(message)
+        or _NEAR_MISS_END.match(message)
+        or _NEAR_MISS_LINE.match(message)
+    )
+
+
+def _is_near_miss_issue(issue: dict[str, Any]) -> bool:
+    """Near-miss lines from MatchesManager are reported separately, not as problems."""
+    return (
+        str(issue.get("logger", "")) == "bet_framework.MatchesManager"
+        and _is_near_miss_message(str(issue.get("message", "")))
+    )
+
+
+def _read_legacy_issues(
+    logs_dir: Path,
+    structured_events: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, list[tuple[int, str]]]]:
+    """Read actionable text log records not already represented by JSONL.
+
+    Returns a tuple of (issues, legacy_lines_by_artifact) where the second value maps
+    artifact name -> list of (line_number, raw_line), used for near-miss extraction.
+    """
     structured_messages = {
         (
             str(event.get("logger", "")),
@@ -68,6 +92,7 @@ def _read_legacy_issues(logs_dir: Path, structured_events: list[dict[str, Any]])
         for event in structured_events
     }
     issues: list[dict[str, Any]] = []
+    legacy_lines_by_artifact: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for path in sorted(logs_dir.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in {".txt", ".log"}:
             continue
@@ -75,18 +100,132 @@ def _read_legacy_issues(logs_dir: Path, structured_events: list[dict[str, Any]])
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
+        artifact = str(path.relative_to(logs_dir))
         has_sidecar = any(path.parent.glob("*.jsonl"))
         for line_number, raw_line in enumerate(lines, start=1):
+            legacy_lines_by_artifact[artifact].append((line_number, raw_line))
             issue = _parse_legacy_line(
                 raw_line,
-                artifact=str(path.relative_to(logs_dir)),
+                artifact=artifact,
                 line_number=line_number,
                 structured_events=has_sidecar,
                 structured_messages=structured_messages,
             )
             if issue:
                 issues.append(issue)
-    return issues
+    return issues, legacy_lines_by_artifact
+
+
+_NEAR_MISS_START = re.compile(
+    r"^\s*=== NEAR-MISS REPORT:\s*(\d+)\s+pairs \(score 40-65\) ==="
+)
+_NEAR_MISS_END = re.compile(r"^\s*=== END NEAR-MISS REPORT ===\s*$")
+_NEAR_MISS_LINE = re.compile(r"^\s*\[(\d+)\]\s+(.+?)\s+vs\s+(.+?)\s+<->\s+(.+?)\s+vs\s+(.+?)\s*$")
+
+
+def _extract_message_from_legacy_line(line: str) -> str | None:
+    """Extract the log message part from a legacy log line.
+
+    Expected format: TIMESTAMP - LOGGER - LEVEL - MESSAGE
+    Returns the MESSAGE part, or None if format doesn't match.
+    """
+    # Match: YYYY-MM-DD HH:MM:SS - logger.name - LEVEL - message
+    match = re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - .+? - (?:DEBUG|INFO|WARNING|ERROR|CRITICAL) - (.+)$", line)
+    if match:
+        return match.group(1)
+    # Fallback: try the _LEVEL_LINE pattern
+    match = _LEVEL_LINE.match(line)
+    if match:
+        return match.group("message")
+    return None
+
+
+def _extract_near_misses(
+    events: list[dict[str, Any]],
+    legacy_lines_by_artifact: dict[str, list[tuple[int, str]]],
+) -> list[dict[str, Any]]:
+    """Extract near-miss pairs from legacy log lines and JSONL events.
+
+    Scans both:
+    - Legacy text lines (primary source, since bet_framework logger lacks JSONL handler)
+    - JSONL events (fallback if bet_framework.MatchesManager ever gets handler)
+    """
+    near_misses: list[dict[str, Any]] = []
+
+    # 1. Legacy text lines: look for the NEAR-MISS REPORT block in each artifact
+    for lines in legacy_lines_by_artifact.values():
+        in_block = False
+        for line_number, raw_line in lines:
+            line = _ANSI_ESCAPE.sub("", raw_line).strip()
+            if not line:
+                continue
+            # Extract message part from log line
+            message = _extract_message_from_legacy_line(line)
+            if message is None:
+                message = line
+            
+            start_match = _NEAR_MISS_START.match(message)
+            if start_match:
+                in_block = True
+                continue
+            if in_block and _NEAR_MISS_END.match(message):
+                in_block = False
+                continue
+            if in_block:
+                mm_match = _NEAR_MISS_LINE.match(message)
+                if mm_match:
+                    score = float(mm_match.group(1))
+                    home_a = mm_match.group(2).strip()
+                    away_a = mm_match.group(3).strip()
+                    home_b = mm_match.group(4).strip()
+                    away_b = mm_match.group(5).strip()
+                    near_misses.append(
+                        {
+                            "score": score,
+                            "home_a": home_a,
+                            "away_a": away_a,
+                            "home_b": home_b,
+                            "away_b": away_b,
+                            "source_a": "",
+                            "source_b": "",
+                        }
+                    )
+
+    # 2. JSONL events fallback: bet_framework.MatchesManager WARNING events with near-miss messages
+    for event in events:
+        if not (
+            str(event.get("severity", "")).upper() == "WARNING"
+            and str(event.get("logger", "")) == "bet_framework.MatchesManager"
+        ):
+            continue
+        message = str(event.get("message", ""))
+        # Check for header line
+        if _NEAR_MISS_START.match(message):
+            continue
+        # Check for individual pair lines that might be logged separately
+        mm_match = _NEAR_MISS_LINE.match(message)
+        if mm_match:
+            score = float(mm_match.group(1))
+            home_a = mm_match.group(2).strip()
+            away_a = mm_match.group(3).strip()
+            home_b = mm_match.group(4).strip()
+            away_b = mm_match.group(5).strip()
+            # Deduplicate against legacy-extracted
+            key = (score, home_a, away_a, home_b, away_b)
+            if key not in {(nm["score"], nm["home_a"], nm["away_a"], nm["home_b"], nm["away_b"]) for nm in near_misses}:
+                near_misses.append(
+                    {
+                        "score": score,
+                        "home_a": home_a,
+                        "away_a": away_a,
+                        "home_b": home_b,
+                        "away_b": away_b,
+                        "source_a": "",
+                        "source_b": "",
+                    }
+                )
+
+    return near_misses
 
 
 def _parse_legacy_line(
@@ -143,7 +282,8 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
             or str(event.get("outcome", "")).lower() in {"error", "partial"}
         )
     ]
-    issues.extend(_read_legacy_issues(logs_dir, events))
+    legacy_issues, legacy_lines_by_artifact = _read_legacy_issues(logs_dir, events)
+    issues.extend(legacy_issues)
     issues.extend(
         {
             "severity": "WARNING",
@@ -156,6 +296,11 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
         for item in malformed
     )
 
+    # AC-4 (issue #113): near-miss reports are their own section and must not
+    # inflate the problems table or the issue/severity counters.
+    issues = [issue for issue in issues if not _is_near_miss_issue(issue)]
+    near_misses = _extract_near_misses(events, legacy_lines_by_artifact)
+
     outcomes = {name: str(result).lower() for name, result in sorted((job_outcomes or {}).items())}
     failed_jobs = {name: result for name, result in outcomes.items() if result not in {"success", "skipped"}}
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -166,7 +311,7 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
         groups[(source, event_name, reason)].append(issue)
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "jobs": outcomes,
         "failed_jobs": failed_jobs,
         "event_files": len(list(logs_dir.rglob("*.jsonl"))) if logs_dir.exists() else 0,
@@ -197,6 +342,7 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
             for (source, event_name, reason), records in sorted(groups.items())
         ],
         "stage_events": [event for event in events if str(event.get("event", "")) in {"stage.completed", "stage.failed"}],
+        "near_misses": near_misses,
     }
 
 
@@ -341,6 +487,27 @@ def render_markdown(summary: dict[str, Any]) -> str:
     else:
         lines.extend(["## Problems", "", "No warning/error log events were found.", ""])
 
+    # AC-1/AC-5 (issue #113): dedicated near-miss section, omitted when empty.
+    near_misses = summary.get("near_misses") or []
+    if near_misses:
+        lines.extend(
+            [
+                "## Near-miss reports",
+                "",
+                "Fuzzy-dedup pairs below the match threshold — synonym-discovery candidates.",
+                "",
+                "| Score | Match A | Match B | Source A | Source B |",
+                "|------:|---|---|---|---|",
+            ]
+        )
+        for nm in near_misses:
+            match_a = f"{nm.get('home_a', '')} vs {nm.get('away_a', '')}".replace("|", r"\|")
+            match_b = f"{nm.get('home_b', '')} vs {nm.get('away_b', '')}".replace("|", r"\|")
+            source_a = str(nm.get("source_a") or "—").replace("|", r"\|")
+            source_b = str(nm.get("source_b") or "—").replace("|", r"\|")
+            lines.append(f"| {nm.get('score', 0):.0f} | {match_a} | {match_b} | {source_a} | {source_b} |")
+        lines.append("")
+
     health = _pipeline_health(summary["stage_events"])
     if health:
         lines.extend(
@@ -369,8 +536,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
     lines.extend(
         [
-            "> This report is diagnostic and does not change the workflow conclusion. "
-            "Raw logs and machine-readable details are retained in the `unified-logs` artifact.",
+            ("> This report is diagnostic and does not change the workflow conclusion. "
+            "Raw logs and machine-readable details are retained in the `unified-logs` artifact."),
             "",
         ]
     )
