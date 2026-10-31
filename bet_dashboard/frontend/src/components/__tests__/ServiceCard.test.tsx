@@ -1,6 +1,6 @@
-// ServiceCard (issue #64 P1). ACTUAL: active = alive && enabled;
+// ServiceCard. ACTUAL: active = alive && enabled;
 // 'Stop/Start Service' button; icons puller/generator/verifier; NO next-run
-// estimate. Issue #95: the 'Last Generated' footer was removed — that info is
+// estimate.: the 'Last Generated' footer was removed — that info is
 // now shown per-profile in the scheduling table, not globally on the card.
 
 import { describe, it, expect, vi } from 'vitest';
@@ -39,7 +39,7 @@ describe('ServiceCard', () => {
         expect(screen.getByText('Start Service')).toBeInTheDocument();
     });
 
-    it('no Last Generated footer on any card (moved to per-profile table, issue #95)', () => {
+    it('no Last Generated footer on any card', () => {
         render(<ServiceCard info={makeServiceInfo({ name: 'generator', last_time_generated: '2026-09-24T09:30:00' })} onToggle={() => {}} />);
         expect(screen.queryByText('Last Generated')).not.toBeInTheDocument();
         expect(screen.queryByText('Never')).not.toBeInTheDocument();

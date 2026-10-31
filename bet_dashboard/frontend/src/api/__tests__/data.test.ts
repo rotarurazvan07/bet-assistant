@@ -1,8 +1,8 @@
-// data.ts tests (issue #67). Covers ALL 22 exported functions (the issue
+// data.ts tests. Covers ALL 22 exported functions (the issue
 // lists only 13 — divergence: spec missed the 7 excluded-URL functions,
 // deleteProfile/deleteSlip, and matches/oddsHistory
 // modules entirely). Response shapes ground-truthed against src/types +
-// cycle-2 backend router contracts.
+// backend router contracts.
 
 import { describe, it, expect } from 'vitest';
 import { http, HttpResponse } from 'msw';

@@ -1,4 +1,4 @@
-"""[P0] API tests for the system router (issue #58).
+"""[P0] API tests for the system router.
 
 Covers: POST /api/pull (ok + error paths), GET /api/status,
 GET /api/config/sources, and the /ws keepalive protocol.
@@ -23,7 +23,7 @@ class TestPullDb:
 
     def test_pull_exception_returns_error_envelope(self, client, fake_app, caplog) -> None:
         """Error path: generic client message (no stack-trace/str(exc) leak),
-        full trace logged server-side (code-scanning fix, PR #75 batch)."""
+        full trace logged server-side."""
         fake_app.pull_and_broadcast.side_effect = RuntimeError("network down")
         with caplog.at_level("ERROR", logger="routers.system"):
             data = client.post(f"{BASE}/pull").json()

@@ -493,7 +493,7 @@ class TestScrapeKitPin:
             assert lines == [self.PIN], f"{rel} scrape-kit refs={lines}"
 
     def test_scrape_requirements_pandas_matches_scrape_kit_v030(self) -> None:
-        # AC-02: scrape-kit v0.3.0 requires pandas==3.0.6; keep the scrape pin aligned.
+        # scrape-kit v0.3.0 requires pandas==3.0.6; keep the scrape pin aligned.
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         path = os.path.join(root, "setup/requirements-scrape.txt")
         with open(path, encoding="utf-8") as fh:

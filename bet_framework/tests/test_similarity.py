@@ -1,5 +1,5 @@
 """
-Gap tests for team fuzzy matching (GitHub issue #70).
+Gap tests for team fuzzy matching.
 
 The matching logic lives in scrape_kit.SimilarityEngine; MatchesManager
 (bet_framework/MatchesManager.py) integrates it in _find for buffered dedup,
@@ -234,7 +234,7 @@ class TestAcronymsAndSynonyms:
         assert score == pytest.approx(90.0)
 
     def test_expansion_style_acronyms(self) -> None:
-        # Issue #70 names fc -> "football club" and utd -> "united" expansions.
+        # names fc -> "football club" and utd -> "united" expansions.
         # The shipped config strips them instead; both semantics must work.
         cfg = {
             "acronyms": {"fc": "football club", "utd": "united"},

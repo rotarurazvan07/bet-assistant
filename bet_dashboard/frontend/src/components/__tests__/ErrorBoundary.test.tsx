@@ -1,4 +1,4 @@
-// ErrorBoundary (issue #64). Matches spec: catches render errors, fallback UI,
+// ErrorBoundary. Matches spec: catches render errors, fallback UI,
 // logs via console.error, Try Again resets state.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

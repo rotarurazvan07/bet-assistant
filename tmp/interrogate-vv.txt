@@ -1,0 +1,740 @@
+================= Coverage for /a0/usr/projects/bet_assistant/ =================
+------------------------------ Detailed Coverage -------------------------------
+| Name                                                              |   Status |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl.py (module)                                     |  COVERED |
+| CrawlerRuntimeSettings (L40)                                      |  COVERED |
+| CrawlerFactory (L48)                                              |  COVERED |
+| CrawlerFactory.__init__ (L51)                                     |  COVERED |
+| CrawlerFactory.create_for_url (L62)                               |  COVERED |
+| CrawlerFactory.create (L67)                                       |  COVERED |
+| CrawlerFactory.create_for_runner (L82)                            |  COVERED |
+| CrawlerFactory.runner_keys (L86)                                  |  COVERED |
+| CrawlerFactory.runner_names (L90)                                 |  COVERED |
+| CrawlerFactory._crawler_key_for_url (L94)                         |  COVERED |
+| CrawlerFactory._normalise_runner_sets (L102)                      |  COVERED |
+| CrawlerFactory._load_class (L109)                                 |  COVERED |
+| load_runtime (L116)                                               |  COVERED |
+| load_profile (L147)                                               |  COVERED |
+| build_parser (L167)                                               |  COVERED |
+| _install_uncaught_exception_logging (L202)                        |  COVERED |
+| _install_uncaught_exception_logging.main_exception_hook (L210)    |   MISSED |
+| _install_uncaught_exception_logging.thread_exception_hook (L234)  |   MISSED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawler_logging.py (module)                           |  COVERED |
+| ExceptionContextFilter (L32)                                      |  COVERED |
+| ExceptionContextFilter.filter (L35)                               |   MISSED |
+| JsonEventFormatter (L45)                                          |  COVERED |
+| JsonEventFormatter.format (L48)                                   |   MISSED |
+| _infer_finder (L126)                                              |  COVERED |
+| _default_event (L144)                                             |  COVERED |
+| _default_outcome (L160)                                           |  COVERED |
+| _json_handler (L176)                                              |  COVERED |
+| get_logger (L196)                                                 |  COVERED |
+| _configure_logger (L208)                                          |  COVERED |
+| configure_event_logging (L227)                                    |  COVERED |
+| disable_event_logging (L251)                                      |  COVERED |
+| log_context (L267)                                                |  COVERED |
+| set_log_context (L280)                                            |  COVERED |
+| get_event_totals (L290)                                           |  COVERED |
+| reset_event_totals (L306)                                         |  COVERED |
+| log_event (L318)                                                  |  COVERED |
+| exception_event (L341)                                            |  COVERED |
+| source_key_for (L365)                                             |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/summarize_scrape_logs.py (module)                     |  COVERED |
+| _read_events (L23)                                                |  COVERED |
+| _read_legacy_issues (L60)                                         |  COVERED |
+| _parse_legacy_line (L92)                                          |  COVERED |
+| summarize (L133)                                                  |  COVERED |
+| _stage_job (L203)                                                 |  COVERED |
+| _pipeline_health (L217)                                           |  COVERED |
+| _health_work_and_output (L252)                                    |  COVERED |
+| _health_attention (L271)                                          |  COVERED |
+| render_markdown (L290)                                            |  COVERED |
+| _parse_job_outcomes (L380)                                        |   MISSED |
+| main (L390)                                                       |   MISSED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl_core/__init__.py (module)                       |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl_core/generate_slips.py (module)                 |  COVERED |
+| generate_slips (L12)                                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl_core/merge.py (module)                          |  COVERED |
+| merge (L21)                                                       |  COVERED |
+| _perform_merge (L62)                                              |  COVERED |
+| _generate_merge_summary (L74)                                     |  COVERED |
+| _build_source_mapping (L115)                                      |  COVERED |
+| _log_summary_header (L156)                                        |  COVERED |
+| _log_source_details (L165)                                        |  COVERED |
+| _log_missing_crawlers (L176)                                      |  COVERED |
+| _validate_runner_sets (L186)                                      |  COVERED |
+| _log_footer (L210)                                                |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl_core/prepare_scrape.py (module)                 |  COVERED |
+| prepare_scrape (L25)                                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl_core/scrape.py (module)                         |  COVERED |
+| scrape (L22)                                                      |  COVERED |
+| scrape._on_match (L41)                                            |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/crawl_core/validate_slips.py (module)                 |  COVERED |
+| validate_slips (L11)                                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/BaseMatchFinder.py (module)                   |  COVERED |
+| BaseMatchFinder (L19)                                             |  COVERED |
+| BaseMatchFinder._detect_local_timezone (L23)                      |  COVERED |
+| BaseMatchFinder.__init__ (L51)                                    |  COVERED |
+| BaseMatchFinder.get_matches_urls (L72)                            |  COVERED |
+| BaseMatchFinder.get_matches (L77)                                 |  COVERED |
+| BaseMatchFinder._parse_page (L82)                                 |  COVERED |
+| BaseMatchFinder._parse_page_with_log_context (L86)                |  COVERED |
+| BaseMatchFinder.normalise_datetime (L99)                          |  COVERED |
+| BaseMatchFinder.add_match (L117)                                  |  COVERED |
+| BaseMatchFinder.skip_match_by_patterns (L191)                     |  COVERED |
+| BaseMatchFinder.validate_match_date (L208)                        |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/BetClanFinder.py (module)                     |  COVERED |
+| BetClanFinder (L28)                                               |  COVERED |
+| BetClanFinder.__init__ (L31)                                      |  COVERED |
+| BetClanFinder.get_matches_urls (L35)                              |  COVERED |
+| BetClanFinder.get_matches (L48)                                   |  COVERED |
+| BetClanFinder._parse_page (L57)                                   |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/BetExplorerFinder.py (module)                 |  COVERED |
+| BetExplorerFinder (L293)                                          |  COVERED |
+| BetExplorerFinder.__init__ (L298)                                 |  COVERED |
+| BetExplorerFinder.get_matches_urls (L303)                         |  COVERED |
+| BetExplorerFinder._configure_page_timeouts (L440)                 |  COVERED |
+| BetExplorerFinder._wait_for_selector (L445)                       |  COVERED |
+| BetExplorerFinder._wait_for_function (L449)                       |  COVERED |
+| BetExplorerFinder._click_selector (L453)                          |  COVERED |
+| BetExplorerFinder._average_decimals (L458)                        |  COVERED |
+| BetExplorerFinder._active_tab (L466)                              |  COVERED |
+| BetExplorerFinder._click_market (L471)                            |  COVERED |
+| BetExplorerFinder._ou_handicap_odds (L501)                        |  COVERED |
+| BetExplorerFinder._wait_ou_handicaps (L511)                       |  COVERED |
+| BetExplorerFinder._process_url_batch (L527)                       |  COVERED |
+| BetExplorerFinder.get_matches (L728)                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/EaglePredictFinder.py (module)                |  COVERED |
+| EaglePredictFinder (L23)                                          |  COVERED |
+| EaglePredictFinder.__init__ (L26)                                 |  COVERED |
+| EaglePredictFinder.get_matches_urls (L30)                         |  COVERED |
+| EaglePredictFinder.get_matches (L34)                              |  COVERED |
+| EaglePredictFinder._parse_page (L39)                              |  COVERED |
+| EaglePredictFinder._emit_scored_match (L79)                       |  COVERED |
+| EaglePredictFinder._get_month_mapping (L152)                      |  COVERED |
+| EaglePredictFinder._extract_date (L169)                           |  COVERED |
+| EaglePredictFinder._find_match_container (L189)                   |  COVERED |
+| EaglePredictFinder._extract_teams (L200)                          |  COVERED |
+| EaglePredictFinder._extract_time (L211)                           |  COVERED |
+| EaglePredictFinder._build_datetime (L218)                         |  COVERED |
+| EaglePredictFinder._create_and_add_match (L223)                   |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/FootballBettingTipsFinder.py (module)         |  COVERED |
+| FootballBettingTipsFinder (L21)                                   |  COVERED |
+| FootballBettingTipsFinder.__init__ (L24)                          |  COVERED |
+| FootballBettingTipsFinder.get_matches_urls (L28)                  |  COVERED |
+| FootballBettingTipsFinder.get_matches (L38)                       |  COVERED |
+| FootballBettingTipsFinder._parse_page (L47)                       |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/FootballPredictionsFinder.py (module)         |  COVERED |
+| FootballPredictionsFinder (L46)                                   |  COVERED |
+| FootballPredictionsFinder.__init__ (L49)                          |  COVERED |
+| FootballPredictionsFinder.get_matches_urls (L53)                  |  COVERED |
+| FootballPredictionsFinder.get_matches (L57)                       |  COVERED |
+| FootballPredictionsFinder._parse_page (L66)                       |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/ForebetFinder.py (module)                     |  COVERED |
+| ForebetFinder (L229)                                              |  COVERED |
+| ForebetFinder.__init__ (L234)                                     |  COVERED |
+| ForebetFinder.get_matches_urls (L238)                             |  COVERED |
+| ForebetFinder.get_matches (L242)                                  |  COVERED |
+| ForebetFinder._parse_page (L251)                                  |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/LegitPredictFinder.py (module)                |  COVERED |
+| LegitPredictFinder (L21)                                          |  COVERED |
+| LegitPredictFinder.__init__ (L24)                                 |  COVERED |
+| LegitPredictFinder.get_matches_urls (L28)                         |  COVERED |
+| LegitPredictFinder.get_matches (L37)                              |  COVERED |
+| LegitPredictFinder._parse_page (L46)                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/OddsPortalFinder.py (module)                  |  COVERED |
+| OddsPortalFinder (L269)                                           |  COVERED |
+| OddsPortalFinder.__init__ (L277)                                  |  COVERED |
+| OddsPortalFinder.get_matches_urls (L282)                          |  COVERED |
+| OddsPortalFinder._process_url_batch (L372)                        |  COVERED |
+| OddsPortalFinder._iter_ld_events (L465)                           |  COVERED |
+| OddsPortalFinder._event_is_scheduled (L515)                       |  COVERED |
+| OddsPortalFinder._normalize_match_url (L526)                      |  COVERED |
+| OddsPortalFinder._parse_identity (L546)                           |  COVERED |
+| OddsPortalFinder._configure_page_timeouts (L593)                  |  COVERED |
+| OddsPortalFinder._wait_for_selector (L598)                        |  COVERED |
+| OddsPortalFinder._wait_for_function (L602)                        |  COVERED |
+| OddsPortalFinder._click_selector (L606)                           |  COVERED |
+| OddsPortalFinder._table_fingerprint (L611)                        |  COVERED |
+| OddsPortalFinder._tab_ready (L621)                                |  COVERED |
+| OddsPortalFinder._click_tab (L643)                                |  COVERED |
+| OddsPortalFinder._tab_ready_js (L676)                             |  COVERED |
+| OddsPortalFinder._first_bookmaker_odds (L701)                     |  COVERED |
+| OddsPortalFinder._scrape_tab_1x2 (L717)                           |  COVERED |
+| OddsPortalFinder._scrape_tab_btts (L729)                          |  COVERED |
+| OddsPortalFinder._scrape_tab_dc (L741)                            |  COVERED |
+| OddsPortalFinder._scrape_tab_ou (L753)                            |  COVERED |
+| OddsPortalFinder.get_matches (L786)                               |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/OneMillionPredictionsFinder.py (module)       |  COVERED |
+| OneMillionPredictionsFinder (L41)                                 |  COVERED |
+| OneMillionPredictionsFinder.__init__ (L44)                        |  COVERED |
+| OneMillionPredictionsFinder.get_matches_urls (L48)                |  COVERED |
+| OneMillionPredictionsFinder.get_matches (L60)                     |  COVERED |
+| OneMillionPredictionsFinder._parse_page (L69)                     |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/PredictzFinder.py (module)                    |  COVERED |
+| PredictzFinder (L56)                                              |  COVERED |
+| PredictzFinder.__init__ (L59)                                     |  COVERED |
+| PredictzFinder.get_matches_urls (L63)                             |  COVERED |
+| PredictzFinder.get_matches (L77)                                  |  COVERED |
+| PredictzFinder.get_matches._on_page (L83)                         |   MISSED |
+| PredictzFinder._parse_page (L117)                                 |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/ScorePredictorFinder.py (module)              |  COVERED |
+| ScorePredictorFinder (L51)                                        |  COVERED |
+| ScorePredictorFinder.__init__ (L54)                               |  COVERED |
+| ScorePredictorFinder.get_matches_urls (L58)                       |  COVERED |
+| ScorePredictorFinder.get_matches (L75)                            |  COVERED |
+| ScorePredictorFinder._parse_page (L84)                            |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/SoccerVistaFinder_per_league.py (module)      |  COVERED |
+| SoccerVistaFinder_per_league (L55)                                |  COVERED |
+| SoccerVistaFinder_per_league.__init__ (L58)                       |  COVERED |
+| SoccerVistaFinder_per_league.get_matches_urls (L62)               |  COVERED |
+| SoccerVistaFinder_per_league.get_matches (L96)                    |  COVERED |
+| SoccerVistaFinder_per_league._parse_page (L105)                   |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/SoccerVistaFinder_per_match.py (module)       |  COVERED |
+| SoccerVistaFinder_per_match (L25)                                 |  COVERED |
+| SoccerVistaFinder_per_match.__init__ (L28)                        |  COVERED |
+| SoccerVistaFinder_per_match.get_matches_urls (L32)                |  COVERED |
+| SoccerVistaFinder_per_match.get_matches (L103)                    |  COVERED |
+| SoccerVistaFinder_per_match._parse_page (L112)                    |  COVERED |
+| SoccerVistaFinder_per_match._extract_match_metadata (L147)        |  COVERED |
+| SoccerVistaFinder_per_match._extract_predictions (L192)           |  COVERED |
+| SoccerVistaFinder_per_match._extract_odds (L221)                  |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/VitibetFinder.py (module)                     |  COVERED |
+| VitibetFinder (L57)                                               |  COVERED |
+| VitibetFinder.__init__ (L60)                                      |  COVERED |
+| VitibetFinder.get_matches_urls (L64)                              |  COVERED |
+| VitibetFinder.get_matches (L94)                                   |  COVERED |
+| VitibetFinder._parse_page (L103)                                  |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/WhoScoredFinder.py (module)                   |  COVERED |
+| WhoScoredFinder (L22)                                             |  COVERED |
+| WhoScoredFinder.__init__ (L25)                                    |  COVERED |
+| WhoScoredFinder.get_matches_urls (L31)                            |  COVERED |
+| WhoScoredFinder.get_matches (L42)                                 |  COVERED |
+| WhoScoredFinder._parse_page (L51)                                 |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/WinDrawWinFinder_per_league.py (module)       |  COVERED |
+| WinDrawWinFinder_per_league (L56)                                 |  COVERED |
+| WinDrawWinFinder_per_league.__init__ (L59)                        |  COVERED |
+| WinDrawWinFinder_per_league.get_matches_urls (L63)                |  COVERED |
+| WinDrawWinFinder_per_league.get_matches (L82)                     |  COVERED |
+| WinDrawWinFinder_per_league._parse_page (L91)                     |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/WinDrawWinFinder_per_match.py (module)        |  COVERED |
+| WinDrawWinFinder_per_match (L23)                                  |  COVERED |
+| WinDrawWinFinder_per_match.__init__ (L26)                         |  COVERED |
+| WinDrawWinFinder_per_match.get_matches_urls (L30)                 |  COVERED |
+| WinDrawWinFinder_per_match.get_matches (L56)                      |  COVERED |
+| WinDrawWinFinder_per_match._parse_page (L65)                      |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/__init__.py (module)                          |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/_parallel.py (module)                         |  COVERED |
+| balanced_chunks (L9)                                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_crawler/finders/xGScoreFinder.py (module)                     |  COVERED |
+| xGScoreFinder (L27)                                               |  COVERED |
+| xGScoreFinder.__init__ (L30)                                      |  COVERED |
+| xGScoreFinder.get_matches_urls (L34)                              |  COVERED |
+| xGScoreFinder.get_matches (L100)                                  |  COVERED |
+| xGScoreFinder._parse_page (L109)                                  |  COVERED |
+| xGScoreFinder._extract_odds_from_html (L167)                      |  COVERED |
+| xGScoreFinder._parse_odds_from_element (L203)                     |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/__init__.py (module)                        |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/export_openapi.py (module)                  |  COVERED |
+| build_schema (L36)                                                |  COVERED |
+| main (L70)                                                        |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/main.py (module)                            |  COVERED |
+| lifespan (L36)                                                    |  COVERED |
+| create_app (L45)                                                  |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/__init__.py (module)                   |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/analytics_utils.py (module)            |  COVERED |
+| calculate_overall_edge (L10)                                      |  COVERED |
+| calculate_rolling_edge (L39)                                      |  COVERED |
+| calculate_kelly_recommendation (L97)                              |  COVERED |
+| get_rolling_edge_trend (L118)                                     |  COVERED |
+| _get_status_value (L148)                                          |  COVERED |
+| calculate_daily_summary (L155)                                    |  COVERED |
+| calculate_market_accuracy (L219)                                  |  COVERED |
+| calculate_correlation_data (L258)                                 |  COVERED |
+| _daily_pnl_by_date (L279)                                         |  COVERED |
+| _scan_current_streak (L292)                                       |  COVERED |
+| _scan_longest_streaks (L311)                                      |  COVERED |
+| calculate_streak_metrics (L330)                                   |  COVERED |
+| calculate_profit_factor (L354)                                    |  COVERED |
+| calculate_biggest_win_loss (L390)                                 |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/config_helpers.py (module)             |  COVERED |
+| _yaml_to_config (L14)                                             |  COVERED |
+| _config_to_yaml_dict (L20)                                        |  COVERED |
+| ensure_default_profiles (L56)                                     |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/logic.py (module)                      |  COVERED |
+| ThreadSafeSettingsManager (L37)                                   |  COVERED |
+| ThreadSafeSettingsManager.__init__ (L40)                          |   MISSED |
+| ThreadSafeSettingsManager.get (L44)                               |   MISSED |
+| ThreadSafeSettingsManager.write (L48)                             |   MISSED |
+| ThreadSafeSettingsManager.delete (L52)                            |   MISSED |
+| _profile_is_active (L57)                                          |  COVERED |
+| _order_sort_key (L78)                                             |  COVERED |
+| _safe_int (L92)                                                   |  COVERED |
+| _safe_zoneinfo (L106)                                             |  COVERED |
+| _units_std (L114)                                                 |  COVERED |
+| _daily_pnl_and_sharpe (L121)                                      |  COVERED |
+| _partition_slips (L138)                                           |  COVERED |
+| AppLogic (L146)                                                   |  COVERED |
+| AppLogic._get_status_value (L156)                                 |  COVERED |
+| AppLogic.__init__ (L162)                                          |  COVERED |
+| AppLogic._broadcast_slips_updated (L225)                          |  COVERED |
+| AppLogic._broadcast_matches_updated (L235)                        |  COVERED |
+| AppLogic._is_generator_hour_met (L246)                            |  COVERED |
+| AppLogic._check_for_changes (L269)                                |  COVERED |
+| AppLogic._do_pull (L288)                                          |  COVERED |
+| AppLogic.get_odds_movement (L297)                                 |  COVERED |
+| AppLogic.get_odds_movement_with_strength (L307)                   |  COVERED |
+| AppLogic.get_odds_history (L317)                                  |  COVERED |
+| AppLogic._do_generate (L334)                                      |  COVERED |
+| AppLogic._profile_cfg (L356)                                      |  COVERED |
+| AppLogic._local_tz (L360)                                         |  COVERED |
+| AppLogic._local_now (L365)                                        |  COVERED |
+| AppLogic._profile_schedule_met (L375)                             |  COVERED |
+| AppLogic._last_run_local_date (L409)                              |  COVERED |
+| AppLogic._is_profile_due (L433)                                   |  COVERED |
+| AppLogic._claim_profile_runs (L443)                               |  COVERED |
+| AppLogic.delete_profile (L476)                                    |  COVERED |
+| AppLogic.get_profile_schedules (L491)                             |  COVERED |
+| AppLogic.get_profile_schedules._ui_order_key (L551)               |   MISSED |
+| AppLogic._profile_next_run (L562)                                 |  COVERED |
+| AppLogic.save_profile_schedules (L583)                            |  COVERED |
+| AppLogic._do_verify (L639)                                        |  COVERED |
+| AppLogic.add_excluded (L656)                                      |  COVERED |
+| AppLogic.remove_excluded (L660)                                   |  COVERED |
+| AppLogic.clear_excluded (L664)                                    |  COVERED |
+| AppLogic.get_manual_excluded (L668)                               |  COVERED |
+| AppLogic._combined_excluded (L672)                                |  COVERED |
+| AppLogic.match_df (L679)                                          |  COVERED |
+| AppLogic.last_pull_timestamp (L684)                               |  COVERED |
+| AppLogic.logic (L693)                                             |  COVERED |
+| AppLogic.services (L698)                                          |  COVERED |
+| AppLogic.settings (L703)                                          |  COVERED |
+| AppLogic.config_path (L708)                                       |  COVERED |
+| AppLogic.get_leagues (L714)                                       |  COVERED |
+| AppLogic.refresh_data (L734)                                      |  COVERED |
+| AppLogic.filter_matches (L740)                                    |  COVERED |
+| AppLogic.pull_matches_db (L758)                                   |  COVERED |
+| AppLogic.build_slip (L805)                                        |  COVERED |
+| AppLogic.build_preview (L825)                                     |  COVERED |
+| AppLogic.generate_slips (L836)                                    |  COVERED |
+| AppLogic.save_slip (L866)                                         |  COVERED |
+| AppLogic.validate_slips (L878)                                    |  COVERED |
+| AppLogic.get_slips (L896)                                         |  COVERED |
+| AppLogic.get_pending_urls (L918)                                  |  COVERED |
+| AppLogic.delete_slip (L931)                                       |  COVERED |
+| AppLogic.get_excluded_urls (L935)                                 |  COVERED |
+| AppLogic.stats (L939)                                             |  COVERED |
+| AppLogic.daily_summary (L1020)                                    |  COVERED |
+| AppLogic.market_accuracy (L1032)                                  |  COVERED |
+| AppLogic.correlation_data (L1044)                                 |  COVERED |
+| AppLogic.validate_and_broadcast (L1063)                           |  COVERED |
+| AppLogic.generate_and_broadcast (L1076)                           |  COVERED |
+| AppLogic.save_slip_and_broadcast (L1105)                          |  COVERED |
+| AppLogic.delete_slip_and_broadcast (L1111)                        |  COVERED |
+| AppLogic.pull_and_broadcast (L1116)                               |  COVERED |
+| AppLogic.toggle_service (L1124)                                   |  COVERED |
+| AppLogic._get_active_profiles (L1150)                             |  COVERED |
+| AppLogic._get_active_profiles._active_stake (L1166)               |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/schemas.py (module)                    |  COVERED |
+| BetSlipConfigIn (L10)                                             |  COVERED |
+| ExcludeUrlIn (L40)                                                |  COVERED |
+| CandidateLegOut (L46)                                             |  COVERED |
+| PreviewOut (L65)                                                  |  COVERED |
+| ProfileIn (L76)                                                   |  COVERED |
+| ManualLegIn (L121)                                                |  COVERED |
+| SlipIn (L136)                                                     |  COVERED |
+| BetLegOut (L144)                                                  |  COVERED |
+| BetSlipOut (L158)                                                 |  COVERED |
+| ProfileScheduleIn (L173)                                          |  COVERED |
+| ServicesSettingsIn (L194)                                         |  COVERED |
+| OddsSnapshotOut (L208)                                            |  COVERED |
+| OddsHistoryOut (L215)                                             |  COVERED |
+| OddsMovementSummary (L225)                                        |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/ticker_service.py (module)             |  COVERED |
+| _daemon (L10)                                                     |  COVERED |
+| TickerService (L17)                                               |  COVERED |
+| TickerService.__init__ (L28)                                      |  COVERED |
+| TickerService.update_config (L46)                                 |  COVERED |
+| TickerService.set_enabled (L56)                                   |  COVERED |
+| TickerService._run (L61)                                          |  COVERED |
+| TickerService.is_alive (L98)                                      |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/core/ws.py (module)                         |  COVERED |
+| ConnectionManager (L9)                                            |  COVERED |
+| ConnectionManager.__init__ (L18)                                  |  COVERED |
+| ConnectionManager.set_loop (L23)                                  |  COVERED |
+| ConnectionManager.connect (L27)                                   |  COVERED |
+| ConnectionManager.disconnect (L32)                                |  COVERED |
+| ConnectionManager.broadcast (L37)                                 |  COVERED |
+| ConnectionManager.broadcast_sync (L48)                            |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/__init__.py (module)                |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/analytics.py (module)               |  COVERED |
+| _get (L18)                                                        |  COVERED |
+| _get_status_value (L23)                                           |  COVERED |
+| _drawdown_data (L33)                                              |  COVERED |
+| _market_breakdown (L63)                                           |  COVERED |
+| _league_breakdown (L145)                                          |  COVERED |
+| _predict_outcome_from_score (L216)                                |  COVERED |
+| _predict_outcome_from_score._result (L220)                        |   MISSED |
+| _predict_outcome_from_score._double_chance (L227)                 |   MISSED |
+| _predict_outcome_from_score._over_under (L234)                    |   MISSED |
+| _source_market_correlation (L255)                                 |  COVERED |
+| _source_breakdown (L344)                                          |  COVERED |
+| _pnl_by_market (L463)                                             |  COVERED |
+| _profile_scatter (L506)                                           |  COVERED |
+| get_analytics (L546)                                              |  COVERED |
+| _correlation_matrix (L591)                                        |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/builder.py (module)                 |  COVERED |
+| coerce_key (L12)                                                  |   MISSED |
+| coerce_type (L16)                                                 |   MISSED |
+| _get (L23)                                                        |  COVERED |
+| _to_config (L28)                                                  |  COVERED |
+| preview (L60)                                                     |  COVERED |
+| get_excluded (L100)                                               |  COVERED |
+| get_excluded_details (L106)                                       |  COVERED |
+| add_excluded (L144)                                               |  COVERED |
+| remove_excluded (L151)                                            |  COVERED |
+| clear_excluded (L158)                                             |  COVERED |
+| get_leagues (L165)                                                |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/matches.py (module)                 |  COVERED |
+| _get (L14)                                                        |  COVERED |
+| _clean (L19)                                                      |  COVERED |
+| _row_to_dict (L26)                                                |  COVERED |
+| _significant_mask (L41)                                           |  COVERED |
+| _apply_cell_filters (L54)                                         |  COVERED |
+| get_matches (L83)                                                 |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/odds_history.py (module)            |  COVERED |
+| _get (L12)                                                        |  COVERED |
+| get_all_movements (L21)                                           |  COVERED |
+| get_significant_movements (L48)                                   |  COVERED |
+| get_match_odds_history (L76)                                      |  COVERED |
+| get_match_movement (L112)                                         |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/profiles.py (module)                |  COVERED |
+| _get (L12)                                                        |  COVERED |
+| list_profiles (L18)                                               |  COVERED |
+| save_profile (L26)                                                |  COVERED |
+| delete_profile (L112)                                             |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/services.py (module)                |  COVERED |
+| _get (L17)                                                        |  COVERED |
+| _next_run_hour (L22)                                              |  COVERED |
+| _next_run_interval (L39)                                          |  COVERED |
+| _last_generated_at (L47)                                          |  COVERED |
+| _earliest_profile_window (L57)                                    |  COVERED |
+| get_services (L73)                                                |  COVERED |
+| save_settings (L125)                                              |  COVERED |
+| toggle_service (L134)                                             |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/slips.py (module)                   |  COVERED |
+| _get (L16)                                                        |  COVERED |
+| _enum_or_str (L21)                                                |  COVERED |
+| validate_manual_leg (L28)                                         |  COVERED |
+| _leg_to_dict (L94)                                                |  COVERED |
+| _slip_to_dict (L113)                                              |  COVERED |
+| _parse_odds (L130)                                                |  COVERED |
+| _parse_consensus (L141)                                           |  COVERED |
+| _parse_sources (L152)                                             |  COVERED |
+| _dict_to_candidate_leg (L163)                                     |  COVERED |
+| add_slip (L218)                                                   |  COVERED |
+| get_slips (L248)                                                  |  COVERED |
+| get_slips.to_bool (L272)                                          |   MISSED |
+| get_slips.status_str (L283)                                       |   MISSED |
+| validate_manual (L311)                                            |  COVERED |
+| delete_slip (L328)                                                |  COVERED |
+| validate_slips (L335)                                             |  COVERED |
+| generate_slips (L356)                                             |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/routers/system.py (module)                  |  COVERED |
+| _get (L13)                                                        |  COVERED |
+| pull_db (L19)                                                     |  COVERED |
+| get_status (L37)                                                  |  COVERED |
+| get_sources_config (L48)                                          |  COVERED |
+| websocket_endpoint (L64)                                          |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/utils/json_utils.py (module)                |  COVERED |
+| sanitize_floats (L7)                                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_dashboard/backend/utils/profile_utils.py (module)             |  COVERED |
+| get_profile_params (L6)                                           |  COVERED |
+| handle_profile_params (L28)                                       |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/BetAssistant.py (module)                            |  COVERED |
+| _parse_match_result_html (L88)                                    |  COVERED |
+| _extract_status_text (L115)                                       |  COVERED |
+| _determine_match_status (L138)                                    |  COVERED |
+| _extract_score (L160)                                             |  COVERED |
+| BetAssistant (L188)                                               |  COVERED |
+| BetAssistant.__init__ (L212)                                      |  COVERED |
+| BetAssistant._create_tables (L224)                                |  COVERED |
+| BetAssistant.close (L266)                                         |  COVERED |
+| BetAssistant.__enter__ (L270)                                     |  COVERED |
+| BetAssistant.__exit__ (L274)                                      |  COVERED |
+| BetAssistant.load_matches (L280)                                  |  COVERED |
+| BetAssistant._build_match_row (L311)                              |  COVERED |
+| BetAssistant._flatten_odds (L358)                                 |  COVERED |
+| BetAssistant.filter_matches (L364)                                |  COVERED |
+| BetAssistant.build_slip (L406)                                    |  COVERED |
+| BetAssistant.build_slip_auto_exclude (L432)                       |  COVERED |
+| BetAssistant.save_slip (L445)                                     |  COVERED |
+| BetAssistant.get_slips (L514)                                     |  COVERED |
+| BetAssistant.delete_slip (L558)                                   |  COVERED |
+| BetAssistant.get_excluded_urls (L565)                             |  COVERED |
+| BetAssistant.settle_leg_manually (L591)                           |  COVERED |
+| BetAssistant.score_match (L623)                                   |  COVERED |
+| BetAssistant.build_slip_from_df (L691)                            |  COVERED |
+| BetAssistant.process_leg_result (L712)                            |  COVERED |
+| BetAssistant.validate_slips (L750)                                |  COVERED |
+| BetAssistant.validate_slips._handle_url (L774)                    |   MISSED |
+| BetAssistant.update_leg (L814)                                    |  COVERED |
+| BetAssistant._calc_consensus (L833)                               |  COVERED |
+| BetAssistant._collect_candidates (L839)                           |  COVERED |
+| BetAssistant._row_passes_filters (L879)                           |  COVERED |
+| BetAssistant._cell_to_candidate (L895)                            |  COVERED |
+| BetAssistant._build_leg_predictions (L951)                        |  COVERED |
+| BetAssistant._get_market_movement (L978)                          |  COVERED |
+| BetAssistant._select_legs (L1002)                                 |  COVERED |
+| BetAssistant._derive_slip_status (L1056)                          |  COVERED |
+| BetAssistant._rows_to_slips (L1072)                               |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/MatchesManager.py (module)                          |  COVERED |
+| NearMiss (L22)                                                    |  COVERED |
+| OddsValidationIssue (L34)                                         |  COVERED |
+| _check_market_group (L75)                                         |  COVERED |
+| _is_empty (L99)                                                   |  COVERED |
+| MatchesManager (L116)                                             |  COVERED |
+| MatchesManager.__init__ (L125)                                    |  COVERED |
+| MatchesManager._create_tables (L137)                              |  COVERED |
+| MatchesManager._fuzzy_row_score (L166)                            |  COVERED |
+| MatchesManager._find (L188)                                       |  COVERED |
+| MatchesManager.fetch_matches (L217)                               |  COVERED |
+| MatchesManager._try_row_to_public_dict (L231)                     |  COVERED |
+| MatchesManager.add_match (L248)                                   |  COVERED |
+| MatchesManager._insert_new_match (L286)                           |  COVERED |
+| MatchesManager._is_exact_team_match (L307)                        |  COVERED |
+| MatchesManager._update_existing_match (L315)                      |  COVERED |
+| MatchesManager._update_predictions (L355)                         |  COVERED |
+| MatchesManager._update_datetime (L371)                            |  COVERED |
+| MatchesManager._update_odds (L382)                                |  COVERED |
+| MatchesManager.reset_matches_db (L421)                            |  COVERED |
+| MatchesManager.merge_databases (L425)                             |  COVERED |
+| MatchesManager.merge_databases._row (L434)                        |   MISSED |
+| MatchesManager._log_near_misses (L481)                            |  COVERED |
+| MatchesManager._clear_near_misses (L497)                          |  COVERED |
+| MatchesManager._validate_all_odds (L503)                          |  COVERED |
+| MatchesManager._log_odds_validation_report (L531)                 |  COVERED |
+| MatchesManager._extract_history_from_odds (L557)                  |  COVERED |
+| MatchesManager._get_current_odds_snapshot (L564)                  |  COVERED |
+| MatchesManager._append_to_history (L571)                          |  COVERED |
+| MatchesManager.get_odds_history_from_row (L593)                   |  COVERED |
+| MatchesManager.calculate_movement_from_odds (L612)                |  COVERED |
+| MatchesManager.calculate_movement_with_strength (L651)            |  COVERED |
+| MatchesManager.get_movement_for_row (L704)                        |  COVERED |
+| MatchesManager._collect_future_matches (L714)                     |  COVERED |
+| MatchesManager._try_future_match_row (L723)                       |  COVERED |
+| MatchesManager._transfer_match_history (L743)                     |  COVERED |
+| MatchesManager.merge_with_history_preservation (L769)             |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/Match.py (module)                              |  COVERED |
+| Score (L8)                                                        |  COVERED |
+| Score.__post_init__ (L15)                                         |  COVERED |
+| ensure_decimal_odds (L22)                                         |  COVERED |
+| Odds (L67)                                                        |  COVERED |
+| Odds.__post_init__ (L92)                                          |  COVERED |
+| Match (L114)                                                      |  COVERED |
+| Match.__init__ (L117)                                             |  COVERED |
+| Match.to_dict (L143)                                              |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/Slip.py (module)                               |  COVERED |
+| _clean_league (L30)                                               |  COVERED |
+| _clean_float (L39)                                                |  COVERED |
+| CandidateLeg (L49)                                                |  COVERED |
+| CandidateLeg.__post_init__ (L71)                                  |  COVERED |
+| MatchResultInfo (L80)                                             |  COVERED |
+| LegOutcomeInfo (L91)                                              |  COVERED |
+| ValidationReport (L105)                                           |  COVERED |
+| BetLeg (L117)                                                     |  COVERED |
+| BetLeg.__post_init__ (L133)                                       |  COVERED |
+| BetSlip (L153)                                                    |  COVERED |
+| BetSlip.__post_init__ (L166)                                      |  COVERED |
+| _clamp_optional (L179)                                            |  COVERED |
+| BetSlipConfig (L187)                                              |  COVERED |
+| BetSlipConfig.__post_init__ (L267)                                |  COVERED |
+| get_profile (L405)                                                |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/consensus.py (module)                          |  COVERED |
+| to_pct (L16)                                                      |  COVERED |
+| calc_consensus (L27)                                              |  COVERED |
+| _empty_consensus (L51)                                            |  COVERED |
+| _tally_double_chance (L65)                                        |  COVERED |
+| _count_votes (L75)                                                |  COVERED |
+| _pct_map (L136)                                                   |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/leagues.py (module)                            |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/outcomes.py (module)                           |  COVERED |
+| parse_score (L17)                                                 |  COVERED |
+| determine_outcome (L30)                                           |  COVERED |
+| _handle_result_market (L71)                                       |  COVERED |
+| _handle_btts_market (L82)                                         |  COVERED |
+| _handle_double_chance_market (L92)                                |  COVERED |
+| _handle_over_under_market (L103)                                  |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/scoring.py (module)                            |  COVERED |
+| resolve_tolerance (L41)                                           |  COVERED |
+| resolve_stop_threshold (L49)                                      |  COVERED |
+| resolve_max_legs (L57)                                            |  COVERED |
+| resolve_shrinkage_k (L68)                                         |  COVERED |
+| resolve_max_leg_odds (L73)                                        |  COVERED |
+| resolve_min_pick_quality (L78)                                    |  COVERED |
+| resolve_min_source_edge (L83)                                     |  COVERED |
+| resolve_odds_movement_weight (L88)                                |  COVERED |
+| resolve_odds_movement_strength_min (L96)                          |  COVERED |
+| classify_odds_movement (L101)                                     |  COVERED |
+| odds_movement_factor (L119)                                       |  COVERED |
+| apply_odds_movement_adjustment (L128)                             |  COVERED |
+| adjusted_consensus (L157)                                         |  COVERED |
+| score_consensus (L163)                                            |  COVERED |
+| score_sources (L169)                                              |  COVERED |
+| score_balance (L174)                                              |  COVERED |
+| score_pick (L190)                                                 |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/core/utils.py (module)                              |  COVERED |
+| is_valid_url (L18)                                                |  COVERED |
+| coerce_datetime_str (L46)                                         |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/markets/catalog.py (module)                         |  COVERED |
+| MarketSpec (L15)                                                  |  COVERED |
+| market_by_key (L50)                                               |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/markets/contract.py (module)                        |  COVERED |
+| snapshot (L15)                                                    |  COVERED |
+| emit (L28)                                                        |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/markets/enums.py (module)                           |  COVERED |
+| MarketType (L12)                                                  |  COVERED |
+| MarketKey (L25)                                                   |  COVERED |
+| Outcome (L54)                                                     |  COVERED |
+| MatchStatus (L63)                                                 |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/markets/keys.py (module)                            |  COVERED |
+| stripped_key (L10)                                                |  COVERED |
+|-------------------------------------------------------------------|----------|
+| bet_framework/markets/views.py (module)                           |  COVERED |
+|-------------------------------------------------------------------|----------|
+
+----------------------------------- Summary ------------------------------------
+| Name                                                | Total | Miss | Cover | Cover% |
+|-----------------------------------------------------|-------|------|-------|--------|
+| bet_crawler/crawl.py                                |    18 |    2 |    16 |    89% |
+| bet_crawler/crawler_logging.py                      |    20 |    2 |    18 |    90% |
+| bet_crawler/summarize_scrape_logs.py                |    12 |    2 |    10 |    83% |
+| bet_crawler/crawl_core/__init__.py                  |     1 |    0 |     1 |   100% |
+| bet_crawler/crawl_core/generate_slips.py            |     2 |    0 |     2 |   100% |
+| bet_crawler/crawl_core/merge.py                     |    10 |    0 |    10 |   100% |
+| bet_crawler/crawl_core/prepare_scrape.py            |     2 |    0 |     2 |   100% |
+| bet_crawler/crawl_core/scrape.py                    |     3 |    0 |     3 |   100% |
+| bet_crawler/crawl_core/validate_slips.py            |     2 |    0 |     2 |   100% |
+| bet_crawler/finders/BaseMatchFinder.py              |    12 |    0 |    12 |   100% |
+| bet_crawler/finders/BetClanFinder.py                |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/BetExplorerFinder.py            |    15 |    0 |    15 |   100% |
+| bet_crawler/finders/EaglePredictFinder.py           |    14 |    0 |    14 |   100% |
+| bet_crawler/finders/FootballBettingTipsFinder.py    |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/FootballPredictionsFinder.py    |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/ForebetFinder.py                |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/LegitPredictFinder.py           |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/OddsPortalFinder.py             |    23 |    0 |    23 |   100% |
+| bet_crawler/finders/OneMillionPredictionsFinder.py  |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/PredictzFinder.py               |     7 |    1 |     6 |    86% |
+| bet_crawler/finders/ScorePredictorFinder.py         |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/SoccerVistaFinder_per_league.py |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/SoccerVistaFinder_per_match.py  |     9 |    0 |     9 |   100% |
+| bet_crawler/finders/VitibetFinder.py                |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/WhoScoredFinder.py              |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/WinDrawWinFinder_per_league.py  |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/WinDrawWinFinder_per_match.py   |     6 |    0 |     6 |   100% |
+| bet_crawler/finders/__init__.py                     |     1 |    0 |     1 |   100% |
+| bet_crawler/finders/_parallel.py                    |     2 |    0 |     2 |   100% |
+| bet_crawler/finders/xGScoreFinder.py                |     8 |    0 |     8 |   100% |
+| bet_dashboard/backend/__init__.py                   |     1 |    0 |     1 |   100% |
+| bet_dashboard/backend/export_openapi.py             |     3 |    0 |     3 |   100% |
+| bet_dashboard/backend/main.py                       |     3 |    0 |     3 |   100% |
+| bet_dashboard/backend/core/__init__.py              |     1 |    0 |     1 |   100% |
+| bet_dashboard/backend/core/analytics_utils.py       |    15 |    0 |    15 |   100% |
+| bet_dashboard/backend/core/config_helpers.py        |     4 |    0 |     4 |   100% |
+| bet_dashboard/backend/core/logic.py                 |    74 |    5 |    69 |    93% |
+| bet_dashboard/backend/core/schemas.py               |    15 |    0 |    15 |   100% |
+| bet_dashboard/backend/core/ticker_service.py        |     8 |    0 |     8 |   100% |
+| bet_dashboard/backend/core/ws.py                    |     8 |    0 |     8 |   100% |
+| bet_dashboard/backend/routers/__init__.py           |     1 |    0 |     1 |   100% |
+| bet_dashboard/backend/routers/analytics.py          |    16 |    3 |    13 |    81% |
+| bet_dashboard/backend/routers/builder.py            |    12 |    2 |    10 |    83% |
+| bet_dashboard/backend/routers/matches.py            |     7 |    0 |     7 |   100% |
+| bet_dashboard/backend/routers/odds_history.py       |     6 |    0 |     6 |   100% |
+| bet_dashboard/backend/routers/profiles.py           |     5 |    0 |     5 |   100% |
+| bet_dashboard/backend/routers/services.py           |     9 |    0 |     9 |   100% |
+| bet_dashboard/backend/routers/slips.py              |    18 |    2 |    16 |    89% |
+| bet_dashboard/backend/routers/system.py             |     6 |    0 |     6 |   100% |
+| bet_dashboard/backend/utils/json_utils.py           |     2 |    0 |     2 |   100% |
+| bet_dashboard/backend/utils/profile_utils.py        |     3 |    0 |     3 |   100% |
+| bet_framework/BetAssistant.py                       |    37 |    1 |    36 |    97% |
+| bet_framework/MatchesManager.py                     |    37 |    1 |    36 |    97% |
+| bet_framework/core/Match.py                         |     9 |    0 |     9 |   100% |
+| bet_framework/core/Slip.py                          |    16 |    0 |    16 |   100% |
+| bet_framework/core/consensus.py                     |     7 |    0 |     7 |   100% |
+| bet_framework/core/leagues.py                       |     1 |    0 |     1 |   100% |
+| bet_framework/core/outcomes.py                      |     7 |    0 |     7 |   100% |
+| bet_framework/core/scoring.py                       |    18 |    0 |    18 |   100% |
+| bet_framework/core/utils.py                         |     3 |    0 |     3 |   100% |
+| bet_framework/markets/catalog.py                    |     3 |    0 |     3 |   100% |
+| bet_framework/markets/contract.py                   |     3 |    0 |     3 |   100% |
+| bet_framework/markets/enums.py                      |     5 |    0 |     5 |   100% |
+| bet_framework/markets/keys.py                       |     2 |    0 |     2 |   100% |
+| bet_framework/markets/views.py                      |     1 |    0 |     1 |   100% |
+|-----------------------------------------------------|-------|------|-------|--------|
+| TOTAL                                               |   599 |   21 |   578 |  96.5% |
+---------------- RESULT: PASSED (minimum: 80.0%, actual: 96.5%) ----------------

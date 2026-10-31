@@ -1,0 +1,34 @@
+diff --git a/bet_dashboard/frontend/src/components/ServiceCard.tsx b/bet_dashboard/frontend/src/components/ServiceCard.tsx
+index 57d088b..a9b7ad0 100644
+--- a/bet_dashboard/frontend/src/components/ServiceCard.tsx
++++ b/bet_dashboard/frontend/src/components/ServiceCard.tsx
+@@ -48,27 +48,11 @@ export default function ServiceCard({ info, onToggle }: Props) {
+     </div>
+   );
+ 
+-  // Card footer with last generated information (generator only)
+-  const footer = info.name === 'generator' ? (
+-    <div className="flex items-center justify-between px-3 py-2 rounded w-full"
+-      style={{ background: 'var(--bg-raised)', border: '1px solid var(--border)' }}>
+-      <span className="text-[10px] font-mono tracking-wide uppercase"
+-        style={{ color: 'var(--text-secondary)' }}>Last Generated</span>
+-      <span className="font-mono text-[11px]" style={{ color: 'var(--accent)' }}>
+-        {info.last_time_generated ? new Date(info.last_time_generated).toLocaleString('en-GB', {
+-          day: '2-digit',
+-          month: '2-digit',
+-          hour: '2-digit',
+-          minute: '2-digit'
+-        }) : 'Never'}
+-      </span>
+-    </div>
+-  ) : null;
+-
++  // Footer removed (issue #95 redesign): last-generated info is now shown
++  // per-profile in the scheduling table, not globally on the generator card.
+   return (
+     <BaseCard
+       header={header}
+-      footer={footer}
+       status={active ? 'success' : 'default'}
+     >
+       <button

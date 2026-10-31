@@ -171,7 +171,7 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
         raise ValueError("market_type is required")
 
     try:
-        # Post-shim (issue #116): canonical keys only. Pre-U1 rows in old
+        # Post-shim: canonical keys only. Pre-U1 rows in old
         # slips.db files display fine (read path is passthrough) but re-saving
         # validation rejects unknown/legacy labels with a 400 before this
         # point (validate_manual_leg allow-list); see docs/migration.md.

@@ -1,0 +1,64 @@
+diff --git a/bet_dashboard/frontend/src/api/__tests__/data.test.ts b/bet_dashboard/frontend/src/api/__tests__/data.test.ts
+index 98572d6..88a55e1 100644
+--- a/bet_dashboard/frontend/src/api/__tests__/data.test.ts
++++ b/bet_dashboard/frontend/src/api/__tests__/data.test.ts
+@@ -1,6 +1,6 @@
+ // data.ts tests (issue #67). Covers ALL 22 exported functions (the issue
+ // lists only 13 — divergence: spec missed the 7 excluded-URL functions,
+-// deleteProfile/deleteSlip/saveServiceSettings, and matches/oddsHistory
++// deleteProfile/deleteSlip, and matches/oddsHistory
+ // modules entirely). Response shapes ground-truthed against src/types +
+ // cycle-2 backend router contracts.
+ 
+@@ -17,7 +17,7 @@ import {
+     addExcluded, removeExcluded, clearExcluded,
+     fetchProfiles, saveProfile, deleteProfile,
+     fetchSlips, addSlip, deleteSlip, validateSlips, generateSlips,
+-    fetchAnalytics, fetchServices, saveServiceSettings, toggleService,
++    fetchAnalytics, fetchServices, toggleService,
+     pullDb, fetchStatus, fetchSourcesConfig,
+ } from '../data';
+ 
+@@ -46,13 +46,13 @@ describe('builder endpoints', () => {
+         }));
+         const cfg = {
+             target_odds: 6.0, target_legs: 3, max_legs_overflow: null,
+-            consensus_floor: 50.0, min_odds: 1.05,
++            consensus_floor: 50.0, min_leg_odds: 1.05,
+             included_markets: null, included_leagues: null,
+             tolerance_factor: null, stop_threshold: null,
+             min_legs_fill_ratio: 0.7, quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
+             date_from: null, date_to: null, excluded_sources: null,
+             consensus_shrinkage_k: null, min_source_edge: null,
+-            max_single_leg_odds: null, tol_lower: null, tol_upper: null,
++            max_leg_odds: 10.0, tol_lower: null, tol_upper: null,
+             balance_decay: 'gaussian', min_pick_quality: null,
+             odds_movement_weight: null, odds_movement_strength_min: null,
+         } as Parameters<typeof fetchPreview>[0];
+@@ -243,22 +243,13 @@ describe('analytics endpoint', () => {
+ 
+ 
+ describe('services endpoints', () => {
+-    it('fetchServices returns services map + generate time', async () => {
+-        server.use(http.get('/api/services', () => HttpResponse.json(makeServicesData({ generate_hour: 8 }))));
++    it('fetchServices returns services map + profile schedules', async () => {
++        server.use(http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: [] }))));
+         const data = await fetchServices();
+-        expect(data.generate_hour).toBe(8);
++        expect(data.profile_schedules).toEqual([]);
+         expect(data.services.verifier.interval_seconds).toBe(60);
+         expect(data.services.puller.enabled).toBe(true);
+-    });
+-
+-    it('saveServiceSettings POSTs hour/minute', async () => {
+-        let body: Record<string, unknown> | null = null;
+-        server.use(http.post('/api/services/settings', async ({ request }) => {
+-            body = await request.json() as Record<string, unknown>;
+-            return HttpResponse.json({ ok: true });
+-        }));
+-        await saveServiceSettings(10, 30);
+-        expect(body).toEqual({ generate_hour: 10, generate_minute: 30 });
++        expect('generate_hour' in data).toBe(false);
+     });
+ 
+     it('toggleService templated POST returns name/enabled', async () => {

@@ -1,4 +1,4 @@
-"""[P1] Pure unit tests for slips router helpers (issue #58, worker B-backend scope).
+"""[P1] Pure unit tests for slips router helpers.
 
 Covers validate_manual_leg, _dict_to_candidate_leg, _leg_to_dict,
 _slip_to_dict, _enum_or_str at branch level (no HTTP layer).

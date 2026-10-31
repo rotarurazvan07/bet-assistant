@@ -1,4 +1,4 @@
-// AnalyticsDashboard (issue #64 P2). ACTUAL (cycle-12 divergence): this is
+// AnalyticsDashboard. ACTUAL: this is
 // the SLIP-PREVIEW dashboard — MetricCards + risk GaugeChart + recharts
 // RadarChart; NOT a P&L/market-breakdown page; takes legs+totalOdds props;
 // returns null with no legs; NO filters. Assert radarData shape reaches

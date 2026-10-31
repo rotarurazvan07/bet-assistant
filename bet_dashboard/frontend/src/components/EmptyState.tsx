@@ -10,7 +10,7 @@ type Props = {
     secondary?: EmptyCta;
 };
 
-/** Satisfies: AC-01, AC-08, AC-11 */
+/** Satisfies:*/
 export default function EmptyState({ icon, title, steps, primary, secondary }: Props) {
     return (
         <div
@@ -20,14 +20,14 @@ export default function EmptyState({ icon, title, steps, primary, secondary }: P
             className="card text-center py-16 fade-in px-6"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
         >
-            {/* AC-08 / AC-11: illustration is decorative */}
+            {/* /illustration is decorative */}
             <div className="flex justify-center mb-4" aria-hidden="true">
                 {icon}
             </div>
             <h3 className="font-display font-bold text-lg mb-4" style={{ color: 'var(--text-bright)' }}>
                 {title}
             </h3>
-            {/* AC-11: numbered steps; color the text node, not only the root */}
+            {/*numbered steps; color the text node, not only the root */}
             <ol className="mx-auto mb-6 max-w-sm text-left list-decimal list-inside space-y-1">
                 {steps.map((step) => (
                     <li key={step} className="font-sans text-sm" style={{ color: 'var(--text-secondary)' }}>

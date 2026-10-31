@@ -1,4 +1,4 @@
-// useSocket tests (issue #66). SPEC DIVERGENCES (pinned, see summary D1-D4):
+// useSocket tests. SPEC DIVERGENCES:
 // - URL derives from window.location (ws/wss + host + /ws), NOT hardcoded
 //   ws://localhost:8000/ws
 // - Reconnect is FIXED 3s delay, NOT exponential backoff
@@ -70,7 +70,7 @@ describe('useSocket', () => {
         expect(url.startsWith(`${expectedProto}://`)).toBe(true);
         // NOTE: jsdom cannot redefine location.protocol (non-configurable),
         // so the https→wss branch is covered via the ternary pin above only —
-        // documented as decision D21 in the cycle summary.
+        // documented as decision in the cycle summary.
     });
 
     it('sends 25s keepalive pings while open', () => {

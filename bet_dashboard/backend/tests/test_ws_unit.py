@@ -1,4 +1,4 @@
-"""Unit tests for core/ws.py ConnectionManager (issue #60, cycle 4).
+"""Unit tests for core/ws.py ConnectionManager.
 
 Covers: connect/disconnect bookkeeping, async broadcast with dead-connection
 pruning, broadcast_sync no-op guards (loop unset / loop closed) and the REAL

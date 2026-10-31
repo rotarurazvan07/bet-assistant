@@ -11,16 +11,16 @@ interface Props {
     onSubmit: (units: number) => void;
     isMinimized: boolean;
     onToggleMinimize: () => void;
-    pulseToken?: number; // AC-04: incrementing nonce, not legs.length
+    pulseToken?: number; // incrementing nonce, not legs.length
 }
 
-// AC-08 (#39): last mobile sheet snap — '50' | '90'. Missing/invalid -> '50'.
+// last mobile sheet snap — '50' | '90'. Missing/invalid -> '50'.
 const SNAP_KEY = 'slip-sheet-snap';
 
 export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMinimized, onToggleMinimize, pulseToken = 0 }: Props) {
-    // AC-01: same mobile query as the #37 Filters drawer.
+    // same mobile query as the Filters drawer.
     const isMobile = useMediaQuery('(max-width:767.95px)');
-    // AC-04: restart animation via alternating class; clear on animationend (no effect).
+    // restart animation via alternating class; clear on animationend (no effect).
     const [seenPulse, setSeenPulse] = useState(0);
     const [pulseClass, setPulseClass] = useState('');
     if (pulseToken !== seenPulse) {
@@ -32,7 +32,7 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
         try { return localStorage.getItem(SNAP_KEY) === '90' ? '90' : '50'; } catch { return '50'; }
     });
     useEffect(() => {
-        if (!isMobile) return; // AC-08: this key is mobile-only
+        if (!isMobile) return; // this key is mobile-only
         try { localStorage.setItem(SNAP_KEY, snap); } catch { /* storage unavailable */ }
     }, [snap, isMobile]);
 
@@ -55,7 +55,7 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
         if (end != null && end - start > 40) onToggleMinimize();
     };
 
-    // AC-13: minimized pill is a real keyboard button (Enter/Space expand natively).
+    // minimized pill is a real keyboard button (Enter/Space expand natively).
     if (isMinimized) {
         return createPortal(
             <button
@@ -114,15 +114,15 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
         </div>
     );
 
-    // AC-01/AC-03: mobile is a non-modal fixed sheet (MUI Modal/SwipeableDrawer
-    // aria-hides Discover and blocks #37 Filters). Desktop stays the portal panel.
+    // /mobile is a non-modal fixed sheet (MUI Modal/SwipeableDrawer
+    // aria-hides Discover and blocks Filters). Desktop stays the portal panel.
     if (isMobile) {
         return createPortal(panel, document.body);
     }
 
     return createPortal(
-        // AC-06: MUI focus trap. autoFocus/restore stay off so focus is never
-        // stolen from the page (keeps the #36 nav keyboard walk intact).
+        // MUI focus trap. autoFocus/restore stay off so focus is never
+        // stolen from the page.
         <Unstable_TrapFocus open disableAutoFocus disableRestoreFocus>
             {panel}
         </Unstable_TrapFocus>,

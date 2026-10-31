@@ -1,6 +1,6 @@
-"""WebSocket/TickerService integration tests (issue #60, cycle 4) — REAL stack.
+"""WebSocket/TickerService integration tests — REAL stack.
 
-Unlike cycle 3 (broadcast_capture fixture), this file verifies REAL propagation:
+Unlike (broadcast_capture fixture), this file verifies REAL propagation:
 TestClient portal loop bound to ws_manager via a lifespan mirroring main.py,
 real daemon threads calling broadcast_sync (run_coroutine_threadsafe), and real
 WS clients receiving JSON frames through the actual /ws endpoint in
@@ -202,7 +202,7 @@ class TestAppLogicToggleE2E:
         write_config(config_dir)  # services.yaml with neutral toggles: {}
         matches_db = str(tmp_path / "matches.db")
         slips_db = str(tmp_path / "slips.db")
-        seed_matches_db(matches_db, [make_match_row_db(0)])  # proven cycle-3 construction sequence
+        seed_matches_db(matches_db, [make_match_row_db(0)])  # proven construction sequence
 
         app_logic = AppLogic(matches_db, slips_db, str(config_dir))
         try:

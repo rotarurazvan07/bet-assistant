@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Cycle 9 (issue #63): infrastructure config. Cycle 15 wired CI.
-// PR #75 batch (D-B): external-stack mode — when E2E_BASE_URL is set (the CI
+// infrastructure config. wired CI.
+// batch: external-stack mode — when E2E_BASE_URL is set (the CI
 // e2e-tests job runs the composed docker stack on :3002), use it as baseURL
 // and do NOT start a local webServer (the stack's nginx serves the built
 // frontend + proxies /api + /ws). Local default unchanged: vite dev on 5173.

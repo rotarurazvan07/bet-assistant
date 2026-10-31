@@ -1,0 +1,38 @@
+diff --git a/bet_dashboard/frontend/src/components/__tests__/ServiceCard.test.tsx b/bet_dashboard/frontend/src/components/__tests__/ServiceCard.test.tsx
+index e1d2ec3..c1db500 100644
+--- a/bet_dashboard/frontend/src/components/__tests__/ServiceCard.test.tsx
++++ b/bet_dashboard/frontend/src/components/__tests__/ServiceCard.test.tsx
+@@ -1,7 +1,7 @@
+ // ServiceCard (issue #64 P1). ACTUAL: active = alive && enabled;
+-// 'Stop/Start Service' button; 'Last Generated' footer (generator only,
+-// 'Never' fallback); icons puller/generator/verifier; NO next-run estimate
+-// (cycle-12 divergence).
++// 'Stop/Start Service' button; icons puller/generator/verifier; NO next-run
++// estimate. Issue #95: the 'Last Generated' footer was removed — that info is
++// now shown per-profile in the scheduling table, not globally on the card.
+ 
+ import { describe, it, expect, vi } from 'vitest';
+ import { render, screen } from '@testing-library/react';
+@@ -39,20 +39,10 @@ describe('ServiceCard', () => {
+         expect(screen.getByText('Start Service')).toBeInTheDocument();
+     });
+ 
+-    it('generator footer shows formatted Last Generated', () => {
++    it('no Last Generated footer on any card (moved to per-profile table, issue #95)', () => {
+         render(<ServiceCard info={makeServiceInfo({ name: 'generator', last_time_generated: '2026-09-24T09:30:00' })} onToggle={() => {}} />);
+-        expect(screen.getByText('Last Generated')).toBeInTheDocument();
+-        expect(screen.getByText(/24\/09/)).toBeInTheDocument();
+-    });
+-
+-    it('generator footer shows Never when last_time_generated null', () => {
+-        render(<ServiceCard info={makeServiceInfo({ name: 'generator', last_time_generated: null })} onToggle={() => {}} />);
+-        expect(screen.getByText('Never')).toBeInTheDocument();
+-    });
+-
+-    it('non-generator services have no Last Generated footer', () => {
+-        render(<ServiceCard info={makeServiceInfo({ name: 'puller' })} onToggle={() => {}} />);
+         expect(screen.queryByText('Last Generated')).not.toBeInTheDocument();
++        expect(screen.queryByText('Never')).not.toBeInTheDocument();
+     });
+ 
+     it('renders per-service icons (puller ⬇ generator ✦ verifier ⟳)', () => {

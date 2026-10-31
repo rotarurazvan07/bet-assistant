@@ -1,0 +1,214 @@
+rules:
+  # Shared path exclusions. Every rule below uses the same set so the gate
+  # behaves identically no matter which family fires.
+  #
+  # NOTE: semgrep AND-s the entries of a `patterns:` list, so every family
+  # with alternative spellings MUST use `pattern-either` (a single list of
+  # `pattern-regex` entries would require all of them to match at once and
+  # could never fire).
+
+  - id: no-internal-refs-acceptance-criteria
+    message: "Acceptance criteria reference forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-regex: '(?i)\bAC-\d{1,2}\b'
+
+  - id: no-internal-refs-issue-pr
+    message: "Issue/PR/ticket reference forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          - pattern-regex: '(?i)\b(?:issues?|tickets?)\s*#?\s*\d{1,5}\b'
+          - pattern-regex: '(?i)\bPR\s*#\s*\d{1,5}\b'
+          - pattern-regex: '(?i)\bgh\s*#?\s*\d{1,5}\b'
+          - pattern-regex: '(?i)\b(?:pull|issues)/\d+\b'
+
+  - id: no-internal-refs-bare-issue
+    message: "Bare issue number reference forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+        - bet_crawler/tests/fixtures/html/
+        - bet_dashboard/frontend/public/
+        - bet_dashboard/frontend/src/assets/
+        - "*.svg"
+    patterns:
+      # A '#' followed by 2-6 decimal digits is a ticket reference. Hex
+      # colours are exempt: a value containing a hex letter, or a value of
+      # exactly 6 or 8 digits (the classic CSS colour lengths), is a colour.
+      - pattern-regex: '#\d{2,6}\b'
+      - pattern-not-regex: '#[0-9A-Fa-f]*[a-fA-F][0-9A-Fa-f]*|#[0-9]{6}\b|#[0-9]{8}\b'
+
+  - id: no-internal-refs-decision-labels
+    message: "Internal decision label forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          - pattern-regex: '\bD-[A-Z]\b'
+          - pattern-regex: '\bD\d{1,2}\b'
+
+  - id: no-internal-refs-cycle-wave
+    message: "Cycle/wave label forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          - pattern-regex: '(?i)\bcycle[- ]\d+\b'
+          - pattern-regex: '(?i)\bwave[- ]?\d+\b'
+
+  - id: no-internal-refs-story-epic-sprint
+    message: "Story/epic/sprint tracker forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          - pattern-regex: '(?i)\bstory\s*[- ]?\d+(?:[-.]\d+)?\b'
+          - pattern-regex: '(?i)\bepic\s*[- ]?\d+\b'
+          - pattern-regex: '(?i)\bsprint\s*[- ]?\d+\b'
+          - pattern-regex: '(?i)\bthis story\b'
+
+  - id: no-internal-refs-ci-run-ids
+    message: "CI run identifier forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-regex: '(?i)\bruns?\s+\d{8,}\b'
+
+  - id: no-internal-refs-commit-hashes
+    message: "Context-anchored commit hash reference forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          - pattern-regex: '(?i)\b(?:commit(?:ted)?|against|from|revision|sha|landed|pushed|cycle|wave|batch)\b[^\n]{0,60}\b[0-9a-f]{7,9}\b'
+          - pattern-regex: '(?i)\b[0-9a-f]{7,9}\b[^\n]{0,60}\b(?:landed|commit(?:ted)?|pushed|branch)\b'
+
+  - id: no-internal-refs-review-labels
+    message: "Internal review/process label forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          # "review F1", "Review F1" - the letter class stays case-sensitive
+          # so ordinary prose ("review the code") never matches.
+          - pattern-regex: '\b[Rr]eview\s+[A-Z]{1,2}\d*\b'
+          - pattern-regex: '\bDesync\s+[A-Z]\b'
+          - pattern-regex: '\bAUTO\s+[A-Z]\b'
+          - pattern-regex: '(?i)\bgate-hardening\b'
+          - pattern-regex: '(?i)\battempt\s+\d+\b'
+          # Task identifiers used by the internal tracker.
+          - pattern-regex: '\bT\d{1,2}\b'
+          - pattern-regex: '\bF\d{1,2}\b'
+
+  - id: no-internal-refs-planning-tools
+    message: "Planning-tool reference forbidden in published files."
+    severity: ERROR
+    languages: [generic]
+    paths:
+      exclude:
+        - .semgrep/
+        - .agents/
+        - .git/
+        - node_modules/
+        - workspace/
+        - package-lock.json
+        - "*.snapshot.json"
+        - bet_dashboard/backend/openapi.generated.json
+    patterns:
+      - pattern-either:
+          - pattern-regex: '(?i)\bbmad\b'
+          - pattern-regex: '(?i)_bmad-output'
+      # The two managed-block anchors in AGENTS.md are the only allowed use.
+      - pattern-not-regex: '<!--\s*/?bmad:context\s*-->'

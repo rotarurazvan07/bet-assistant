@@ -1,4 +1,4 @@
-"""Stage 3: merge tests (issue #68).
+"""Stage 3: merge tests.
 
 Pins: chunk db consolidation, fuzzy dedup via MatchesManager, odds preservation,
 empty chunk handling, summary logging, runner-set validation.
@@ -213,10 +213,10 @@ class TestMergeP2:
         assert errs == []
 
     def test_near_miss_reports_flow_into_ci_step_summary(self, tmp_path, caplog) -> None:
-        """AC-7 (issue #113): merge near-miss logs land in the scheduled step summary.
+        """Merge near-miss logs land in the scheduled CI step summary.
 
-        End-to-end: two chunks carry a below-threshold team pair → MatchesManager logs the
-        NEAR-MISS REPORT block (job_log.txt in the merge artifact) → summarize_scrape_logs
+        End-to-end: two chunks carry a below-threshold team pair -> MatchesManager logs the
+        NEAR-MISS REPORT block (job_log.txt in the merge artifact) -> summarize_scrape_logs
         renders a dedicated "## Near-miss reports" section in the markdown summary.
         """
         from datetime import datetime
@@ -231,7 +231,13 @@ class TestMergeP2:
         # Combined similarity = (50.0 + 62.7) / 2 = 56.4: inside the near-miss window [40, 65).
         m1 = make_match(home="Ajax", away="Feyenoord", dt=dt, preds=None, url="https://a.com/1")
         m1.predictions = [Score(source="srcA", home=1, away=0)]
-        m2 = make_match(home="Ajax Cape Town", away="Feyenoord Academy", dt=dt, preds=None, url="https://b.com/1")
+        m2 = make_match(
+            home="Ajax Cape Town",
+            away="Feyenoord Academy",
+            dt=dt,
+            preds=None,
+            url="https://b.com/1",
+        )
         m2.predictions = [Score(source="srcB", home=2, away=0)]
         make_chunk_db(chunks / "actions-1.db", [m1])
         make_chunk_db(chunks / "actions-2.db", [m2])

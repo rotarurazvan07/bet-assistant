@@ -1,4 +1,4 @@
-"""Stage 2: scrape tests (issue #68).
+"""Stage 2: scrape tests.
 
 Pins: URL input (file vs string), per-domain grouping, matches written to
 class chunk .db via MatchesManager, per-group exception isolation, reset semantics.

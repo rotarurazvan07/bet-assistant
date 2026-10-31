@@ -1,0 +1,21 @@
+diff --git a/bet_crawler/tests/test_generate_slips.py b/bet_crawler/tests/test_generate_slips.py
+index f0c97a5..6b3d675 100644
+--- a/bet_crawler/tests/test_generate_slips.py
++++ b/bet_crawler/tests/test_generate_slips.py
+@@ -55,7 +55,7 @@ PROFILE = {
+     "tolerance_factor": 0.30,
+     "stop_threshold": 0.50,
+     "consensus_floor": 40.0,
+-    "min_odds": 1.01,
++    "min_leg_odds": 1.01,
+     "odds_movement_weight": None,
+ }
+ 
+@@ -101,6 +101,6 @@ class TestGenerateSlipsP0:
+         matches_db = str(tmp_path / "matches.db")
+         _seed_matches_db(matches_db, [_consensus_match()])
+         slips_db = str(tmp_path / "slips.db")
+-        profile = dict(PROFILE, min_odds=99.0)  # odds 1.9 < 99 → no candidate passes the gate
++        profile = dict(PROFILE, min_leg_odds=99.0)  # odds 1.9 < 99 → no candidate passes the gate
+         generate_slips(matches_db, slips_db, "picky", profile)
+         assert _slips_rows(slips_db) == []

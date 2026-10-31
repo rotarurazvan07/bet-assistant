@@ -1,4 +1,4 @@
-// Analytics page (issue #65). ACTUAL divergences: does NOT render the
+// Analytics page. ACTUAL divergences: does NOT render the
 // AnalyticsDashboard component (that lives in SmartBuilder's preview);
 // this page is its OWN recharts dashboard with ProfileSelector + chart
 // sections; no export button exists. Tests pin wiring: fetchAnalytics with
@@ -142,7 +142,7 @@ describe('Analytics page', () => {
         }
     });
 
-    it('market breakdown rows + Best/Avoid cards render presentation labels, NOT raw keys (AC-2)', async () => {
+    it('market breakdown rows + Best/Avoid cards render presentation labels, NOT raw keys', async () => {
         // Pre-U1 bug: breakdown row + best/worst cards rendered the raw stored
         // market string. Fix: wrap in marketLabel() like every other surface.
         // Keys are pulled from the frontend-owned ALL_MARKETS list (no literals:

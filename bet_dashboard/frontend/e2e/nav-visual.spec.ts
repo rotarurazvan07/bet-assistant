@@ -1,4 +1,4 @@
-// Visual regression (issue #36 AC-07): header nav baselines — desktop 1280x800
+// Visual regression: header nav baselines — desktop 1280x800
 // + mobile 375x667, per key state (default + active-tab per group).
 // Ponytail calls:
 // - chromium-only: one baseline set; cross-engine pixel diffs are noise.
@@ -41,7 +41,7 @@ test.describe('nav header @desktop 1280x800', () => {
 });
 
 // Mobile 375x667 — capture current behavior as-is (SM Q3: no hamburger in
-// this story; Workstream E decides mobile nav). lastPull span is hidden md:block.
+// decides mobile nav). lastPull span is hidden md:block.
 test.describe('nav header @mobile 375x667', () => {
     test.use({ viewport: { width: 375, height: 667 } });
 

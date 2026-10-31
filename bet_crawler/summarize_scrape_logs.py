@@ -58,7 +58,7 @@ def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, s
 
 
 def _is_near_miss_message(message: str) -> bool:
-    """True when a log message belongs to the merge NEAR-MISS REPORT block (issue #113)."""
+    """True when a log message belongs to the merge NEAR-MISS REPORT block."""
     return bool(_NEAR_MISS_START.match(message) or _NEAR_MISS_END.match(message) or _NEAR_MISS_LINE.match(message))
 
 
@@ -123,7 +123,10 @@ def _extract_message_from_legacy_line(line: str) -> str | None:
     Returns the MESSAGE part, or None if format doesn't match.
     """
     # Match: YYYY-MM-DD HH:MM:SS - logger.name - LEVEL - message
-    match = re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - .+? - (?:DEBUG|INFO|WARNING|ERROR|CRITICAL) - (.+)$", line)
+    match = re.match(
+        r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - .+? - (?:DEBUG|INFO|WARNING|ERROR|CRITICAL) - (.+)$",
+        line,
+    )
     if match:
         return match.group(1)
     # Fallback: try the _LEVEL_LINE pattern
@@ -285,8 +288,8 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
         for item in malformed
     )
 
-    # AC-4 (issue #113): near-miss reports are their own section and must not
-    # inflate the problems table or the issue/severity counters.
+    # Near-miss reports are their own section and must not inflate the
+    # problems table or the issue/severity counters.
     issues = [issue for issue in issues if not _is_near_miss_issue(issue)]
     near_misses = _extract_near_misses(events, legacy_lines_by_artifact)
 
@@ -476,7 +479,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
     else:
         lines.extend(["## Problems", "", "No warning/error log events were found.", ""])
 
-    # AC-1/AC-5 (issue #113): dedicated near-miss section, omitted when empty.
+    # Dedicated near-miss section, omitted when empty.
     near_misses = summary.get("near_misses") or []
     if near_misses:
         lines.extend(
@@ -534,14 +537,6 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
 
 def _parse_job_outcomes(values: list[str]) -> dict[str, str]:
-    """Parse NAME=RESULT job outcome strings into a dict.
-
-    Args:
-        values: List of strings in NAME=RESULT format.
-
-    Returns:
-        Dictionary mapping job names to their outcomes.
-    """
     outcomes = {}
     for value in values:
         name, separator, result = value.partition("=")

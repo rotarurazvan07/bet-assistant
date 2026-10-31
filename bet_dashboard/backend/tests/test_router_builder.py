@@ -1,4 +1,4 @@
-"""[P0] API tests for the builder router (issue #58).
+"""[P0] API tests for the builder router.
 
 Covers: POST /preview shape, excluded CRUD (/excluded, /details, /remove,
 clear), /leagues, and the _to_config mapping helper.

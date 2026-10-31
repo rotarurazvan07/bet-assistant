@@ -1,6 +1,6 @@
 """
 
-Fixture uses TODAY+1 dates (closest-year search is +-1y bounded — decision D5);
+Fixture uses TODAY+1 dates;
 regenerate fixtures if the committed file ages past ~1 year.
 """
 
@@ -52,7 +52,7 @@ class TestPredictz:
         assert m.odds.away == 4.2
 
     def test_closest_year_resolution(self, monkeypatch) -> None:
-        # Date-independent pin (cycle-8 D5 protocol): the fixture h2 carries a
+        # Date-independent pin: the fixture h2 carries a
         # fixed weekday+date ('Friday, September 25'). Originally expected was
         # TODAY+1 — which broke at midnight (fixture static, expected moving).
         # Freeze the finder's clock (datetime.now) to a date BEFORE the fixture

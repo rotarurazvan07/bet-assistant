@@ -1,4 +1,4 @@
-// OddsAlert page — SPEC-ABSENT page (issue #65 inventory divergence, D42:
+// OddsAlert page — SPEC-ABSENT page (inventory divergence,
 // included anyway — 6/6 pages). Merges significant movements with paginated
 // matches; categorizes rising vs falling; empty + loading states.
 

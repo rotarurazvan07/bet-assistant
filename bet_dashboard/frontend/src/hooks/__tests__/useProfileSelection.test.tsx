@@ -1,4 +1,4 @@
-// useProfileSelection tests (issue #66). SPEC DIVERGENCES (pinned):
+// useProfileSelection tests. SPEC DIVERGENCES (pinned):
 // - NO 'manual' reset and NO profile-config loading — the hook only manages
 //   a selectedProfiles string[] + setter (config lives in App/pages)
 // - NO delete handling — nothing to clear on profile deletion

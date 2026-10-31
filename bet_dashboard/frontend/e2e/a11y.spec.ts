@@ -1,4 +1,4 @@
-// Accessibility (issue #36 AC-08): axe-core scan on the header/nav + a
+// Accessibility: axe-core scan on the header/nav + a
 // keyboard-only walk of the nav links. Runs in CI (external stack) and local.
 
 import { test, expect } from '@playwright/test';

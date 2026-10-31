@@ -269,7 +269,7 @@ _DECIMAL = re.compile(r"^\d+\.\d+$")
 class OddsPortalFinder(BaseMatchFinder):
     """Scrapes oddsportal matches with per-market odds tabs.
 
-    Satisfies: AC-01 JSON-LD identity, AC-02 live tab/table odds, AC-03 h2h discovery.
+    Satisfies: JSON-LD identity, live tab/table odds, h2h discovery.
     """
 
     _SITE = "https://www.oddsportal.com"
@@ -401,7 +401,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     soup = BeautifulSoup(session.page.content(), "html.parser")
                     identity = self._parse_identity(soup)
                     if identity is None:
-                        # AC-03: skip only when teams+date cannot be read
+                        # skip only when teams+date cannot be read
                         logger.info(
                             "[%s] SKIPPED [%s]: missing SportsEvent identity",
                             thread_name,

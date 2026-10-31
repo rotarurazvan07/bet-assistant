@@ -1,4 +1,4 @@
-// Discover filters drawer (issue #37 AC-09 / AC-11).
+// Discover filters drawer.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { suppressTour } from './fixtures/mock-api';

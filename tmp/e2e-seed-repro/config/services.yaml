@@ -1,0 +1,5 @@
+services:
+  toggles:
+    puller: false
+    generator: false
+    verifier: false

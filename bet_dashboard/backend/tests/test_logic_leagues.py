@@ -1,4 +1,4 @@
-"""[P0] Unit tests for AppLogic league helpers (issue #59).
+"""[P0] Unit tests for AppLogic league helpers.
 
 Covers get_leagues(): merge of framework-defined leagues with leagues
 present in the loaded matches DataFrame.
@@ -7,9 +7,8 @@ All AppLogic instances are REAL, built via logic_test_helpers.build_app()
 against tmp_path SQLite DBs — never workspace DBs.
 """
 
-from tests.logic_test_helpers import build_app, make_match_row_db
-
 from bet_framework.core import leagues as framework_leagues
+from tests.logic_test_helpers import build_app, make_match_row_db
 
 
 class TestAppLogicLeagueHelpers:

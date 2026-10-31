@@ -1,0 +1,35 @@
+diff --git a/bet_framework/core/scoring.py b/bet_framework/core/scoring.py
+index 49ee08a..6847e79 100644
+--- a/bet_framework/core/scoring.py
++++ b/bet_framework/core/scoring.py
+@@ -11,7 +11,7 @@ Public surface
+   resolve_stop_threshold(cfg)                    → float
+   resolve_max_legs(cfg)                          → int
+   resolve_shrinkage_k(cfg)                       → float
+-  resolve_max_single_leg_odds(cfg)               → float
++  resolve_max_leg_odds(cfg)                      → float
+   resolve_min_pick_quality(cfg)                  → float
+   resolve_min_source_edge(cfg)                   → float
+   score_consensus(consensus, cfg)                → float
+@@ -70,9 +70,9 @@ def resolve_shrinkage_k(cfg: BetSlipConfig) -> float:
+     return cfg.consensus_shrinkage_k if cfg.consensus_shrinkage_k is not None else 3.0
+ 
+ 
+-def resolve_max_single_leg_odds(cfg: BetSlipConfig) -> float:
+-    """Return the maximum allowed odds for any single leg. Auto = 3.5."""
+-    return cfg.max_single_leg_odds if cfg.max_single_leg_odds is not None else 3.5
++def resolve_max_leg_odds(cfg: BetSlipConfig) -> float:
++    """Return the maximum allowed odds for any single leg."""
++    return cfg.max_leg_odds
+ 
+ 
+ def resolve_min_pick_quality(cfg: BetSlipConfig) -> float:
+@@ -203,7 +203,7 @@ def score_pick(
+     """
+     tolerance = resolve_tolerance(cfg)
+     shrinkage_k = resolve_shrinkage_k(cfg)
+-    max_leg_odds = resolve_max_single_leg_odds(cfg)
++    max_leg_odds = resolve_max_leg_odds(cfg)
+     # Consensus: use pre-adjusted if available, else compute
+     if use_preadjusted and opt._adjusted_consensus > 0:
+         consensus = opt._adjusted_consensus

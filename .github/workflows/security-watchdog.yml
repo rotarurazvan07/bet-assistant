@@ -1,6 +1,6 @@
 name: Security Watchdog
 
-# Gate-hardening (pip-audit lane): dependency CVEs should never block feature
+# (pip-audit lane): dependency CVEs should never block feature
 # PRs (a Tuesday CVE in a lib is unrelated to the PR's changes) — but patching
 # them must never be optional either. This weekly required workflow scans and
 # FILES AN ISSUE with full details on any new vulnerable package, assigned to

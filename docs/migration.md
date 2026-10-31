@@ -4,9 +4,9 @@ User-run maintenance scripts for persisted data. These scripts are **standalone 
 
 `workspace/data/*.db` files are pipeline outputs — application code never edits them outside these explicit, user-approved runs.
 
-## slips.db: pre-U1 market labels → canonical keys (post-PR #114)
+## slips.db: pre-U1 market labels → canonical keys
 
-**When:** once, after deploying a build that contains `scripts/migrate_slip_leg_keys.py`, for any `slips.db` created before PR #114's U1 key unification.
+**When:** once, after deploying a build that contains `scripts/migrate_slip_leg_keys.py`, for any `slips.db` created before U1 key unification.
 
 **Why:** pre-U1 writers persisted the market *display label* in `legs.market` (`'1'`, `'X'`, `'BTTS Yes'`, `'Over 2.5'`, `'X2'`). U1 made the canonical key — the persisted Odds/DB field spelling (`home`, `draw`, `btts_yes`, `over_25`, `dc_x2`) — the single market identity, and new writes emit that spelling. Old rows still display fine (the frontend `marketLabel()` helper falls back to the raw string), but they are rejected if such a leg is ever re-saved.
 

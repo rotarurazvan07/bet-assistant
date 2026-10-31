@@ -72,7 +72,7 @@ class LegitPredictFinder(BaseMatchFinder):
                     away_team = tds[2].text.strip().split("VS")[1].strip()
                     score_parts = tds[3].text.strip().split("-")
                     time_parts = tds[0].text.strip().split(":")
-                    # AC-10: skip unless both score parts and HH:MM parse
+                    # skip unless both score parts and HH:MM parse
                     if len(score_parts) < 2 or len(time_parts) < 2:
                         log_event(
                             logger,

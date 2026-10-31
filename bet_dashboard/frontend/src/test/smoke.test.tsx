@@ -1,6 +1,6 @@
-// Infra smoke suite (issue #63): one file, three concerns — RTL render,
+// Infra smoke suite: one file, three concerns — RTL render,
 // MSW interception, vitest+jsdom sanity. Single file sidesteps the
-// per-file worker-spawn timeout observed under container CPU (D9).
+// per-file worker-spawn timeout observed under container CPU.
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';

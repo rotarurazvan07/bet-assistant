@@ -1,4 +1,4 @@
-// BaseCard + BaseBadge + BaseDataRow (issue #64 P0).
+// BaseCard + BaseBadge + BaseDataRow.
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

@@ -127,7 +127,7 @@ def _infer_finder(logger_name: str) -> tuple[str | None, str | None]:
     """Infer finder class and source key from a finder module logger name.
 
     Args:
-        logger_name: The logger name to parse (e.g., 'bet_crawler.finders.PredictzFinder').
+        logger_name: The logger name to parse (e.g., "bet_crawler.finders.PredictzFinder").
 
     Returns:
         Tuple of (source_key, snake_case_finder_name) or (None, None) if not a finder logger.
@@ -228,11 +228,7 @@ def configure_event_logging(path: str | None = None) -> None:
     """Attach the JSONL sidecar to already-created crawler loggers.
 
     Primarily useful for embedding the crawler or testing; command-line runs
-    should set ``SCRAPE_EVENT_LOG_PATH`` before importing the crawler modules.
-
-    Args:
-        path: Optional path to the JSONL event log file. If provided, sets
-            the SCRAPE_EVENT_LOG_PATH environment variable.
+    should set SCRAPE_EVENT_LOG_PATH before importing the crawler modules.
     """
     if path is not None:
         os.environ["SCRAPE_EVENT_LOG_PATH"] = path
@@ -249,7 +245,11 @@ def configure_event_logging(path: str | None = None) -> None:
 
 
 def disable_event_logging() -> None:
-    """Detach and close JSONL handlers (mainly for isolated tests)."""
+    """Detach and close JSONL handlers (mainly for isolated tests).
+
+    Removes JsonEventFormatter handlers from all bet_crawler loggers
+    and closes the underlying file handles.
+    """
     for name, candidate in logging.Logger.manager.loggerDict.items():
         if name.startswith("bet_crawler.") and isinstance(candidate, logging.Logger):
             for handler in tuple(candidate.handlers):

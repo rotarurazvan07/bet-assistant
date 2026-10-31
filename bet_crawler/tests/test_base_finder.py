@@ -1,4 +1,4 @@
-"""BaseMatchFinder contract tests (issue #69 part (a)).
+"""BaseMatchFinder contract tests (part (a)).
 
 Covers: ctor wiring, abstract surface, normalise_datetime, add_match pipeline
 (skip patterns / date window / odds strip / force / exception->False),
@@ -33,7 +33,7 @@ class _TzFinder(_Finder):
     TIMEZONE = "Asia/Bangkok"
 
 
-# Runner-TZ pin (PR #75 CI fix, D51): validate_match_date compares against an
+# Runner-TZ pin: validate_match_date compares against an
 # AWARE now in the finder's local_timezone (Europe/Bucharest in these tests),
 # but naive datetime.now() is RUNNER wall-clock. Under TZ=UTC runners the
 # naive clock trails Bucharest by 3h (a full calendar day across UTC

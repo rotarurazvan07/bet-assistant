@@ -1,0 +1,416 @@
+acronyms:
+  # ── English / Global ──────────────────────────────────────────────────────
+  "fc ": ""
+  " fc": ""
+  "afc ": ""
+  " afc": ""
+  "sc ": ""
+  " sc": ""
+  " utd": ""
+  " club": ""
+  " cf": ""
+  "cf ": ""
+  "rfc ": ""
+  " rfc": ""
+
+  # ── Spanish / Portuguese / Latin American ─────────────────────────────────
+  "al ": ""
+  "cd ": ""
+  " cd": ""
+  "ca ": ""
+  " ca": ""
+  "ud ": ""
+  " ud": ""
+  "sd ": ""
+  " sd": ""
+  "ad ": ""
+  " ad": ""
+  " de ": " "
+  " do ": " "
+  " del ": " "
+  "real ": ""
+  " real": ""
+  "deportivo ": ""
+  " deportivo": ""
+
+  # ── Central & Eastern Europe (Balkans, Czech, Poland, Russia…) ────────────
+  "nk ": ""
+  " nk": ""
+  "fk ": ""
+  " fk": ""
+  "sk ": ""
+  " sk": ""
+  "ns ": ""
+  " ns": ""
+  "msk ": ""
+  " msk": ""
+  "gks ": ""
+  " gks": ""
+  "ok ": ""
+  " ok": ""
+  " hsc": ""
+  " bsc": ""
+  "cska ": ""
+  " cska": ""
+  "zska ": ""
+  " zska": ""
+  "fcsb ": ""
+  " fcsb": ""
+  "din. ": "dinamo "
+  " din.": " dinamo"
+  "lok. ": "lokomotiva "
+  " lok.": " lokomotiva"
+
+  # ── Turkish club suffixes ──────────────────────────────────────────────────
+  " sk": ""
+  " sk.": ""
+  " as": ""
+  " fk": ""
+
+  # ── Turkish character normalization (NFD doesn't decompose dotless i, g-breve, s-cedilla) ─────
+  "ı": "i"
+  "ğ": "g"
+  "ş": "s"
+  "ç": "c"
+  "ö": "o"
+  "ü": "u"
+  "İ": "i"
+  "Ğ": "g"
+  "Ş": "s"
+  "Ç": "c"
+  "Ö": "o"
+  "Ü": "u"
+
+  # ── Polish character normalization ──────────────────────────────────────────
+  "ł": "l"
+  "Ł": "l"
+  "ń": "n"
+  "Ń": "n"
+  "ó": "o"
+  "Ó": "o"
+  "ś": "s"
+  "Ś": "s"
+  "ź": "z"
+  "Ź": "z"
+  "ż": "z"
+  "Ż": "z"
+
+  # ── Romanian character normalization ────────────────────────────────────────
+  "ț": "t"
+  "Ț": "t"
+  "ș": "s"
+  "Ș": "s"
+  "ă": "a"
+  "Ă": "a"
+  "â": "a"
+  "Â": "a"
+  "î": "i"
+  "Î": "i"
+
+  # ── Hebrew punctuation ──────────────────────────────────────────────────────
+  "'": ""
+  "׳": ""
+  "״": ""
+
+  # ── Germanic / Nordic ──────────────────────────────────────────────────────
+  "borussia ": ""
+  "vfb ": ""
+  "vfl ": ""
+  "sv ": ""
+  " sv": ""
+  "if ": ""
+  " if": ""
+  "bk ": ""
+  " bk": ""
+  "ff ": ""
+  " ff": ""
+  "ik ": ""
+  " ik": ""
+  "gf ": ""
+  " gf": ""
+
+  # ── Italian / French ───────────────────────────────────────────────────────
+  "ac ": ""
+  " ac": ""
+  "as ": ""
+  " as": ""
+  "ss ": ""
+  " ss": ""
+  "usc ": ""
+  " us": ""
+  " calcio": ""
+  "stade ": ""
+  " stade": ""
+  "olympique ": ""
+  " olympique": ""
+
+  # ── Middle East / North Africa ─────────────────────────────────────────────
+  "el ": ""
+  "al-": ""
+  "al ": ""
+
+  # ── American leagues ───────────────────────────────────────────────────────
+  "sporting ": ""
+  " sporting": ""
+  # Note: do NOT strip "city" – it is discriminative (Man City ≠ Man United)
+
+synonyms:
+  # ── English clubs ──────────────────────────────────────────────────────────
+  "man utd": "manchester united"
+  "man united": "manchester united"
+  "man u": "manchester united"
+  "man city": "manchester city"
+  "mcfc": "manchester city"
+  "mufc": "manchester united"
+  "spurs": "tottenham hotspur"
+  "tottenham": "tottenham hotspur"
+  "qpr": "queens park rangers"
+  "wolves": "wolverhampton wanderers"
+  "manchester utd": "manchester united"
+  "newcastle utd": "newcastle united"
+  "leeds utd": "leeds united"
+  "west ham utd": "west ham united"
+  "sheff utd": "sheffield united"
+  "sheffield utd": "sheffield united"
+  "sheff wed": "sheffield wednesday"
+  "nott forest": "nottingham forest"
+  "notts forest": "nottingham forest"
+  "nottm forest": "nottingham forest"
+  "newcastle": "newcastle united"
+  "west brom": "west bromwich albion"
+  "brighton": "brighton hove albion"
+  "leicester": "leicester city"
+  "bournemouth": "afc bournemouth"
+  "wolverhampton": "wolverhampton wanderers"
+
+  # ── Spanish clubs ──────────────────────────────────────────────────────────
+  "barca": "barcelona"
+  "fcb": "barcelona"
+  "atl madrid": "atletico madrid"
+  "atletico": "atletico madrid"
+  "atl. madrid": "atletico madrid"
+  "athletic": "athletic bilbao"
+  "ath bilbao": "athletic bilbao"
+  "betis": "real betis"
+  "sociedad": "real sociedad"
+  "vallecano": "rayo vallecano"
+
+  # ── German clubs ───────────────────────────────────────────────────────────
+  "bvb": "borussia dortmund"
+  "dortmund": "borussia dortmund"
+  "bmg": "borussia monchengladbach"
+  "gladbach": "borussia monchengladbach"
+  "rb leipzig": "rasenballsport leipzig"
+  "rbl": "rasenballsport leipzig"
+  "hertha": "hertha berlin"
+  "hamburger sv": "hamburg"
+  "fc koln": "cologne"
+
+  # ── German character normalization ─────────────────────────────────────────
+  "ö": "o"
+  "ü": "u"
+  "ä": "a"
+  "Ö": "o"
+  "Ü": "u"
+  "Ä": "a"
+  "ß": "ss"
+
+  # ── Italian clubs ──────────────────────────────────────────────────────────
+  "inter": "inter milan"
+  "inter milano": "inter milan"
+  "internazionale": "inter milan"
+  "juve": "juventus"
+  "milan": "ac milan"
+  "roma": "as roma"
+  "napoli": "ssc napoli"
+  "lazio": "ss lazio"
+  "atalanta": "atalanta bergamo"
+
+  # ── French clubs ───────────────────────────────────────────────────────────
+  "psg": "paris saint germain"
+  "paris sg": "paris saint germain"
+  "om": "olympique marseille"
+  "marseille": "olympique marseille"
+  "ol": "olympique lyonnais"
+  "lyon": "olympique lyonnais"
+  "monaco": "as monaco"
+  "brestois": "brest"
+  "stade brestois 29": "brest"
+  "nantes": "fc nantes"
+  "rennes": "stade rennais"
+  "strasbourg": "rc strasbourg"
+
+  # ── Portuguese clubs ───────────────────────────────────────────────────────
+  "sporting cp": "sporting lisbon"
+  "porto": "fc porto"
+  "benfica": "sl benfica"
+  "braga": "sc braga"
+  "vitoria sc": "vitoria guimaraes"
+  "guimaraes": "vitoria guimaraes"
+
+  # ── Dutch clubs ────────────────────────────────────────────────────────────
+  "psv": "psv eindhoven"
+  "ajax": "ajax amsterdam"
+  "az": "az alkmaar"
+  "feyenoord": "feyenoord rotterdam"
+  "utrecht": "fc utrecht"
+  "jong utrecht": "fc utrecht reserves"
+  "jong ajax": "ajax reserves"
+  "nec": "nijmegen"
+
+  # ── Belgian clubs ─────────────────────────────────────────────────────────
+  "anderlecht": "rsc anderlecht"
+  "bruges": "club brugge"
+  "club bruges": "club brugge"
+  "fc bruges": "club brugge"
+  "cercle bruges": "cercle brugge"
+  "union sg": "union saint gilloise"
+  "royale union sg": "union saint gilloise"
+  "union st gilloise": "union saint gilloise"
+  "aa gent": "kaa gent"
+  "gent": "kaa gent"
+  "standard": "standard liege"
+  "stvv": "sint truiden"
+  "st. truiden": "sint truiden"
+  "st truiden": "sint truiden"
+  "antwerp fc": "royal antwerp"
+  "antwerp": "royal antwerp"
+  "kv mechelen": "mechelen"
+  "oud heverlee": "leuven"
+  "oh leuven": "leuven"
+  "waasland beveren": "sk beveren"
+
+  # ── Scottish clubs ────────────────────────────────────────────────────────
+  "celtic": "celtic glasgow"
+  "rangers": "rangers glasgow"
+  "hearts": "heart of midlothian"
+  "hibs": "hibernian"
+  "aberdeen fc": "aberdeen"
+
+  # ── Turkish clubs ─────────────────────────────────────────────────────────
+  "galatasaray": "galatasaray sk"
+  "fenerbahce": "fenerbahce sk"
+  "besiktas": "besiktas jk"
+  "trabzonspor": "trabzonspor sk"
+  "basaksehir": "istanbul basaksehir"
+  "kasimpasa": "kasimpasa sk"
+  "amed sk": "amedspor"
+  "amed sportif": "amedspor"
+  "igdir fk": "76 igdir belediyespor"
+
+  # ── Romanian clubs ────────────────────────────────────────────────────────
+  "rapid": "rapid bucuresti"
+
+  # ── Austrian clubs ────────────────────────────────────────────────────────
+  "rb salzburg": "red bull salzburg"
+  "fc salzburg": "red bull salzburg"
+  "salzburg": "red bull salzburg"
+  "rapid vienna": "rapid wien"
+
+  # ── Swiss clubs ───────────────────────────────────────────────────────────
+  "young boys": "bsc young boys"
+  "basel": "fc basel"
+  "zurich": "fc zurich"
+
+  # ── Danish clubs ──────────────────────────────────────────────────────────
+  "copenhagen": "fc copenhagen"
+  "kobenhavn": "fc copenhagen"
+  "fc kobenhavn": "fc copenhagen"
+  "midtjylland": "fc midtjylland"
+
+  # ── Nordic clubs (Finland, Norway, Sweden, Denmark misc) ──────────────────
+  "ham-kam": "hamkam"
+  "aab": "aalborg"
+
+  # ── Croatian clubs ────────────────────────────────────────────────────────
+  "dinamo zagreb": "gnk dinamo zagreb"
+  "hajduk": "hajduk split"
+
+  # ── Greek clubs ───────────────────────────────────────────────────────────
+  "olympiakos": "olympiacos"
+  "olympiacos fc": "olympiacos"
+  "panathinaikos fc": "panathinaikos"
+  "paok fc": "paok thessaloniki"
+  "paok": "paok thessaloniki"
+
+  # ── Israeli clubs ─────────────────────────────────────────────────────────
+  "hapoel ra'anana": "hapoel raanana"
+  "hapoel katamon": "hapoel jerusalem"
+
+  # ── American clubs ─────────────────────────────────────────────────────────
+  "nycfc": "new york city"
+  "lafc": "los angeles"
+  "la galaxy": "los angeles galaxy"
+  "dynamo h.": "houston dynamo"
+  "sj earthquakes": "san jose earthquakes"
+  "revolution": "new england revolution"
+
+  # ── South American clubs ───────────────────────────────────────────────────
+  "o'higgins": "ohiggins"
+  "guadalajara chivas": "chivas guadalajara"
+  "a. italiano": "audax italiano"
+  "gualberto villarroel sj": "gv san jose"
+  "adt": "ad tarma"
+
+weak_tokens:
+  # Geographic articles / connectives (also handled partly via acronyms)
+  - de
+  - do
+  - del
+  - el
+  - al
+
+  # Location words shared across multiple clubs in the same region
+  # These cannot discriminate on their own – the qualifier (city/united/…) does.
+  - new
+  - york
+  - los
+  - angeles
+  - san
+  - las
+  - east
+  - west
+  - north
+  - south
+
+  # Franchise words that appear across many different clubs.
+  # "manchester" is weak because both Man City and Man United carry it;
+  # "city" and "united" are NOT listed here – they ARE the discriminative part.
+  - manchester
+  - inter
+  - dynamo
+  - dinamo
+  - real
+  - racing
+  - rapid
+  - hapoel
+  # "sporting" is stripped by the acronym rule above, so listing it here is
+  # redundant but harmless as a safety net for sources that skip the prefix.
+  - sporting
+
+# ── Why "city", "united", "union" are intentionally ABSENT from weak_tokens ──
+#
+#   Those tokens are discriminative qualifiers:
+#     • "Manchester City"   strong = {city}
+#     • "Manchester United" strong = {united}
+#   Because "manchester" is weak, the strong sets are disjoint → strong-token
+#   enforcement caps the score → they never merge.  Correct behaviour.
+#
+#   If you added "city" / "united" to weak_tokens BOTH names would have empty
+#   strong sets, enforcement would never fire, and the raw fuzzy scores (~63-70)
+#   might cross the threshold – exactly the bug you were hitting.
+
+weights:
+  token: 0.40          # best of token_set_ratio / token_sort_ratio
+  substr: 0.10         # full-word shared-token bonus
+  phonetic: 0.10       # Soundex similarity across strong tokens
+  ratio: 0.30          # character-level Levenshtein ratio
+  partial: 0.10        # partial_ratio, only applied for short strings (≤ 8 chars)
+  strong_mismatch_cap: 35.0   # score ceiling when strong tokens are disjoint
+
+#TEST
+
+# The cap (35) sits comfortably below threshold (65), so disjoint-strong pairs
+# never merge.  Raise it slightly (e.g. 45) only if you see legitimate matches
+# being blocked; lower it (e.g. 25) to tighten the guard further.
+threshold: 65

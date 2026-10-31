@@ -1,0 +1,104 @@
+diff --git a/bet_dashboard/backend/core/schemas.py b/bet_dashboard/backend/core/schemas.py
+index 391f92c..1360c67 100644
+--- a/bet_dashboard/backend/core/schemas.py
++++ b/bet_dashboard/backend/core/schemas.py
+@@ -14,10 +14,10 @@ class BetSlipConfigIn(BaseModel):
+     target_legs: int = 3
+     max_legs_overflow: int | None = None
+     consensus_floor: float = 50.0
+-    min_odds: float = 1.05
++    min_leg_odds: float = 1.05
+     tolerance_factor: float | None = None
+     stop_threshold: float | None = None
+-    min_legs_fill_ratio: float = 0.70
++    min_legs_fill_ratio: float | None = 0.70
+     quality_vs_balance: float = 0.5
+     consensus_vs_sources: float = 0.5
+     included_markets: list[str] | None = None
+@@ -28,7 +28,7 @@ class BetSlipConfigIn(BaseModel):
+     # Advanced
+     consensus_shrinkage_k: float | None = None
+     min_source_edge: float | None = None
+-    max_single_leg_odds: float | None = None
++    max_leg_odds: float = 3.5
+     tol_lower: float | None = None
+     tol_upper: float | None = None
+     balance_decay: str = "linear"
+@@ -81,22 +81,32 @@ class ProfileIn(BaseModel):
+     target_legs: int = 3
+     max_legs_overflow: int | None = None
+     consensus_floor: float = 50.0
+-    min_odds: float = 1.05
++    min_leg_odds: float = 1.05
+     tolerance_factor: float | None = None
+     stop_threshold: float | None = None
+-    min_legs_fill_ratio: float = 0.70
++    min_legs_fill_ratio: float | None = 0.70
+     quality_vs_balance: float = 0.5
+     consensus_vs_sources: float = 0.5
+     included_markets: list[str] | None = None
+     included_leagues: list[str] | None = None
+     excluded_sources: list[str] | None = None
+-    units: float = 1.0
++    # None = "not provided" → keep whatever is already persisted (desync C:
++    # the Build tab no longer owns stake values; only the Services page does).
++    units: float | None = None
+     target_payout: float | None = None
+-    run_daily_count: int = 0
++    # None = "not provided" → keep whatever is already persisted (legacy
++    # run_daily_count / per-profile schedule set on the Services page survive
++    # a Smart Builder save instead of being reset to 0).
++    run_daily_count: int | None = None
++    # T4: auto-generation ordering and per-profile schedule (tri-state: keep when omitted)
++    order: int | None = None
++    auto_generate: bool | None = None
++    generate_hour: int | None = None
++    generate_minute: int | None = None
+     # Advanced
+     consensus_shrinkage_k: float | None = None
+     min_source_edge: float | None = None
+-    max_single_leg_odds: float | None = None
++    max_leg_odds: float = 3.5
+     tol_lower: float | None = None
+     tol_upper: float | None = None
+     balance_decay: str = "linear"
+@@ -160,11 +170,36 @@ class BetSlipOut(BaseModel):
+ # ── Services ──────────────────────────────────────────────────────────────────
+ 
+ 
++class ProfileScheduleIn(BaseModel):
++    """Per-profile auto-generation schedule row (T4).
++
++    Issue #95: BOTH ``units`` and ``target_payout`` are always preserved on
++    disk; ``stake_mode`` ("units" | "payout") only selects which one is active
++    at generation time. A null ``units``/``target_payout`` means "not
++    provided" and the persisted value is kept — switching the segmented
++    control can never lose the other field's number.
++    """
++
++    name: str
++    auto_generate: bool | None = None
++    generate_hour: int | None = None
++    generate_minute: int | None = None
++    units: float | None = None
++    target_payout: float | None = None
++    stake_mode: str | None = None
++    run_daily_count: int | None = None
++    order: int | None = None
++
++
+ class ServicesSettingsIn(BaseModel):
+-    """Payload for service scheduler settings."""
++    """Payload for service scheduler settings.
++
++    Per-profile schedules only — there is no global generation time anymore
++    (user decision 2026-10-25): a legacy hour-only body fails validation
++    because profile_schedules is required.
++    """
+ 
+-    generate_hour: int
+-    generate_minute: int = 0
++    profile_schedules: list[ProfileScheduleIn]
+ 
+ 
+ # ── Odds History ──────────────────────────────────────────────────────────────

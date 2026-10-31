@@ -129,7 +129,7 @@ export interface paths {
      * generate_hour, generate_minute) are tri-state in the payload: when the
      * caller omits them, the values already persisted for this profile are
      * carried over instead of being reset. That keeps a Smart Builder save from
-     * silently wiping a schedule configured on the Services page (review F1).
+     * silently wiping a schedule configured on the Services page.
      */
     post: operations["save_profile_api_profiles_post"];
   };
@@ -512,13 +512,13 @@ export interface components {
     };
     /**
      * ProfileScheduleIn
-     * @description Per-profile auto-generation schedule row (T4).
+     * @description Per-profile auto-generation schedule row.
      *
-     * Issue #95: BOTH ``units`` and ``target_payout`` are always preserved on
-     * disk; ``stake_mode`` ("units" | "payout") only selects which one is active
-     * at generation time. A null ``units``/``target_payout`` means "not
-     * provided" and the persisted value is kept — switching the segmented
-     * control can never lose the other field's number.
+     * BOTH ``units`` and ``target_payout`` are always preserved on
+     *  disk; ``stake_mode`` ("units" | "payout") only selects which one is active
+     *  at generation time. A null ``units``/``target_payout`` means "not
+     *  provided" and the persisted value is kept — switching the segmented
+     *  control can never lose the other field's number.
      */
     ProfileScheduleIn: {
       /** Name */
@@ -951,7 +951,7 @@ export interface operations {
    * generate_hour, generate_minute) are tri-state in the payload: when the
    * caller omits them, the values already persisted for this profile are
    * carried over instead of being reset. That keeps a Smart Builder save from
-   * silently wiping a schedule configured on the Services page (review F1).
+   * silently wiping a schedule configured on the Services page.
    */
   save_profile_api_profiles_post: {
     requestBody: {

@@ -1,5 +1,5 @@
-// E2E smoke (issue #63): the SPA shell renders on the dev server.
-// Full-journey E2E tests come in later cycles; CI wiring in cycle 15.
+// E2E smoke: the SPA shell renders on the dev server.
+// Full-journey E2E tests come in later cycles; CI wiring in.
 
 import { test, expect } from '@playwright/test';
 import { suppressTour } from './fixtures/mock-api';
@@ -14,7 +14,7 @@ test('landing page renders the app root', async ({ page }) => {
     await expect(page.locator('#root')).not.toBeEmpty();
 });
 
-// Issue #36: workflow-grouped nav (AC-06) — labels, order, captions, routes.
+// workflow-grouped nav — labels, order, captions, routes.
 const NAV_LABELS = ['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert'] as const;
 const NAV_ROUTES = ['/', '/builder', '/slips', '/analytics', '/services', '/odds-alert'] as const;
 
@@ -43,7 +43,7 @@ test('click-through navigates to all 6 routes without error', async ({ page }) =
         // WebKit surfaces CORS-blocked XHR as pageerror ('XMLHttpRequest cannot
         // load ... due to access control checks') on the external docker stack
         // (nginx rejects the SPA XHR in WebKit only; chromium/firefox pass).
-        // Same class as the PR #106 remediation - filter it identically.
+        // Same class as the remediation - filter it identically.
         const msg = String(err);
         const isNoise =
             msg.includes('AxiosError')

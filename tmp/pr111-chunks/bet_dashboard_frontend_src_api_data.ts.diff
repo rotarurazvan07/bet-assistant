@@ -1,0 +1,15 @@
+diff --git a/bet_dashboard/frontend/src/api/data.ts b/bet_dashboard/frontend/src/api/data.ts
+index b0dfc6b..55cf85c 100644
+--- a/bet_dashboard/frontend/src/api/data.ts
++++ b/bet_dashboard/frontend/src/api/data.ts
+@@ -113,10 +113,6 @@ export async function fetchServices(): Promise<ServicesData> {
+     return res.data;
+ }
+ 
+-export async function saveServiceSettings(generate_hour: number, generate_minute: number): Promise<void> {
+-    await client.post('/services/settings', { generate_hour, generate_minute });
+-}
+-
+ export async function toggleService(name: string): Promise<{ name: string; enabled: boolean }> {
+     const res = await client.post<{ name: string; enabled: boolean }>(`/services/${name}/toggle`);
+     return res.data;

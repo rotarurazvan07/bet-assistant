@@ -1,4 +1,4 @@
-// Services page. Divergences (cycle 14): the global schedule time is gone —
+// Services page. Divergences: the global schedule time is gone —
 // per-profile rows are the only scheduling surface. Units / Target Payout are
 // mutually exclusive inputs (0.1 steps, no cross preview). Daily run count is
 // a numeric step-1 input. MSW serves /api/services.
@@ -122,7 +122,7 @@ describe('Services page', () => {
     });
 });
 
-// ── Per-profile scheduling table (issue #95 redesign) ────────────────────────
+// ── Per-profile scheduling table ────────────────────────
 
 const ROWS = [
     makeProfileSchedule({
@@ -154,7 +154,7 @@ function serveRows(posts: Array<Record<string, unknown>>) {
     );
 }
 
-describe('Services per-profile scheduler (issue #95 redesign)', () => {
+describe('Services per-profile scheduler', () => {
     it('renders the new column headers: Profile | Auto | Time | Daily | Stake | Last generated | Next run | Order', async () => {
         server.use(http.get('/api/services', () => HttpResponse.json(
             makeServicesData({ profile_schedules: ROWS }),

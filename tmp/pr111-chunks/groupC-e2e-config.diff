@@ -1,0 +1,418 @@
+diff --git a/bet_dashboard/frontend/e2e/empty-states.spec.ts b/bet_dashboard/frontend/e2e/empty-states.spec.ts
+index 47275e3..eeebe7b 100644
+--- a/bet_dashboard/frontend/e2e/empty-states.spec.ts
++++ b/bet_dashboard/frontend/e2e/empty-states.spec.ts
+@@ -66,6 +66,11 @@ async function mockServicesGeneratorOff(page: import('@playwright/test').Page) {
+                 generate_hour: 9,
+                 generate_minute: 0,
+                 server_time: '2026-09-24T12:00:00',
++                // The real backend always serves profile rows (get_profile_schedules);
++                // the per-profile table and its Save CTA depend on them.
++                profile_schedules: [
++                    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, run_daily_count: 1, order: 0 },
++                ],
+             }),
+         });
+     });
+@@ -88,12 +93,17 @@ test('Discover empty CTAs: Pull posts /api/pull and Adjust Filters opens drawer'
+ 
+ test('Build empty CTAs stay on /builder', async ({ page }) => {
+     await page.goto('/builder');
+-    await expect(page.getByRole('heading', { name: 'Build' })).toBeVisible();
++    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible();
+     await expect(page.getByText('No preview yet')).toBeVisible();
+-    await page.getByRole('button', { name: 'Select a Preset' }).click();
++    await page.getByRole('button', { name: 'Select a Profile' }).click();
+     await expect(page).toHaveURL(/\/builder/);
+-    await page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }).click();
+-    await expect(page.getByText('No legs in preview.')).toBeVisible();
++    // Smart Builder rework (07a1de0): the Add-to-Slips CTA is hidden while the
++    // preview is empty — the old empty-state button opened a dead-end modal.
++    // Select-a-Preset keeps the user on /builder; the CTA appears in the
++    // preview header only once legs exist.
++    await expect(
++        page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }),
++    ).toHaveCount(0);
+ });
+ 
+ test('Track empty CTAs: Generate posts and Go to Build navigates', async ({ page }) => {
+@@ -125,22 +135,17 @@ test('Analytics empty CTAs navigate to Track and Build', async ({ page }) => {
+ 
+ test('Services empty CTAs enable generator and save', async ({ page }) => {
+     let toggled = 0;
+-    let saved = 0;
+     await mockServicesGeneratorOff(page);
+     await page.route('**/api/services/generator/toggle', async (route) => {
+         toggled += 1;
+         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'generator', enabled: true }) });
+     });
+-    await page.route('**/api/services/settings', async (route) => {
+-        saved += 1;
+-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
+-    });
+     await page.goto('/services');
+     await expect(page.getByText('Generate Slips is off')).toBeVisible();
++    // Round-2 rework: no Save button exists — the toggle itself is the only
++    // action the empty state offers; schedule edits auto-save (unit-tested).
+     await page.getByRole('button', { name: 'Enable Generate Slips' }).click();
+     await expect.poll(() => toggled).toBe(1);
+-    await page.getByRole('region', { name: 'Generate Slips is off' }).getByRole('button', { name: 'Save Settings' }).click();
+-    await expect.poll(() => saved).toBe(1);
+ });
+ 
+ test('EmptyState regions pass axe-core', async ({ page }) => {
+diff --git a/bet_dashboard/frontend/e2e/fixtures/demo-data.ts b/bet_dashboard/frontend/e2e/fixtures/demo-data.ts
+index eae707c..7a34b0f 100644
+--- a/bet_dashboard/frontend/e2e/fixtures/demo-data.ts
++++ b/bet_dashboard/frontend/e2e/fixtures/demo-data.ts
+@@ -1,7 +1,8 @@
+ // Canonical demo rows for BOTH tracks: installDemoApi (local) and
+ // setup/seed_e2e.py (CI e2e DB). Expand here first, then teach both tracks.
+ // Reuses Vitest factories — no second Match type.
+-import { makeMatch, makeMatchesPage, makeProfile, makeSlip, makeSlipsPage } from '../../src/test/factories';
++import { makeCandidateLeg, makeMatch, makeMatchesPage, makePreviewResult, makeProfile, makeSlip, makeSlipsPage, makeSourcePrediction } from '../../src/test/factories';
++import type { ProfileSchedule } from '../../src/types';
+ 
+ export const DEMO_MATCHES = [
+     makeMatch({
+@@ -64,4 +65,82 @@ export const DEMO_SLIPS_PAGE = makeSlipsPage({
+     profiles: ['low'],
+ });
+ 
+-export const DEMO_PROFILES = { low: makeProfile() };
++export const DEMO_PROFILES = {
++    low: makeProfile(),
++    medium: makeProfile({ consensus_floor: 60.0 }),
++    high_risk: makeProfile({ consensus_floor: 40.0 }),
++};
++
++export const DEMO_PROFILE_SCHEDULES: ProfileSchedule[] = [
++    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, run_daily_count: 1, order: 0 },
++    { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50.0, run_daily_count: 2, order: 1 },
++    { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: null, target_payout: null, run_daily_count: 0, order: 2 },
++];
++
++// Smart Builder live-preview legs for the demo API. Matches share identity with
++// DEMO_MATCHES (same match_ids/dates/result_urls) so exclude/clear flows in the
++// e2e specs behave against a consistent dataset.
++export const DEMO_PREVIEW_LEGS = [
++    makeCandidateLeg({
++        match_name: 'Arsenal vs Chelsea',
++        datetime: '2026-10-07T15:00:00',
++        market: 'Home',
++        market_type: 'Result',
++        consensus: 75.0,
++        odds: 1.9,
++        result_url: 'https://example.com/match/1',
++        league: 'England',
++        sources: 4,
++        predictions: [
++            makeSourcePrediction({ source: 'forebet', home: 78, draw: 12, away: 10 }),
++            makeSourcePrediction({ source: 'xgscore', home: 61, draw: 21, away: 18 }),
++            makeSourcePrediction({ source: 'windrawwin', home: 74, draw: 14, away: 12 }),
++            makeSourcePrediction({ source: 'predictz', home: 69, draw: 18, away: 13 }),
++        ],
++    }),
++    makeCandidateLeg({
++        match_name: 'Liverpool vs Man City',
++        datetime: '2026-10-07T18:00:00',
++        market: 'Over 2.5',
++        market_type: 'Goals',
++        consensus: 58.0,
++        odds: 1.85,
++        result_url: 'https://example.com/match/2',
++        league: 'England',
++        sources: 5,
++        score: 0.61,
++        quality: 0.72,
++        odds_movement_direction: 'dropping',
++        odds_movement_strength: 0.09,
++        predictions: [
++            makeSourcePrediction({ source: 'forebet', home: 44, draw: 27, away: 29 }),
++            makeSourcePrediction({ source: 'soccervista', home: 40, draw: 25, away: 35 }),
++            makeSourcePrediction({ source: 'betclan', home: 46, draw: 24, away: 30 }),
++        ],
++    }),
++    makeCandidateLeg({
++        match_name: 'Barcelona vs Real Madrid',
++        datetime: '2026-10-08T20:45:00',
++        market: 'BTTS Yes',
++        market_type: 'BTTS',
++        consensus: 66.0,
++        odds: 1.72,
++        result_url: 'https://example.com/match/3',
++        league: 'Spain',
++        sources: 6,
++        tier: 2,
++        score: 0.55,
++        quality: 0.65,
++        predictions: [
++            makeSourcePrediction({ source: 'xgscore', home: 40, draw: 26, away: 34 }),
++            makeSourcePrediction({ source: 'predictz', home: 36, draw: 28, away: 36 }),
++            makeSourcePrediction({ source: 'footballpredictions', home: 43, draw: 24, away: 33 }),
++        ],
++    }),
++];
++
++export const DEMO_PREVIEW = makePreviewResult({
++    legs: DEMO_PREVIEW_LEGS,
++    total_odds: 1.9 * 1.85 * 1.72,
++    pending_urls: [],
++});
+diff --git a/bet_dashboard/frontend/e2e/fixtures/mock-api.ts b/bet_dashboard/frontend/e2e/fixtures/mock-api.ts
+index 4953095..b834f66 100644
+--- a/bet_dashboard/frontend/e2e/fixtures/mock-api.ts
++++ b/bet_dashboard/frontend/e2e/fixtures/mock-api.ts
+@@ -4,7 +4,7 @@
+ // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
+ import type { Page } from '@playwright/test';
+ import type { SlipsPage, ProfilesMap } from '../../src/types';
+-import { DEMO_MATCHES, DEMO_MATCHES_PAGE } from './demo-data';
++import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_PREVIEW, DEMO_PROFILES, DEMO_PROFILE_SCHEDULES } from './demo-data';
+ 
+ function apiPath(pathname: string, exact: string): boolean {
+     return pathname === exact || pathname.startsWith(`${exact}/`);
+@@ -17,6 +17,15 @@ export type DemoApiOpts = {
+ 
+ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promise<void> {
+     const slipsGet = opts.slips ?? { slips: [], stats: null, profiles: [] };
++    const preview = opts.preview ?? DEMO_PREVIEW;
++    // Smart Builder live preview (two-track: DEMO_PREVIEW mirrors a real /api/builder/preview response — the client posts to /builder/preview).
++    await page.route((url) => apiPath(url.pathname, '/api/builder/preview'), async (route) => {
++        await route.fulfill({
++            status: 200,
++            contentType: 'application/json',
++            body: JSON.stringify(preview),
++        });
++    });
+     await page.route((url) => apiPath(url.pathname, '/api/matches'), async (route) => {
+         await route.fulfill({
+             status: 200,
+@@ -57,6 +66,34 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
+             }),
+         });
+     });
++    await page.route((url) => url.pathname === '/api/services', async (route) => {
++        await route.fulfill({
++            status: 200,
++            contentType: 'application/json',
++            body: JSON.stringify({
++                services: {
++                    puller: { name: 'puller', description: 'Checks every 5 minutes', enabled: false, alive: false, hour: null, minute: null, interval_seconds: 300, next_run: 'Every 5 min', last_time_generated: null },
++                    generator: { name: 'generator', description: 'Checks every 5 minutes', enabled: true, alive: true, hour: 9, minute: 0, interval_seconds: 300, next_run: 'Today 09:00 (in 1h 0m)', last_time_generated: null },
++                    verifier: { name: 'verifier', description: 'Polls every 60 seconds', enabled: true, alive: true, hour: null, minute: null, interval_seconds: 60, next_run: 'Every 1 min', last_time_generated: null },
++                },
++                generate_hour: 9,
++                generate_minute: 0,
++                server_time: '2026-10-07T10:00:00',
++                profile_schedules: DEMO_PROFILE_SCHEDULES,
++            }),
++        });
++    });
++    await page.route((url) => url.pathname === '/api/profiles', async (route) => {
++        if (route.request().method() === 'POST') {
++            await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'ok' }) });
++            return;
++        }
++        await route.fulfill({
++            status: 200,
++            contentType: 'application/json',
++            body: JSON.stringify({ profiles: opts.profiles ?? DEMO_PROFILES }),
++        });
++    });
+     if (opts.profiles) {
+         await page.route((url) => url.pathname === '/api/profiles', async (route) => {
+             await route.fulfill({
+diff --git a/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts b/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts
+index 644f4d9..7910be9 100644
+--- a/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts
++++ b/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts
+@@ -36,11 +36,11 @@ test.describe('onboarding tour @desktop 1280x800', () => {
+         await expect(page).toHaveScreenshot('tour-step0-desktop.png', mask(page));
+     });
+ 
+-    test('step 1 Create your strategy', async ({ page }) => {
++    test('step 1 Profiles & live preview', async ({ page }) => {
+         await page.goto('/');
+         await waitStep(page, 'Find value bets');
+         await page.getByRole('button', { name: 'Next' }).click();
+-        await waitStep(page, 'Create your strategy');
++        await waitStep(page, 'Profiles & live preview');
+         await expect(page).toHaveScreenshot('tour-step1-desktop.png', mask(page));
+     });
+ 
+@@ -63,11 +63,11 @@ test.describe('onboarding tour @mobile 375x667', () => {
+         await expect(page).toHaveScreenshot('tour-step0-mobile.png', mask(page));
+     });
+ 
+-    test('step 1 Create your strategy', async ({ page }) => {
++    test('step 1 Profiles & live preview', async ({ page }) => {
+         await page.goto('/');
+         await waitStep(page, 'Find value bets');
+         await page.getByRole('button', { name: 'Next' }).click();
+-        await waitStep(page, 'Create your strategy');
++        await waitStep(page, 'Profiles & live preview');
+         await expect(page).toHaveScreenshot('tour-step1-mobile.png', mask(page));
+     });
+ 
+diff --git a/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-desktop-chromium-linux.png b/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-desktop-chromium-linux.png
+index 2835c65..a2900c0 100644
+Binary files a/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-desktop-chromium-linux.png and b/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-desktop-chromium-linux.png differ
+diff --git a/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-mobile-chromium-linux.png b/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-mobile-chromium-linux.png
+index 8f9582e..86fff3d 100644
+Binary files a/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-mobile-chromium-linux.png and b/bet_dashboard/frontend/e2e/onboarding-tour-visual.spec.ts-snapshots/tour-step1-mobile-chromium-linux.png differ
+diff --git a/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts b/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts
+index 465c074..b97ae4f 100644
+--- a/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts
++++ b/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts
+@@ -37,7 +37,7 @@ test('Next walks / → /builder → /slips then Done persists', async ({ page })
+     await expect(page.getByRole('dialog', { name: 'Find value bets' })).toBeVisible();
+     await page.getByRole('button', { name: 'Next' }).click();
+     await expect(page).toHaveURL(/\/builder/);
+-    await expect(page.getByRole('dialog', { name: 'Create your strategy' })).toBeVisible();
++    await expect(page.getByRole('dialog', { name: 'Profiles & live preview' })).toBeVisible();
+     await page.getByRole('button', { name: 'Next' }).click();
+     await expect(page).toHaveURL(/\/slips/);
+     await expect(page.getByRole('dialog', { name: 'Monitor performance' })).toBeVisible();
+@@ -75,7 +75,7 @@ test('Tab + Enter advances Next', async ({ page }) => {
+     await expect(page.getByRole('dialog', { name: 'Find value bets' })).toBeVisible();
+     await page.getByRole('button', { name: 'Next' }).focus();
+     await page.keyboard.press('Enter');
+-    await expect(page.getByRole('dialog', { name: 'Create your strategy' })).toBeVisible();
++    await expect(page.getByRole('dialog', { name: 'Profiles & live preview' })).toBeVisible();
+ });
+ 
+ test('first Add Slip shows milestone once', async ({ page }) => {
+diff --git a/bet_dashboard/frontend/package-lock.json b/bet_dashboard/frontend/package-lock.json
+index b0b746a..06ce6f6 100644
+--- a/bet_dashboard/frontend/package-lock.json
++++ b/bet_dashboard/frontend/package-lock.json
+@@ -2276,25 +2276,6 @@
+       "integrity": "sha512-zFDAD+tlpf2r4asuHEj0XH6pY6i0g5NeAHPn+15wk3BV6JA69eERFXC1gyGThDkVa1zCyKr5jox1+2LbV/AMLg==",
+       "license": "MIT"
+     },
+-    "node_modules/@types/whatwg-mimetype": {
+-      "version": "3.0.2",
+-      "resolved": "https://registry.npmjs.org/@types/whatwg-mimetype/-/whatwg-mimetype-3.0.2.tgz",
+-      "integrity": "sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true
+-    },
+-    "node_modules/@types/ws": {
+-      "version": "8.18.1",
+-      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz",
+-      "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "@types/node": "*"
+-      }
+-    },
+     "node_modules/@typescript-eslint/eslint-plugin": {
+       "version": "8.58.0",
+       "resolved": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.58.0.tgz",
+@@ -3095,20 +3076,6 @@
+         "node": "^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7"
+       }
+     },
+-    "node_modules/buffer-image-size": {
+-      "version": "0.6.4",
+-      "resolved": "https://registry.npmjs.org/buffer-image-size/-/buffer-image-size-0.6.4.tgz",
+-      "integrity": "sha512-nEh+kZOPY1w+gcCMobZ6ETUp9WfibndnosbpwB1iJk/8Gt5ZF2bhS6+B6bPYz424KtwsR6Rflc3tCz1/ghX2dQ==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "@types/node": "*"
+-      },
+-      "engines": {
+-        "node": ">=4.0"
+-      }
+-    },
+     "node_modules/call-bind-apply-helpers": {
+       "version": "1.0.2",
+       "resolved": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
+@@ -4348,51 +4315,6 @@
+         "node": "^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0"
+       }
+     },
+-    "node_modules/happy-dom": {
+-      "version": "20.14.5",
+-      "resolved": "https://registry.npmjs.org/happy-dom/-/happy-dom-20.14.5.tgz",
+-      "integrity": "sha512-x/RzkpWO40bTjIoT30iQtt64FLLmH/iRcUCN2X//bLx7H3ifkdfPXyqsro/OYtqzIAhiLMMA7mmiOR9C3NOKjQ==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true,
+-      "dependencies": {
+-        "@types/node": ">=20.0.0",
+-        "@types/whatwg-mimetype": "^3.0.2",
+-        "@types/ws": "^8.18.1",
+-        "buffer-image-size": "^0.6.4",
+-        "entities": "^7.0.1",
+-        "whatwg-mimetype": "^3.0.0",
+-        "ws": "^8.21.0"
+-      },
+-      "engines": {
+-        "node": ">=20.0.0"
+-      }
+-    },
+-    "node_modules/happy-dom/node_modules/entities": {
+-      "version": "7.0.1",
+-      "resolved": "https://registry.npmjs.org/entities/-/entities-7.0.1.tgz",
+-      "integrity": "sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true,
+-      "engines": {
+-        "node": ">=0.12"
+-      },
+-      "funding": {
+-        "url": "https://github.com/fb55/entities?sponsor=1"
+-      }
+-    },
+-    "node_modules/happy-dom/node_modules/whatwg-mimetype": {
+-      "version": "3.0.0",
+-      "resolved": "https://registry.npmjs.org/whatwg-mimetype/-/whatwg-mimetype-3.0.0.tgz",
+-      "integrity": "sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true,
+-      "engines": {
+-        "node": ">=12"
+-      }
+-    },
+     "node_modules/has-flag": {
+       "version": "4.0.0",
+       "resolved": "https://registry.npmjs.org/has-flag/-/has-flag-4.0.0.tgz",
+@@ -7168,29 +7090,6 @@
+         "url": "https://github.com/chalk/wrap-ansi?sponsor=1"
+       }
+     },
+-    "node_modules/ws": {
+-      "version": "8.21.3",
+-      "resolved": "https://registry.npmjs.org/ws/-/ws-8.21.3.tgz",
+-      "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==",
+-      "dev": true,
+-      "optional": true,
+-      "peer": true,
+-      "engines": {
+-        "node": ">=10.0.0"
+-      },
+-      "peerDependencies": {
+-        "bufferutil": "^4.0.1",
+-        "utf-8-validate": ">=5.0.2"
+-      },
+-      "peerDependenciesMeta": {
+-        "bufferutil": {
+-          "optional": true
+-        },
+-        "utf-8-validate": {
+-          "optional": true
+-        }
+-      }
+-    },
+     "node_modules/xml-name-validator": {
+       "version": "5.0.0",
+       "resolved": "https://registry.npmjs.org/xml-name-validator/-/xml-name-validator-5.0.0.tgz",

@@ -1,0 +1,578 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 5f97c3f..acef4aa 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -85,7 +85,7 @@ Any frontend test that needs **populated** data must grow **both tracks together
+ 
+ ## Canonical market keys (single source of truth)
+ 
+-- Market identity lives ONLY in `bet_framework/markets/`: `catalog.py` (18 `MarketSpec` rows, order-free, values frozen — renaming a persisted key is a data migration), `enums.py` (`MarketKey`/`MarketType` StrEnums — values ARE the persisted DB/Odds field spellings, U1), `keys.py` (`stripped_key` + the one-cycle `legacy_market_key` read shim), `views.py` (key-indexed dicts + derived views), `contract.py` (JSON snapshot). No facades, no compat layer: market identity is one spelling everywhere.
++- Market identity lives ONLY in `bet_framework/markets/`: `catalog.py` (18 `MarketSpec` rows, order-free, values frozen — renaming a persisted key is a data migration), `enums.py` (`MarketKey`/`MarketType` StrEnums — values ARE the persisted DB/Odds field spellings, U1), `keys.py` (`stripped_key`/`ODDS_PREFIX` movement-payload helpers), `views.py` (key-indexed dicts + derived views), `contract.py` (JSON snapshot). No facades, no compat layer: market identity is one spelling everywhere.
+ - Wire contract: backend response schemas type `market`/`market_type` with the canonical enums (serialized by `.value` — payloads are byte-identical to the old hand-built strings; inputs stay validated strings in routers).
+ - Frontend: `npm run codegen:markets` (in `bet_dashboard/frontend`) regenerates `src/types/api.generated.ts` + the contract snapshot fixture from the backend; `config/marketConfig.ts` is presentation order + labels ONLY. CI fails on drift (`codegen:markets:check`).
+ - Adding a market = 1 row in `markets/catalog.py` + 1 frontend order entry + parity tests cover the rest (`tests/test_markets_contract.py`, `src/test/marketsContract.test.ts`).
+diff --git a/bet_dashboard/backend/routers/slips.py b/bet_dashboard/backend/routers/slips.py
+index 237f45f..6b12e5d 100644
+--- a/bet_dashboard/backend/routers/slips.py
++++ b/bet_dashboard/backend/routers/slips.py
+@@ -8,7 +8,6 @@ from utils.profile_utils import get_profile_params
+ from bet_framework.core.Slip import CandidateLeg
+ from bet_framework.core.utils import is_valid_url
+ from bet_framework.markets.enums import MarketKey, MarketType
+-from bet_framework.markets.keys import legacy_market_key
+ from bet_framework.markets.views import ALLOWED_MARKET_KEYS as ALLOWED_MARKETS
+ 
+ router = APIRouter(prefix="/api/slips", tags=["slips"])
+@@ -172,10 +171,13 @@ def _dict_to_candidate_leg(d: dict) -> CandidateLeg:
+         raise ValueError("market_type is required")
+ 
+     try:
+-        market = MarketKey(legacy_market_key(market_str))
++        # Post-shim (issue #116): canonical keys only. Pre-U1 rows in old
++        # slips.db files display fine (read path is passthrough) but re-saving
++        # an unmigrated leg now fails loudly here instead of auto-translating.
++        # See docs/migration.md for the one-time migrator.
++        market = MarketKey(market_str)
+     except (ValueError, KeyError):
+         # Unknown market string: keep the raw value; validation surfaces the error.
+-        # (legacy_market_key translates pre-U1 labels for one cycle, see keys.py)
+         market = market_str
+ 
+     try:
+diff --git a/bet_dashboard/frontend/src/components/BuilderPanel.tsx b/bet_dashboard/frontend/src/components/BuilderPanel.tsx
+index 09f794a..48a74a7 100644
+--- a/bet_dashboard/frontend/src/components/BuilderPanel.tsx
++++ b/bet_dashboard/frontend/src/components/BuilderPanel.tsx
+@@ -5,6 +5,7 @@ import { BaseDataRow } from './ui/BaseDataRow';
+ import { TooltipIcon } from './ui';
+ import type { BuilderConfig } from '../types';
+ import { ALL_MARKETS } from '../types';
++import { marketLabel } from '../config/marketConfig';
+ 
+ interface Props {
+     cfg: BuilderConfig;
+@@ -327,7 +328,8 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources,
+                                         : 'none',
+                                 }}
+                             >
+-                                {m}
++                                {/* AC-1: render the presentation label (like Discover/Live Preview), never the raw canonical key */}
++                                {marketLabel(m)}
+                             </button>
+                         );
+                     })}
+diff --git a/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx b/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx
+index 12e7174..a5e6a35 100644
+--- a/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx
++++ b/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx
+@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import BuilderPanel from '../BuilderPanel';
+ import type { BuilderConfig } from '../../types';
+-import { ALL_MARKETS } from '../../config/marketConfig';
++import { ALL_MARKETS, marketLabel } from '../../config/marketConfig';
+ 
+ 
+ function baseCfg(overrides: Partial<BuilderConfig> = {}): BuilderConfig {
+@@ -149,11 +149,38 @@ describe('BuilderPanel', () => {
+         const allButOne = ALL_MARKETS.slice(1);
+         const { onChange } = renderPanel({ included_markets: allButOne });
+         // toggle the one market NOT in the list (ALL_MARKETS[0]) → adds it back → all → null
+-        await user.click(screen.getByText(ALL_MARKETS[0]));
++        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) })); // chip renders the presentation label
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+         expect(last.included_markets).toBeNull(); // complete set → null (all)
+     });
+ 
++    it('Markets filter chips render presentation labels, NOT raw canonical keys (AC-1 regression)', () => {
++        // Pre-U1 bug: BuilderPanel rendered the raw canonical key ('home' -> CSS-uppercased
++        // 'HOME'). Fix: render marketLabel(m) like Discover/Live Preview do.
++        renderPanel();
++        for (const m of ALL_MARKETS) {
++            const label = marketLabel(m);
++            expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
++            if (label !== m) {
++                // the raw key text must NOT be rendered anywhere
++                expect(screen.queryByText(m)).not.toBeInTheDocument();
++            }
++        }
++        // pin a known key/label pair so a catalog rename cannot silently pass
++        expect(marketLabel('home')).toBe('1');
++        expect(marketLabel(ALL_MARKETS[0])).not.toBe(ALL_MARKETS[0]);
++    });
++
++    it('market toggle still identifies markets by canonical key in included_markets (identity unchanged)', async () => {
++        const user = userEvent.setup();
++        const { onChange } = renderPanel();
++        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
++        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
++        // first click on an all-selected board excludes that one market (all-but-one array)
++        expect(last.included_markets).toHaveLength(ALL_MARKETS.length - 1);
++        expect(last.included_markets).not.toContain(ALL_MARKETS[0]);
++    });
++
+     it('balance_decay select switches linear/gaussian', async () => {
+         const user = userEvent.setup();
+         const { onChange } = renderPanel({ balance_decay: 'gaussian' });
+diff --git a/bet_dashboard/frontend/src/pages/Analytics.tsx b/bet_dashboard/frontend/src/pages/Analytics.tsx
+index 8394eff..bc6e433 100644
+--- a/bet_dashboard/frontend/src/pages/Analytics.tsx
++++ b/bet_dashboard/frontend/src/pages/Analytics.tsx
+@@ -11,6 +11,7 @@ import { ProfileSelector } from '../components/ui/ProfileSelector';
+ import type { GlobalFilters } from '../components/Layout';
+ import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, SourceBreakdown, SourceMarketCorrelation } from '../types';
+ import { useProfileSelection } from '../hooks/useProfileSelection';
++import { marketLabel } from '../config/marketConfig';
+ 
+ // ── Shared tooltip style ───────────────────────────────────────────────────────
+ 
+@@ -412,7 +413,7 @@ function MarketSignalsCard({ marketBreakdown }: { marketBreakdown: MarketBreakdo
+                         style={{ color: 'var(--win)' }}>↑ Best Market</span>
+                     <span className="font-display font-bold text-lg leading-none"
+                         style={{ color: 'var(--text-bright)' }}>
+-                        {best ? best.market : '—'}
++                        {best ? marketLabel(best.market) : '—'}
+                     </span>
+                     {best && (
+                         <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--win)' }}>
+@@ -425,7 +426,7 @@ function MarketSignalsCard({ marketBreakdown }: { marketBreakdown: MarketBreakdo
+                         style={{ color: 'var(--loss)' }}>↓ Avoid</span>
+                     <span className="font-display font-bold text-lg leading-none"
+                         style={{ color: 'var(--text-bright)' }}>
+-                        {worst && worst.edge < 0 ? worst.market : '—'}
++                        {worst && worst.edge < 0 ? marketLabel(worst.market) : '—'}
+                     </span>
+                     {worst && worst.edge < 0 && (
+                         <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--loss)' }}>
+@@ -568,7 +569,7 @@ function MarketTable({ data }: { data: MarketBreakdown[] }) {
+                             }} title={lowSample ? `Low sample size (n=${row.legs})` : undefined}>
+                                 <td className="px-4 py-3">
+                                     <span className="font-mono font-bold text-sm"
+-                                        style={{ color: 'var(--text-bright)' }}>{row.market}</span>
++                                        style={{ color: 'var(--text-bright)' }}>{marketLabel(row.market)}</span>
+                                 </td>
+                                 <td className="px-4 py-3">
+                                     <span className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
+diff --git a/bet_dashboard/frontend/src/pages/BettingTips.tsx b/bet_dashboard/frontend/src/pages/BettingTips.tsx
+index 4873ab1..b89177b 100644
+--- a/bet_dashboard/frontend/src/pages/BettingTips.tsx
++++ b/bet_dashboard/frontend/src/pages/BettingTips.tsx
+@@ -19,7 +19,9 @@ import { Checkbox, FormControlLabel, Button, Box, Typography, Divider, Drawer, S
+ const ALL_COLS = getTableColumns();
+ 
+ const PAGE_SIZE = 40;
+-const STORAGE_KEY = 'betting_tips_state';
++// v2 (post-U1): pending legs predating key unification carry legacy labels
++// and are dropped instead of failing validation after the legacy shim removal.
++const STORAGE_KEY = 'betting_tips_state_v2';
+ 
+ interface Props { filters: GlobalFilters; refreshKey: number }
+ 
+diff --git a/bet_dashboard/frontend/src/pages/__tests__/Analytics.test.tsx b/bet_dashboard/frontend/src/pages/__tests__/Analytics.test.tsx
+index 59768e1..5fb97f0 100644
+--- a/bet_dashboard/frontend/src/pages/__tests__/Analytics.test.tsx
++++ b/bet_dashboard/frontend/src/pages/__tests__/Analytics.test.tsx
+@@ -11,7 +11,8 @@ import userEvent from '@testing-library/user-event';
+ import { http, HttpResponse } from 'msw';
+ import Analytics from '../Analytics';
+ import { server } from '../../test/handlers';
+-import { makeAnalyticsData } from '../../test/factories';
++import { makeAnalyticsData, makeMarketBreakdown } from '../../test/factories';
++import { ALL_MARKETS, marketLabel } from '../../config/marketConfig';
+ 
+ // Order-robust shared stub (final-gate fix): the Analytics page imports
+ // recharts directly (1687-ln chart dashboard). Registering the IDENTICAL
+@@ -140,4 +141,29 @@ describe('Analytics page', () => {
+             await waitFor(() => expect(lastUrl).toContain('profiles'));
+         }
+     });
++
++    it('market breakdown rows + Best/Avoid cards render presentation labels, NOT raw keys (AC-2)', async () => {
++        // Pre-U1 bug: breakdown row + best/worst cards rendered the raw stored
++        // market string. Fix: wrap in marketLabel() like every other surface.
++        // Keys are pulled from the frontend-owned ALL_MARKETS list (no literals:
++        // the semgrep no-raw-market-literals ratchet blocks new key strings).
++        const bestKey = ALL_MARKETS[ALL_MARKETS.length - 2];
++        const worstKey = ALL_MARKETS[ALL_MARKETS.length - 1];
++        const rows = [
++            makeMarketBreakdown({ market: bestKey, edge: 12.0 }),
++            makeMarketBreakdown({ market: worstKey, edge: -4.0 }),
++        ];
++        server.use(
++            http.get('/api/analytics', () => HttpResponse.json(
++                makeAnalyticsData({ market_breakdown: rows, market_accuracy: [], pnl_by_market: [] }),
++            )),
++        );
++        renderPage();
++        // labels render: breakdown table row + Best card (bestKey), row + Avoid card (worstKey)
++        expect(await screen.findAllByText(marketLabel(bestKey))).not.toHaveLength(0);
++        expect(await screen.findAllByText(marketLabel(worstKey))).not.toHaveLength(0);
++        // raw canonical keys must NEVER render on this surface
++        expect(screen.queryByText(bestKey)).not.toBeInTheDocument();
++        expect(screen.queryByText(worstKey)).not.toBeInTheDocument();
++    });
+ });
+diff --git a/bet_dashboard/frontend/src/pages/__tests__/BettingTips.test.tsx b/bet_dashboard/frontend/src/pages/__tests__/BettingTips.test.tsx
+index 8946ea2..2696233 100644
+--- a/bet_dashboard/frontend/src/pages/__tests__/BettingTips.test.tsx
++++ b/bet_dashboard/frontend/src/pages/__tests__/BettingTips.test.tsx
+@@ -265,13 +265,13 @@ describe('BettingTips page', () => {
+         expect(window.alert).not.toHaveBeenCalled();
+     });
+ 
+-    it('pending legs persist to localStorage (betting_tips_state)', async () => {
++    it('pending legs persist to localStorage (betting_tips_state_v2)', async () => {
+         const user = userEvent.setup();
+         renderPage();
+         await screen.findByText('Arsenal');
+         await user.click(screen.getByRole('button', { name: /Select 75% at @1\.90/ }));
+         await waitFor(() => {
+-            const saved = localStorage.getItem('betting_tips_state');
++            const saved = localStorage.getItem('betting_tips_state_v2');
+             expect(saved).not.toBeNull();
+             expect(JSON.parse(saved as string).pendingLegs.length).toBe(1);
+         });
+diff --git a/bet_framework/markets/keys.py b/bet_framework/markets/keys.py
+index dfd0298..da4062f 100644
+--- a/bet_framework/markets/keys.py
++++ b/bet_framework/markets/keys.py
+@@ -4,10 +4,6 @@ Kills the ``odds_key.replace("odds_", "")`` prefix-surgery pattern: the
+ ``cons_``/``odds_`` conventions exist in exactly this module.
+ """
+ 
+-import warnings
+-
+-from bet_framework.markets.catalog import MARKET_BY_KEY
+-from bet_framework.markets.views import LEGACY_LABEL_TO_KEY
+ 
+ ODDS_PREFIX = "odds_"
+ 
+@@ -15,28 +11,3 @@ ODDS_PREFIX = "odds_"
+ def stripped_key(odds_key_value: str) -> str:
+     """Stripped odds key used by movement payloads ('odds_over_25' -> 'over_25')."""
+     return odds_key_value.removeprefix(ODDS_PREFIX)
+-
+-
+-def legacy_market_key(value: object) -> str:
+-    """One-cycle legacy-read shim (D2): accept pre-U1 canonical label spellings.
+-
+-    Before key unification (story 114-2, U1) slip legs and browser storage
+-    persisted display labels ('1', 'BTTS Yes', 'Over 2.5'). Those rows remain
+-    in old slips.db files and user localStorage. This helper maps the legacy
+-    spelling to the canonical key at the READ boundary; the write path emits
+-    the canonical key only. Retire after one release cycle: rows written by
+-    versions >= U1 no longer need translation.
+-
+-    Known keys pass through unchanged; unknown values raise (fail loudly).
+-    """
+-    text = value if isinstance(value, str) else str(value)
+-    if text in MARKET_BY_KEY:
+-        return text
+-    if text in LEGACY_LABEL_TO_KEY:
+-        warnings.warn(
+-            f"legacy market label {text!r} read from old slip data; it will be rewritten in canonical spelling on next save",
+-            DeprecationWarning,
+-            stacklevel=2,
+-        )
+-        return LEGACY_LABEL_TO_KEY[text]
+-    raise KeyError(f"unknown market key: {text!r}")
+diff --git a/bet_framework/markets/views.py b/bet_framework/markets/views.py
+index e793b72..de982a3 100644
+--- a/bet_framework/markets/views.py
++++ b/bet_framework/markets/views.py
+@@ -27,6 +27,3 @@ MARKET_KEYS: tuple[str, ...] = tuple(spec.key for spec in MARKET_CATALOG)
+ ALLOWED_MARKET_KEYS: frozenset[str] = frozenset(spec.key for spec in MARKET_CATALOG)
+ CONSENSUS_COLUMN_NAMES: tuple[str, ...] = tuple(spec.cons_key for spec in MARKET_CATALOG)
+ ODDS_COLUMN_NAMES: tuple[str, ...] = tuple(spec.odds_key for spec in MARKET_CATALOG)
+-# label -> key lookup for the one-cycle legacy read (pre-U1 slips/DB rows and
+-# browser storage persist display labels like '1'/'BTTS Yes'). See keys.py.
+-LEGACY_LABEL_TO_KEY: dict[str, str] = {spec.label: spec.key for spec in MARKET_CATALOG}
+diff --git a/bet_framework/tests/test_markets_contract.py b/bet_framework/tests/test_markets_contract.py
+index e981170..e6ab7a3 100644
+--- a/bet_framework/tests/test_markets_contract.py
++++ b/bet_framework/tests/test_markets_contract.py
+@@ -23,7 +23,6 @@ from bet_framework.markets.contract import emit
+ from bet_framework.markets.enums import MarketKey, MarketType
+ from bet_framework.markets.views import (
+     CONSENSUS_COLUMN_NAMES,
+-    LEGACY_LABEL_TO_KEY,
+     ODDS_COLUMN_NAMES,
+ )
+ 
+@@ -116,15 +115,6 @@ def test_labels_stay_display_text() -> None:
+     assert MARKET_BY_KEY["dc_1x"].label == "1X"
+ 
+ 
+-def test_legacy_label_map_covers_pre_u1_spellings() -> None:
+-    """D2 one-cycle read support: every persisted pre-U1 label maps to a key."""
+-    assert LEGACY_LABEL_TO_KEY["1"] == "home"
+-    assert LEGACY_LABEL_TO_KEY["BTTS Yes"] == "btts_yes"
+-    assert LEGACY_LABEL_TO_KEY["Over 2.5"] == "over_25"
+-    assert LEGACY_LABEL_TO_KEY["1X"] == "dc_1x"
+-    assert set(LEGACY_LABEL_TO_KEY.values()) == set(EXPECTED_KEYS)
+-
+-
+ @pytest.mark.parametrize("odds_key_value", sorted(EXPECTED_ODDS_TO_STRIPPED))
+ def test_stripped_key_convention(odds_key_value: str) -> None:
+     """Explicit frozen mapping - not a re-implementation of the function under test."""
+diff --git a/docs/backend.md b/docs/backend.md
+index 7ad739e..5a4e9c0 100644
+--- a/docs/backend.md
++++ b/docs/backend.md
+@@ -468,7 +468,7 @@ ws_manager.broadcast_sync(
+ 
+ ### Market identity (`bet_framework/markets/`, canonical)
+ 
+-**Market identity lives ONLY in `bet_framework/markets/`** (single source of truth, zero translation layers): `catalog.py` owns identity and columns — `MarketSpec.key` IS the persisted DB/Odds field spelling (`home`, `over_25`, `btts_yes`, `dc_1x`), `label` the display text, `market_type` the routing key, `cons_key`/`odds_key` the column names; `enums.py` the `MarketKey`/`MarketType` StrEnums whose values are those same spellings; `keys.py` the column-key helpers plus the one-cycle `legacy_market_key` read shim; `views.py` the key-indexed dicts and derived views; `contract.py` the JSON snapshot. Adding a market = 1 row in `catalog.py` + 1 frontend presentation-order entry in `marketConfig.ts`, then regenerate (`npm run codegen:markets`). Values are frozen: renaming a persisted key is a data migration, not a code edit.
++**Market identity lives ONLY in `bet_framework/markets/`** (single source of truth, zero translation layers): `catalog.py` owns identity and columns — `MarketSpec.key` IS the persisted DB/Odds field spelling (`home`, `over_25`, `btts_yes`, `dc_1x`), `label` the display text, `market_type` the routing key, `cons_key`/`odds_key` the column names; `enums.py` the `MarketKey`/`MarketType` StrEnums whose values are those same spellings; `keys.py` the column-key helpers (`stripped_key`/`ODDS_PREFIX`); `views.py` the key-indexed dicts and derived views; `contract.py` the JSON snapshot. Adding a market = 1 row in `catalog.py` + 1 frontend presentation-order entry in `marketConfig.ts`, then regenerate (`npm run codegen:markets`). Values are frozen: renaming a persisted key is a data migration, not a code edit.
+ 
+ ```python
+ from bet_framework.markets.catalog import MARKET_CATALOG
+diff --git a/docs/migration.md b/docs/migration.md
+new file mode 100644
+index 0000000..5a36cba
+--- /dev/null
++++ b/docs/migration.md
+@@ -0,0 +1,39 @@
++# One-time data migrations
++
++User-run maintenance scripts for persisted data. These scripts are **standalone tools**: nothing in the application calls them, and they never run at app startup or in the scrape pipeline. Run them by hand, from the repository root, when the accompanying note says the data needs them.
++
++`workspace/data/*.db` files are pipeline outputs — application code never edits them outside these explicit, user-approved runs.
++
++## slips.db: pre-U1 market labels → canonical keys (post-PR #114)
++
++**When:** once, after deploying a build that contains `scripts/migrate_slip_leg_keys.py`, for any `slips.db` created before PR #114's U1 key unification.
++
++**Why:** pre-U1 writers persisted the market *display label* in `legs.market` (`'1'`, `'X'`, `'BTTS Yes'`, `'Over 2.5'`, `'X2'`). U1 made the canonical key — the persisted Odds/DB field spelling (`home`, `draw`, `btts_yes`, `over_25`, `dc_x2`) — the single market identity, and new writes emit that spelling. Old rows still display fine (the frontend `marketLabel()` helper falls back to the raw string), but they are rejected if such a leg is ever re-saved.
++
++**Run:**
++
++```bash
++# 1. Report-only dry run (default; changes nothing)
++python scripts/migrate_slip_leg_keys.py --db workspace/data/slips.db --dry-run
++
++# 2. Apply (backs up first, then migrates in a single transaction)
++python scripts/migrate_slip_leg_keys.py --db workspace/data/slips.db --yes
++```
++
++**Behaviour:**
++
++- Backs up to `slips.db.bak-<UTC timestamp>` next to the database before any write; prints sha256 + size for source and backup. No backup, no write.
++- Classifies every distinct `legs.market` value (canonical / legacy / unknown) and prints counts.
++- Unknown values abort the run (exit 3) before any write — add them to the catalog or clean the data, then re-run.
++- Applies one parameterized `UPDATE` per legacy label in a single transaction; re-verifies afterwards (exit 4 if any legacy value survived; the backup is the recovery path).
++- Idempotent: a second run reports `nothing to do` (exit 0).
++- Touches only `legs.market`. `market_type`, the `slips` table and all other columns are untouched.
++
++**Other databases:** `matches.db`, `odds_history` and risk profiles carry canonical field spellings already and need no migration.
++
++**Order note:** run this migration before (or right after) upgrading to a build without the `legacy_market_key` read shim. Until it runs, old legs still display — but re-saving an unmigrated leg fails loudly (`Invalid market`) instead of being auto-translated. The frontend `betting_tips_state` localStorage key was bumped in the same change so stale pending legs drop cleanly instead of failing validation.
++
++## Exit codes
++
++`scripts/migrate_slip_leg_keys.py`: `0` ok / `1` database missing / `2` backup failed / `3` unknown values present / `4` verification failed after write.
++
+diff --git a/scripts/migrate_slip_leg_keys.py b/scripts/migrate_slip_leg_keys.py
+new file mode 100755
+index 0000000..0da5d9f
+--- /dev/null
++++ b/scripts/migrate_slip_leg_keys.py
+@@ -0,0 +1,197 @@
++#!/usr/bin/env python3
++"""One-time migration: rewrite pre-U1 slip leg market labels to canonical keys.
++
++WHEN/WHY TO RUN (one-time, post-U1)
++------------------------------------
++
++Before PR #114's U1 key unification, ``slips.db``'s ``legs.market`` column
++persisted the *display* label of the market. U1 made the canonical key (the
++persisted Odds/DB field spelling - ``home``, ``btts_yes``, ``over_25`` ...)
++the single market identity, and all writers now emit that spelling. Old rows
++still carry the legacy label, which renders verbatim in the UI (frontend
++``marketLabel()`` falls back to the raw string) and is rejected if such a
++leg is ever re-saved by newer builds.
++
++Run this script ONCE per pre-U1 ``slips.db`` copy, AFTER deploying a build
++that contains it:
++
++    python scripts/migrate_slip_leg_keys.py --db workspace/data/slips.db --dry-run
++    python scripts/migrate_slip_leg_keys.py --db workspace/data/slips.db --yes
++
++It is a standalone USER-RUN tool: nothing in the application calls it, and
++it is never executed by app startup or the pipeline.
++
++WHAT IT TOUCHES
++---------------
++
++Only ``legs.market`` (TEXT) in the given SQLite database. ``market_type``,
++the ``slips`` table and every other column are left untouched. matches.db /
++odds_history / profiles never carried market labels and need no migration.
++
++SAFETY
++------
++
++- Dry-run is the DEFAULT: without ``--yes`` the script reports planned work
++  and changes nothing.
++- A byte-copy backup (``<db>.bak-<UTC timestamp>``, sha256 + size printed
++  for source and backup) is written BEFORE any write; writes happen only
++  after a successful backup.
++- Values that are neither canonical keys nor known legacy labels abort the
++  run (exit 3) before ANY write, so unknown data is never silently mangled.
++- The update is a SINGLE transaction over the whole database.
++- Idempotent: a second run finds zero legacy values and reports
++  "nothing to do" (exit 0).
++- After ``--yes`` a verification pass re-counts classifications and fails
++  the run (exit 4) if any legacy value survives; the backup remains as the
++  recovery path.
++
++Exit codes: 0 ok / 1 db missing / 2 backup failed / 3 unknown values /
++4 verification failed after write.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import shutil
++import sqlite3
++import sys
++from datetime import UTC, datetime
++from pathlib import Path
++
++# bet_framework lives at the repo root; bootstrap so the script runs from any cwd.
++REPO_ROOT = Path(__file__).resolve().parent.parent
++if str(REPO_ROOT) not in sys.path:
++    sys.path.insert(0, str(REPO_ROOT))
++
++from bet_framework.markets.catalog import MARKET_BY_KEY, MARKET_CATALOG  # noqa: E402  (import follows the sys.path bootstrap above)
++
++# Single source of naming is the catalog: pre-U1 rows stored MarketSpec.label
++# ('1', 'BTTS Yes', ...); canonical rows store MarketSpec.key ('home', ...).
++# Derived at runtime - this script deliberately declares no market literals.
++LEGACY_LABEL_TO_KEY: dict[str, str] = {spec.label: spec.key for spec in MARKET_CATALOG}
++
++
++def _classify(value: str) -> str:
++    """Classify one distinct legs.market value: canonical / legacy / unknown."""
++    if value in MARKET_BY_KEY:
++        return "canonical"
++    if value in LEGACY_LABEL_TO_KEY:
++        return "legacy"
++    return "unknown"
++
++
++def _counts(conn: sqlite3.Connection) -> dict[str, int]:
++    rows = conn.execute("SELECT market, COUNT(*) FROM legs WHERE market IS NOT NULL GROUP BY market").fetchall()
++    result = {"canonical": 0, "legacy": 0, "unknown": 0}
++    for value, count in rows:
++        result[_classify(str(value))] += int(count)
++    return result
++
++
++def _classification_table(conn: sqlite3.Connection) -> list[tuple[str, str, int]]:
++    rows = conn.execute("SELECT market, COUNT(*) FROM legs WHERE market IS NOT NULL GROUP BY market").fetchall()
++    table = [(_classify(str(value)), str(value), int(count)) for value, count in rows]
++    table.sort(key=lambda r: (r[0], r[1]))
++    return table
++
++
++def _print_table(table: list[tuple[str, str, int]]) -> None:
++    print("  classification  value                 rows")
++    for kind, value, count in table:
++        print(f"  {kind:<13}  {value!r:<20}  {count}")
++
++
++def make_backup(db_path: Path) -> Path | None:
++    """Copy the DB next to itself; return the backup path (None on failure)."""
++    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
++    backup = db_path.with_name(f"{db_path.name}.bak-{stamp}")
++    try:
++        shutil.copy2(db_path, backup)
++    except OSError as exc:
++        print(f"BACKUP FAILED: {exc}", file=sys.stderr)
++        return None
++    for path, label in ((db_path, "source"), (backup, "backup")):
++        digest = hashlib.sha256(path.read_bytes()).hexdigest()
++        print(f"{label}: {path}  sha256={digest}  bytes={path.stat().st_size}")
++    return backup
++
++
++def migrate(db_path: Path, apply: bool) -> int:
++    if not db_path.exists():
++        print(f"database not found: {db_path}", file=sys.stderr)
++        return 1
++
++    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
++    try:
++        before = _counts(conn)
++        table = _classification_table(conn)
++    finally:
++        conn.close()
++
++    print(f"database: {db_path}")
++    print(f"before: canonical={before['canonical']} legacy={before['legacy']} unknown={before['unknown']}")
++    _print_table(table)
++
++    if before["unknown"] != 0:
++        print(
++            "REFUSING TO WRITE: unknown market values present. Add them to the catalog or clean the data, then re-run.",
++            file=sys.stderr,
++        )
++        return 3
++
++    if before["legacy"] == 0:
++        print("nothing to do: no legacy labels remain (idempotent no-op)")
++        return 0
++
++    planned = [(row[1], LEGACY_LABEL_TO_KEY[row[1]], row[2]) for row in table if row[0] == "legacy"]
++    if not apply:
++        print("dry-run (no changes written). planned updates:")
++        for value, key, count in planned:
++            print(f"  UPDATE legs SET market={key!r} WHERE market={value!r}  ({count} rows)")
++        print("re-run with --yes to apply.")
++        return 0
++
++    backup = make_backup(db_path)
++    if backup is None:
++        return 2
++
++    conn = sqlite3.connect(db_path)
++    try:
++        with conn:  # single transaction: commits on success, rolls back on error
++            for value, key, _count in planned:
++                conn.execute("UPDATE legs SET market=? WHERE market=?", (key, value))
++        after = _counts(conn)
++    finally:
++        conn.close()
++
++    print(f"after: canonical={after['canonical']} legacy={after['legacy']} unknown={after['unknown']}")
++    if after["legacy"] != 0 or after["unknown"] != 0:
++        print("VERIFICATION FAILED: legacy/unknown values remain; backup retained.", file=sys.stderr)
++        return 4
++    total = sum(count for _v, _k, count in planned)
++    print(f"done: {backup.name} kept as backup; migrated {total} rows.")
++    return 0
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = argparse.ArgumentParser(
++        description=(
++            "One-time post-U1 migration: rewrite pre-U1 slip leg market labels to "
++            "canonical keys. Dry-run by default; --yes writes after a backup."
++        ),
++    )
++    parser.add_argument(
++        "--db",
++        default="workspace/data/slips.db",
++        help="path to slips.db (default: workspace/data/slips.db)",
++    )
++    mode = parser.add_mutually_exclusive_group()
++    mode.add_argument("--dry-run", action="store_true", help="report planned changes only (default)")
++    mode.add_argument("--yes", action="store_true", help="apply the migration after a backup")
++    args = parser.parse_args(argv)
++    return migrate(Path(args.db), apply=args.yes)
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())

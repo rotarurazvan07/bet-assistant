@@ -122,7 +122,7 @@ export default function Services() {
                     // Seed BOTH values from the row so switching modes (or
                     // navigating away and back) never loses the other field.
                     // Preserve null values (meaning "not provided") so they
-                    // don't get overwritten on first save (review M4).
+                    // don't get overwritten on first save.
                     ss[r.name] = {
                         mode: r.stake_mode ?? 'units',
                         units: r.units,
@@ -187,7 +187,7 @@ export default function Services() {
             } catch {
                 dirtyRef.current = true;
                 // Clear rowsSavedAt so the error toast restarts its animation and
-                // becomes visible (review M3: forwards fill kept opacity at 0).
+                // becomes visible (a forwards fill would keep opacity at 0).
                 setRowsSavedAt(null);
                 setRowsSaved('⚠ Failed to save profile schedules — will retry on next change');
             }

@@ -1,0 +1,153 @@
+diff --git a/bet_framework/core/Slip.py b/bet_framework/core/Slip.py
+index 481d6aa..17163b9 100644
+--- a/bet_framework/core/Slip.py
++++ b/bet_framework/core/Slip.py
+@@ -198,7 +198,7 @@ class BetSlipConfig:
+     │ max_legs_overflow[0–5]        Extra legs allowed beyond target.          │
+     ├─ QUALITY GATE ───────────────────────────────────────────────────────────┤
+     │ consensus_floor    [0–100]   Minimum source agreement percentage.        │
+-    │ min_odds           [1.01–10] Minimum bookmaker odds (filters near-certs).│
++    │ min_leg_odds       [1.01–10] Minimum odds for any single leg.             │
+     ├─ ODDS TOLERANCE ─────────────────────────────────────────────────────────┤
+     │ tolerance_factor   [0.05–0.80] ±band around ideal per-leg odds.          │
+     │                              None = auto-derived.                        │
+@@ -213,8 +213,7 @@ class BetSlipConfig:
+     │ consensus_shrinkage_k [1.0–10.0] Source-weighted consensus adjustment.    │
+     │                              None = auto (3.0).                          │
+     │ min_source_edge       [0.0–0.50] Minimum edge over implied probability.  │
+-    │ max_single_leg_odds   [1.0–10.0] Maximum odds for any single leg.        │
+-    │                              None = auto (3.5).                          │
++    │ max_leg_odds       [1.01–10] Maximum odds for any single leg.             │
+     │ tol_lower             [0.01–1.00] Lower tolerance band (below ideal).    │
+     │ tol_upper             [0.01–1.00] Upper tolerance band (above ideal).    │
+     │                              None = auto (tol_lower=tol, tol_upper=tol*0.6)│
+@@ -239,14 +238,14 @@ class BetSlipConfig:
+ 
+     # Quality gate
+     consensus_floor: float = 50.0
+-    min_odds: float = 1.05
++    min_leg_odds: float = 1.05
+ 
+     # Odds tolerance
+     tolerance_factor: float | None = None
+ 
+     # Stop condition
+     stop_threshold: float | None = None
+-    min_legs_fill_ratio: float = 0.70
++    min_legs_fill_ratio: float | None = 0.70
+ 
+     # Scoring weights
+     quality_vs_balance: float = 0.5
+@@ -255,7 +254,7 @@ class BetSlipConfig:
+     # Advanced
+     consensus_shrinkage_k: float | None = None
+     min_source_edge: float | None = None
+-    max_single_leg_odds: float | None = None
++    max_leg_odds: float = 3.5
+     tol_lower: float | None = None
+     tol_upper: float | None = None
+     balance_decay: str = "gaussian"
+@@ -270,8 +269,12 @@ class BetSlipConfig:
+         self.target_odds = max(1.10, min(1000.0, self.target_odds))
+         self.target_legs = max(1, min(100, self.target_legs))
+         self.consensus_floor = max(0.0, min(100.0, self.consensus_floor))
+-        self.min_odds = max(1.01, min(10.0, self.min_odds))
+-        self.min_legs_fill_ratio = max(0.50, min(1.00, self.min_legs_fill_ratio))
++        self.min_leg_odds = max(1.01, min(10.0, self.min_leg_odds))
++        # None = Auto → 0.90 fill ratio.
++        self.min_legs_fill_ratio = max(
++            0.50,
++            min(1.00, 0.90 if self.min_legs_fill_ratio is None else self.min_legs_fill_ratio),
++        )
+         self.quality_vs_balance = max(0.0, min(1.0, self.quality_vs_balance))
+         self.consensus_vs_sources = max(0.0, min(1.0, self.consensus_vs_sources))
+ 
+@@ -285,7 +288,7 @@ class BetSlipConfig:
+         # Advanced validation
+         self.consensus_shrinkage_k = _clamp_optional(self.consensus_shrinkage_k, 1.0, 10.0)
+         self.min_source_edge = _clamp_optional(self.min_source_edge, 0.0, 0.50)
+-        self.max_single_leg_odds = _clamp_optional(self.max_single_leg_odds, 1.0, 10.0)
++        self.max_leg_odds = max(1.01, min(10.0, self.max_leg_odds))
+         self.tol_lower = _clamp_optional(self.tol_lower, 0.01, 1.00)
+         self.tol_upper = _clamp_optional(self.tol_upper, 0.01, 1.00)
+         if self.balance_decay not in ("linear", "gaussian"):
+@@ -309,7 +312,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=2,
+         max_legs_overflow=0,  # never add a 3rd leg
+         consensus_floor=75.0,  # only near-certain picks (3/4 sources)
+-        min_odds=1.10,  # filter out dead-cert noisy legs
++        min_leg_odds=1.10,  # filter out dead-cert noisy legs
+         tolerance_factor=0.20,  # band around ideal odds
+         stop_threshold=0.92,  # stop early if 92 % of target reached
+         min_legs_fill_ratio=1.00,  # must fill both legs, no shortcuts
+@@ -317,7 +320,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         consensus_vs_sources=0.70,  # within quality, favour raw consensus %
+         consensus_shrinkage_k=4.0,  # shrinkage to reward multi-source
+         min_source_edge=0.05,  # small edge floor above implied prob
+-        max_single_leg_odds=2.00,  # cap any single leg at 2.00
++        max_leg_odds=2.00,  # cap any single leg at 2.00
+         balance_decay="gaussian",  # smooth penalty for market imbalance
+         min_pick_quality=0.30,  # reject any pick below 0.30 quality
+         included_markets=[],
+@@ -333,14 +336,14 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=3,
+         max_legs_overflow=1,  # allow upgrade to 4-fold if quality is there
+         consensus_floor=55.0,  # moderate agreement threshold
+-        min_odds=1.05,  # keep the default light filter
++        min_leg_odds=1.05,  # keep the default light filter
+         tolerance_factor=0.25,  # balanced band
+         stop_threshold=0.90,  # slightly looser stop than low risk
+         min_legs_fill_ratio=0.70,  # ok to stop at 2/3 legs if odds met
+         quality_vs_balance=0.50,  # perfectly neutral
+         consensus_vs_sources=0.60,  # favor consensus/quality slightly more
+         min_source_edge=0.03,  # weed out low-edge noise
+-        max_single_leg_odds=3.50,  # standard single-leg cap
++        max_leg_odds=3.50,  # standard single-leg cap
+         balance_decay="linear",  # simple linear decay
+         min_pick_quality=0.20,  # standard quality floor
+     ),
+@@ -356,7 +359,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=5,
+         max_legs_overflow=2,  # up to 7-fold for long accumulators
+         consensus_floor=50.0,  # accept even 50/50 split picks
+-        min_odds=1.05,  # keep near-certs available for glue legs
++        min_leg_odds=1.05,  # keep near-certs available for glue legs
+         tolerance_factor=0.40,  # wide band — flexible per-leg odds
+         stop_threshold=0.85,  # stop much earlier if odds climb fast
+         min_legs_fill_ratio=0.60,  # can stop at 3/5 legs
+@@ -364,7 +367,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         consensus_vs_sources=0.45,  # slightly favour source count
+         consensus_shrinkage_k=2.0,  # lighter shrinkage — trust raw signal
+         min_source_edge=None,  # no minimum edge — cast widest net
+-        max_single_leg_odds=5.00,  # higher cap for juicier individual legs
++        max_leg_odds=5.00,  # higher cap for juicier individual legs
+         balance_decay="gaussian",  # softer imbalance penalty
+         min_pick_quality=0.15,  # lower floor — accept borderline picks
+     ),
+@@ -372,7 +375,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+     # Strategy: A 4-leg build targeting 8x.  Scoring is deliberately biased
+     # towards source diversity over raw consensus — this profile trusts
+     # picks that appear across many independent scrapers, even if no single
+-    # source shows overwhelming confidence.  Higher min_odds filters out
++    # source shows overwhelming confidence. Higher min_leg_odds filters out
+     # short-priced legs, ensuring every selection carries meaningful value.
+     # Asymmetric tolerance (auto-derived from tolerance_factor with
+     # tol_upper = factor * 0.6) naturally flattens the upside band,
+@@ -382,7 +385,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=4,
+         max_legs_overflow=1,  # allow 5-fold if math works out
+         consensus_floor=52.0,  # low floor — rely on source breadth
+-        min_odds=1.30,  # firm price floor — no dead certs
++        min_leg_odds=1.30,  # firm price floor — no dead certs
+         tolerance_factor=0.30,  # moderate band
+         tol_lower=0.35,  # slightly wider downside tolerance
+         tol_upper=0.20,  # tighter upside — cap longshots
+@@ -392,7 +395,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         consensus_vs_sources=0.25,  # heavily favour source count
+         consensus_shrinkage_k=4.0,  # strong shrinkage — reward multi-source
+         min_source_edge=0.08,  # meaningful edge requirement
+-        max_single_leg_odds=4.00,  # moderate ceiling
++        max_leg_odds=4.00,  # moderate ceiling
+         balance_decay="linear",  # simple linear decay
+         min_pick_quality=0.25,  # moderate quality floor
+     ),

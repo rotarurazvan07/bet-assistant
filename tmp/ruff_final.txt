@@ -1,0 +1,34 @@
+bet_dashboard/backend/core/logic.py:145:26: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+bet_dashboard/backend/core/logic.py:164:15: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+bet_dashboard/backend/core/logic.py:215:16: BLE001 Do not catch blind exception: `Exception`
+bet_dashboard/backend/core/logic.py:225:16: BLE001 Do not catch blind exception: `Exception`
+bet_dashboard/backend/core/logic.py:272:50: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+bet_dashboard/backend/core/logic.py:275:16: BLE001 Do not catch blind exception: `Exception`
+bet_dashboard/backend/core/logic.py:290:16: BLE001 Do not catch blind exception: `Exception`
+bet_dashboard/backend/core/logic.py:327:20: DTZ006 `datetime.datetime.fromtimestamp()` called without a `tz` argument
+bet_dashboard/backend/core/logic.py:328:16: BLE001 Do not catch blind exception: `Exception`
+bet_dashboard/backend/core/logic.py:332:24: F821 Undefined name `AppLogic`
+bet_dashboard/backend/core/logic.py:722:46: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+bet_dashboard/backend/core/logic.py:765:30: DTZ005 `datetime.datetime.now()` called without a `tz` argument
+bet_dashboard/backend/routers/analytics.py:23:5: F811 Redefinition of unused `_get_status_value` from line 5: `_get_status_value` redefined here
+bet_dashboard/backend/routers/analytics.py:618:9: PLC0206 Extracting value from dictionary without calling `.items()`
+bet_framework/BetAssistant.py:270:9: PYI034 `__enter__` methods in classes like `BetAssistant` usually return `self` at runtime
+bet_framework/BetAssistant.py:270:28: F821 Undefined name `BetAssistant`
+bet_framework/BetAssistant.py:306:20: BLE001 Do not catch blind exception: `Exception`
+bet_framework/BetAssistant.py:356:21: RUF012 Mutable default value for class attribute
+bet_framework/BetAssistant.py:585:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/BetAssistant.py:737:13: S110 `try`-`except`-`pass` detected, consider logging the exception
+bet_framework/BetAssistant.py:737:20: BLE001 Do not catch blind exception: `Exception`
+bet_framework/BetAssistant.py:792:20: BLE001 Do not catch blind exception: `Exception`
+bet_framework/BetAssistant.py:803:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/BetAssistant.py:1109:34: DTZ007 Naive datetime constructed using `datetime.datetime.strptime()` without %z
+bet_framework/MatchesManager.py:244:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/MatchesManager.py:283:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/MatchesManager.py:379:9: S110 `try`-`except`-`pass` detected, consider logging the exception
+bet_framework/MatchesManager.py:379:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/MatchesManager.py:463:20: BLE001 Do not catch blind exception: `Exception`
+bet_framework/MatchesManager.py:742:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/MatchesManager.py:786:16: BLE001 Do not catch blind exception: `Exception`
+bet_framework/MatchesManager.py:825:20: BLE001 Do not catch blind exception: `Exception`
+Found 32 errors.
+No fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).
