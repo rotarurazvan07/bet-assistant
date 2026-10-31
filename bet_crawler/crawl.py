@@ -99,9 +99,13 @@ class CrawlerFactory:
                 return crawler_key
         raise ValueError(f"No crawler registered for URL: {url}")
 
-    def _normalise_runner_sets(self, runner_sets: dict[str, list[str]]) -> dict[str, list[str]]:
+    def _normalise_runner_sets(
+        self, runner_sets: dict[str, list[str]]
+    ) -> dict[str, list[str]]:
         """Normalise runner sets, adding an 'all' set."""
-        normalised = {name: list(crawler_keys) for name, crawler_keys in runner_sets.items()}
+        normalised = {
+            name: list(crawler_keys) for name, crawler_keys in runner_sets.items()
+        }
         normalised.setdefault("all", list(self.crawler_keys.keys()))
         return normalised
 
@@ -129,7 +133,10 @@ def load_runtime(config_dir: str):
     crawler_keys = scraper_config.get("CRAWLER_KEYS")
     runner_sets = scraper_config.get("RUNNER_SETS")
     max_chunk_size = scraper_config.get("MAX_CHUNK_SIZE")
-    skip_patterns = tuple((item["pattern"], item["description"]) for item in scraper_config.get("SKIP_PATTERNS"))
+    skip_patterns = tuple(
+        (item["pattern"], item["description"])
+        for item in scraper_config.get("SKIP_PATTERNS")
+    )
     runtime_settings = CrawlerRuntimeSettings(
         num_days_ahead=int(scraper_config.get("num_days_ahead")),
         local_timezone=str(scraper_config.get("local_timezone")),
@@ -165,7 +172,11 @@ def load_profile(profile_path: str) -> tuple[str, dict[str, Any]]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the 5-mode CLI parser (prepare-scrape|scrape|merge|generate-slips|validate-slips)."""
+    """Build the 5-mode CLI parser (prepare-scrape|scrape|merge|generate-slips|validate-slips).
+
+    Returns:
+        Configured ArgumentParser with all CLI options.
+    """
     p = argparse.ArgumentParser(
         description="Bet Assistant CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -196,7 +207,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _install_uncaught_exception_logging() -> None:
-    """Log uncaught CLI and worker-thread failures into the structured stream."""
+    """Log uncaught CLI and worker-thread failures into the structured stream.
+
+    Installs a custom sys.excepthook that captures unhandled exceptions
+    and logs them with structured metadata (mode, event type, etc.).
+    KeyboardInterrupt and SystemExit are passed through to the default handler.
+    """
 
     def main_exception_hook(exc_type, exc_value, traceback) -> None:
         if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):
@@ -247,18 +263,24 @@ if __name__ == "__main__":
     set_log_context(
         stage=args.mode,
         runner=args.runners,
-        chunk_id=os.path.basename(args.matches_db_path) if args.matches_db_path else None,
+        chunk_id=os.path.basename(args.matches_db_path)
+        if args.matches_db_path
+        else None,
     )
 
     if args.mode == "prepare-scrape":
         if not args.runners or not args.config_dir:
-            build_parser().error("--runners and --config_dir are required for prepare-scrape")
+            build_parser().error(
+                "--runners and --config_dir are required for prepare-scrape"
+            )
         runtime = load_runtime(args.config_dir)
         prepare_scrape(args.runners, runtime["factory"], runtime["max_chunk_size"])
 
     elif args.mode == "scrape":
         if not args.urls or not args.matches_db_path or not args.config_dir:
-            build_parser().error("--urls, --matches_db_path, and --config_dir are required for scrape")
+            build_parser().error(
+                "--urls, --matches_db_path, and --config_dir are required for scrape"
+            )
         runtime = load_runtime(args.config_dir)
         scrape(
             args.matches_db_path,
@@ -269,7 +291,9 @@ if __name__ == "__main__":
 
     elif args.mode == "merge":
         if not args.matches_db_path or not args.chunks_dir or not args.config_dir:
-            build_parser().error("--matches_db_path, --chunks_dir, and --config_dir are required for merge")
+            build_parser().error(
+                "--matches_db_path, --chunks_dir, and --config_dir are required for merge"
+            )
         runtime = load_runtime(args.config_dir)
         merge(
             args.matches_db_path,
@@ -281,9 +305,13 @@ if __name__ == "__main__":
 
     elif args.mode == "generate-slips":
         if not args.matches_db_path or not args.slips_db_path or not args.profile_path:
-            build_parser().error("--matches_db_path, --slips_db_path, and --profile_path are required for generate-slips")
+            build_parser().error(
+                "--matches_db_path, --slips_db_path, and --profile_path are required for generate-slips"
+            )
         profile_name, profile_data = load_profile(args.profile_path)
-        generate_slips(args.matches_db_path, args.slips_db_path, profile_name, profile_data)
+        generate_slips(
+            args.matches_db_path, args.slips_db_path, profile_name, profile_data
+        )
 
     elif args.mode == "validate-slips":
         if not args.slips_db_path:

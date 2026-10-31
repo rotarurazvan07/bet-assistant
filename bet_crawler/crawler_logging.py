@@ -22,8 +22,14 @@ from typing import Any
 from scrape_kit import get_logger as _get_logger
 
 SCHEMA_VERSION = 1
-_LOCAL_RUN_ID = os.environ.get("SCRAPE_RUN_ID") or os.environ.get("GITHUB_RUN_ID") or str(uuid.uuid4())
-_CONTEXT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("crawler_log_context", default=None)
+_LOCAL_RUN_ID = (
+    os.environ.get("SCRAPE_RUN_ID")
+    or os.environ.get("GITHUB_RUN_ID")
+    or str(uuid.uuid4())
+)
+_CONTEXT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "crawler_log_context", default=None
+)
 _HANDLER_LOCK = threading.Lock()
 _EVENT_HANDLERS: dict[str, logging.Handler] = {}
 _EVENT_COUNTS: dict[tuple[str, str, str], dict[str, int]] = {}
@@ -56,7 +62,9 @@ class JsonEventFormatter(logging.Formatter):
         payload: dict[str, Any] = {
             "schema_version": SCHEMA_VERSION,
             "timestamp": (
-                datetime.fromtimestamp(record.created, UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                datetime.fromtimestamp(record.created, UTC)
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z")
             ),
             "severity": record.levelname,
             "event": event,
@@ -72,12 +80,18 @@ class JsonEventFormatter(logging.Formatter):
             "logger": record.name,
             "message": message,
             "run_id": context.get("run_id", _LOCAL_RUN_ID),
-            "run_attempt": context.get("run_attempt", os.environ.get("GITHUB_RUN_ATTEMPT")),
+            "run_attempt": context.get(
+                "run_attempt", os.environ.get("GITHUB_RUN_ATTEMPT")
+            ),
             "job": context.get("job", os.environ.get("GITHUB_JOB")),
-            "runner": getattr(record, "runner", context.get("runner", os.environ.get("RUNNER_NAME"))),
+            "runner": getattr(
+                record, "runner", context.get("runner", os.environ.get("RUNNER_NAME"))
+            ),
             "stage": getattr(record, "stage", context.get("stage")),
             "chunk_id": getattr(record, "chunk_id", context.get("chunk_id")),
-            "source_key": getattr(record, "source_key", context.get("source_key", inferred_source_key)),
+            "source_key": getattr(
+                record, "source_key", context.get("source_key", inferred_source_key)
+            ),
             "finder": getattr(record, "finder", context.get("finder", inferred_finder)),
             "url": getattr(record, "url", context.get("url")),
             "match_id": getattr(record, "match_id", context.get("match_id")),
@@ -96,10 +110,14 @@ class JsonEventFormatter(logging.Formatter):
                 totals["errors"] += 1
             elif record.levelno >= logging.WARNING:
                 totals["warnings"] += 1
-            if event == "match.added" and payload["logger"] == "bet_crawler.finders.BaseMatchFinder":
+            if (
+                event == "match.added"
+                and payload["logger"] == "bet_crawler.finders.BaseMatchFinder"
+            ):
                 totals["matches_added"] += 1
             elif (
-                event in ("match.skipped", "match.parse.failed") and payload["logger"] == "bet_crawler.finders.BaseMatchFinder"
+                event in ("match.skipped", "match.parse.failed")
+                and payload["logger"] == "bet_crawler.finders.BaseMatchFinder"
             ):
                 totals["matches_skipped"] += 1
         for key in (
@@ -124,7 +142,14 @@ class JsonEventFormatter(logging.Formatter):
 
 
 def _infer_finder(logger_name: str) -> tuple[str | None, str | None]:
-    """Infer finder class and source key from a finder module logger name."""
+    """Infer finder class and source key from a finder module logger name.
+
+    Args:
+        logger_name: The logger name to parse (e.g., "bet_crawler.finders.PredictzFinder").
+
+    Returns:
+        Tuple of (source_key, snake_case_finder_name) or (None, None) if not a finder logger.
+    """
     source = logger_name.removeprefix("bet_crawler.finders.").split(".", maxsplit=1)[0]
     if source == logger_name:
         return None, None
@@ -135,7 +160,14 @@ def _infer_finder(logger_name: str) -> tuple[str | None, str | None]:
 
 
 def _default_event(level: int) -> str:
-    """Map legacy log levels to broad machine-readable event names."""
+    """Map legacy log levels to broad machine-readable event names.
+
+    Args:
+        level: The logging level integer.
+
+    Returns:
+        Event name string for the given level.
+    """
     if level >= logging.ERROR:
         return "application.error"
     if level >= logging.WARNING:
@@ -144,7 +176,14 @@ def _default_event(level: int) -> str:
 
 
 def _default_outcome(level: int) -> str:
-    """Map legacy log levels to default event outcomes."""
+    """Map legacy log levels to default event outcomes.
+
+    Args:
+        level: The logging level integer.
+
+    Returns:
+        Outcome string for the given level.
+    """
     if level >= logging.ERROR:
         return "error"
     if level >= logging.WARNING:
@@ -153,6 +192,14 @@ def _default_outcome(level: int) -> str:
 
 
 def _json_handler(path: str) -> logging.Handler:
+    """Get or create a JSONL file handler for the given path.
+
+    Args:
+        path: Path to the JSONL event log file.
+
+    Returns:
+        Configured logging.Handler for JSONL output.
+    """
     resolved = str(Path(path).expanduser().resolve())
     with _HANDLER_LOCK:
         handler = _EVENT_HANDLERS.get(resolved)
@@ -165,12 +212,26 @@ def _json_handler(path: str) -> logging.Handler:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return the familiar scrape-kit logger, with optional JSONL event output."""
+    """Return the familiar scrape-kit logger, with optional JSONL event output.
+
+    Args:
+        name: Logger name (typically __name__).
+
+    Returns:
+        Configured logger instance.
+    """
     return _configure_logger(_get_logger(name))
 
 
 def _configure_logger(logger: logging.Logger) -> logging.Logger:
-    """Add crawler-specific filters and the currently selected JSONL handler."""
+    """Add crawler-specific filters and the currently selected JSONL handler.
+
+    Args:
+        logger: The logger instance to configure.
+
+    Returns:
+        The configured logger instance.
+    """
     if not any(isinstance(item, ExceptionContextFilter) for item in logger.filters):
         logger.addFilter(ExceptionContextFilter())
     event_path = os.environ.get("SCRAPE_EVENT_LOG_PATH")
@@ -185,7 +246,7 @@ def configure_event_logging(path: str | None = None) -> None:
     """Attach the JSONL sidecar to already-created crawler loggers.
 
     Primarily useful for embedding the crawler or testing; command-line runs
-    should set ``SCRAPE_EVENT_LOG_PATH`` before importing the crawler modules.
+    should set SCRAPE_EVENT_LOG_PATH before importing the crawler modules.
     """
     if path is not None:
         os.environ["SCRAPE_EVENT_LOG_PATH"] = path
@@ -196,13 +257,20 @@ def configure_event_logging(path: str | None = None) -> None:
     for name, candidate in logging.Logger.manager.loggerDict.items():
         if name.startswith("bet_crawler.") and isinstance(candidate, logging.Logger):
             for existing in tuple(candidate.handlers):
-                if isinstance(existing.formatter, JsonEventFormatter) and existing is not handler:
+                if (
+                    isinstance(existing.formatter, JsonEventFormatter)
+                    and existing is not handler
+                ):
                     candidate.removeHandler(existing)
             _configure_logger(candidate)
 
 
 def disable_event_logging() -> None:
-    """Detach and close JSONL handlers (mainly for isolated tests)."""
+    """Detach and close JSONL handlers (mainly for isolated tests).
+
+    Removes JsonEventFormatter handlers from all bet_crawler loggers
+    and closes the underlying file handles.
+    """
     for name, candidate in logging.Logger.manager.loggerDict.items():
         if name.startswith("bet_crawler.") and isinstance(candidate, logging.Logger):
             for handler in tuple(candidate.handlers):
@@ -248,7 +316,11 @@ def get_event_totals(*, stage: str, chunk_id: str | None = None) -> dict[str, in
     result = {"warnings": 0, "errors": 0, "matches_added": 0, "matches_skipped": 0}
     with _HANDLER_LOCK:
         for (event_run, event_stage, event_chunk), counts in _EVENT_COUNTS.items():
-            if event_run == str(run_id) and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
+            if (
+                event_run == str(run_id)
+                and event_stage == stage
+                and (chunk_id is None or event_chunk == target_chunk)
+            ):
                 result["warnings"] += counts["warnings"]
                 result["errors"] += counts["errors"]
                 result["matches_added"] += counts["matches_added"]
@@ -264,7 +336,11 @@ def reset_event_totals(*, stage: str, chunk_id: str | None = None) -> None:
     with _HANDLER_LOCK:
         for key in tuple(_EVENT_COUNTS):
             event_run, event_stage, event_chunk = key
-            if event_run == run_id and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
+            if (
+                event_run == run_id
+                and event_stage == stage
+                and (chunk_id is None or event_chunk == target_chunk)
+            ):
                 del _EVENT_COUNTS[key]
 
 
@@ -336,5 +412,7 @@ def source_key_for(crawler: Any, factory: Any = None) -> str:
         "win_draw_win": "windrawwin",
         "x_g_score": "xgscore",
     }
-    source_key = re.sub(r"[^a-z0-9_]", "", re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower())
+    source_key = re.sub(
+        r"[^a-z0-9_]", "", re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+    )
     return aliases.get(source_key, source_key)
