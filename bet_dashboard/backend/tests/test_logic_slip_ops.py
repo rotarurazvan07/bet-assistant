@@ -1,4 +1,4 @@
-"""[P0] Unit tests for AppLogic slip operations (issue #59).
+"""[P0] Unit tests for AppLogic slip operations.
 
 Covers: build_slip / build_preview exclusion semantics, generate_slips
 (profile loop, dynamic units, auto-exclusion), slip persistence + broadcast
@@ -333,12 +333,7 @@ class TestAppLogicSlipOperations:
         assert "live_data" not in broadcast_capture[-1]
 
     def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
-        """[P0] generate_and_broadcast runs DUE profiles and persists the timestamp."""
-        from datetime import datetime
-
-        now = datetime.now()
-        due_hour = now.hour
-        due_minute = 0
+        """[P0] generate_and_broadcast runs active profiles and persists the timestamp."""
         profiles = {
             "p1": {
                 "target_odds": 2.0,
@@ -351,8 +346,6 @@ class TestAppLogicSlipOperations:
                 "odds_movement_strength_min": 0.2,
                 "units": 1.0,
                 "run_daily_count": 1,
-                "generate_hour": due_hour,
-                "generate_minute": due_minute,
             }
         }
         env = build_app(tmp_path, monkeypatch, profiles=profiles)
@@ -379,8 +372,8 @@ class TestAppLogicSlipOperations:
     def _seed_stats_slips(app) -> None:
         """3 settled slips over 3 days + 1 pending slip.
 
-        Won 1.0u @2.0 (D1), Lost 2.0u @3.0 (D2), Won 1.0u @4.0 (D3),
-        Pending 1.0u @5.0 (D3). Dates are fixed 2030 values: for any real
+        Won 1.0u @2.0, Lost 2.0u @3.0, Won 1.0u @4.0,
+        Pending 1.0u @5.0. Dates are fixed 2030 values: for any real
         now < 2030 all slips fall in the recent edge window, so the rolling
         trend is deterministic.
         """

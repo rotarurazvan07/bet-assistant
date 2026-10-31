@@ -1,4 +1,4 @@
-// ui.tsx primitives (issue #64 P0). SPEC DIVERGENCE: spec wanted
+// ui.tsx primitives. SPEC DIVERGENCE: spec wanted
 // 'Button, Input, Select' components — actual exports are Tooltip,
 // TooltipIcon, LiveDot, StatCard, Toggle, SectionHeader, StatusBadge.
 

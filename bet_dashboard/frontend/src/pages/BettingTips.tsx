@@ -140,10 +140,10 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
-    // AC-07 (#39): last market cell that interacted with the slip builder.
+    // last market cell that interacted with the slip builder.
     const lastSlipTriggerRef = useRef<HTMLElement | null>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
-    // AC-01/AC-03/AC-04: ephemeral add-leg feedback. No persistence.
+    // //ephemeral add-leg feedback. No persistence.
     const [pulsingKey, setPulsingKey] = useState<string | null>(null);
     const [legAddNonce, setLegAddNonce] = useState(0);
     const [toast, setToast] = useState<string | null>(null);
@@ -250,12 +250,12 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         queueMicrotask(() => filtersBtnRef.current?.focus());
     }
 
-    // #39 AC-07: mirror closeFilters — on minimize, restore focus to the
+    // #39mirror closeFilters — on minimize, restore focus to the
     // triggering market cell; fall back to the re-mounted minimized pill
     // when the cell is gone (pagination/unmount).
     function handleToggleSlip() {
         const minimizing = !isSlipMinimized;
-        // AC-07 (#39): expanding from the pill records it so Esc can return there
+        // expanding from the pill records it so Esc can return there
         // when no market cell was used.
         if (!minimizing && !lastSlipTriggerRef.current) {
             lastSlipTriggerRef.current = document.querySelector<HTMLElement>('.floating-slip-minimized');
@@ -276,7 +276,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
 
     // Popup handlers
     function flyClone(source: HTMLElement) {
-        // AC-06: skip motion when the user asked for less of it.
+        // skip motion when the user asked for less of it.
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         const target = document.querySelector('[data-slip-panel]') ?? document.querySelector('.floating-slip-minimized');
         if (!target) return;
@@ -307,7 +307,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     }
 
     function handleCellClick(leg: CandidateLeg, element?: HTMLElement) {
-        // AC-07 (#39): remember the trigger so minimize can restore focus.
+        // remember the trigger so minimize can restore focus.
         if (element) lastSlipTriggerRef.current = element;
         // Validate leg before adding
         if (leg.odds == null || leg.odds <= 0) {
@@ -323,7 +323,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             alert('Cannot add leg: Missing result URL for validation');
             return;
         }
-        // AC-08: compute exists before setPendingLegs; feedback only on append.
+        // compute exists before setPendingLegs; feedback only on append.
         const exists = pendingLegs.some(l => l.result_url === leg.result_url && l.market === leg.market);
         if (exists) {
             setPendingLegs(prev => prev.filter(l => !(l.result_url === leg.result_url && l.market === leg.market)));
@@ -378,7 +378,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             }));
         try {
             await addSlip('manual', manualLegs, units);
-            // AC-06: first successful addSlip (Discover) — separate from #38 toast.
+            // first successful addSlip (Discover) — separate from toast.
             if (markFirstSlip()) setMilestoneOpen(true);
             setPendingLegs([]);
             // Refresh slip selections after adding
@@ -670,7 +670,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         background: 'var(--bg-card)',
                         borderRadius: 'var(--radius-lg)'
                     }}>
-                        {/* AC-02: Discover empty when total === 0 (incl. fetch-error fallback) */}
+                        {/*Discover empty when total === 0 (incl. fetch-error fallback) */}
                         {!loading && data && data.total === 0 && (
                             <EmptyState
                                 icon={<DiscoverEmptyIcon />}
@@ -786,7 +786,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 onClose={() => setToast(null)}
                 sx={{
                     color: 'var(--text-muted-strong)',
-                    // AC-10/AC-11: .MuiAlert-message owns the toast text; root color does not reach it.
+                    // /.MuiAlert-message owns the toast text; root color does not reach it.
                     '& .MuiAlert-message': { color: 'var(--text-secondary)' },
                     backgroundColor: 'color-mix(in srgb, var(--bg-card) 82%, var(--win) 18%)',
                     borderColor: 'var(--win-border)',

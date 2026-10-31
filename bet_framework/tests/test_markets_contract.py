@@ -1,4 +1,4 @@
-"""Contract freeze for the canonical market catalog (AC-01).
+"""Contract freeze for the canonical market catalog.
 
 Characterization tests: they pin the CURRENT market identity (persisted DB
 field spellings), display labels, types and column keys before/after any
@@ -7,7 +7,7 @@ not reach a database.
 
 Identity (``key``) is the persisted Odds/DB field spelling - exactly what
 matches.db odds JSON and odds-* columns use. Display text lives in
-``label``. The two were two layers until U1 (see D1 in story 114-2):
+``label``. The two were two layers until U1:
 there is no translation layer anymore. ``crawler_field`` and
 ``lookup_key`` were deleted as tautologies - tests asserting them are
 gone with them.
@@ -108,7 +108,7 @@ def test_enum_values_match_catalog() -> None:
 
 
 def test_labels_stay_display_text() -> None:
-    """U1 keeps MarketSpec.label as the presentation string (D3)."""
+    """U1 keeps MarketSpec.label as the presentation string."""
     assert MARKET_BY_KEY["home"].label == "1"
     assert MARKET_BY_KEY["btts_yes"].label == "BTTS Yes"
     assert MARKET_BY_KEY["over_25"].label == "Over 2.5"

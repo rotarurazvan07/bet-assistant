@@ -1,4 +1,4 @@
-"""[P0] T4: profile generation ordering + per-profile auto-generation schedules.
+"""[P0]profile generation ordering + per-profile auto-generation schedules.
 
 Covers AppLogic._get_active_profiles ordering/active filtering,
 _profile_schedule_met windows and once-per-day guards, _do_generate
@@ -285,7 +285,7 @@ class TestDoGeneratePerProfile:
         before = len(broadcast_capture)
         env.app._do_generate()
         assert env.app.settings.get("runtime_state") is None
-        # F17: a no-op tick appends no slips_updated broadcast, so clients do
+        # a no-op tick appends no slips_updated broadcast, so clients do
         # not refetch slips for nothing.
         assert len(broadcast_capture) == before
 
@@ -317,7 +317,7 @@ class TestProfileSchedulesAPI:
         all_rows = env.app.get_profile_schedules()
         rows = {r["name"]: r for r in all_rows}
         assert {"legacy", "auto", "off"} <= set(rows)
-        # Issue #95: rows carry computed scheduler state (stake_mode,
+        # rows carry computed scheduler state (stake_mode,
         # last_generated_at/next_run_at/last_run_status/last_run_error), and
         # "order" is the EFFECTIVE UI position (0-based), never the raw null —
         # a profile without order on disk still has a concrete row position.
@@ -349,7 +349,7 @@ class TestProfileSchedulesAPI:
         assert rows["auto"]["order"] == len(all_rows) - 1
 
     def test_get_profile_schedules_order_reflects_ui_position(self, env) -> None:
-        """[P0] Issue #95 follow-up: a NEW profile has order=null in YAML, but
+        """[P0] follow-up: a NEW profile has order=null in YAML, but
         the Services tab shows it at a concrete position — the GET row must
         report that effective position (and rows come back in UI order), not
         the raw null. The autosave writes these back, so YAML converges."""
@@ -396,7 +396,7 @@ class TestProfileSchedulesAPI:
         assert stored["target_odds"] == PROFILE["target_odds"]
 
     def test_save_profile_schedules_stake_mode_switch_preserves_both_fields(self, env) -> None:
-        """[P0] Issue #95: switching stake_mode units→payout keeps BOTH values on
+        """[P0]: switching stake_mode units→payout keeps BOTH values on
         disk — stake_mode only selects which is active, never nulls the other."""
         _save_profiles(env.app, {"p": {**PROFILE, "units": 1.0, "target_payout": 25.0}})
         env.app.save_profile_schedules([{"name": "p", "stake_mode": "payout", "units": 1.0, "target_payout": 50.0}])
@@ -406,7 +406,7 @@ class TestProfileSchedulesAPI:
         assert stored["target_payout"] == 50.0
 
     def test_save_profile_schedules_without_stake_mode_keeps_null_fields(self, env) -> None:
-        """[P0] Issue #95: no stake_mode → null units/payout means 'not provided', persisted value kept."""
+        """[P0]: no stake_mode → null units/payout means 'not provided', persisted value kept."""
         _save_profiles(env.app, {"p": {**PROFILE, "units": 2.0, "target_payout": 30.0}})
         env.app.save_profile_schedules([{"name": "p", "units": None, "target_payout": None}])
         stored = env.app.settings.get("profiles")["p"]
@@ -414,7 +414,7 @@ class TestProfileSchedulesAPI:
         assert stored["target_payout"] == 30.0
 
     def test_save_profile_schedules_value_edit_in_units_mode_keeps_payout(self, env) -> None:
-        """[P0] Issue #95: editing units while stake_mode=units (no mode switch) must not null payout."""
+        """[P0]: editing units while stake_mode=units (no mode switch) must not null payout."""
         _save_profiles(env.app, {"p": {**PROFILE, "units": 1.0, "target_payout": 50.0, "stake_mode": "units"}})
         env.app.save_profile_schedules([{"name": "p", "stake_mode": "units", "units": 3.0}])
         stored = env.app.settings.get("profiles")["p"]
@@ -422,7 +422,7 @@ class TestProfileSchedulesAPI:
         assert stored["target_payout"] == 50.0  # untouched — not nulled
 
     def test_get_profile_schedules_returns_persisted_stake_mode(self, env) -> None:
-        """[P0] Issue #95: GET returns the persisted stake_mode (not just inferred)."""
+        """[P0]: GET returns the persisted stake_mode (not just inferred)."""
         _save_profiles(env.app, {"p": {**PROFILE, "units": 1.0, "target_payout": 50.0, "stake_mode": "payout"}})
         rows = {r["name"]: r for r in env.app.get_profile_schedules()}
         assert rows["p"]["stake_mode"] == "payout"
@@ -471,7 +471,7 @@ class TestProfileSchedulesAPI:
 
 
 class TestOrderingRobustness:
-    """[P0] F4/F2: hand-edited YAML and legacy profiles survive the ticker."""
+    """[P0]/hand-edited YAML and legacy profiles survive the ticker."""
 
     def test_mixed_order_types_do_not_raise(self, env) -> None:
         """[P0] A quoted or float order alongside ints sorts instead of raising."""

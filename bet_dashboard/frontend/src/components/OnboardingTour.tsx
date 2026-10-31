@@ -37,7 +37,7 @@ function persistDone(): void {
     try {
         localStorage.setItem(TOUR_DONE_KEY, '1');
     } catch {
-        // Ignore quota / private-mode failures (#39 pattern).
+        // Ignore quota / private-mode failures.
     }
 }
 
@@ -51,14 +51,14 @@ function firstTarget(selectors: readonly string[]): HTMLElement | null {
 
 const ALERT_SX = {
     color: 'var(--text-muted-strong)',
-    // AC-06: contrast on the message node (#38 CR-FAIL).
+    // contrast on the message node.
     '& .MuiAlert-message': { color: 'var(--text-secondary)' },
     backgroundColor: 'color-mix(in srgb, var(--bg-card) 82%, var(--win) 18%)',
     borderColor: 'var(--win-border)',
     '& .MuiAlert-icon': { color: 'var(--win)' },
 } as const;
 
-/** Satisfies: AC-06 */
+/** Satisfies: */
 export function FirstSlipToast({ open, onClose }: { open: boolean; onClose: () => void }) {
     const isMobile = useMediaQuery('(max-width:767.95px)');
     return (
@@ -75,7 +75,7 @@ export function FirstSlipToast({ open, onClose }: { open: boolean; onClose: () =
     );
 }
 
-/** Satisfies: AC-01, AC-02, AC-03, AC-04, AC-07 */
+/** Satisfies:*/
 export default function OnboardingTour() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -113,7 +113,7 @@ export default function OnboardingTour() {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
-            // AC-07: swallow Esc so #39 slip minimize does not fire.
+            // swallow Esc so slip minimize does not fire.
             e.stopPropagation();
             e.preventDefault();
             finish();
@@ -154,7 +154,7 @@ export default function OnboardingTour() {
                     <p style={{ color: 'var(--text-secondary)', margin: '8px 0 12px', fontSize: 14 }}>
                         {STEPS[step].body}
                     </p>
-                    {/* AC-07: dots are decorative; announce step via live text. */}
+                    {/*dots are decorative; announce step via live text. */}
                     <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }} aria-live="polite">{`Step ${step + 1} of 3`}</span>
                     <MobileStepper
                         variant="dots"

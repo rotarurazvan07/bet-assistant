@@ -9,7 +9,7 @@ interface Props {
     onRemoveLeg: (index: number) => void;
     onSubmit: (units: number) => void;
     onToggleMinimize?: () => void;
-    // AC-02 (#39): inside the mobile bottom sheet the paper height constrains
+    // inside the mobile bottom sheet the paper height constrains
     // the list, so the desktop-only calc() maxHeight must be dropped.
     isMobileSheet?: boolean;
 }
@@ -33,17 +33,17 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
         onSubmit(units);
     };
 
-    // AC-04/AC-05 (#39): the panel owns `units`, so the keys live here.
+    // /the panel owns `units`, so the keys live here.
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
             if (event.ctrlKey && event.key === 'Enter') {
-                if (legs.length === 0) return; // AC-04: empty slip is a no-op, no alert
+                if (legs.length === 0) return; // empty slip is a no-op, no alert
                 event.preventDefault();
                 onSubmit(units); // same path as the Add Slip button
                 return;
             }
             if (event.key === 'Escape') {
-                // AC-05: Filters wins when its MUI Modal is actually open.
+                // Filters wins when its MUI Modal is actually open.
                 // SwipeableDrawer keepMounted leaves a hidden .MuiModal-root on mobile.
                 const openModal = document.querySelector('.MuiModal-root:not([aria-hidden="true"])');
                 if (openModal) return;
@@ -111,7 +111,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                         onClick={handleSubmit}
                         className="w-full px-4 py-3 rounded text-base font-mono uppercase tracking-wider transition-opacity hover:opacity-90"
                         style={{
-                            // AC-13 (#39): --accent is 3.84:1; --accent-dark is 5.17:1 (#36 lesson).
+                            // --accent is 3.84:1; --accent-dark is 5.17:1.
                             background: 'var(--accent-dark)',
                             color: 'var(--text-bright)',
                         }}
@@ -167,7 +167,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                             </div>
 
                             <div className="flex items-center justify-between mb-2">
-                                {/* AC-13 (#39): --accent on accent-glow is 3.15:1; --text-accent is 4.61:1. */}
+                                {/*--accent on accent-glow is 3.15:1; --text-accent is 4.61:1. */}
                                 <BaseBadge status="info">
                                     <span style={{ color: 'var(--text-accent)' }}>{marketLabel(leg.market)}</span> <span style={{ color: 'var(--text-accent)' }}>@{leg.odds != null ? leg.odds.toFixed(2) : '—'}</span>
                                 </BaseBadge>

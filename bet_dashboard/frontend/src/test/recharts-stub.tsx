@@ -1,4 +1,4 @@
-// Shared recharts test stub (final-gate fix, cycle 13).
+// Shared recharts test stub.
 //
 // WHY THIS EXISTS: vitest runs with pool 'threads' + isolate:false +
 // fileParallelism:false — ONE worker, ONE module registry, files in sequence.

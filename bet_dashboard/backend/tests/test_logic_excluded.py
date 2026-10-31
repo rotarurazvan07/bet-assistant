@@ -1,4 +1,4 @@
-"""[P0] Unit tests for AppLogic exclusion management (issue #59).
+"""[P0] Unit tests for AppLogic exclusion management.
 
 Covers: add/remove/clear/get_manual_excluded (in-memory server-lifetime
 set), _combined_excluded (manual ∪ DB exclusions), get_pending_urls

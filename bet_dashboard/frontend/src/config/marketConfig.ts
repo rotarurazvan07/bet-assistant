@@ -37,7 +37,7 @@ export function strippedKey(oddsKey: string): string {
  */
 export const MARKET_COLUMNS: MarketColumn[] = [
     // Identity = canonical MarketKey values (DB/Odds field spellings, U1 -
-    // story 114-2); label = presentation text. Bind by market, never position.
+    // ); label = presentation text. Bind by market, never position.
     { market: 'home', label: '1', consKey: 'cons_home', oddsKey: 'odds_home', marketType: 'result' },
     { market: 'draw', label: 'X', consKey: 'cons_draw', oddsKey: 'odds_draw', marketType: 'result' },
     { market: 'away', label: '2', consKey: 'cons_away', oddsKey: 'odds_away', marketType: 'result' },

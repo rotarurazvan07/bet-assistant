@@ -123,7 +123,7 @@ class VitibetFinder(BaseMatchFinder):
                     # Score prediction
                     score_div = match_link.find("div", class_="mc-score")
                     tokens = [] if score_div is None else score_div.text.strip().split(" : ")
-                    # AC-09: skip if token is not a number
+                    # skip if token is not a number
                     if len(tokens) < 2:
                         log_event(
                             logger,

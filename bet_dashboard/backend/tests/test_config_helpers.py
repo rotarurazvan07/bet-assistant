@@ -1,6 +1,6 @@
-"""Configuration / Profile tests for core.config_helpers (issue #62, cycle 6).
+"""Configuration / Profile tests for core.config_helpers.
 
-Scope (per issue #62 spec, testing-subissues-58-71.md):
+Scope:
 - _yaml_to_config() parses ALL BetSlipConfig fields
 - ensure_default_profiles() seeds built-in profiles into a fresh config dir
 - Clamping boundaries for every clamped field (target_odds [1.10, 1000],
@@ -9,7 +9,7 @@ Scope (per issue #62 spec, testing-subissues-58-71.md):
 - Advanced fields parsed and preserved
 - Profile YAML round-trip (save -> load -> verify) via SettingsManager
 
-Spec/implementation divergence (documented, cycle-3 finding): the issue text
+Spec/implementation divergence: the issue text
 says ensure_default_profiles creates low/medium/high_risk, but PROFILES also
 ships value_hunter, so every fresh config dir receives FOUR built-in profiles
 (all with run_daily_count=0, i.e. inactive by default). Tests pin actual
@@ -200,7 +200,7 @@ class TestYamlToConfig:
         assert cfg.balance_decay == defaults.balance_decay
 
     def test_excluded_sources_list_preserved(self) -> None:
-        """[P1] Issue #62: excluded_sources list must pass through intact."""
+        """[P1]: excluded_sources list must pass through intact."""
         sources = ["source_a", "source_b", "source_c"]
         cfg = _yaml_to_config({"excluded_sources": sources})
         assert cfg.excluded_sources == sources
@@ -239,7 +239,7 @@ class TestYamlToConfig:
 
 class TestConfigClamping:
     """[P0] Clamping boundaries for every clamped BetSlipConfig field,
-    exercised through the _yaml_to_config path (issue #62: test ALL clamping
+    exercised through the _yaml_to_config path (: test ALL clamping
     boundaries; coverage target >= 95% for config_helpers.py)."""
 
     @pytest.mark.parametrize("field,value,expected", CLAMP_CASES)
@@ -250,14 +250,14 @@ class TestConfigClamping:
         assert getattr(cfg, field) == expected
 
     def test_target_odds_spec_bounds(self) -> None:
-        """[P0] Issue #62 explicit bounds: target_odds clamps into [1.1, 1000]."""
+        """[P0] explicit bounds: target_odds clamps into [1.1, 1000]."""
         assert _yaml_to_config({"target_odds": 0.5}).target_odds == pytest.approx(1.10)
         assert _yaml_to_config({"target_odds": 1.10}).target_odds == pytest.approx(1.10)
         assert _yaml_to_config({"target_odds": 1000.0}).target_odds == pytest.approx(1000.0)
         assert _yaml_to_config({"target_odds": 2000.0}).target_odds == pytest.approx(1000.0)
 
     def test_target_legs_spec_bounds(self) -> None:
-        """[P0] Issue #62 explicit bounds: target_legs clamps into [1, 100]."""
+        """[P0] explicit bounds: target_legs clamps into [1, 100]."""
         assert _yaml_to_config({"target_legs": -3}).target_legs == 1
         assert _yaml_to_config({"target_legs": 1}).target_legs == 1
         assert _yaml_to_config({"target_legs": 100}).target_legs == 100
@@ -335,7 +335,7 @@ class TestEnsureDefaultProfiles:
     def test_metadata_stamped_on_every_profile(self, tmp_path) -> None:
         """[P1] Every seeded file carries units=1.0, target_payout=None,
         run_daily_count=0 -- run_daily_count=0 keeps built-ins INACTIVE by
-        default (cycle-3 documented behaviour: the daily generator ignores
+        default (documented behaviour: the daily generator ignores
         them until a user raises the count)."""
         import yaml
 
@@ -351,7 +351,7 @@ class TestEnsureDefaultProfiles:
     def test_runtime_only_keys_absent_on_disk(self, tmp_path) -> None:
         """[P1] date_from/date_to/excluded_urls are runtime-only (Build page
         filters) and are dropped entirely from profile YAML — never written,
-        not even as explicit nulls (issue #95 cleanup)."""
+        not even as explicit nulls."""
         import yaml
 
         config_dir = tmp_path / "cfg"
@@ -404,7 +404,7 @@ class TestEnsureDefaultProfiles:
 
 
 class TestProfileRoundTrip:
-    """[P1] Issue #62: profile YAML round-trip (save -> load -> verify)."""
+    """[P1]: profile YAML round-trip (save -> load -> verify)."""
 
     def test_custom_config_round_trip(self, tmp_path) -> None:
         """[P0] _config_to_yaml_dict -> disk -> _yaml_to_config returns the
@@ -478,7 +478,7 @@ class TestProfileRoundTrip:
         assert cfg.target_legs == 1
 
     def test_excluded_sources_survive_round_trip(self, tmp_path) -> None:
-        """[P1] Issue #62: excluded_sources list must survive a full
+        """[P1]: excluded_sources list must survive a full
         save -> load cycle unchanged."""
         sources = ["soccer_vista", "vitibet", "legit_predict"]
         cfg = BetSlipConfig(excluded_sources=sources)
@@ -518,7 +518,7 @@ class TestProfileRoundTrip:
         set -- guards against a field added to BetSlipConfig without making it
         into profile files (silent default on round-trip would follow).
         Runtime-only keys (date_from/date_to/excluded_urls) are deliberately
-        excluded from profile YAML (issue #95)."""
+        excluded from profile YAML."""
         data = _config_to_yaml_dict(BetSlipConfig())
         for field_name in BetSlipConfig.__dataclass_fields__:
             if field_name in _RUNTIME_ONLY:

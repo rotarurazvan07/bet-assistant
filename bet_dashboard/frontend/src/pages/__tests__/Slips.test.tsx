@@ -1,4 +1,4 @@
-// Slips page (issue #65). ACTUAL divergences: WebSocket wiring lives in
+// Slips page. ACTUAL divergences: WebSocket wiring lives in
 // App.tsx (page accepts liveData prop); delete has NO confirm dialog
 // (direct handleDelete); sort is a dropdown (8 options incl. net_profit with
 // Pending sent to +/-Infinity); filters persist to 'slips_filters_state'.
@@ -157,7 +157,7 @@ describe('Slips page', () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal vs Chelsea');
-        // open modal via neutral footer area (cycle-12 lesson: link has stopPropagation)
+        // open modal via neutral footer area
         await user.click(screen.getByText('1u'));
         expect(await screen.findByText('Betting Slip')).toBeInTheDocument();
         // close via backdrop

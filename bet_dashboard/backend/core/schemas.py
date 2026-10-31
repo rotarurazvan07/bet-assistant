@@ -98,7 +98,7 @@ class ProfileIn(BaseModel):
     # run_daily_count / per-profile schedule set on the Services page survive
     # a Smart Builder save instead of being reset to 0).
     run_daily_count: int | None = None
-    # T4: auto-generation ordering and per-profile schedule (tri-state: keep when omitted)
+    # auto-generation ordering and per-profile schedule (tri-state: keep when omitted)
     order: int | None = None
     auto_generate: bool | None = None
     generate_hour: int | None = None
@@ -171,9 +171,9 @@ class BetSlipOut(BaseModel):
 
 
 class ProfileScheduleIn(BaseModel):
-    """Per-profile auto-generation schedule row (T4).
+    """Per-profile auto-generation schedule row.
 
-    Issue #95: BOTH ``units`` and ``target_payout`` are always preserved on
+   BOTH ``units`` and ``target_payout`` are always preserved on
     disk; ``stake_mode`` ("units" | "payout") only selects which one is active
     at generation time. A null ``units``/``target_payout`` means "not
     provided" and the persisted value is kept — switching the segmented

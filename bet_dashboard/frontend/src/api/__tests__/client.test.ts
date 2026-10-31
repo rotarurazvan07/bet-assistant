@@ -1,4 +1,4 @@
-// client.ts tests (issue #67). SPEC DIVERGENCE: the issue describes
+// client.ts tests. SPEC DIVERGENCE: the issue describes
 // interceptors (401 redirect, 500 toast, network retry) — client.ts is a
 // 9-line axios.create with ZERO interceptors. Tests pin actual behavior:
 // baseURL '/api', JSON content-type header, and raw pass-through of

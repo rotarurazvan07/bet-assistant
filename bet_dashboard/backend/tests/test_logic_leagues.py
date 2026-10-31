@@ -1,4 +1,4 @@
-"""[P0] Unit tests for AppLogic league helpers (issue #59).
+"""[P0] Unit tests for AppLogic league helpers.
 
 Covers get_leagues(): merge of framework-defined leagues with leagues
 present in the loaded matches DataFrame.

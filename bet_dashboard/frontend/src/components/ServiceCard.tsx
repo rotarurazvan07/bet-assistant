@@ -48,7 +48,7 @@ export default function ServiceCard({ info, onToggle }: Props) {
     </div>
   );
 
-  // Footer removed (issue #95 redesign): last-generated info is now shown
+  // Footer removed: last-generated info is now shown
   // per-profile in the scheduling table, not globally on the generator card.
   return (
     <BaseCard

@@ -1,4 +1,4 @@
-"""Stage 3: merge tests (issue #68).
+"""Stage 3: merge tests.
 
 Pins: chunk db consolidation, fuzzy dedup via MatchesManager, odds preservation,
 empty chunk handling, summary logging, runner-set validation.

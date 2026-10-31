@@ -1,4 +1,4 @@
-"""Shared fixtures for crawler pipeline stage tests (issue #68)."""
+"""Shared fixtures for crawler pipeline stage tests."""
 
 import json
 import sqlite3

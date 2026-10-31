@@ -4,7 +4,7 @@
 WHEN/WHY TO RUN (one-time, post-U1)
 ------------------------------------
 
-Before PR #114's U1 key unification, ``slips.db``'s ``legs.market`` column
+Before the U1 key unification, ``slips.db``'s ``legs.market`` column
 persisted the *display* label of the market. U1 made the canonical key (the
 persisted Odds/DB field spelling - ``home``, ``btts_yes``, ``over_25`` ...)
 the single market identity, and all writers now emit that spelling. Old rows

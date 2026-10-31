@@ -218,7 +218,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             </div>
 
             {/* Empty state */}
-            {/* AC-04: Track empty when no slips (incl. fetch-error fallback) */}
+            {/*Track empty when no slips (incl. fetch-error fallback) */}
             {!loading && data && (!data.slips || data.slips.length === 0) && (
                 <EmptyState
                     icon={<TrackEmptyIcon />}

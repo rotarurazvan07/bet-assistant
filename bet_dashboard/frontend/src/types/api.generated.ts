@@ -129,14 +129,14 @@ export interface paths {
      * generate_hour, generate_minute) are tri-state in the payload: when the
      * caller omits them, the values already persisted for this profile are
      * carried over instead of being reset. That keeps a Smart Builder save from
-     * silently wiping a schedule configured on the Services page (review F1).
+     * silently wiping a schedule configured on the Services page.
      */
     post: operations["save_profile_api_profiles_post"];
   };
   "/api/profiles/{name}": {
     /**
      * Delete Profile
-     * @description Delete a named builder profile and its runtime_state entry.
+     * @description Delete a named builder profile.
      */
     delete: operations["delete_profile_api_profiles__name__delete"];
   };
@@ -512,13 +512,7 @@ export interface components {
     };
     /**
      * ProfileScheduleIn
-     * @description Per-profile auto-generation schedule row (T4).
-     *
-     * Issue #95: BOTH ``units`` and ``target_payout`` are always preserved on
-     * disk; ``stake_mode`` ("units" | "payout") only selects which one is active
-     * at generation time. A null ``units``/``target_payout`` means "not
-     * provided" and the persisted value is kept — switching the segmented
-     * control can never lose the other field's number.
+     * @description Per-profile auto-generation schedule row.
      */
     ProfileScheduleIn: {
       /** Name */
@@ -533,8 +527,6 @@ export interface components {
       units?: number | null;
       /** Target Payout */
       target_payout?: number | null;
-      /** Stake Mode */
-      stake_mode?: string | null;
       /** Run Daily Count */
       run_daily_count?: number | null;
       /** Order */
@@ -951,7 +943,7 @@ export interface operations {
    * generate_hour, generate_minute) are tri-state in the payload: when the
    * caller omits them, the values already persisted for this profile are
    * carried over instead of being reset. That keeps a Smart Builder save from
-   * silently wiping a schedule configured on the Services page (review F1).
+   * silently wiping a schedule configured on the Services page.
    */
   save_profile_api_profiles_post: {
     requestBody: {
@@ -976,7 +968,7 @@ export interface operations {
   };
   /**
    * Delete Profile
-   * @description Delete a named builder profile and its runtime_state entry.
+   * @description Delete a named builder profile.
    */
   delete_profile_api_profiles__name__delete: {
     parameters: {

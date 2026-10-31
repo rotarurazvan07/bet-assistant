@@ -165,11 +165,7 @@ def load_profile(profile_path: str) -> tuple[str, dict[str, Any]]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the 5-mode CLI parser (prepare-scrape|scrape|merge|generate-slips|validate-slips).
-
-    Returns:
-        Configured ArgumentParser with all CLI options.
-    """
+    """Build the 5-mode CLI parser (prepare-scrape|scrape|merge|generate-slips|validate-slips)."""
     p = argparse.ArgumentParser(
         description="Bet Assistant CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -200,12 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _install_uncaught_exception_logging() -> None:
-    """Log uncaught CLI and worker-thread failures into the structured stream.
-
-    Installs a custom sys.excepthook that captures unhandled exceptions
-    and logs them with structured metadata (mode, event type, etc.).
-    KeyboardInterrupt and SystemExit are passed through to the default handler.
-    """
+    """Log uncaught CLI and worker-thread failures into the structured stream."""
 
     def main_exception_hook(exc_type, exc_value, traceback) -> None:
         if issubclass(exc_type, (KeyboardInterrupt, SystemExit)):

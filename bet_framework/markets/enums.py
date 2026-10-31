@@ -1,4 +1,4 @@
-"""Canonical market enums (AC-02).
+"""Canonical market enums.
 
 Values are FROZEN: byte-identical to the persisted wire format (matches.db
 column names, slips.db labels, odds-history JSON keys, frontend localStorage).

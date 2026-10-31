@@ -1,4 +1,4 @@
-// Onboarding tour + first-slip milestone (issue #50 AC-11).
+// Onboarding tour + first-slip milestone.
 // Do NOT use default suppressTour. Clear tour key before goto.
 // installDemoApi + slips/profiles override. Pathname-only routes.
 import { test, expect } from '@playwright/test';

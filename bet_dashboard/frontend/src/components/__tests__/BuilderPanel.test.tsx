@@ -1,4 +1,4 @@
-// BuilderPanel (issue #64 P2). ACTUAL (post-#118 merge contract): immediate
+// BuilderPanel. ACTUAL (post-merge contract): immediate
 // onChange (NO debounce); AccordionSection sections (Bet Shape, Filters >
 // Markets/Leagues/Sources, Quality, Strategy, Advanced); ChipGrid market /
 // league / source toggles with null-means-all semantics (chip renders the
@@ -53,7 +53,7 @@ function renderPanel(cfgOverrides: Partial<BuilderConfig> = {}, leagues: string[
 }
 
 
-// DualSlider (restored from pre-#41 design): label + tooltip row, then the
+// DualSlider (restored from the earlier design): label + tooltip row, then the
 // SliderWithTicks range input flanked by left/right caption spans. The range
 // input carries no aria-label, so locate it through the label span's row.
 function dualSliderInput(label: string): HTMLInputElement | undefined {
@@ -183,7 +183,7 @@ describe('BuilderPanel', () => {
         t2.unmount();
     });
 
-    it('Markets filter chips render presentation labels, NOT raw canonical keys (AC-1 regression)', () => {
+    it('Markets filter chips render presentation labels, NOT raw canonical keys', () => {
         // Pre-U1 bug: BuilderPanel rendered the raw canonical key ('home' -> CSS-uppercased
         // 'HOME'). Fix: render marketLabel(m) like Discover/Live Preview do.
         renderPanel();

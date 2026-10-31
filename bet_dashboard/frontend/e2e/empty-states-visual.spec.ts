@@ -1,5 +1,5 @@
-// Empty-state visual baselines (issue #46 AC-10).
-// THIS STORY IS THE EXPLICIT DEMO-DATA EXCEPTION.
+// Empty-state visual baselines.
+// IS THE EXPLICIT DEMO-DATA EXCEPTION.
 // Do NOT call installDemoApi. Do NOT import DEMO_MATCHES.
 // Chromium-only. Skip when E2E_BASE_URL (CI docker may have real data).
 // Mask header .font-mono (lastPull). Viewports 1280x800 + 375x667.

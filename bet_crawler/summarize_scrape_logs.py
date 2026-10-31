@@ -534,14 +534,6 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
 
 def _parse_job_outcomes(values: list[str]) -> dict[str, str]:
-    """Parse NAME=RESULT job outcome strings into a dict.
-
-    Args:
-        values: List of strings in NAME=RESULT format.
-
-    Returns:
-        Dictionary mapping job names to their outcomes.
-    """
     outcomes = {}
     for value in values:
         name, separator, result = value.partition("=")

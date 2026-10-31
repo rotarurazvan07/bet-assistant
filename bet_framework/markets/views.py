@@ -1,4 +1,4 @@
-"""Key-indexed lookup views over the canonical catalog (AC-05).
+"""Key-indexed lookup views over the canonical catalog.
 
 Every derived structure is addressed by key - never by list position. If a
 consumer needs display order it declares it itself (the frontend owns order).

@@ -1,4 +1,4 @@
-// Add-leg pulse / fly-to / toast (issue #38 AC-10).
+// Add-leg pulse / fly-to / toast.
 // Local Vite: installDemoApi paints Arsenal 75% @1.90. Skip mocks on CI stack.
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';

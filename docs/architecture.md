@@ -588,11 +588,11 @@ graph LR
 ```mermaid
 graph TB
     subgraph "CI/CD Pipeline"
-        GH1[scrape.yml
+        SCRAPE[scrape.yml
         Daily scraping]
-        GH2[deploy.yml
+        DEPLOY[deploy.yml
         Build & push images]
-        GH3[cicd.yml
+        CICD[cicd.yml
         Auto-fix + Test + Audit]
     end
 
@@ -617,9 +617,9 @@ graph TB
         config/ + data/]
     end
 
-    GH1 --> REG
-    GH2 --> REG
-    GH3 --> REG
+    SCRAPE --> REG
+    DEPLOY --> REG
+    CICD --> REG
     
     REG --> DC
     DC --> BA

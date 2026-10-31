@@ -1,4 +1,4 @@
-// OddsMovementIndicator (issue #64). SPEC DIVERGENCE: spec wants ➡️ for
+// OddsMovementIndicator. SPEC DIVERGENCE: spec wants ➡️ for
 // 'stable' — component returns null for stable/undefined. No strength bar
 // or numeric tooltip exists (title attr only). up=red, down=green (inverted
 // from naive expectation: rising odds = market disagrees = red).

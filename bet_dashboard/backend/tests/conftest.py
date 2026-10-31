@@ -1,4 +1,4 @@
-"""Fixtures for backend router tests (issue #58, cycle 2).
+"""Fixtures for backend router tests.
 
 Architecture decision:
 - Routers read state via ``request.app.state.app_logic``.

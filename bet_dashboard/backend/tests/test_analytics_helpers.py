@@ -1,4 +1,4 @@
-"""[P1] Pure unit tests for analytics router helpers (issue #58).
+"""[P1] Pure unit tests for analytics router helpers.
 
 Branch-level coverage of every private helper in routers/analytics.py.
 """

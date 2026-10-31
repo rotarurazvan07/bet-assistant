@@ -50,13 +50,13 @@ export default defineConfig({
                 'src/main.tsx',
                 'src/**/*.d.ts',
             ],
-            // Coverage thresholds (cycle 14, issue #71 gates half — D32):
+            // Coverage thresholds:
             // vitest 5's typed thresholds API is FLAT per-metric only
             // (Partial<Record<'lines'|'functions'|'statements'|'branches',
             // number>>, node.d.ts:255-263) — the vitest-3 per-path shape
             // ('src/glob/**': {lines: N}) is NOT supported by installed v5.
             // Per-layer gating (api ≥95, hooks ≥90, components later) is
-            // therefore deferred to CI (cycle 15), where per-path checks run
+            // therefore deferred to CI, where per-path checks run
             // against the coverage report. NO global threshold by design.
         },
     },

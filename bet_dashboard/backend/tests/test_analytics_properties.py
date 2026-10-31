@@ -1,4 +1,4 @@
-"""Property-based tests for core.analytics_utils (issue #61).
+"""Property-based tests for core.analytics_utils.
 
 Complements test_analytics_helpers.py (example-based delegation tests) with
 hypothesis-driven invariants over arbitrary inputs. Every property is

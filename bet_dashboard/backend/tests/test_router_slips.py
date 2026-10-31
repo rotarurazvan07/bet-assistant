@@ -1,4 +1,4 @@
-"""[P0] API tests for the slips router (issue #58).
+"""[P0] API tests for the slips router.
 
 Covers: POST /api/slips validation + 400/422, GET filters
 (profiles, profiles[] alias, dates, hide_settled, live_only),
