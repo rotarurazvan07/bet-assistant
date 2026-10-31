@@ -388,7 +388,7 @@ class AppLogic:
         Legacy profiles (no per-profile hour/minute) are gated by the same
         once-per-day stamp as per-profile ones, so a profile invoked directly
         (manual generation, tests) cannot regenerate twice in one day
-       
+
         """
         return self._profile_schedule_met(name, now=now)
 

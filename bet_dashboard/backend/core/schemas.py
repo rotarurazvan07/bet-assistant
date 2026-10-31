@@ -173,11 +173,11 @@ class BetSlipOut(BaseModel):
 class ProfileScheduleIn(BaseModel):
     """Per-profile auto-generation schedule row.
 
-   BOTH ``units`` and ``target_payout`` are always preserved on
-    disk; ``stake_mode`` ("units" | "payout") only selects which one is active
-    at generation time. A null ``units``/``target_payout`` means "not
-    provided" and the persisted value is kept — switching the segmented
-    control can never lose the other field's number.
+    BOTH ``units`` and ``target_payout`` are always preserved on
+     disk; ``stake_mode`` ("units" | "payout") only selects which one is active
+     at generation time. A null ``units``/``target_payout`` means "not
+     provided" and the persisted value is kept — switching the segmented
+     control can never lose the other field's number.
     """
 
     name: str
