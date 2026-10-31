@@ -217,3 +217,154 @@ def test_legacy_crawler_logs_are_kept_when_that_job_has_no_jsonl_sidecar(
     assert summary["issue_count"] == 1
     assert summary["groups"][0]["reason_code"] == "legacy_error"
     assert "Python import failed" in summary["groups"][0]["samples"][0]["message"]
+
+
+# -- Issue #113: near-miss reports in the CI step summary --------------------------------
+
+
+def _write_near_miss_legacy_log(artifact: Path) -> None:
+    """Write a job_log.txt containing a realistic NEAR-MISS REPORT block."""
+    (artifact / "job_log.txt").write_text(
+        "=== Job: merge started at 2026-10-29 10:00:00 ===\n"
+        "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING - === NEAR-MISS REPORT: 2 pairs (score 40-65) ===\n"
+        "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING -   [62] Arsenal vs Chelsea <-> Arsenal FC vs Chelsea FC\n"
+        "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING -   [45] Real Madrid vs Barcelona <-> Real Madrid CF vs FC Barcelona\n"
+        "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING - === END NEAR-MISS REPORT ===\n"
+        "2026-10-29 10:00:02 - scrape_kit.fetcher - WARNING - Retrying request\n",
+        encoding="utf-8",
+    )
+
+
+def test_near_misses_extracted_from_legacy_merge_log(tmp_path) -> None:
+    artifact = tmp_path / "logs-merge"
+    artifact.mkdir()
+    _write_near_miss_legacy_log(artifact)
+
+    summary = summarize(artifact, {"merge": "success"})
+
+    assert summary["schema_version"] == 2
+    assert len(summary["near_misses"]) == 2
+    first = summary["near_misses"][0]
+    assert first["score"] == 62.0
+    assert first["home_a"] == "Arsenal"
+    assert first["away_a"] == "Chelsea"
+    assert first["home_b"] == "Arsenal FC"
+    assert first["away_b"] == "Chelsea FC"
+    # AC-4: near-miss lines must not inflate issue/severity counts
+    assert summary["issue_count"] == 1  # only the scrape_kit.fetcher warning remains
+    assert summary["severity_counts"] == {"WARNING": 1}
+
+
+def test_near_misses_extracted_from_jsonl_events_when_present(tmp_path) -> None:
+    artifact = tmp_path / "logs-merge"
+    artifact.mkdir()
+    _write_jsonl(
+        artifact / "crawler-events.jsonl",
+        [
+            {
+                "severity": "WARNING",
+                "event": "application.warning",
+                "outcome": "warning",
+                "reason_code": "unclassified_warning",
+                "logger": "bet_framework.MatchesManager",
+                "message": "=== NEAR-MISS REPORT: 1 pairs (score 40-65) ===",
+            },
+            {
+                "severity": "WARNING",
+                "event": "application.warning",
+                "outcome": "warning",
+                "reason_code": "unclassified_warning",
+                "logger": "bet_framework.MatchesManager",
+                "message": "  [58] Liverpool vs Everton <-> Liverpool FC vs Everton FC",
+            },
+            {
+                "severity": "WARNING",
+                "event": "application.warning",
+                "outcome": "warning",
+                "reason_code": "unclassified_warning",
+                "logger": "bet_framework.MatchesManager",
+                "message": "=== END NEAR-MISS REPORT ===",
+            },
+        ],
+    )
+
+    summary = summarize(artifact, {"merge": "success"})
+
+    assert len(summary["near_misses"]) == 1
+    assert summary["near_misses"][0]["score"] == 58.0
+    assert summary["near_misses"][0]["home_a"] == "Liverpool"
+    assert summary["near_misses"][0]["away_b"] == "Everton FC"
+    assert summary["issue_count"] == 0  # near-miss events excluded from issues
+
+
+def test_render_markdown_includes_near_miss_section(tmp_path) -> None:
+    artifact = tmp_path / "logs-merge"
+    artifact.mkdir()
+    _write_near_miss_legacy_log(artifact)
+
+    summary = summarize(artifact, {"merge": "success"})
+    markdown = render_markdown(summary)
+
+    assert "## Near-miss reports" in markdown
+    assert "| Score | Match A | Match B |" in markdown
+    assert "62" in markdown
+    assert "Arsenal vs Chelsea" in markdown
+    assert "Arsenal FC vs Chelsea FC" in markdown
+    # Section must come after the problems table area (or before pipeline health)
+    problems_idx = markdown.find("## Problems by source and reason")
+    near_idx = markdown.find("## Near-miss reports")
+    health_idx = markdown.find("## Pipeline health")
+    assert near_idx > -1
+    if problems_idx > -1:
+        assert near_idx > problems_idx
+    if health_idx > -1:
+        assert near_idx < health_idx
+
+
+def test_render_markdown_omits_near_miss_section_when_empty(tmp_path) -> None:
+    artifact = tmp_path / "logs-merge"
+    artifact.mkdir()
+    (artifact / "job_log.txt").write_text("=== Job: merge started ===\nall good\n", encoding="utf-8")
+
+    summary = summarize(artifact, {"merge": "success"})
+    markdown = render_markdown(summary)
+
+    assert summary["near_misses"] == []
+    assert "## Near-miss reports" not in markdown
+
+
+def test_json_output_includes_near_misses_array(tmp_path) -> None:
+    artifact = tmp_path / "logs-merge"
+    artifact.mkdir()
+    _write_near_miss_legacy_log(artifact)
+
+    summary = summarize(artifact, {"merge": "success"})
+    payload = json.dumps(summary)
+
+    assert '"schema_version": 2' in payload
+    assert '"near_misses"' in payload
+    parsed = json.loads(payload)
+    assert parsed["schema_version"] == 2
+    assert isinstance(parsed["near_misses"], list)
+    assert len(parsed["near_misses"]) == 2
+    assert set(parsed["near_misses"][0].keys()) >= {
+        "score",
+        "home_a",
+        "away_a",
+        "home_b",
+        "away_b",
+    }
+
+
+def test_near_miss_block_without_pairs_yields_empty_list(tmp_path) -> None:
+    artifact = tmp_path / "logs-merge"
+    artifact.mkdir()
+    (artifact / "job_log.txt").write_text(
+        "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING - === NEAR-MISS REPORT: 0 pairs (score 40-65) ===\n"
+        "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING - === END NEAR-MISS REPORT ===\n",
+        encoding="utf-8",
+    )
+
+    summary = summarize(artifact)
+    assert summary["near_misses"] == []
+    assert "## Near-miss reports" not in render_markdown(summary)
