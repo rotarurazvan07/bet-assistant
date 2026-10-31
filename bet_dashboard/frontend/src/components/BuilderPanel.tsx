@@ -77,11 +77,53 @@ function AccordionSection({ title, icon, tip, defaultOpen = false, children }: {
 
 // ── Row Components ────────────────────────────────────────────────────────────
 
-function Row({ label, tip, children }: { label: string; tip?: string; children: React.ReactNode }) {
+type NumberFieldProps = React.ComponentProps<typeof NumberField>;
+
+function NumberField({ value, onChange, min, max, step = 1, className = 'w-20' }: {
+    value: number;
+    onChange: (v: number) => void;
+    min?: number;
+    max?: number;
+    step?: number;
+    className?: string;
+}) {
+    const decimals = (String(step).split('.')[1] ?? '').length;
+    const bump = (dir: 1 | -1) => {
+        const next = +(value + dir * step).toFixed(decimals);
+        onChange(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, next)));
+    };
+    const chevron = (d: string) => (
+        <svg width="8" height="5" viewBox="0 0 8 5" fill="none" stroke="currentColor"
+            strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+    );
+
+    return (
+        <div className={`relative ${className}`}>
+            <input className="field w-full" type="number" min={min} max={max} step={step}
+                style={{ paddingRight: 16 }}
+                value={value} onChange={e => onChange(+e.target.value)} />
+            <div className="absolute right-0 inset-y-0 w-4 flex flex-col">
+                <button type="button" tabIndex={-1} className="num-step" onClick={() => bump(1)}>
+                    {chevron('M1 4L4 1L7 4')}
+                </button>
+                <button type="button" tabIndex={-1} className="num-step" onClick={() => bump(-1)}>
+                    {chevron('M1 1L4 4L7 1')}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function Row({ label, tip, children, num }: {
+    label: string;
+    tip?: string;
+    children?: React.ReactNode;
+    num?: NumberFieldProps;        // shortcut: renders a NumberField as the value
+}) {
     return (
         <BaseDataRow
             label={label}
-            value={children}
+            value={num ? <NumberField {...num} /> : children}
             actions={tip && <TooltipIcon text={tip} align="right" />}
         />
     );
@@ -190,8 +232,13 @@ function ToggleSwitch({ enabled, onToggle }: {
     );
 }
 
-function NullableRow({ label, tip, enabled, onToggle, children }: {
-    label: string; tip?: string; enabled: boolean; onToggle: (v: boolean) => void; children: React.ReactNode;
+function NullableRow({ label, tip, enabled, onToggle, children, num }: {
+    label: string;
+    tip?: string;
+    enabled: boolean;
+    onToggle: (v: boolean) => void;
+    children?: React.ReactNode;
+    num?: NumberFieldProps;        // shortcut: renders a NumberField as the body
 }) {
     return (
         <div className="py-2.5" style={{ borderBottom: '1px solid var(--border)', overflow: 'visible' }}>
@@ -202,7 +249,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
                 </div>
                 <ToggleSwitch enabled={enabled} onToggle={onToggle} />
             </div>
-            {enabled && <div className="mt-2 fade-in">{children}</div>}
+            {enabled && <div className="mt-2 fade-in">{num ? <NumberField {...num} /> : children}</div>}
         </div>
     );
 }
@@ -252,349 +299,161 @@ function DualSlider({ label, tip, left, right, value, onChange, disabled = false
     );
 }
 
-// ── Main Panel ────────────────────────────────────────────────────────────────
+const CHIP_SIZE = {
+    md: { cls: 'px-3 py-2.5 rounded-xl text-[10px]', glow: '0 4px 12px var(--accent-glow)', idle: 'var(--bg-raised)' },
+    sm: { cls: 'px-2 py-2 rounded-lg text-[9px] leading-tight truncate', glow: '0 2px 8px var(--accent-glow)', idle: 'var(--bg-card)' },
+} as const;
+
+function ChipGrid({ items, selected, onChange, label = (s: string) => s, cols = 3, size = 'sm' }: {
+    items: string[];
+    selected: string[] | null;
+    onChange: (next: string[] | null) => void;
+    label?: (item: string) => string;
+    cols?: 2 | 3;
+    size?: keyof typeof CHIP_SIZE;
+}) {
+    const s = CHIP_SIZE[size];
+
+    const toggle = (item: string) => {
+        const cur = selected ?? items;
+        const next = cur.includes(item) ? cur.filter(x => x !== item) : [...cur, item];
+        onChange(next.length === 0 || next.length === items.length ? null : next);
+    };
+
+    return (
+        <div className={`grid ${cols === 2 ? 'grid-cols-2 gap-2.5' : 'grid-cols-3 gap-1.5'} py-2`}>
+            {items.map(item => {
+                const active = selected == null || selected.includes(item);
+                return (
+                    <button
+                        key={item}
+                        type="button"
+                        title={item}
+                        onClick={() => toggle(item)}
+                        className={`${s.cls} font-sans font-bold uppercase transition-all duration-200 text-center`}
+                        style={{
+                            background: active ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' : s.idle,
+                            color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
+                            border: `1px solid ${active ? 'var(--border-accent)' : 'var(--border)'}`,
+                            boxShadow: active ? s.glow : 'none',
+                        }}
+                    >
+                        {label(item)}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+type NullableNumKey = {
+    [K in keyof BuilderConfig]: null extends BuilderConfig[K]
+        ? (NonNullable<BuilderConfig[K]> extends number ? K : never)
+        : never;
+}[keyof BuilderConfig];
+
+interface NullableSliderSpec {
+    key: NullableNumKey;
+    label: string;
+    tip: string;
+    auto: number;
+    start?: number;
+    min: number; max: number; step: number;
+    scale?: number;
+    format: (uiValue: number) => string;
+}
+
+const pct = (v: number) => `${v}%`;
+
+const STOP_SLIDERS: NullableSliderSpec[] = [
+    // { key: 'tolerance_factor', label: 'Tolerance Factor', auto: 0.25, min: 5, max: 80, step: 1, format: pct, tip: '±% band around ideal per-leg odds. Tier 1 picks sit within this band.' },
+    { key: 'tol_lower', label: 'Lower Tolerance', auto: 0.2, min: 1, max: 100, step: 1, format: pct, tip: 'Max % drift allowed BELOW ideal per-leg odds. Overrides the global factor.' },
+    { key: 'tol_upper', label: 'Upper Tolerance', auto: 0.15, min: 1, max: 100, step: 1, format: pct, tip: 'Max % drift allowed ABOVE ideal per-leg odds. Overrides the global factor.' },
+    { key: 'stop_threshold', label: 'Stop Threshold', auto: 0.90, min: 50, max: 100, step: 1, format: pct, tip: 'Stop building when odds ≥ target × threshold AND enough legs are filled.' },
+    { key: 'min_legs_fill_ratio', label: 'Min Legs Fill Ratio', auto: 0.90, min: 50, max: 100, step: 5, format: pct, tip: 'Min fraction of legs before early stop is allowed.' },
+    { key: 'max_legs_overflow', label: 'Max Overflow', auto: 1, start: 1, min: 0, max: 5, step: 1, scale: 1, format: v => String(v), tip: 'Extra legs allowed beyond target. Auto = +1 for 2-4 legs, +2 for 5+.' },
+];
+
+const SCORING_SLIDERS: NullableSliderSpec[] = [
+    { key: 'consensus_shrinkage_k', label: 'Shrinkage k', auto: 3, scale: 1, min: 1, max: 10, step: 0.5, format: v => v.toFixed(1), tip: 'Weight factor for source-weighted consensus adjustment.' },
+    { key: 'min_source_edge', label: 'Min Source Edge', auto: 0, start: 0.05, min: 0, max: 50, step: 1, format: pct, tip: 'Minimum edge over implied probability (hard filter).' },
+    { key: 'odds_movement_strength_min', label: 'Movement Min Strength', auto: 0.05, min: 5, max: 20, step: 1, format: pct, tip: 'Minimum odds change % required before movement scoring kicks in.' },
+];
+
+const MOVEMENT_WEIGHT: NullableSliderSpec = {
+    key: 'odds_movement_weight', label: 'Odds Movement Weight', auto: 0.05, min: 0, max: 30, step: 1, format: pct,
+    tip: 'How much odds movement influences the final score. Dropping odds boost a pick, rising odds penalise it.',
+};
+
+function CfgNullableSlider({ cfg, up, spec }: { cfg: BuilderConfig; up: <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => void; spec: NullableSliderSpec }) {
+    const scale = spec.scale ?? 100;
+    const start = spec.start ?? spec.auto;
+    const raw = cfg[spec.key] as number | null;
+    return <NullableRow label={spec.label} tip={`${spec.tip} Auto = ${spec.format(spec.auto * scale)}.`}
+        enabled={raw !== null} onToggle={v => up(spec.key, (v ? start : null) as BuilderConfig[typeof spec.key])}>
+        <InlineSlider value={+((raw ?? start) * scale).toFixed(2)} min={spec.min} max={spec.max} step={spec.step}
+            format={spec.format} onChange={v => up(spec.key, (v / scale) as BuilderConfig[typeof spec.key])} />
+    </NullableRow>;
+}
+
+const SubHead = ({ children }: { children: React.ReactNode }) => (
+    <div className="pt-3 pb-1 text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>{children}</div>
+);
 
 export default function BuilderPanel({ cfg, availableLeagues, availableSources, onChange }: Props) {
     const up = <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => onChange(set(cfg, k, v));
+    const slider = (spec: NullableSliderSpec) => <CfgNullableSlider key={spec.key} cfg={cfg} up={up} spec={spec} />;
+    const marketsOn = cfg.included_markets?.length ?? ALL_MARKETS.length;
+    const leaguesOn = cfg.included_leagues?.length ?? availableLeagues.length;
+    const sourcesOn = availableSources.length - (cfg.excluded_sources?.length ?? 0);
 
-    const allSelected = !cfg.included_markets ||
-        ALL_MARKETS.every(m => cfg.included_markets!.includes(m));
+    return <div className="space-y-3">
+        <AccordionSection title="Bet Shape" icon="🎲" defaultOpen={true}>
+            <Row label="Target Odds" tip="Desired cumulative odds for the entire slip."
+                num={{ value: cfg.target_odds, min: 1.1, max: 1000, step: 0.1, onChange: v => up('target_odds', v) }} />
+            <Row label="Target Legs" tip="Desired number of selections (1–100)."
+                num={{ value: cfg.target_legs, min: 1, max: 100, step: 1, onChange: v => up('target_legs', v) }} />
+            <Row label="Min Leg Odds" tip="Minimum bookmaker odds for a single leg. Filters near-certain outcomes."
+                num={{ value: cfg.min_leg_odds, min: 1.01, max: 10, step: 0.01, onChange: v => up('min_leg_odds', v) }} />
+            <Row label="Max Leg Odds" tip="Maximum bookmaker odds for a single leg."
+                num={{ value: cfg.max_leg_odds, min: 1.01, max: 10, step: 0.01, onChange: v => up('max_leg_odds', v) }} />
+        </AccordionSection>
 
-    function toggleMarket(m: string) {
-        const cur = cfg.included_markets ?? ALL_MARKETS;
-        const next = cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m];
-        onChange(set(cfg, 'included_markets', next.length === ALL_MARKETS.length ? null : next));
-    }
-
-    return (
-        <div className="space-y-3">
-            {/* ── Bet Shape ──────────────────────────────────────────── */}
-            <AccordionSection title="Bet Shape" icon="🎲" defaultOpen={true}>
-                <Row label="Target Odds"
-                    tip="Desired cumulative odds for the entire slip.">
-                    <input className="field w-20" type="number" min={1.1} max={1000} step={0.1}
-                        value={cfg.target_odds}
-                        onChange={e => up('target_odds', +e.target.value)} />
-                </Row>
-                <Row label="Target Legs" tip="Desired number of selections (1–100).">
-                    <input className="field w-20" type="number" min={1} max={100} step={1}
-                        value={cfg.target_legs}
-                        onChange={e => up('target_legs', +e.target.value)} />
-                </Row>
-                <NullableRow label="Max Overflow"
-                    tip="Extra legs allowed beyond target. Auto = +1 for 2-4 legs, +2 for 5+."
-                    enabled={cfg.max_legs_overflow !== null}
-                    onToggle={v => up('max_legs_overflow', v ? 1 : null)}>
-                    <input className="field w-20" type="number" min={0} max={5} step={1}
-                        value={cfg.max_legs_overflow ?? 1}
-                        onChange={e => up('max_legs_overflow', +e.target.value)} />
-                </NullableRow>
-            </AccordionSection>
-
-            {/* ── Quality Gate ──────────────────────────────────────── */}
-            <AccordionSection title="Quality Gate" icon="🛡️" defaultOpen={true}>
-                <SliderRow label="Consensus Floor"
-                    tip="Minimum source agreement %. Picks below this are discarded."
-                    value={cfg.consensus_floor} min={50} max={100} step={1}
-                    format={v => `${v}%`} onChange={v => up('consensus_floor', v)} />
-                <Row label="Min Odds" tip="Minimum bookmaker odds. Filters near-certain outcomes.">
-                    <input className="field w-20" type="number" min={1.01} max={10} step={0.01}
-                        value={cfg.min_odds} onChange={e => up('min_odds', +e.target.value)} />
-                </Row>
-            </AccordionSection>
-
-            {/* ── Markets ──────────────────────────────────────────── */}
-            <AccordionSection title="Markets" icon="🏷️" defaultOpen={true}>
-                <div className="grid grid-cols-2 gap-2.5 py-2">
-                    {ALL_MARKETS.map(m => {
-                        const active = allSelected || (cfg.included_markets ?? []).includes(m);
-                        return (
-                            <button
-                                key={m}
-                                type="button"
-                                onClick={() => toggleMarket(m)}
-                                className="px-3 py-2.5 rounded-xl text-[10px] font-sans font-bold uppercase
-                                           transition-all duration-200 text-center"
-                                style={{
-                                    background: active
-                                        ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
-                                        : 'var(--bg-raised)',
-                                    color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
-                                    border: active
-                                        ? '1px solid var(--border-accent)'
-                                        : '1px solid var(--border)',
-                                    boxShadow: active
-                                        ? '0 4px 12px var(--accent-glow)'
-                                        : 'none',
-                                }}
-                            >
-                                {/* AC-1: render the presentation label (like Discover/Live Preview), never the raw canonical key */}
-                                {marketLabel(m)}
-                            </button>
-                        );
-                    })}
-                </div>
-            </AccordionSection>
-
-            {/* ── Leagues ──────────────────────────────────────────── */}
-            {availableLeagues.length > 0 && (
-                <AccordionSection
-                    title={`Leagues ${cfg.included_leagues ? `(${cfg.included_leagues.length})` : '(All)'}`}
-                    icon="🏆"
-                    defaultOpen={false}
-                >
-                    <div className="grid grid-cols-3 gap-1.5 py-2">
-                        {availableLeagues.map(league => {
-                            const active = cfg.included_leagues?.includes(league) ?? false;
-                            return (
-                                <button
-                                    key={league}
-                                    type="button"
-                                    onClick={() => {
-                                        let next: string[] | null;
-                                        if (active) {
-                                            next = (cfg.included_leagues ?? []).filter(l => l !== league);
-                                            if (next.length === 0) next = null;
-                                        } else {
-                                            next = [...(cfg.included_leagues ?? []), league];
-                                        }
-                                        up('included_leagues', next);
-                                    }}
-                                    className="px-2 py-2 rounded-lg text-[9px] font-sans font-bold uppercase
-                                               transition-all duration-200 text-center leading-tight truncate"
-                                    title={league}
-                                    style={{
-                                        background: active
-                                            ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
-                                            : 'var(--bg-card)',
-                                        color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
-                                        border: active
-                                            ? '1px solid var(--border-accent)'
-                                            : '1px solid var(--border)',
-                                        boxShadow: active
-                                            ? '0 2px 8px var(--accent-glow)'
-                                            : 'none',
-                                    }}
-                                >
-                                    {league}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    {cfg.included_leagues && (
-                        <div className="mt-2 pt-2 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
-                            <button
-                                className="text-[10px] font-mono uppercase px-2 py-1 rounded hover:bg-white/5 transition-colors"
-                                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-                                onClick={() => up('included_leagues', null)}
-                            >
-                                Clear All
-                            </button>
-                        </div>
-                    )}
+        <AccordionSection title="Filters" icon="🏷️" defaultOpen={true}>
+            <div className="space-y-3">
+                <AccordionSection title={`Markets (${marketsOn}/${ALL_MARKETS.length})`} icon="⚽" defaultOpen={false}>
+                    <ChipGrid items={ALL_MARKETS} cols={2} size="md" label={marketLabel} selected={cfg.included_markets} onChange={v => up('included_markets', v)} />
                 </AccordionSection>
-            )}
+                {availableLeagues.length > 0 && (
+                    <AccordionSection title={`Leagues (${leaguesOn}/${availableLeagues.length})`} icon="🌍">
+                        <ChipGrid items={availableLeagues} selected={cfg.included_leagues} onChange={v => up('included_leagues', v)} />
+                    </AccordionSection>
+                )}
+                {availableSources.length > 0 && (
+                    <AccordionSection title={`Sources (${sourcesOn}/${availableSources.length})`} icon="📡">
+                        <ChipGrid items={availableSources} selected={cfg.excluded_sources ? availableSources.filter(s => !cfg.excluded_sources!.includes(s)) : null} onChange={v => up('excluded_sources', v ? availableSources.filter(s => !v.includes(s)) : null)} />
+                    </AccordionSection>
+                )}
+            </div>
+        </AccordionSection>
 
-            {/* ── Sources ────────────────────────────────────────────── */}
-            {availableSources.length > 0 && (
-                <AccordionSection
-                    title={`Sources ${cfg.excluded_sources ? `(${availableSources.length - cfg.excluded_sources.length}/${availableSources.length})` : `(${availableSources.length})`}`}
-                    icon="📡"
-                    defaultOpen={false}
-                >
-                    <div className="grid grid-cols-3 gap-1.5 py-2">
-                        {availableSources.map((source: string) => {
-                            const excluded = cfg.excluded_sources?.includes(source) ?? false;
-                            return (
-                                <button
-                                    key={source}
-                                    type="button"
-                                    onClick={() => {
-                                        let next: string[] | null;
-                                        if (excluded) {
-                                            next = (cfg.excluded_sources ?? []).filter(s => s !== source);
-                                            if (next.length === 0) next = null;
-                                        } else {
-                                            next = [...(cfg.excluded_sources ?? []), source];
-                                        }
-                                        up('excluded_sources', next);
-                                    }}
-                                    className="px-2 py-2 rounded-lg text-[9px] font-sans font-bold uppercase
-                                               transition-all duration-200 text-center leading-tight truncate"
-                                    title={source}
-                                    style={{
-                                        background: excluded
-                                            ? 'var(--bg-raised)'
-                                            : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
-                                        color: excluded ? 'var(--text-secondary)' : 'var(--text-bright)',
-                                        border: excluded
-                                            ? '1px solid var(--border)'
-                                            : '1px solid var(--border-accent)',
-                                        boxShadow: excluded
-                                            ? 'none'
-                                            : '0 2px 8px var(--accent-glow)',
-                                    }}
-                                >
-                                    {source}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </AccordionSection>
-            )}
+        <AccordionSection title="Quality" icon="🛡️" defaultOpen={true}>
+            <SliderRow label="Consensus Floor" tip="Minimum source agreement %. Picks below this are discarded." value={cfg.consensus_floor} min={50} max={100} step={1} format={pct} onChange={v => up('consensus_floor', v)} />
+            <NullableRow label="Min Quality" tip="Minimum quality score to accept a pick. Auto = 0.20." enabled={cfg.min_pick_quality !== null} onToggle={v => up('min_pick_quality', v ? 0.2 : null)}><InlineSlider value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)} min={0} max={100} step={5} format={v => (v / 100).toFixed(2)} onChange={v => up('min_pick_quality', v / 100)} /></NullableRow>
+        </AccordionSection>
 
-            {/* ── Tolerance & Stop ──────────────────────────────────── */}
-            <AccordionSection title="Tolerance & Stop" icon="⚡" defaultOpen={false}>
-                <NullableRow label="Tolerance Factor"
-                    tip="±% band around ideal per-leg odds. Tier 1 picks sit within this band."
-                    enabled={cfg.tolerance_factor !== null}
-                    onToggle={v => up('tolerance_factor', v ? 0.25 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.tolerance_factor ?? 0.25) * 100)}
-                        min={5} max={80} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('tolerance_factor', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Stop Threshold"
-                    tip="Stop building when odds ≥ target × threshold AND enough legs are filled."
-                    enabled={cfg.stop_threshold !== null}
-                    onToggle={v => up('stop_threshold', v ? 0.91 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.stop_threshold ?? 0.91) * 100)}
-                        min={50} max={100} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('stop_threshold', v / 100)} />
-                </NullableRow>
-                <SliderRow label="Min Legs Fill Ratio"
-                    tip="Min fraction of legs before early stop is allowed."
-                    value={Math.round(cfg.min_legs_fill_ratio * 100)}
-                    min={50} max={100} step={5}
-                    format={v => `${v}%`}
-                    onChange={v => up('min_legs_fill_ratio', v / 100)} />
-            </AccordionSection>
+        <AccordionSection title="Strategy" icon="📐" defaultOpen={false} tip="How the builder trades breadth against strength when it picks legs.">
+            <DualSlider label="Distribution Logic" tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality." left="Balance" right="Quality" value={cfg.quality_vs_balance} onChange={v => up('quality_vs_balance', v)} />
+            <DualSlider label="Agreement Logic" tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources." left="Sources" right="Consensus" value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources} disabled={cfg.consensus_floor === 100} onChange={v => up('consensus_vs_sources', v)} />
+            {slider(MOVEMENT_WEIGHT)}
+        </AccordionSection>
 
-            {/* ── Scoring ──────────────────────────────────────────── */}
-            <AccordionSection
-                title="Scoring"
-                icon="📐"
-                tip="Balances quality vs balance and source agreement vs consensus. Adjust sliders to fine-tune selection behavior."
-                defaultOpen={false}
-            >
-                <DualSlider
-                    label="Distribution Logic"
-                    tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality."
-                    left="Balance" right="Quality"
-                    value={cfg.quality_vs_balance}
-                    onChange={v => up('quality_vs_balance', v)} />
-                <DualSlider
-                    label="Agreement Logic"
-                    tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources."
-                    left="Sources" right="Consensus"
-                    value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources}
-                    disabled={cfg.consensus_floor === 100}
-                    onChange={v => up('consensus_vs_sources', v)} />
-            </AccordionSection>
-
-            {/* ── Odds Movement ──────────────────────────────────────── */}
-            <AccordionSection
-                title="Odds Movement"
-                icon="📊"
-                tip="Use bookmaker odds movement to confirm or penalise picks. Dropping odds = confirmation, rising odds = doubt."
-                defaultOpen={false}
-            >
-                <NullableRow label="Movement Weight"
-                    tip="How much odds movement influences the final score. Confirms (odds dropping) boost, infirms (odds rising) penalise. Auto = 5%."
-                    enabled={cfg.odds_movement_weight !== null}
-                    onToggle={v => up('odds_movement_weight', v ? 0.05 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.odds_movement_weight ?? 0.05) * 100)}
-                        min={0} max={30} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('odds_movement_weight', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Min Strength"
-                    tip="Minimum odds change % required before movement scoring kicks in. Auto = 5%."
-                    enabled={cfg.odds_movement_strength_min !== null}
-                    onToggle={v => up('odds_movement_strength_min', v ? 0.05 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.odds_movement_strength_min ?? 0.05) * 100)}
-                        min={5} max={20} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('odds_movement_strength_min', v / 100)} />
-                </NullableRow>
-            </AccordionSection>
-
-            {/* ── Advanced ──────────────────────────────────────────── */}
-            <AccordionSection title="Advanced" icon="⚙️" defaultOpen={false}>
-                <NullableRow label="Shrinkage k"
-                    tip="Weight factor for source-weighted consensus adjustment. Auto = 3.0."
-                    enabled={cfg.consensus_shrinkage_k !== null}
-                    onToggle={v => up('consensus_shrinkage_k', v ? 3.0 : null)}>
-                    <InlineSlider
-                        value={cfg.consensus_shrinkage_k ?? 3}
-                        min={1} max={10} step={0.5}
-                        format={v => v.toFixed(1)}
-                        onChange={v => up('consensus_shrinkage_k', v)} />
-                </NullableRow>
-                <NullableRow label="Min Source Edge"
-                    tip="Minimum edge over implied probability (hard filter). Auto = 0.0."
-                    enabled={cfg.min_source_edge !== null}
-                    onToggle={v => up('min_source_edge', v ? 0.05 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.min_source_edge ?? 0.05) * 100)}
-                        min={0} max={50} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('min_source_edge', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Max Leg Odds"
-                    tip="Maximum odds for any single leg. Auto = 3.5."
-                    enabled={cfg.max_single_leg_odds !== null}
-                    onToggle={v => up('max_single_leg_odds', v ? 3.5 : null)}>
-                    <InlineSlider
-                        value={(cfg.max_single_leg_odds ?? 3.5) * 10}
-                        min={10} max={100} step={5}
-                        format={v => (v / 10).toFixed(1)}
-                        onChange={v => up('max_single_leg_odds', v / 10)} />
-                </NullableRow>
-                <Row label="Balance Decay"
-                    tip="Decay method for balancing selections. Linear = steady decay, Gaussian = bell-shaped decay with stronger central weighting.">
-                    <select className="field w-28" value={cfg.balance_decay}
-                        onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}>
-                        <option value="linear">Linear</option>
-                        <option value="gaussian">Gaussian</option>
-                    </select>
-                </Row>
-                <NullableRow label="Min Quality"
-                    tip="Minimum quality score to accept a pick. Auto = 0.20."
-                    enabled={cfg.min_pick_quality !== null}
-                    onToggle={v => up('min_pick_quality', v ? 0.2 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)}
-                        min={0} max={100} step={5}
-                        format={v => (v / 100).toFixed(2)}
-                        onChange={v => up('min_pick_quality', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Lower Tolerance"
-                    tip="Max % drift allowed BELOW ideal per-leg odds. Overrides global factor."
-                    enabled={cfg.tol_lower !== null}
-                    onToggle={v => up('tol_lower', v ? 0.2 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.tol_lower ?? 0.2) * 100)}
-                        min={1} max={100} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('tol_lower', v / 100)} />
-                </NullableRow>
-                <NullableRow label="Upper Tolerance"
-                    tip="Max % drift allowed ABOVE ideal per-leg odds. Overrides global factor."
-                    enabled={cfg.tol_upper !== null}
-                    onToggle={v => up('tol_upper', v ? 0.15 : null)}>
-                    <InlineSlider
-                        value={Math.round((cfg.tol_upper ?? 0.15) * 100)}
-                        min={1} max={100} step={1}
-                        format={v => `${v}%`}
-                        onChange={v => up('tol_upper', v / 100)} />
-                </NullableRow>
-            </AccordionSection>
-        </div>
-    );
+        <AccordionSection title="Advanced" icon="⚙️" defaultOpen={false}>
+            <SubHead>Leg tolerance & stopping</SubHead>
+            {STOP_SLIDERS.map(slider)}
+            <SubHead>Scoring</SubHead>
+            {SCORING_SLIDERS.map(slider)}
+            <Row label="Balance Decay" tip="Decay method for balancing selections. Linear = steady decay, Gaussian = bell-shaped decay with stronger central weighting."><select className="field w-28" value={cfg.balance_decay} onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}><option value="linear">Linear</option><option value="gaussian">Gaussian</option></select></Row>
+        </AccordionSection>
+    </div>;
 }

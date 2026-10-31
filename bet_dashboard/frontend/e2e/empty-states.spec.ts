@@ -63,9 +63,12 @@ async function mockServicesGeneratorOff(page: import('@playwright/test').Page) {
                     generator: { name: 'generator', description: 'gen', enabled: false, alive: false },
                     verifier: { name: 'verifier', description: 'verify', enabled: true, alive: true },
                 },
-                generate_hour: 9,
-                generate_minute: 0,
                 server_time: '2026-09-24T12:00:00',
+                // The real backend always serves profile rows (get_profile_schedules);
+                // the per-profile table and its Save CTA depend on them.
+                profile_schedules: [
+                    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, run_daily_count: 1, order: 0 },
+                ],
             }),
         });
     });
@@ -88,12 +91,17 @@ test('Discover empty CTAs: Pull posts /api/pull and Adjust Filters opens drawer'
 
 test('Build empty CTAs stay on /builder', async ({ page }) => {
     await page.goto('/builder');
-    await expect(page.getByRole('heading', { name: 'Build' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible();
     await expect(page.getByText('No preview yet')).toBeVisible();
-    await page.getByRole('button', { name: 'Select a Preset' }).click();
+    await page.getByRole('button', { name: 'Select a Profile' }).click();
     await expect(page).toHaveURL(/\/builder/);
-    await page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }).click();
-    await expect(page.getByText('No legs in preview.')).toBeVisible();
+    // Smart Builder rework (07a1de0): the Add-to-Slips CTA is hidden while the
+    // preview is empty — the old empty-state button opened a dead-end modal.
+    // Select-a-Preset keeps the user on /builder; the CTA appears in the
+    // preview header only once legs exist.
+    await expect(
+        page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }),
+    ).toHaveCount(0);
 });
 
 test('Track empty CTAs: Generate posts and Go to Build navigates', async ({ page }) => {
@@ -125,22 +133,17 @@ test('Analytics empty CTAs navigate to Track and Build', async ({ page }) => {
 
 test('Services empty CTAs enable generator and save', async ({ page }) => {
     let toggled = 0;
-    let saved = 0;
     await mockServicesGeneratorOff(page);
     await page.route('**/api/services/generator/toggle', async (route) => {
         toggled += 1;
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ name: 'generator', enabled: true }) });
     });
-    await page.route('**/api/services/settings', async (route) => {
-        saved += 1;
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok' }) });
-    });
     await page.goto('/services');
     await expect(page.getByText('Generate Slips is off')).toBeVisible();
+    // Round-2 rework: no Save button exists — the toggle itself is the only
+    // action the empty state offers; schedule edits auto-save (unit-tested).
     await page.getByRole('button', { name: 'Enable Generate Slips' }).click();
     await expect.poll(() => toggled).toBe(1);
-    await page.getByRole('region', { name: 'Generate Slips is off' }).getByRole('button', { name: 'Save Settings' }).click();
-    await expect.poll(() => saved).toBe(1);
 });
 
 test('EmptyState regions pass axe-core', async ({ page }) => {

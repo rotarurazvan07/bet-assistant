@@ -10,10 +10,12 @@ from bet_framework.core.Slip import BetSlipConfig
 
 
 def coerce_key(value):
+    """Coerce a market key to string if not already."""
     return value if isinstance(value, str) else str(value)
 
 
 def coerce_type(value):
+    """Coerce a market type to string if not already."""
     return value if isinstance(value, str) else str(value)
 
 
@@ -32,7 +34,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
         target_legs=body.target_legs,
         max_legs_overflow=body.max_legs_overflow,
         consensus_floor=body.consensus_floor,
-        min_odds=body.min_odds,
+        min_leg_odds=body.min_leg_odds,
         tolerance_factor=body.tolerance_factor,
         stop_threshold=body.stop_threshold,
         min_legs_fill_ratio=body.min_legs_fill_ratio,
@@ -46,7 +48,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
         # Advanced
         consensus_shrinkage_k=body.consensus_shrinkage_k,
         min_source_edge=body.min_source_edge,
-        max_single_leg_odds=body.max_single_leg_odds,
+        max_leg_odds=body.max_leg_odds,
         tol_lower=body.tol_lower,
         tol_upper=body.tol_upper,
         balance_decay=body.balance_decay,

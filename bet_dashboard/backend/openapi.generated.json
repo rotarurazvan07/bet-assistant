@@ -689,7 +689,7 @@
           "profiles"
         ],
         "summary": "Save Profile",
-        "description": "Persist a named builder profile.",
+        "description": "Persist a named builder profile.\n\nScheduling/ordering keys (run_daily_count, order, auto_generate,\ngenerate_hour, generate_minute) are tri-state in the payload: when the\ncaller omits them, the values already persisted for this profile are\ncarried over instead of being reset. That keeps a Smart Builder save from\nsilently wiping a schedule configured on the Services page (review F1).",
         "operationId": "save_profile_api_profiles_post",
         "requestBody": {
           "content": {
@@ -729,7 +729,7 @@
           "profiles"
         ],
         "summary": "Delete Profile",
-        "description": "Delete a named builder profile.",
+        "description": "Delete a named builder profile and its runtime_state entry.",
         "operationId": "delete_profile_api_profiles__name__delete",
         "parameters": [
           {
@@ -874,7 +874,7 @@
           "services"
         ],
         "summary": "Save Settings",
-        "description": "Persist scheduler hour/minute settings.",
+        "description": "Persist per-profile schedules (the only scheduling payload).",
         "operationId": "save_settings_api_services_settings_post",
         "requestBody": {
           "content": {
@@ -1176,9 +1176,9 @@
             "title": "Consensus Floor",
             "default": 50.0
           },
-          "min_odds": {
+          "min_leg_odds": {
             "type": "number",
-            "title": "Min Odds",
+            "title": "Min Leg Odds",
             "default": 1.05
           },
           "tolerance_factor": {
@@ -1204,7 +1204,14 @@
             "title": "Stop Threshold"
           },
           "min_legs_fill_ratio": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Min Legs Fill Ratio",
             "default": 0.7
           },
@@ -1304,16 +1311,10 @@
             ],
             "title": "Min Source Edge"
           },
-          "max_single_leg_odds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Single Leg Odds"
+          "max_leg_odds": {
+            "type": "number",
+            "title": "Max Leg Odds",
+            "default": 3.5
           },
           "tol_lower": {
             "anyOf": [
@@ -1777,9 +1778,9 @@
             "title": "Consensus Floor",
             "default": 50.0
           },
-          "min_odds": {
+          "min_leg_odds": {
             "type": "number",
-            "title": "Min Odds",
+            "title": "Min Leg Odds",
             "default": 1.05
           },
           "tolerance_factor": {
@@ -1805,7 +1806,14 @@
             "title": "Stop Threshold"
           },
           "min_legs_fill_ratio": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Min Legs Fill Ratio",
             "default": 0.7
           },
@@ -1862,9 +1870,15 @@
             "title": "Excluded Sources"
           },
           "units": {
-            "type": "number",
-            "title": "Units",
-            "default": 1.0
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units"
           },
           "target_payout": {
             "anyOf": [
@@ -1878,9 +1892,59 @@
             "title": "Target Payout"
           },
           "run_daily_count": {
-            "type": "integer",
-            "title": "Run Daily Count",
-            "default": 0
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Daily Count"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
+          },
+          "auto_generate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Generate"
+          },
+          "generate_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Hour"
+          },
+          "generate_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Minute"
           },
           "consensus_shrinkage_k": {
             "anyOf": [
@@ -1904,16 +1968,10 @@
             ],
             "title": "Min Source Edge"
           },
-          "max_single_leg_odds": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Single Leg Odds"
+          "max_leg_odds": {
+            "type": "number",
+            "title": "Max Leg Odds",
+            "default": 3.5
           },
           "tol_lower": {
             "anyOf": [
@@ -1983,24 +2041,124 @@
         "title": "ProfileIn",
         "description": "Payload for saving a named builder profile."
       },
-      "ServicesSettingsIn": {
+      "ProfileScheduleIn": {
         "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "auto_generate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Generate"
+          },
           "generate_hour": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Generate Hour"
           },
           "generate_minute": {
-            "type": "integer",
-            "title": "Generate Minute",
-            "default": 0
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generate Minute"
+          },
+          "units": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units"
+          },
+          "target_payout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Payout"
+          },
+          "stake_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stake Mode"
+          },
+          "run_daily_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Daily Count"
+          },
+          "order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order"
           }
         },
         "type": "object",
         "required": [
-          "generate_hour"
+          "name"
+        ],
+        "title": "ProfileScheduleIn",
+        "description": "Per-profile auto-generation schedule row (T4).\n\nIssue #95: BOTH ``units`` and ``target_payout`` are always preserved on\ndisk; ``stake_mode`` (\"units\" | \"payout\") only selects which one is active\nat generation time. A null ``units``/``target_payout`` means \"not\nprovided\" and the persisted value is kept \u2014 switching the segmented\ncontrol can never lose the other field's number."
+      },
+      "ServicesSettingsIn": {
+        "properties": {
+          "profile_schedules": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileScheduleIn"
+            },
+            "type": "array",
+            "title": "Profile Schedules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile_schedules"
         ],
         "title": "ServicesSettingsIn",
-        "description": "Payload for service scheduler settings."
+        "description": "Payload for service scheduler settings.\n\nPer-profile schedules only \u2014 there is no global generation time anymore\n(user decision 2026-10-25): a legacy hour-only body fails validation\nbecause profile_schedules is required."
       },
       "SlipIn": {
         "properties": {

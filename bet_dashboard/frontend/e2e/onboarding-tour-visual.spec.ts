@@ -36,11 +36,11 @@ test.describe('onboarding tour @desktop 1280x800', () => {
         await expect(page).toHaveScreenshot('tour-step0-desktop.png', mask(page));
     });
 
-    test('step 1 Create your strategy', async ({ page }) => {
+    test('step 1 Profiles & live preview', async ({ page }) => {
         await page.goto('/');
         await waitStep(page, 'Find value bets');
         await page.getByRole('button', { name: 'Next' }).click();
-        await waitStep(page, 'Create your strategy');
+        await waitStep(page, 'Profiles & live preview');
         await expect(page).toHaveScreenshot('tour-step1-desktop.png', mask(page));
     });
 
@@ -63,11 +63,11 @@ test.describe('onboarding tour @mobile 375x667', () => {
         await expect(page).toHaveScreenshot('tour-step0-mobile.png', mask(page));
     });
 
-    test('step 1 Create your strategy', async ({ page }) => {
+    test('step 1 Profiles & live preview', async ({ page }) => {
         await page.goto('/');
         await waitStep(page, 'Find value bets');
         await page.getByRole('button', { name: 'Next' }).click();
-        await waitStep(page, 'Create your strategy');
+        await waitStep(page, 'Profiles & live preview');
         await expect(page).toHaveScreenshot('tour-step1-mobile.png', mask(page));
     });
 

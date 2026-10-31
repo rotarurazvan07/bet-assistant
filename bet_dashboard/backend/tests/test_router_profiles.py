@@ -3,6 +3,58 @@
 BASE = "/api/profiles"
 
 
+class TestSaveProfileSchedulePreservation:
+    """[P0] F1: a builder save must not wipe Services-configured scheduling."""
+
+    def test_omitted_scheduling_keys_keep_persisted_values(self, client, fake_app) -> None:
+        """[P0] Order/schedule/auto_generate/run_daily_count survive an omit."""
+        fake_app.settings.get.return_value = {
+            "safebet": {
+                "order": 4,
+                "auto_generate": True,
+                "generate_hour": 7,
+                "generate_minute": 15,
+                "run_daily_count": 2,
+            }
+        }
+        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["order"] == 4
+        assert written["auto_generate"] is True
+        assert written["generate_hour"] == 7
+        assert written["generate_minute"] == 15
+        assert written["run_daily_count"] == 2
+
+    def test_provided_scheduling_keys_are_persisted(self, client, fake_app) -> None:
+        """[P0] Explicitly sent scheduling fields are written through."""
+        fake_app.settings.get.return_value = None
+        r = client.post(
+            BASE,
+            json={
+                "name": "Safe Bet",
+                "target_odds": 4.0,
+                "order": 1,
+                "auto_generate": True,
+                "generate_hour": 6,
+                "generate_minute": 30,
+            },
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["order"] == 1
+        assert written["auto_generate"] is True
+        assert written["generate_hour"] == 6
+        assert written["generate_minute"] == 30
+
+    def test_omitted_run_daily_count_keeps_legacy_value(self, client, fake_app) -> None:
+        """[P0] The frontend no longer sends run_daily_count; legacy survives."""
+        fake_app.settings.get.return_value = {"safebet": {"run_daily_count": 3}}
+        client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["run_daily_count"] == 3
+
+
 class TestListProfiles:
     def test_list_returns_settings_profiles(self, client, fake_app) -> None:
         expected = {"safe": {"units": 1.0}, "bold": {"units": 2.0}}
@@ -20,7 +72,12 @@ class TestListProfiles:
 
 class TestSaveProfile:
     def _body(self, **overrides):
-        body = {"name": "Safe Bet", "target_odds": 4.0, "units": 2.5, "run_daily_count": 3}
+        body = {
+            "name": "Safe Bet",
+            "target_odds": 4.0,
+            "units": 2.5,
+            "run_daily_count": 3,
+        }
         body.update(overrides)
         return body
 
@@ -58,17 +115,79 @@ class TestSaveProfile:
 
     def test_save_defaults_applied(self, client, fake_app) -> None:
         client.post(BASE, json={"name": "d"})
-        data = fake_app.settings.write.call_args[0][1]
-        assert data["target_odds"] == 3.0
-        assert data["target_legs"] == 3
-        assert data["units"] == 1.0
-        assert data["run_daily_count"] == 0
-        assert data["balance_decay"] == "linear"
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["target_odds"] == 3.0
+        assert written["target_legs"] == 3
+        assert written["units"] == 1.0
+        # F1: run_daily_count is opt-in — omitted it is not written as 0, so a
+        # legacy auto-generation profile keeps its schedule across a builder save.
+        assert "run_daily_count" not in written
+        assert written["balance_decay"] == "linear"
 
 
 class TestDeleteProfile:
-    def test_delete_delegates_to_settings(self, client, fake_app) -> None:
+    def test_delete_delegates_to_app_logic(self, client, fake_app) -> None:
+        """DELETE must go through AppLogic.delete_profile so the runtime_state
+        profile_last_run entry is purged together with the profile YAML."""
         r = client.delete(f"{BASE}/gone")
         assert r.status_code == 200
         assert r.json() == {"deleted": "gone"}
-        fake_app.settings.delete.assert_called_once_with("gone", subpath="profiles")
+        fake_app.delete_profile.assert_called_once_with("gone")
+
+
+class TestSaveProfileMergeOnWrite:
+    """[P0] Desync C: a Builder save must not clobber Services-owned units/target_payout."""
+
+    def test_omitted_units_target_payout_keep_persisted(self, client, fake_app) -> None:
+        """[P0] Omitted units/target_payload preserve the persisted profile values."""
+        fake_app.settings.get.return_value = {"safebet": {"units": 2.5, "target_payout": 42.0}}
+        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["units"] == 2.5
+        assert written["target_payout"] == 42.0
+
+    def test_explicit_units_target_payout_persist(self, client, fake_app) -> None:
+        """[P0] Explicitly sent units/target_payout are written through."""
+        fake_app.settings.get.return_value = {"safebet": {"units": 2.5, "target_payout": 42.0}}
+        r = client.post(
+            BASE,
+            json={"name": "Safe Bet", "target_odds": 4.0, "units": 7.0, "target_payout": 100.0},
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["units"] == 7.0
+        assert written["target_payout"] == 100.0
+
+    def test_new_profile_omitted_gets_defaults(self, client, fake_app) -> None:
+        """[P0] A brand-new profile with omitted stake fields gets defaults."""
+        fake_app.settings.get.return_value = None
+        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["units"] == 1.0
+        assert written["target_payout"] is None
+
+
+class TestSaveProfileFillRatioAutoRoundTrip:
+    """[P0] AUTO B: min_legs_fill_ratio=null must persist as null (Auto), not 0.90."""
+
+    def test_null_fill_ratio_persists_as_null(self, client, fake_app) -> None:
+        """[P0] Explicit null survives the save verbatim -- no 0.90 coercion."""
+        r = client.post(
+            BASE,
+            json={"name": "Safe Bet", "target_odds": 4.0, "units": 1.0, "min_legs_fill_ratio": None},
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["min_legs_fill_ratio"] is None
+
+    def test_explicit_fill_ratio_persists(self, client, fake_app) -> None:
+        """[P0] An explicit fill ratio is written through unchanged."""
+        r = client.post(
+            BASE,
+            json={"name": "Safe Bet", "target_odds": 4.0, "units": 1.0, "min_legs_fill_ratio": 0.62},
+        )
+        assert r.status_code == 200
+        written = fake_app.settings.write.call_args[0][1]
+        assert written["min_legs_fill_ratio"] == 0.62

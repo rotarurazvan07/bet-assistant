@@ -34,6 +34,15 @@ MODULES = (matches, builder, slips, profiles, analytics, services, odds_history,
 
 
 def build_schema() -> dict:
+    """Build the OpenAPI schema for the bet-assistant API.
+
+    Creates a bare FastAPI app with all routers mounted, generates the OpenAPI
+    schema, and injects the canonical MarketKey and MarketType enums as
+    schema-only components so frontend types are generated from Python.
+
+    Returns:
+        OpenAPI schema dictionary.
+    """
     app = FastAPI(title="bet-assistant")
     for module in MODULES:
         app.include_router(module.router)
@@ -59,6 +68,12 @@ def build_schema() -> dict:
 
 
 def main() -> None:
+    """CLI entry point to export the OpenAPI schema to a JSON file.
+
+    Args:
+        sys.argv[1]: Optional output file path. Defaults to
+            bet_dashboard/backend/openapi.generated.json.
+    """
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else BACKEND / "openapi.generated.json"
     out.write_text(json.dumps(build_schema(), indent=2) + "\n", encoding="utf-8")
     print(f"wrote {out}")

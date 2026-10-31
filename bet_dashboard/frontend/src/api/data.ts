@@ -113,10 +113,6 @@ export async function fetchServices(): Promise<ServicesData> {
     return res.data;
 }
 
-export async function saveServiceSettings(generate_hour: number, generate_minute: number): Promise<void> {
-    await client.post('/services/settings', { generate_hour, generate_minute });
-}
-
 export async function toggleService(name: string): Promise<{ name: string; enabled: boolean }> {
     const res = await client.post<{ name: string; enabled: boolean }>(`/services/${name}/toggle`);
     return res.data;

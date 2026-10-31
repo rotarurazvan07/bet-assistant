@@ -4,9 +4,12 @@ import math
 import os
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
+from threading import RLock
 from typing import Any
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -20,7 +23,7 @@ from core.analytics_utils import (
     calculate_streak_metrics,
     get_rolling_edge_trend,
 )
-from core.config_helpers import _yaml_to_config, ensure_default_profiles
+from core.config_helpers import _RUNTIME_ONLY, _yaml_to_config, ensure_default_profiles
 from core.ticker_service import TickerService
 from core.ws import ws_manager
 from scrape_kit import SettingsManager, configure
@@ -29,6 +32,109 @@ from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.core import leagues
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.MatchesManager import MatchesManager
+
+
+class ThreadSafeSettingsManager(SettingsManager):
+    """Serialize settings reloads and writes shared by API worker threads."""
+
+    def __init__(self, directory: str) -> None:
+        """Initialize the thread-safe settings manager.
+
+        Args:
+            directory: Path to the configuration directory.
+        """
+        self._access_lock = RLock()
+        super().__init__(directory)
+
+    def get(self, *keys: str) -> Any | None:
+        """Get configuration value(s) with thread safety.
+
+        Args:
+            *keys: Configuration key(s) to retrieve.
+
+        Returns:
+            Configuration value or None if not found.
+        """
+        with self._access_lock:
+            return super().get(*keys)
+
+    def write(self, name: str, data: dict[str, Any], *, subpath: str | Path | None = None) -> None:
+        """Write configuration data with thread safety.
+
+        Args:
+            name: Configuration name/key.
+            data: Configuration data dictionary.
+            subpath: Optional subdirectory path.
+        """
+        with self._access_lock:
+            super().write(name, data, subpath=subpath)
+
+    def delete(self, name: str, *, subpath: str | Path | None = None) -> None:
+        """Delete configuration with thread safety.
+
+        Args:
+            name: Configuration name/key to delete.
+            subpath: Optional subdirectory path.
+        """
+        with self._access_lock:
+            super().delete(name, subpath=subpath)
+
+
+def _profile_is_active(cfg: dict) -> bool:
+    """The gate the generator ticker actually uses — one place, no second opinion.
+
+    A profile is active when ``auto_generate`` is set (the modern flag) OR it
+    carries a legacy truthy ``run_daily_count``. An explicit
+    ``auto_generate: False`` is authoritative and never overridden by a leftover
+    count, which is what "Auto off hides and gates the Daily field, it does not
+    rewrite it" means on disk. String "false"/"off"/"no"/"0" are treated as
+    falsy for hand-edited YAML compatibility.
+    """
+    auto = cfg.get("auto_generate")
+    if isinstance(auto, str) and auto.strip().lower() in ("false", "off", "no", "0"):
+        return False
+    if auto is False or auto is None:
+        if auto is False:
+            return False
+        count = _safe_int(cfg.get("run_daily_count"))
+        return count is not None and count > 0
+    return True
+
+
+def _order_sort_key(value: Any) -> tuple[int, float]:
+    """Sort key for profile ``order`` values that must never raise.
+
+    Hand-edited profile YAML can hold "2" (string) or 2.5 (float) next to an
+    int, and a TypeError inside the generator ticker predicate would kill the
+    daemon thread (review F4). Numeric values sort first by their number;
+    anything unparseable sorts last, alphabetically.
+    """
+    try:
+        return (0, float(value))
+    except (TypeError, ValueError):
+        return (1, 0.0)
+
+
+def _safe_int(value: Any) -> int | None:
+    """Coerce to int, returning None on failure — never raises.
+
+    Hand-edited profile YAML can hold "abc"/2.5 next to an int; a ValueError
+    here would kill the generator daemon thread (review F4/H2 class).
+    """
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_zoneinfo(tz_name: Any) -> ZoneInfo:
+    """ZoneInfo with UTC fallback — a config typo must not kill the daemon (M6)."""
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        return ZoneInfo("UTC")
 
 
 def _units_std(settled, n_settled: int, avg_units: float) -> float:
@@ -91,7 +197,7 @@ class AppLogic:
         self._config_path = config_path
 
         configure(config_path)
-        self._settings = SettingsManager(config_path)
+        self._settings = ThreadSafeSettingsManager(config_path)
         ensure_default_profiles(config_path + "/profiles", self._settings)
 
         # Initialize core assistants
@@ -107,6 +213,10 @@ class AppLogic:
         # Last run tracking for hour-based services
         self._last_generator_run: str | None = None
 
+        # Serializes the check-generate-claim sequence so the ticker and the
+        # manual Generate button can never double-generate one profile (review B2/H7).
+        self._claim_lock = RLock()
+
         # Initialize services
         svc_cfg = self._settings.get("services") or {}
         self._services: dict[str, TickerService] = {
@@ -119,7 +229,7 @@ class AppLogic:
             "generator": TickerService(
                 "generator",
                 self._do_generate,
-                interval=5 * 60,  # Poll every 5 minutes
+                interval=60,  # Poll every minute — fire promptly at the window
                 predicate=self._is_generator_hour_met,
             ),
             "verifier": TickerService(
@@ -160,42 +270,27 @@ class AppLogic:
     # ── TickerService callbacks ───────────────────────────────────────────────
 
     def _is_generator_hour_met(self) -> bool:
-        """Predicate to check if it's time to run the generator (once per daily window)."""
-        now = datetime.now()
-        today_key = now.strftime("%Y-%m-%d")
+        """Predicate: any active profile's own daily window is due.
 
-        # Get target hour and minute from current settings
-        svc_cfg = self._settings.get("services") or {}
-        target_hour = int(svc_cfg.get("generate_hour", 8))
-        target_minute = int(svc_cfg.get("generate_minute", 0))
+        There is no global schedule time anymore: a profile without its own
+        generate_hour/generate_minute never fires (per-profile windows only).
+        Windows are wall-clock times in the configured ``local_timezone`` —
+        the same timezone the Services UI shows Next run in — NOT
+        container-local time (UTC in Docker), otherwise the gate skews by
+        hours against what the UI displays.
+        """
+        now = self._local_now()
 
-        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+        # Per-profile windows: fire when one active profile is due.
+        profiles_raw = self._settings.get("profiles") or {}
+        for name in self._get_active_profiles():
+            cfg = profiles_raw.get(name) or {}
+            hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
+            if hour is not None and minute is not None and self._profile_schedule_met(name, cfg, now=now):
+                return True
 
-        # If the scheduled time hasn't arrived yet, nothing to do
-        if now < target_time:
-            return False
-
-        # Check in-memory guard first (fastest path during normal operation)
-        if self._last_generator_run == today_key:
-            return False
-
-        # On restart, _last_generator_run is None — fall back to persisted timestamp.
-        # If last_time_generated is from today and the scheduled time has already
-        # passed, we treat generation as already done for today.
-        runtime_cfg = self._settings.get("runtime_state") or {}
-        last_generated = runtime_cfg.get("last_time_generated")
-        if last_generated:
-            try:
-                last_dt = datetime.fromisoformat(last_generated)
-                if last_dt.strftime("%Y-%m-%d") == today_key:
-                    # Already ran today — sync in-memory guard and skip
-                    self._last_generator_run = today_key
-                    return False
-            except (ValueError, TypeError):
-                pass
-
-        self._last_generator_run = today_key
-        return True
+        # No global window: generator fires only on per-profile windows.
+        return False
 
     def _check_for_changes(self) -> bool:
         """HEAD request to check if GitHub release has changed via ETag."""
@@ -263,17 +358,309 @@ class AppLogic:
         ]
 
     def _do_generate(self) -> None:
-        """Ticker daemon: generate slips for active profiles at the scheduled hour."""
+        """Ticker daemon: generate slips for due profiles at their scheduled hour."""
         try:
             profiles = self._get_active_profiles()
-            if profiles:
-                self.generate_slips(profiles)
-                runtime = self._settings.get("runtime_state") or {}
-                runtime["last_time_generated"] = datetime.now().isoformat()
-                self._settings.write("runtime_state", runtime)
-            self._broadcast_slips_updated()
+            due = {name: tup for name, tup in profiles.items() if self._is_profile_due(name)}
+            if due:
+                self.generate_slips(due)
+                self._claim_profile_runs(due, status="ok")
+                self._broadcast_slips_updated()
         except Exception as exc:
             print(f"[Generator] ERROR: {exc}")
+            # Mark failing due profiles — status only. Guarded so a raise here
+            # cannot take down the ticker daemon thread (review H3).
+            try:
+                due = {name: None for name in (self._get_active_profiles() or {}) if self._is_profile_due(name)}
+                if due:
+                    self._claim_profile_runs(due, status="failed", error=str(exc))
+            except Exception as exc2:
+                print(f"[Generator] failure-marking ERROR: {exc2}")
+
+    # ── Per-profile generation schedule (T4) ──────────────────────────────────
+
+    def _profile_cfg(self, name: str) -> dict:
+        """Return the stored YAML dict for a profile (empty when missing)."""
+        return (self._settings.get("profiles") or {}).get(name) or {}
+
+    def _local_tz(self) -> ZoneInfo:
+        """Configured crawler timezone (``scraper_config.local_timezone``)."""
+        tz_name = (self._settings.get("scraper_config") or {}).get("local_timezone", "Europe/Bucharest")
+        return _safe_zoneinfo(tz_name)
+
+    def _local_now(self) -> datetime:
+        """Current wall-clock time in the configured crawler timezone.
+
+        Single source of truth for schedule math: the generator gate, the
+        once-per-day guard and the Services UI's Next run all use this
+        timezone so they can never disagree with each other. Container-local
+        time (UTC in Docker) would skew the gate by hours against the UI.
+        """
+        return datetime.now(self._local_tz())
+
+    def _profile_schedule_met(self, name: str, cfg: dict | None = None, now: datetime | None = None) -> bool:
+        """True when the profile's own daily window has arrived today.
+
+        Per-profile generate_hour/generate_minute only — there is no global
+        services window anymore, so a profile without its own window never
+        fires. A once-per-day guard blocks re-runs: the date is derived from
+        the profile's single ``profile_last_run.at`` entry (stored ISO UTC,
+        converted to the local tz — the same clock this gate reads) so the
+        guard and the window check can never disagree across midnight.
+        ``now`` defaults to the configured crawler timezone (see
+        ``_local_now``) so the gate matches the UI's Next run.
+        """
+        cfg = self._profile_cfg(name) if cfg is None else cfg
+        if not _profile_is_active(cfg):
+            return False
+        now = now or self._local_now()
+        today_key = now.strftime("%Y-%m-%d")
+        hour, minute = _safe_int(cfg.get("generate_hour")), _safe_int(cfg.get("generate_minute"))
+        # No global fallback: a profile without its own window never fires.
+        if hour is None or minute is None:
+            return False
+        # Validate hour/minute ranges to reject malformed values (review H2/H3).
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            return False
+        target = now.replace(
+            hour=hour,
+            minute=minute,
+            second=0,
+            microsecond=0,
+        )
+        if now < target:
+            return False
+        return self._last_run_local_date(name) != today_key
+
+    def _last_run_local_date(self, name: str) -> str | None:
+        """Local-tz calendar date of the profile's last SUCCESSFUL run, or None.
+
+        The once-per-day guard only considers status=="ok" entries. Failed runs
+        do NOT block subsequent attempts on the same day (review B1).
+        """
+        runtime = self._settings.get("runtime_state") or {}
+        entry = (runtime.get("profile_last_run") or {}).get(name) or {}
+        # Only a SUCCESSFUL run consumes the once-per-day guard; a failed run
+        # records status for the Services table but must not block a retry
+        # until midnight (review B1).
+        if entry.get("status") != "ok":
+            return None
+        at = entry.get("at")
+        if not at:
+            return None
+        try:
+            dt = datetime.fromisoformat(str(at))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=ZoneInfo("UTC"))
+            return dt.astimezone(self._local_tz()).strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            return None
+
+    def _is_profile_due(self, name: str, now: datetime | None = None) -> bool:
+        """Daemon due-check.
+
+        Legacy profiles (no per-profile hour/minute) are gated by the same
+        once-per-day stamp as per-profile ones, so a profile invoked directly
+        (manual generation, tests) cannot regenerate twice in one day
+        (review F2).
+        """
+        return self._profile_schedule_met(name, now=now)
+
+    def _claim_profile_runs(self, profiles: dict, *, status: str = "ok", error: str | None = None) -> None:
+        """Record one entry per generated profile in ``profile_last_run``.
+
+        Single source of truth for generation state (issue #95 cleanup):
+        ``runtime_state.profile_last_run[name] = {"at": <ISO UTC>, "status":
+        "ok"|"failed", "error": ...}``. The once-per-day guard derives its
+        date from ``at`` (see ``_last_run_local_date``), the Services table
+        shows ``at`` as "Last generated" and ``status``/``error`` as the run
+        status. Covers both the scheduled ticker and the manual Generate
+        button since both call this. Legacy keys (profile_last_generated,
+        profile_last_generated_at, profile_run_status, last_time_generated)
+        are dropped on write — no legacy fallback.
+        """
+        iso_now = datetime.now().astimezone(ZoneInfo("UTC")).isoformat()
+        # The whole read-modify-write must be one critical section: the RLock
+        # inside get/write only serializes individual ops, so a concurrent
+        # ticker + manual Generate could otherwise drop a claim (review H7/H5).
+        with self._claim_lock:
+            runtime = self._settings.get("runtime_state") or {}
+            runs = runtime.get("profile_last_run") or {}
+            for name in profiles:
+                runs[name] = {"at": iso_now, "status": status, "error": error}
+            runtime["profile_last_run"] = runs
+            # Drop superseded keys — no legacy fallback.
+            for legacy_key in (
+                "profile_last_generated",
+                "profile_last_generated_at",
+                "profile_run_status",
+                "last_time_generated",
+            ):
+                runtime.pop(legacy_key, None)
+            self._settings.write("runtime_state", runtime)
+
+    def delete_profile(self, name: str) -> None:
+        """Delete a profile YAML and purge its ``profile_last_run`` entry.
+
+        The stamp must not outlive the profile, or a recreated profile would
+        inherit the old once-per-day guard. runtime_state is rewritten only
+        when an entry existed, so deleting a never-run profile creates nothing.
+        """
+        self._settings.delete(name, subpath="profiles")
+        runtime = self._settings.get("runtime_state") or {}
+        runs = runtime.get("profile_last_run") or {}
+        if name in runs:
+            runs.pop(name, None)
+            runtime["profile_last_run"] = runs
+            self._settings.write("runtime_state", runtime)
+
+    def get_profile_schedules(self) -> list[dict]:
+        """Profile schedule rows for the Services UI (every saved profile).
+
+        Rows are returned in UI display order and ``order`` reports the
+        EFFECTIVE position (0-based index after sorting), not the raw YAML
+        value — a new profile with no ``order`` on disk still has a concrete
+        position in the table, and the row must reflect that reality. The
+        frontend's autosave sends these positional orders back, so the YAML
+        materializes them on the next save (issue #95: GET mirrors the UI).
+
+        Other persisted fields report what is on disk so the UI never shows a
+        value the system manufactured behind the user's back:
+
+        * ``auto_generate`` reports ``auto_generate`` OR a legacy truthy
+          ``run_daily_count`` (the gate the ticker actually uses).
+        * ``run_daily_count`` reports the stored number *as stored*, including
+          a stored ``0``; a legacy auto-only profile reports ``None``.
+        * ``generate_hour``/``generate_minute`` report ``None`` when the
+          profile has no window of its own (the UI shows a "--" placeholder;
+          no fabricated 08:00).
+
+        Computed scheduler state is reported alongside the persisted values:
+        ``last_generated_at``/``last_run_status``/``last_run_error`` come from
+        the single ``profile_last_run[name]`` entry (``at``/``status``/
+        ``error``), ``next_run_at`` is derived server-side from the window and
+        the configured timezone. ``next_run_at`` is ``None`` when auto is off
+        or no window is set.
+        """
+        local_now = self._local_now()
+        runtime = self._settings.get("runtime_state") or {}
+        last_run_by_profile = runtime.get("profile_last_run") or {}
+
+        rows = []
+        for name, cfg in (self._settings.get("profiles") or {}).items():
+            active = _profile_is_active(cfg)
+            entry = last_run_by_profile.get(name) or {}
+            rows.append(
+                {
+                    "name": name,
+                    "auto_generate": active,
+                    "generate_hour": cfg.get("generate_hour"),
+                    "generate_minute": cfg.get("generate_minute"),
+                    "units": cfg.get("units") if cfg.get("units") is not None else 1.0,
+                    # Services-tab scope: payout defaults to 1 like units, so the
+                    # row (and, after the next save, the YAML) never carries null.
+                    "target_payout": cfg.get("target_payout") if cfg.get("target_payout") is not None else 1.0,
+                    # Persisted stake_mode wins; fall back to inferring from which
+                    # field has a value (legacy profiles have no stake_mode on disk).
+                    "stake_mode": cfg.get("stake_mode") or ("payout" if (cfg.get("target_payout") or 0) > 0 else "units"),
+                    "run_daily_count": cfg.get("run_daily_count"),
+                    "order": cfg.get("order"),
+                    "last_generated_at": entry.get("at"),
+                    "last_run_status": entry.get("status"),
+                    "last_run_error": entry.get("error"),
+                    "next_run_at": self._profile_next_run(cfg, active, local_now=local_now),
+                }
+            )
+
+        # Same comparator as the Services table (Number(order) || 0, then name):
+        # unparseable/missing order counts as 0, tie-break alphabetical.
+        def _ui_order_key(row: dict) -> tuple:
+            try:
+                return (float(row["order"]), row["name"])
+            except (TypeError, ValueError):
+                return (0.0, row["name"])
+
+        rows.sort(key=_ui_order_key)
+        for position, row in enumerate(rows):
+            row["order"] = position
+        return rows
+
+    def _profile_next_run(self, cfg: dict, active: bool, *, local_now: datetime) -> str | None:
+        """Next scheduled generation for one profile as a UTC ISO string.
+
+        Server-side truth so the table never shows a time the scheduler would
+        not honour. ``None`` when the profile is not active OR has no window of
+        its own — a windowless active profile never fires (per-profile windows
+        only, no global fallback), so there is no next run and no fabricated
+        08:00 default written or displayed.
+        """
+        if not active:
+            return None
+        hour, minute = _safe_int(cfg.get("generate_hour")), _safe_int(cfg.get("generate_minute"))
+        if hour is None or minute is None:
+            return None
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            return None
+        first = local_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if first <= local_now:
+            first += timedelta(days=1)
+        return first.astimezone(ZoneInfo("UTC")).isoformat()
+
+    def save_profile_schedules(self, rows: list[dict]) -> None:
+        """Merge per-profile schedule rows into each profile's YAML (T4).
+
+        Issue #95 stake semantics: BOTH ``units`` and ``target_payout`` are
+        always preserved on disk — ``stake_mode`` ("units"|"payout") only
+        selects which one is active at generation time. A null value means
+        "not provided" and never clears the persisted value, so switching
+        the segmented control can never lose the other field's number.
+        """
+        for row in rows:
+            name = row.get("name")
+            if not name:
+                continue
+            cfg = dict(self._profile_cfg(name))
+            # A profile whose stored YAML is empty (parse failure / hand-edit)
+            # must never be rewritten from schedule keys alone — that wipes
+            # every BetSlipConfig field (review H1).
+            if not cfg:
+                continue
+            # None means "not provided": it must not clear a persisted value,
+            # matching the tri-state contract used for stake fields (review M8).
+            cfg.update(
+                {
+                    k: row[k]
+                    for k in (
+                        "auto_generate",
+                        "generate_hour",
+                        "generate_minute",
+                        "run_daily_count",
+                        "order",
+                    )
+                    if k in row and row[k] is not None
+                }
+            )
+            if row.get("stake_mode") in ("units", "payout"):
+                cfg["stake_mode"] = row["stake_mode"]
+            # Tri-state: only non-null stake values write through; null = keep.
+            if row.get("units") is not None:
+                cfg["units"] = row["units"]
+            if row.get("target_payout") is not None:
+                cfg["target_payout"] = row["target_payout"]
+            # Services-tab scope only: both stake fields default to 1 when absent
+            # (so the UI never shows null), but do not overwrite if a value exists.
+            if cfg.get("units") is None:
+                cfg["units"] = 1.0
+            if cfg.get("target_payout") is None:
+                cfg["target_payout"] = 1.0
+            # Preserve run_daily_count if not explicitly provided
+            if row.get("run_daily_count") is not None:
+                cfg["run_daily_count"] = row["run_daily_count"]
+            # date_from/date_to/excluded_urls are runtime-only (Build page
+            # filters, never persisted) — strip them from the profile file.
+            for k in _RUNTIME_ONLY:
+                cfg.pop(k, None)
+            self._settings.write(name, cfg, subpath="profiles")
 
     def _do_verify(self) -> None:
         """Ticker daemon: poll live scores and settle active slips."""
@@ -713,16 +1100,33 @@ class AppLogic:
         return result
 
     def generate_and_broadcast(self) -> dict:
-        """Generate slips for active profiles and broadcast over WS."""
+        """Generate slips for DUE profiles and broadcast over WS.
+
+        This is the manual Generate button (POST /api/slips/generate) — it IS
+        a generation, so it claims the once-per-day guard like the ticker.
+        Only profiles whose window is due today have their guard claimed.
+        Distinct from building a slip manually on the Build page
+        (POST /api/slips -> save_slip_and_broadcast), which never touches
+        generation state.
+        """
         profiles = self._get_active_profiles()
+        # Only profiles whose window is actually due get generated/claimed;
+        # claiming every active profile would consume tomorrow's guard today
+        # for not-yet-due profiles (review B2).
+        due = {name: tup for name, tup in profiles.items() if self._is_profile_due(name)}
         result: dict = {}
-        if profiles:
-            result = self.generate_slips(profiles)
-            runtime = self._settings.get("runtime_state") or {}
-            runtime["last_time_generated"] = datetime.now().isoformat()
-            self._settings.write("runtime_state", runtime)
-        self._broadcast_slips_updated()
-        return result
+        try:
+            if due:
+                result = self.generate_slips(due)
+                self._claim_profile_runs(due, status="ok")
+            self._broadcast_slips_updated()
+            return result
+        except Exception as exc:
+            print(f"[Generator] manual ERROR: {exc}")
+            if due:
+                self._claim_profile_runs(due, status="failed", error=str(exc))
+            self._broadcast_slips_updated()
+            raise
 
     def save_slip_and_broadcast(self, profile: str, legs: list, units: float) -> int:
         """Persist a manual slip and broadcast the update over WS."""
@@ -767,26 +1171,47 @@ class AppLogic:
         )
         return new_state
 
-    def save_service_settings(self, generate_hour: int, generate_minute: int = 0) -> None:
-        """Persist scheduler hour/minute settings to config."""
-        cfg = self._settings.get("services") or {}
-        cfg["generate_hour"] = generate_hour
-        cfg["generate_minute"] = generate_minute
-        self._settings.write("services", cfg)
-        # Generator is already polling its interval; it will pick up the new time from settings via its predicate
-
     # ── Helpers ──────────────────────────────────────────────────────────[...]
 
     def _get_active_profiles(self) -> dict[str, tuple]:
-        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
+        """Active profiles as {name: (BetSlipConfig, units, count, target_payout)}.
+
+        Ordering: explicit ``order`` ascending first, unordered profiles keep their
+        settings-dict (insertion) order after them. A profile is active when
+        ``auto_generate`` is set or it has a legacy truthy ``run_daily_count``;
+        auto_generate-only profiles run once per day (count 1).
+        """
         profiles_raw = self._settings.get("profiles") or {}
-        return {
-            name: (
+        active = {name: cfg for name, cfg in profiles_raw.items() if _profile_is_active(cfg)}
+        ordered = sorted(
+            (n for n, c in active.items() if c.get("order") is not None),
+            key=lambda n: _order_sort_key(active[n]["order"]),
+        )
+        unordered = [n for n, c in active.items() if c.get("order") is None]
+
+        def _active_stake(cfg: dict) -> tuple:
+            """(units, target_payout) honouring persisted stake_mode (issue #95).
+
+            stake_mode="payout" → payout is the active stake (units still
+            passed through, generate_slips prefers payout when > 0).
+            "units" (or legacy absent) → payout reported as None so the
+            generator uses fixed units. Both values stay on disk; only the
+            selection changes.
+            """
+            units = cfg.get("units", 1.0)
+            payout = cfg.get("target_payout")
+            if cfg.get("stake_mode") == "payout":
+                return (units, payout)
+            return (units, None)
+
+        result = {}
+        for name in ordered + unordered:
+            cfg = active[name]
+            units, payout = _active_stake(cfg)
+            result[name] = (
                 _yaml_to_config(cfg),
-                cfg.get("units", 1.0),
-                cfg.get("run_daily_count", 0),
-                cfg.get("target_payout"),
+                units,
+                cfg.get("run_daily_count") or (1 if cfg.get("auto_generate") else 0),
+                payout,
             )
-            for name, cfg in profiles_raw.items()
-            if cfg.get("run_daily_count")
-        }
+        return result

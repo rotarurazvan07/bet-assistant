@@ -98,27 +98,43 @@
     color: var(--text-muted);
   }
 
-  /* Number inputs — clean monospace, no spinners */
-  input[type=number].field {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    font-weight: 500;
-    text-align: right;
-    letter-spacing: 0.02em;
-    -moz-appearance: textfield;
-    padding-right: 10px;
-  }
+/* Number inputs: custom stepper arrows (pair with <NumberField />) */
+input[type="number"].field {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  letter-spacing: 0.02em;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  padding-right: 2px;
+}
 
-  input[type=number].field::-webkit-outer-spin-button,
-  input[type=number].field::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+input[type="number"].field::-webkit-inner-spin-button,
+input[type="number"].field::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
-  input[type=number].field:focus {
-    border-color: var(--accent);
-    background: rgba(61, 123, 255, .04);
-  }
+.num-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.num-step:hover { opacity: 1; color: var(--accent); }
+
+input[type="number"].field:focus {
+  border-color: var(--accent);
+  background: rgba(61, 123, 255, .04);
+}
 
   /* Select */
   select.field {
@@ -167,9 +183,14 @@
     color: var(--text-secondary);
   }
 
-  .btn-ghost:hover {
+  .btn-ghost:hover:not(:disabled) {
     border-color: var(--border-accent);
     color: var(--text-primary);
+  }
+
+  .btn-ghost:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
   }
 
   .btn-danger {
@@ -460,4 +481,127 @@ thead .sticky-col {
   min-width: 200px;
   max-height: 400px;
   overflow-y: auto;
+}
+
+/* ── Per-profile scheduling table: Auto-gated cells (issue #95 redesign) ── */
+/* Fixed column grid — cells never unmount, only their inner content fades.
+ * Guarded cells (Time, Daily, Stake) transition opacity + translateX over
+ * 180ms ease-out, staggered 30ms per cell. The "Manual only" label does the
+ * reverse. No mount/unmount — transitions on data-attributes so exit plays too. */
+.sched-cell {
+  position: relative;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+.sched-cell-inner {
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+  will-change: opacity, transform;
+}
+.sched-cell-inner[data-gated="off"] {
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+}
+.sched-cell-inner[data-gated="on"] {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* Stagger: Time (0ms), Daily (30ms), Stake (60ms) */
+.sched-cell[data-stagger="0"] .sched-cell-inner { transition-delay: 0ms; }
+.sched-cell[data-stagger="1"] .sched-cell-inner { transition-delay: 30ms; }
+.sched-cell[data-stagger="2"] .sched-cell-inner { transition-delay: 60ms; }
+
+/* "Manual only" label — reverse of the guarded cells */
+.sched-manual-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.sched-manual-label[data-gated="on"] {
+  opacity: 0;
+  transform: translateX(8px);
+  pointer-events: none;
+}
+.sched-manual-label[data-gated="off"] {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* Manual label stagger mirrors the cells (reverse order) */
+.sched-cell[data-stagger="0"] .sched-manual-label { transition-delay: 60ms; }
+.sched-cell[data-stagger="1"] .sched-manual-label { transition-delay: 30ms; }
+.sched-cell[data-stagger="2"] .sched-manual-label { transition-delay: 0ms; }
+
+/* Respect prefers-reduced-motion: no transform, opacity only */
+@media (prefers-reduced-motion: reduce) {
+  .sched-cell-inner,
+  .sched-manual-label {
+    transition-property: opacity;
+    transition-duration: 0ms;
+    transform: none !important;
+  }
+}
+
+/* Segmented control for Stake mode (Units | Payout) */
+.seg-control {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+.seg-control button {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.seg-control button[aria-checked="true"] {
+  background: var(--accent-dark);
+  color: #fff;
+}
+.seg-control button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Spinner for "Generating…" status */
+@keyframes sched-spin {
+  to { transform: rotate(360deg); }
+}
+.sched-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--live);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: sched-spin 0.8s linear infinite;
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sched-spinner { animation: none; }
+}
+
+/* "✓ Profile schedules saved" indicator fades out after 3s */
+.sched-saved-fade {
+  animation: sched-saved-fade 3s ease-out forwards;
+}
+@keyframes sched-saved-fade {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sched-saved-fade { animation-duration: 0.01s; }
 }

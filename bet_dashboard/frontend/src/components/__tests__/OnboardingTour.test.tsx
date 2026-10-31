@@ -44,11 +44,11 @@ describe('OnboardingTour', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    it('Next moves to Create your strategy', async () => {
+    it('Next moves to Profiles & live preview', async () => {
         const user = userEvent.setup();
         renderTour();
         await user.click(screen.getByRole('button', { name: 'Next' }));
-        expect(screen.getByRole('dialog', { name: 'Create your strategy' })).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Profiles & live preview' })).toBeInTheDocument();
     });
 
     it('Back is disabled on step 0', () => {

@@ -134,7 +134,7 @@ Generate a slip preview from a builder configuration.
   "target_legs": 3,
   "max_legs_overflow": null,
   "consensus_floor": 50.0,
-  "min_odds": 1.05,
+  "min_leg_odds": 1.05,
   "included_markets": null,
   "included_leagues": null,
   "tolerance_factor": null,
@@ -146,7 +146,7 @@ Generate a slip preview from a builder configuration.
   "date_to": null,
   "consensus_shrinkage_k": null,
   "min_source_edge": null,
-  "max_single_leg_odds": null,
+  "max_leg_odds": 3.5,
   "tol_lower": null,
   "tol_upper": null,
   "balance_decay": "gaussian",
@@ -521,7 +521,7 @@ Get service status and configuration.
     },
     "generator": {
       "name": "generator",
-      "description": "Checks every 5 minutes if the scheduled generation hour has arrived...",
+      "description": "Checks every 5 minutes whether any profile's own scheduled time has arrived...",
       "enabled": true,
       "alive": true,
       "hour": 8,
@@ -541,18 +541,19 @@ Get service status and configuration.
       "next_run": "Every 1 min"
     }
   },
-  "generate_hour": 8,
-  "generate_minute": 0,
+  "profile_schedules": [
+    { "name": "low", "auto_generate": true, "generate_hour": 8, "generate_minute": 30, "units": 1.0, "target_payout": null, "run_daily_count": 1, "order": 0 }
+  ],
   "server_time": "2026-08-22T05:30:00"
 }
 ```
 
 #### POST `/api/services/settings`
 
-Update scheduled generation time.
+Update per-profile auto-generation schedules. There is no global generation time — each profile schedules itself.
 
-**Request**: `{ "generate_hour": 8, "generate_minute": 0 }`
-**Response**: `{ "generate_hour": 8, "generate_minute": 0 }`
+**Request**: `{ "profile_schedules": [{ "name": "low", "auto_generate": true, "generate_hour": 8, "generate_minute": 30 }] }`
+**Response**: `{ "profile_schedules": [{ "name": "low", "auto_generate": true, "generate_hour": 8, "generate_minute": 30 }] }`
 
 #### POST `/api/services/{name}/toggle`
 

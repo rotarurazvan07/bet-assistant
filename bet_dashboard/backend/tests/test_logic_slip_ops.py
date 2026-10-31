@@ -28,7 +28,7 @@ def _slip_cfg(**overrides):
         "target_odds": 2.0,
         "target_legs": 1,
         "consensus_floor": 50.0,
-        "min_odds": 1.05,
+        "min_leg_odds": 1.05,
         "tolerance_factor": 0.30,
         "stop_threshold": 0.50,
         "odds_movement_weight": 0.0,
@@ -333,19 +333,26 @@ class TestAppLogicSlipOperations:
         assert "live_data" not in broadcast_capture[-1]
 
     def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
-        """[P0] generate_and_broadcast runs active profiles and persists the timestamp."""
+        """[P0] generate_and_broadcast runs DUE profiles and persists the timestamp."""
+        from datetime import datetime
+
+        now = datetime.now()
+        due_hour = now.hour
+        due_minute = 0
         profiles = {
             "p1": {
                 "target_odds": 2.0,
                 "target_legs": 1,
                 "consensus_floor": 50.0,
-                "min_odds": 1.05,
+                "min_leg_odds": 1.05,
                 "tolerance_factor": 0.30,
                 "stop_threshold": 0.50,
                 "odds_movement_weight": 0.0,
                 "odds_movement_strength_min": 0.2,
                 "units": 1.0,
                 "run_daily_count": 1,
+                "generate_hour": due_hour,
+                "generate_minute": due_minute,
             }
         }
         env = build_app(tmp_path, monkeypatch, profiles=profiles)
@@ -354,7 +361,8 @@ class TestAppLogicSlipOperations:
             result = app.generate_and_broadcast()
             assert result == {"p1": [1]}
             runtime = app.settings.get("runtime_state") or {}
-            assert runtime.get("last_time_generated")
+            entry = (runtime.get("profile_last_run") or {}).get("p1")
+            assert entry and entry["status"] == "ok" and entry["at"]
             assert broadcast_capture[-1]["event"] == "slips_updated"
         finally:
             app._assistant.conn.close()

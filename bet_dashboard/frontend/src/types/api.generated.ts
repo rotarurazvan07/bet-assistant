@@ -124,13 +124,19 @@ export interface paths {
     /**
      * Save Profile
      * @description Persist a named builder profile.
+     *
+     * Scheduling/ordering keys (run_daily_count, order, auto_generate,
+     * generate_hour, generate_minute) are tri-state in the payload: when the
+     * caller omits them, the values already persisted for this profile are
+     * carried over instead of being reset. That keeps a Smart Builder save from
+     * silently wiping a schedule configured on the Services page (review F1).
      */
     post: operations["save_profile_api_profiles_post"];
   };
   "/api/profiles/{name}": {
     /**
      * Delete Profile
-     * @description Delete a named builder profile.
+     * @description Delete a named builder profile and its runtime_state entry.
      */
     delete: operations["delete_profile_api_profiles__name__delete"];
   };
@@ -151,7 +157,7 @@ export interface paths {
   "/api/services/settings": {
     /**
      * Save Settings
-     * @description Persist scheduler hour/minute settings.
+     * @description Persist per-profile schedules (the only scheduling payload).
      */
     post: operations["save_settings_api_services_settings_post"];
   };
@@ -240,10 +246,10 @@ export interface components {
        */
       consensus_floor?: number;
       /**
-       * Min Odds
+       * Min Leg Odds
        * @default 1.05
        */
-      min_odds?: number;
+      min_leg_odds?: number;
       /** Tolerance Factor */
       tolerance_factor?: number | null;
       /** Stop Threshold */
@@ -252,7 +258,7 @@ export interface components {
        * Min Legs Fill Ratio
        * @default 0.7
        */
-      min_legs_fill_ratio?: number;
+      min_legs_fill_ratio?: number | null;
       /**
        * Quality Vs Balance
        * @default 0.5
@@ -277,8 +283,11 @@ export interface components {
       consensus_shrinkage_k?: number | null;
       /** Min Source Edge */
       min_source_edge?: number | null;
-      /** Max Single Leg Odds */
-      max_single_leg_odds?: number | null;
+      /**
+       * Max Leg Odds
+       * @default 3.5
+       */
+      max_leg_odds?: number;
       /** Tol Lower */
       tol_lower?: number | null;
       /** Tol Upper */
@@ -433,10 +442,10 @@ export interface components {
        */
       consensus_floor?: number;
       /**
-       * Min Odds
+       * Min Leg Odds
        * @default 1.05
        */
-      min_odds?: number;
+      min_leg_odds?: number;
       /** Tolerance Factor */
       tolerance_factor?: number | null;
       /** Stop Threshold */
@@ -445,7 +454,7 @@ export interface components {
        * Min Legs Fill Ratio
        * @default 0.7
        */
-      min_legs_fill_ratio?: number;
+      min_legs_fill_ratio?: number | null;
       /**
        * Quality Vs Balance
        * @default 0.5
@@ -462,24 +471,29 @@ export interface components {
       included_leagues?: string[] | null;
       /** Excluded Sources */
       excluded_sources?: string[] | null;
-      /**
-       * Units
-       * @default 1
-       */
-      units?: number;
+      /** Units */
+      units?: number | null;
       /** Target Payout */
       target_payout?: number | null;
-      /**
-       * Run Daily Count
-       * @default 0
-       */
-      run_daily_count?: number;
+      /** Run Daily Count */
+      run_daily_count?: number | null;
+      /** Order */
+      order?: number | null;
+      /** Auto Generate */
+      auto_generate?: boolean | null;
+      /** Generate Hour */
+      generate_hour?: number | null;
+      /** Generate Minute */
+      generate_minute?: number | null;
       /** Consensus Shrinkage K */
       consensus_shrinkage_k?: number | null;
       /** Min Source Edge */
       min_source_edge?: number | null;
-      /** Max Single Leg Odds */
-      max_single_leg_odds?: number | null;
+      /**
+       * Max Leg Odds
+       * @default 3.5
+       */
+      max_leg_odds?: number;
       /** Tol Lower */
       tol_lower?: number | null;
       /** Tol Upper */
@@ -497,17 +511,46 @@ export interface components {
       odds_movement_strength_min?: number | null;
     };
     /**
+     * ProfileScheduleIn
+     * @description Per-profile auto-generation schedule row (T4).
+     *
+     * Issue #95: BOTH ``units`` and ``target_payout`` are always preserved on
+     * disk; ``stake_mode`` ("units" | "payout") only selects which one is active
+     * at generation time. A null ``units``/``target_payout`` means "not
+     * provided" and the persisted value is kept — switching the segmented
+     * control can never lose the other field's number.
+     */
+    ProfileScheduleIn: {
+      /** Name */
+      name: string;
+      /** Auto Generate */
+      auto_generate?: boolean | null;
+      /** Generate Hour */
+      generate_hour?: number | null;
+      /** Generate Minute */
+      generate_minute?: number | null;
+      /** Units */
+      units?: number | null;
+      /** Target Payout */
+      target_payout?: number | null;
+      /** Stake Mode */
+      stake_mode?: string | null;
+      /** Run Daily Count */
+      run_daily_count?: number | null;
+      /** Order */
+      order?: number | null;
+    };
+    /**
      * ServicesSettingsIn
      * @description Payload for service scheduler settings.
+     *
+     * Per-profile schedules only — there is no global generation time anymore
+     * (user decision 2026-10-25): a legacy hour-only body fails validation
+     * because profile_schedules is required.
      */
     ServicesSettingsIn: {
-      /** Generate Hour */
-      generate_hour: number;
-      /**
-       * Generate Minute
-       * @default 0
-       */
-      generate_minute?: number;
+      /** Profile Schedules */
+      profile_schedules: components["schemas"]["ProfileScheduleIn"][];
     };
     /**
      * SlipIn
@@ -903,6 +946,12 @@ export interface operations {
   /**
    * Save Profile
    * @description Persist a named builder profile.
+   *
+   * Scheduling/ordering keys (run_daily_count, order, auto_generate,
+   * generate_hour, generate_minute) are tri-state in the payload: when the
+   * caller omits them, the values already persisted for this profile are
+   * carried over instead of being reset. That keeps a Smart Builder save from
+   * silently wiping a schedule configured on the Services page (review F1).
    */
   save_profile_api_profiles_post: {
     requestBody: {
@@ -927,7 +976,7 @@ export interface operations {
   };
   /**
    * Delete Profile
-   * @description Delete a named builder profile.
+   * @description Delete a named builder profile and its runtime_state entry.
    */
   delete_profile_api_profiles__name__delete: {
     parameters: {
@@ -997,7 +1046,7 @@ export interface operations {
   };
   /**
    * Save Settings
-   * @description Persist scheduler hour/minute settings.
+   * @description Persist per-profile schedules (the only scheduling payload).
    */
   save_settings_api_services_settings_post: {
     requestBody: {

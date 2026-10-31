@@ -13,9 +13,9 @@ const STEPS = [
     },
     {
         route: '/builder',
-        title: 'Create your strategy',
-        body: 'Pick a preset, watch Live Preview, then save your profile.',
-        targets: ['[data-profile-chip]', 'input[placeholder="profile name"]', '[data-tour="build-preview"]', '[data-tour="build-save"]'],
+        title: 'Profiles & live preview',
+        body: 'Pick a profile, tweak the config (auto-saves), watch Live Preview.',
+        targets: ['[data-testid="profile-cards"] button', '[data-tour="build-preview"]'],
     },
     {
         route: '/slips',

@@ -8,7 +8,7 @@ import type {
     AnalyticsData, HistoryRecord, MarketAccuracy, PnlByMarket, OddsDistBucket,
     CorrelationRecord, ProfileScatterPoint, MarketBreakdown, LeagueBreakdown,
     RollingEdgePoint, DrawdownPoint, ReturnDistribution, TimePatternItem,
-    ServiceInfo, ServicesData, Profile, ProfilesMap,
+    ServiceInfo, ServicesData, Profile, ProfilesMap, ProfileSchedule,
     CandidateLeg, PreviewResult, OddsHistory, OddsSnapshot, OddsMovementSummary,
 } from '../types';
 
@@ -232,8 +232,31 @@ export function makeServicesData(overrides: Partial<ServicesData> = {}): Service
             generator: makeServiceInfo({ name: 'generator', interval_seconds: 300 }),
             verifier: makeServiceInfo({ name: 'verifier', interval_seconds: 60 }),
         },
-        generate_hour: 9, generate_minute: 0,
         server_time: '2026-09-24T12:00:00',
+        profile_schedules: [
+            { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, stake_mode: 'units', run_daily_count: 1, order: 0, last_generated_at: null, next_run_at: null, last_run_status: null, last_run_error: null },
+            { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50.0, stake_mode: 'payout', run_daily_count: 2, order: 1, last_generated_at: null, next_run_at: null, last_run_status: null, last_run_error: null },
+            { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: null, target_payout: null, stake_mode: 'units', run_daily_count: 0, order: 2, last_generated_at: null, next_run_at: null, last_run_status: null, last_run_error: null },
+        ],
+        ...overrides,
+    };
+}
+
+export function makeProfileSchedule(overrides: Partial<ProfileSchedule> = {}): ProfileSchedule {
+    return {
+        name: 'low',
+        auto_generate: true,
+        generate_hour: 8,
+        generate_minute: 30,
+        units: 1.0,
+        target_payout: null,
+        stake_mode: 'units',
+        run_daily_count: 1,
+        order: 0,
+        last_generated_at: null,
+        next_run_at: null,
+        last_run_status: null,
+        last_run_error: null,
         ...overrides,
     };
 }
@@ -244,14 +267,14 @@ export function makeProfile(overrides: Partial<Profile> = {}): Profile {
     return {
         target_odds: 2.0, target_legs: 3,
         max_legs_overflow: null,
-        consensus_floor: 50.0, min_odds: 1.05,
+        consensus_floor: 50.0, min_leg_odds: 1.05,
         included_markets: null, included_leagues: null, excluded_sources: null,
         tolerance_factor: null, stop_threshold: null,
         min_legs_fill_ratio: 0.7, quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
         units: 1.0, target_payout: null, run_daily_count: 0,
         date_from: null, date_to: null, excluded_urls: null,
         consensus_shrinkage_k: null, min_source_edge: null,
-        max_single_leg_odds: null, tol_lower: null, tol_upper: null,
+        max_leg_odds: 10.0, tol_lower: null, tol_upper: null,
         balance_decay: 'gaussian', min_pick_quality: null,
         odds_movement_weight: null, odds_movement_strength_min: null,
         ...overrides,
