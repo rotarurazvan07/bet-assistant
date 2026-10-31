@@ -179,8 +179,6 @@ def _extract_near_misses(
                             "away_a": away_a,
                             "home_b": home_b,
                             "away_b": away_b,
-                            "source_a": "",
-                            "source_b": "",
                         }
                     )
 
@@ -213,8 +211,6 @@ def _extract_near_misses(
                         "away_a": away_a,
                         "home_b": home_b,
                         "away_b": away_b,
-                        "source_a": "",
-                        "source_b": "",
                     }
                 )
 
@@ -489,16 +485,14 @@ def render_markdown(summary: dict[str, Any]) -> str:
                 "",
                 "Fuzzy-dedup pairs below the match threshold — synonym-discovery candidates.",
                 "",
-                "| Score | Match A | Match B | Source A | Source B |",
-                "|------:|---|---|---|---|",
+                "| Score | Match A | Match B |",
+                "|------:|---|---|",
             ]
         )
         for nm in near_misses:
             match_a = f"{nm.get('home_a', '')} vs {nm.get('away_a', '')}".replace("|", r"\|")
             match_b = f"{nm.get('home_b', '')} vs {nm.get('away_b', '')}".replace("|", r"\|")
-            source_a = str(nm.get("source_a") or "—").replace("|", r"\|")
-            source_b = str(nm.get("source_b") or "—").replace("|", r"\|")
-            lines.append(f"| {nm.get('score', 0):.0f} | {match_a} | {match_b} | {source_a} | {source_b} |")
+            lines.append(f"| {nm.get('score', 0):.0f} | {match_a} | {match_b} |")
         lines.append("")
 
     health = _pipeline_health(summary["stage_events"])

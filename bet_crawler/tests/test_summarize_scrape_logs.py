@@ -353,8 +353,6 @@ def test_json_output_includes_near_misses_array(tmp_path) -> None:
         "away_a",
         "home_b",
         "away_b",
-        "source_a",
-        "source_b",
     }
 
 
