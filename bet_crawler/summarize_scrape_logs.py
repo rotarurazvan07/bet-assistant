@@ -59,18 +59,12 @@ def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, s
 
 def _is_near_miss_message(message: str) -> bool:
     """True when a log message belongs to the merge NEAR-MISS REPORT block."""
-    return bool(
-        _NEAR_MISS_START.match(message)
-        or _NEAR_MISS_END.match(message)
-        or _NEAR_MISS_LINE.match(message)
-    )
+    return bool(_NEAR_MISS_START.match(message) or _NEAR_MISS_END.match(message) or _NEAR_MISS_LINE.match(message))
 
 
 def _is_near_miss_issue(issue: dict[str, Any]) -> bool:
     """Near-miss lines from MatchesManager are reported separately, not as problems."""
-    return str(
-        issue.get("logger", "")
-    ) == "bet_framework.MatchesManager" and _is_near_miss_message(
+    return str(issue.get("logger", "")) == "bet_framework.MatchesManager" and _is_near_miss_message(
         str(issue.get("message", ""))
     )
 
@@ -117,13 +111,9 @@ def _read_legacy_issues(
     return issues, legacy_lines_by_artifact
 
 
-_NEAR_MISS_START = re.compile(
-    r"^\s*=== NEAR-MISS REPORT:\s*(\d+)\s+pairs \(score 40-65\) ==="
-)
+_NEAR_MISS_START = re.compile(r"^\s*=== NEAR-MISS REPORT:\s*(\d+)\s+pairs \(score 40-65\) ===")
 _NEAR_MISS_END = re.compile(r"^\s*=== END NEAR-MISS REPORT ===\s*$")
-_NEAR_MISS_LINE = re.compile(
-    r"^\s*\[(\d+)\]\s+(.+?)\s+vs\s+(.+?)\s+<->\s+(.+?)\s+vs\s+(.+?)\s*$"
-)
+_NEAR_MISS_LINE = re.compile(r"^\s*\[(\d+)\]\s+(.+?)\s+vs\s+(.+?)\s+<->\s+(.+?)\s+vs\s+(.+?)\s*$")
 
 
 def _extract_message_from_legacy_line(line: str) -> str | None:
@@ -216,10 +206,7 @@ def _extract_near_misses(
             away_b = mm_match.group(5).strip()
             # Deduplicate against legacy-extracted
             key = (score, home_a, away_a, home_b, away_b)
-            if key not in {
-                (nm["score"], nm["home_a"], nm["away_a"], nm["home_b"], nm["away_b"])
-                for nm in near_misses
-            }:
+            if key not in {(nm["score"], nm["home_a"], nm["away_a"], nm["home_b"], nm["away_b"]) for nm in near_misses}:
                 near_misses.append(
                     {
                         "score": score,
@@ -274,9 +261,7 @@ def _parse_legacy_line(
     }
 
 
-def summarize(
-    logs_dir: Path, job_outcomes: dict[str, str] | None = None
-) -> dict[str, Any]:
+def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dict[str, Any]:
     """Build a deterministic summary from downloaded artifacts and job results."""
     logs_dir = logs_dir.resolve()
     events, malformed = _read_events(logs_dir) if logs_dir.exists() else ([], [])
@@ -308,23 +293,11 @@ def summarize(
     issues = [issue for issue in issues if not _is_near_miss_issue(issue)]
     near_misses = _extract_near_misses(events, legacy_lines_by_artifact)
 
-    outcomes = {
-        name: str(result).lower()
-        for name, result in sorted((job_outcomes or {}).items())
-    }
-    failed_jobs = {
-        name: result
-        for name, result in outcomes.items()
-        if result not in {"success", "skipped"}
-    }
+    outcomes = {name: str(result).lower() for name, result in sorted((job_outcomes or {}).items())}
+    failed_jobs = {name: result for name, result in outcomes.items() if result not in {"success", "skipped"}}
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for issue in issues:
-        source = str(
-            issue.get("source_key")
-            or issue.get("finder")
-            or issue.get("logger")
-            or "unknown"
-        )
+        source = str(issue.get("source_key") or issue.get("finder") or issue.get("logger") or "unknown")
         event_name = str(issue.get("event") or "unspecified")
         reason = str(issue.get("reason_code") or "unspecified")
         groups[(source, event_name, reason)].append(issue)
@@ -337,20 +310,14 @@ def summarize(
         "structured_events": len(events),
         "malformed_event_lines": malformed,
         "issue_count": len(issues),
-        "severity_counts": dict(
-            Counter(str(issue.get("severity", "UNKNOWN")).upper() for issue in issues)
-        ),
+        "severity_counts": dict(Counter(str(issue.get("severity", "UNKNOWN")).upper() for issue in issues)),
         "groups": [
             {
                 "source": source,
                 "event": event_name,
                 "reason_code": reason,
                 "count": len(records),
-                "severity_counts": dict(
-                    Counter(
-                        str(item.get("severity", "UNKNOWN")).upper() for item in records
-                    )
-                ),
+                "severity_counts": dict(Counter(str(item.get("severity", "UNKNOWN")).upper() for item in records)),
                 "samples": [
                     {
                         "severity": item.get("severity"),
@@ -366,11 +333,7 @@ def summarize(
             }
             for (source, event_name, reason), records in sorted(groups.items())
         ],
-        "stage_events": [
-            event
-            for event in events
-            if str(event.get("event", "")) in {"stage.completed", "stage.failed"}
-        ],
+        "stage_events": [event for event in events if str(event.get("event", "")) in {"stage.completed", "stage.failed"}],
         "near_misses": near_misses,
     }
 
@@ -383,9 +346,7 @@ def _stage_job(event: dict[str, Any]) -> str:
         return f"{stage.removesuffix('-scrape')}-{runner}"
 
     artifact = str(event.get("_artifact") or "").replace("\\", "/")
-    match = re.search(
-        r"(?:^|/)logs-(prepare|scrape)-(actions|local)(?:-|/|$)", artifact
-    )
+    match = re.search(r"(?:^|/)logs-(prepare|scrape)-(actions|local)(?:-|/|$)", artifact)
     if match:
         return f"{match.group(1)}-{match.group(2)}"
     return stage
@@ -403,17 +364,9 @@ def _pipeline_health(stage_events: list[dict[str, Any]]) -> list[dict[str, Any]]
         outcomes = []
         reasons: Counter[str] = Counter()
         for event in events:
-            counts.update(
-                {
-                    key: value
-                    for key, value in (event.get("counts") or {}).items()
-                    if isinstance(value, int)
-                }
-            )
+            counts.update({key: value for key, value in (event.get("counts") or {}).items() if isinstance(value, int)})
             outcomes.append(str(event.get("outcome") or "unknown").lower())
-            if event.get("outcome") in {"partial", "error", "failure"} and event.get(
-                "reason_code"
-            ):
+            if event.get("outcome") in {"partial", "error", "failure"} and event.get("reason_code"):
                 reasons[str(event["reason_code"])] += 1
 
         outcome = max(
@@ -424,9 +377,7 @@ def _pipeline_health(stage_events: list[dict[str, Any]]) -> list[dict[str, Any]]
         health.append(
             {
                 "job": job,
-                "stage": str(
-                    events[0].get("stage") or events[0].get("event") or "unknown"
-                ),
+                "stage": str(events[0].get("stage") or events[0].get("event") or "unknown"),
                 "outcome": outcome,
                 "runs": len(events),
                 "counts": dict(counts),
@@ -445,9 +396,7 @@ def _health_work_and_output(item: dict[str, Any]) -> tuple[str, str]:
     if stage == "scrape":
         return (
             f"{counts.get('groups_completed', 0)}/{counts.get('groups_total', 0)} groups",
-            (
-                f"{counts.get('matches_added', 0)} added, {counts.get('matches_skipped', 0)} skipped"
-            ),
+            (f"{counts.get('matches_added', 0)} added, {counts.get('matches_skipped', 0)} skipped"),
         )
     if stage == "merge":
         return (
@@ -481,9 +430,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
     lines = ["# Scrape run problem summary", ""]
     if summary["jobs"]:
         lines.extend(["## CI jobs", "", "| Job | Result |", "|---|---|"])
-        lines.extend(
-            f"| `{name}` | **{result}** |" for name, result in summary["jobs"].items()
-        )
+        lines.extend(f"| `{name}` | **{result}** |" for name, result in summary["jobs"].items())
         lines.append("")
 
     severity_counts = summary["severity_counts"]
@@ -502,10 +449,7 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
     if summary["failed_jobs"]:
         lines.extend(["## Failed or incomplete CI jobs", ""])
-        lines.extend(
-            f"- **{name}:** `{result}`"
-            for name, result in summary["failed_jobs"].items()
-        )
+        lines.extend(f"- **{name}:** `{result}`" for name, result in summary["failed_jobs"].items())
         lines.append("")
 
     if summary["groups"]:
@@ -518,14 +462,9 @@ def render_markdown(summary: dict[str, Any]) -> str:
             ]
         )
         for group in summary["groups"]:
-            levels = ", ".join(
-                f"{level}: {count}"
-                for level, count in sorted(group["severity_counts"].items())
-            )
+            levels = ", ".join(f"{level}: {count}" for level, count in sorted(group["severity_counts"].items()))
             sample = group["samples"][0] if group["samples"] else {}
-            message = (
-                str(sample.get("message") or "").replace("|", "\\|").replace("\n", " ")
-            )
+            message = str(sample.get("message") or "").replace("|", "\\|").replace("\n", " ")
             if len(message) > 220:
                 message = message[:217] + "..."
             url = sample.get("url")
@@ -554,12 +493,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
             ]
         )
         for nm in near_misses:
-            match_a = f"{nm.get('home_a', '')} vs {nm.get('away_a', '')}".replace(
-                "|", r"\|"
-            )
-            match_b = f"{nm.get('home_b', '')} vs {nm.get('away_b', '')}".replace(
-                "|", r"\|"
-            )
+            match_a = f"{nm.get('home_a', '')} vs {nm.get('away_a', '')}".replace("|", r"\|")
+            match_b = f"{nm.get('home_b', '')} vs {nm.get('away_b', '')}".replace("|", r"\|")
             lines.append(f"| {nm.get('score', 0):.0f} | {match_a} | {match_b} |")
         lines.append("")
 
@@ -575,22 +510,15 @@ def render_markdown(summary: dict[str, Any]) -> str:
         )
         for item in health:
             work, output = _health_work_and_output(item)
-            lines.append(
-                f"| `{item['job']}` | **{item['outcome']}** | {work} | {output} | {_health_attention(item)} |"
-            )
+            lines.append(f"| `{item['job']}` | **{item['outcome']}** | {work} | {output} | {_health_attention(item)} |")
         lines.append("")
 
-    degraded = [
-        item for item in health if item["outcome"] not in {"success", "skipped"}
-    ]
+    degraded = [item for item in health if item["outcome"] not in {"success", "skipped"}]
     if degraded:
         lines.extend(["## Incomplete or degraded work", ""])
         for item in degraded:
             reasons = (
-                ", ".join(
-                    f"`{reason}` ({count})"
-                    for reason, count in sorted(item["reasons"].items())
-                )
+                ", ".join(f"`{reason}` ({count})" for reason, count in sorted(item["reasons"].items()))
                 or "See problems by source and reason."
             )
             lines.append(f"- `{item['job']}`: {reasons}")
@@ -635,9 +563,7 @@ def main() -> int:
     markdown = render_markdown(summary)
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_markdown.parent.mkdir(parents=True, exist_ok=True)
-    args.output_json.write_text(
-        json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    args.output_json.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     args.output_markdown.write_text(markdown, encoding="utf-8")
     if args.step_summary:
         args.step_summary.parent.mkdir(parents=True, exist_ok=True)

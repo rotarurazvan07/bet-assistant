@@ -7,9 +7,7 @@ from bet_crawler.summarize_scrape_logs import render_markdown, summarize
 
 
 def _write_jsonl(path: Path, records: list[dict]) -> None:
-    path.write_text(
-        "".join(json.dumps(item) + "\n" for item in records), encoding="utf-8"
-    )
+    path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
 
 
 def test_summary_groups_actionable_events_and_keeps_benign_info_out(tmp_path) -> None:
@@ -160,12 +158,8 @@ def test_summary_reads_legacy_non_crawler_errors_without_double_counting(
 def test_malformed_jsonl_and_failed_ci_job_are_reported(tmp_path) -> None:
     artifact = tmp_path / "logs-prepare-local"
     artifact.mkdir()
-    (artifact / "crawler-events.jsonl").write_text(
-        '{"severity":"ERROR"\n', encoding="utf-8"
-    )
-    summary = summarize(
-        artifact, {"prepare-local": "failure", "scrape-local": "skipped"}
-    )
+    (artifact / "crawler-events.jsonl").write_text('{"severity":"ERROR"\n', encoding="utf-8")
+    summary = summarize(artifact, {"prepare-local": "failure", "scrape-local": "skipped"})
 
     assert summary["issue_count"] == 1
     assert summary["malformed_event_lines"]
@@ -330,9 +324,7 @@ def test_render_markdown_includes_near_miss_section(tmp_path) -> None:
 def test_render_markdown_omits_near_miss_section_when_empty(tmp_path) -> None:
     artifact = tmp_path / "logs-merge"
     artifact.mkdir()
-    (artifact / "job_log.txt").write_text(
-        "=== Job: merge started ===\nall good\n", encoding="utf-8"
-    )
+    (artifact / "job_log.txt").write_text("=== Job: merge started ===\nall good\n", encoding="utf-8")
 
     summary = summarize(artifact, {"merge": "success"})
     markdown = render_markdown(summary)
