@@ -50,7 +50,10 @@ sys.path.insert(
     0, _APP_ROOT if Path(_APP_ROOT, "bet_framework").is_dir() else _REPO_ROOT
 )
 
-from bet_dashboard.backend.core.config_helpers import _config_to_yaml_dict
+from bet_dashboard.backend.core.config_helpers import (
+    _BETSLIP_FIELDS,
+    _config_to_yaml_dict,
+)
 from bet_framework.core.Match import Odds, Score
 from bet_framework.core.Slip import BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
@@ -214,23 +217,39 @@ def main() -> None:
     # byte-identical (review H6).
     profiles_dir = CONFIG_DIR / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # makeProfile() factory defaults (must match frontend/src/test/factories.ts)
     MAKE_PROFILE_DEFAULTS = {
-        "target_odds": 2.0, "target_legs": 3,
+        "target_odds": 2.0,
+        "target_legs": 3,
         "max_legs_overflow": None,
-        "consensus_floor": 50.0, "min_leg_odds": 1.05,
-        "included_markets": None, "included_leagues": None, "excluded_sources": None,
-        "tolerance_factor": None, "stop_threshold": None,
-        "min_legs_fill_ratio": 0.7, "quality_vs_balance": 0.5, "consensus_vs_sources": 0.5,
-        "units": 1.0, "target_payout": None, "run_daily_count": 0,
-        "date_from": None, "date_to": None, "excluded_urls": None,
-        "consensus_shrinkage_k": None, "min_source_edge": None,
-        "max_leg_odds": 10.0, "tol_lower": None, "tol_upper": None,
-        "balance_decay": "gaussian", "min_pick_quality": None,
-        "odds_movement_weight": None, "odds_movement_strength_min": None,
+        "consensus_floor": 50.0,
+        "min_leg_odds": 1.05,
+        "included_markets": None,
+        "included_leagues": None,
+        "excluded_sources": None,
+        "tolerance_factor": None,
+        "stop_threshold": None,
+        "min_legs_fill_ratio": 0.7,
+        "quality_vs_balance": 0.5,
+        "consensus_vs_sources": 0.5,
+        "units": 1.0,
+        "target_payout": None,
+        "run_daily_count": 0,
+        "date_from": None,
+        "date_to": None,
+        "excluded_urls": None,
+        "consensus_shrinkage_k": None,
+        "min_source_edge": None,
+        "max_leg_odds": 10.0,
+        "tol_lower": None,
+        "tol_upper": None,
+        "balance_decay": "gaussian",
+        "min_pick_quality": None,
+        "odds_movement_weight": None,
+        "odds_movement_strength_min": None,
     }
-    
+
     for row in _PROFILE_SCHEDULES:
         # Start with exact makeProfile defaults
         profile_overrides = dict(MAKE_PROFILE_DEFAULTS)
@@ -240,15 +259,39 @@ def main() -> None:
         elif row["name"] == "high_risk":
             profile_overrides["consensus_floor"] = 40.0
         # Apply schedule-specific overrides from _PROFILE_SCHEDULES
-        for key in ("units", "target_payout", "run_daily_count", "order",
-                    "auto_generate", "generate_hour", "generate_minute"):
+        for key in (
+            "units",
+            "target_payout",
+            "run_daily_count",
+            "order",
+            "auto_generate",
+            "generate_hour",
+            "generate_minute",
+        ):
             if row[key] is not None:
                 profile_overrides[key] = row[key]
-        
-        profile = _config_to_yaml_dict(
-            BetSlipConfig(),
-            **profile_overrides
-        )
+
+        # Split overrides: BetSlipConfig fields -> BetSlipConfig(**cfg_kwargs)
+        # Scheduling keys -> helper kwargs for _config_to_yaml_dict
+        cfg_kwargs = {
+            k: v for k, v in profile_overrides.items() if k in _BETSLIP_FIELDS
+        }
+        helper_kwargs = {
+            k: v
+            for k, v in profile_overrides.items()
+            if k
+            in (
+                "units",
+                "target_payout",
+                "run_daily_count",
+                "order",
+                "auto_generate",
+                "generate_hour",
+                "generate_minute",
+            )
+        }
+
+        profile = _config_to_yaml_dict(BetSlipConfig(**cfg_kwargs), **helper_kwargs)
         (profiles_dir / f"{row['name']}.yaml").write_text(
             yaml.safe_dump(profile, sort_keys=False), encoding="utf-8"
         )
@@ -297,11 +340,18 @@ def main() -> None:
             expected["consensus_floor"] = 60.0
         elif row["name"] == "high_risk":
             expected["consensus_floor"] = 40.0
-        for key in ("units", "target_payout", "run_daily_count", "order",
-                    "auto_generate", "generate_hour", "generate_minute"):
+        for key in (
+            "units",
+            "target_payout",
+            "run_daily_count",
+            "order",
+            "auto_generate",
+            "generate_hour",
+            "generate_minute",
+        ):
             if row[key] is not None:
                 expected[key] = row[key]
-        
+
         # Verify EVERY builder field matches (not just schedule keys)
         for key, expected_val in expected.items():
             assert stored.get(key) == expected_val, (
@@ -309,11 +359,18 @@ def main() -> None:
                 f"{key}={stored.get(key)} != {expected_val}"
             )
         # Also verify schedule keys explicitly (for clarity)
-        for key in ("auto_generate", "generate_hour", "generate_minute",
-                    "units", "target_payout", "run_daily_count", "order"):
-            assert stored.get(key) == row[key], (
+        for key in (
+            "auto_generate",
+            "generate_hour",
+            "generate_minute",
+            "units",
+            "target_payout",
+            "run_daily_count",
+            "order",
+        ):
+            assert stored.get(key) == expected[key], (
                 f"profile schedule drift for {row['name']}: "
-                f"{key}={stored.get(key)} != {row[key]}"
+                f"{key}={stored.get(key)} != {expected[key]}"
             )
 
     print(
