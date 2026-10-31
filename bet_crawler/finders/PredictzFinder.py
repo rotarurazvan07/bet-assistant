@@ -115,7 +115,12 @@ class PredictzFinder(BaseMatchFinder):
                     )
 
     def _parse_page(self, url, html) -> None:
-        """Parse one predictz league page and emit matches via callback."""
+        """Parse one predictz league page and emit matches via callback.
+
+        Args:
+            url: The source URL of the league page.
+            html: Raw HTML content of the page.
+        """
         try:
             soup = BeautifulSoup(html, "html.parser")
 

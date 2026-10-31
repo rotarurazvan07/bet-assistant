@@ -38,18 +38,44 @@ class ThreadSafeSettingsManager(SettingsManager):
     """Serialize settings reloads and writes shared by API worker threads."""
 
     def __init__(self, directory: str) -> None:
+        """Initialize the thread-safe settings manager.
+
+        Args:
+            directory: Path to the configuration directory.
+        """
         self._access_lock = RLock()
         super().__init__(directory)
 
     def get(self, *keys: str) -> Any | None:
+        """Get configuration value(s) with thread safety.
+
+        Args:
+            *keys: Configuration key(s) to retrieve.
+
+        Returns:
+            Configuration value or None if not found.
+        """
         with self._access_lock:
             return super().get(*keys)
 
     def write(self, name: str, data: dict[str, Any], *, subpath: str | Path | None = None) -> None:
+        """Write configuration data with thread safety.
+
+        Args:
+            name: Configuration name/key.
+            data: Configuration data dictionary.
+            subpath: Optional subdirectory path.
+        """
         with self._access_lock:
             super().write(name, data, subpath=subpath)
 
     def delete(self, name: str, *, subpath: str | Path | None = None) -> None:
+        """Delete configuration with thread safety.
+
+        Args:
+            name: Configuration name/key to delete.
+            subpath: Optional subdirectory path.
+        """
         with self._access_lock:
             super().delete(name, subpath=subpath)
 

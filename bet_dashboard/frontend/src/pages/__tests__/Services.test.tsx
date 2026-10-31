@@ -4,7 +4,7 @@
 // a numeric step-1 input. MSW serves /api/services.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Services from '../Services';
@@ -222,8 +222,9 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
         const radios = screen.getAllByRole('radio');
         // 3 rows × 2 options = 6 radios
         expect(radios).toHaveLength(6);
-        // low is units mode → "Units" checked
-        const unitsRadio = screen.getByRole('radio', { name: 'Units' });
+        // low is units mode → "Units" checked (scope to low's radiogroup)
+        const lowGroup = screen.getByRole('radiogroup', { name: 'Stake mode for low' });
+        const unitsRadio = within(lowGroup).getByRole('radio', { name: 'Units' });
         expect(unitsRadio).toHaveAttribute('aria-checked', 'true');
         // One numeric stake input per row
         expect(screen.getByLabelText('Units for low')).toBeInTheDocument();
@@ -307,11 +308,13 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
         );
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
-        // low has last_generated_at → not "Never"
-        expect(screen.queryByText('Never')).not.toBeInTheDocument();
+        // low has last_generated_at → not "Never" (scope to low's row)
+        const lowRow = screen.getByText('low').closest('tr')!;
+        expect(within(lowRow).queryByText('Never')).not.toBeInTheDocument();
         // medium has next_run_at in the future → shows "in Xh" or similar, not "—"
-        const nextRunCells = screen.getAllByText(/in \d+/);
-        expect(nextRunCells.length).toBeGreaterThan(0);
+        const mediumRow = screen.getByText('medium').closest('tr')!;
+        const nextRunText = within(mediumRow).getByText(/in \d+/);
+        expect(nextRunText).toBeInTheDocument();
     });
 
     it('shows "Never" for last generated when null', async () => {
@@ -352,7 +355,11 @@ describe('Services per-profile scheduler (issue #95 redesign)', () => {
         }))));
         render(<Services />);
         await screen.findByText('Per-Profile Scheduling');
-        expect(await screen.findByText('Generating…')).toBeInTheDocument();
+        // Scope to the 'p' row and specifically the Last generated cell (6th column)
+        // which shows "Generating…" with the sched-spinner
+        const pRow = screen.getByText('p').closest('tr')!;
+        const lastGenCell = within(pRow).getAllByRole('cell')[5]; // Last generated is 6th column (0-indexed)
+        expect(await within(lastGenCell).findByText('Generating…')).toBeInTheDocument();
         expect(document.querySelector('.sched-spinner')).not.toBeNull();
     });
 
