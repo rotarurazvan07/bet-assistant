@@ -1,0 +1,2446 @@
+diff --git a/bet_crawler/crawl_core/generate_slips.py b/bet_crawler/crawl_core/generate_slips.py
+index eca6446..aec0652 100644
+--- a/bet_crawler/crawl_core/generate_slips.py
++++ b/bet_crawler/crawl_core/generate_slips.py
+@@ -46,7 +46,7 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str,
+             "target_legs",
+             "max_legs_overflow",
+             "consensus_floor",
+-            "min_odds",
++            "min_leg_odds",
+             "tolerance_factor",
+             "stop_threshold",
+             "min_legs_fill_ratio",
+@@ -58,6 +58,7 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str,
+             "excluded_urls",
+             "odds_movement_weight",
+             "odds_movement_strength_min",
++            "max_leg_odds",
+         )
+         cfg_kwargs = {k: profile_data[k] for k in _cfg_keys if k in profile_data}
+         cfg = BetSlipConfig(**cfg_kwargs)
+diff --git a/bet_crawler/tests/test_generate_slips.py b/bet_crawler/tests/test_generate_slips.py
+index f0c97a5..6b3d675 100644
+--- a/bet_crawler/tests/test_generate_slips.py
++++ b/bet_crawler/tests/test_generate_slips.py
+@@ -55,7 +55,7 @@ PROFILE = {
+     "tolerance_factor": 0.30,
+     "stop_threshold": 0.50,
+     "consensus_floor": 40.0,
+-    "min_odds": 1.01,
++    "min_leg_odds": 1.01,
+     "odds_movement_weight": None,
+ }
+ 
+@@ -101,6 +101,6 @@ class TestGenerateSlipsP0:
+         matches_db = str(tmp_path / "matches.db")
+         _seed_matches_db(matches_db, [_consensus_match()])
+         slips_db = str(tmp_path / "slips.db")
+-        profile = dict(PROFILE, min_odds=99.0)  # odds 1.9 < 99 → no candidate passes the gate
++        profile = dict(PROFILE, min_leg_odds=99.0)  # odds 1.9 < 99 → no candidate passes the gate
+         generate_slips(matches_db, slips_db, "picky", profile)
+         assert _slips_rows(slips_db) == []
+diff --git a/bet_crawler/tests/test_pipeline_integration.py b/bet_crawler/tests/test_pipeline_integration.py
+index 590e922..bc33609 100644
+--- a/bet_crawler/tests/test_pipeline_integration.py
++++ b/bet_crawler/tests/test_pipeline_integration.py
+@@ -49,7 +49,7 @@ PROFILE = {
+     "tolerance_factor": 0.30,
+     "stop_threshold": 0.50,
+     "consensus_floor": 40.0,
+-    "min_odds": 1.01,
++    "min_leg_odds": 1.01,
+ }
+ 
+ 
+diff --git a/bet_dashboard/backend/core/config_helpers.py b/bet_dashboard/backend/core/config_helpers.py
+index 47bd0bf..4e678d5 100644
+--- a/bet_dashboard/backend/core/config_helpers.py
++++ b/bet_dashboard/backend/core/config_helpers.py
+@@ -22,6 +22,10 @@ def _config_to_yaml_dict(
+     units: float = 1.0,
+     target_payout: float | None = None,
+     run_daily_count: int = 0,
++    order: int | None = None,
++    auto_generate: bool | None = None,
++    generate_hour: int | None = None,
++    generate_minute: int | None = None,
+ ) -> dict:
+     """Convert a config object to a plain dict for YAML serialization."""
+     d = asdict(cfg)
+@@ -29,7 +33,20 @@ def _config_to_yaml_dict(
+         d[k] = None
+     d["units"] = units
+     d["target_payout"] = target_payout
+-    d["run_daily_count"] = run_daily_count
++    # run_daily_count is opt-in like the scheduling keys below: an omitted
++    # (None) value keeps whatever is already persisted instead of resetting
++    # a legacy auto-generation profile to 0.
++    if run_daily_count is not None:
++        d["run_daily_count"] = run_daily_count
++    # T4 scheduling/ordering keys are opt-in: only persisted when explicitly set
++    if order is not None:
++        d["order"] = order
++    if auto_generate is not None:
++        d["auto_generate"] = auto_generate
++    if generate_hour is not None:
++        d["generate_hour"] = generate_hour
++    if generate_minute is not None:
++        d["generate_minute"] = generate_minute
+     return d
+ 
+ 
+diff --git a/bet_dashboard/backend/core/logic.py b/bet_dashboard/backend/core/logic.py
+index 3b370e9..5d90a15 100644
+--- a/bet_dashboard/backend/core/logic.py
++++ b/bet_dashboard/backend/core/logic.py
+@@ -5,6 +5,8 @@ import os
+ import urllib.error
+ import urllib.request
+ from datetime import datetime
++from pathlib import Path
++from threading import RLock
+ from typing import Any
+ from urllib.parse import urlparse
+ 
+@@ -31,6 +33,40 @@ from bet_framework.core.Slip import CandidateLeg
+ from bet_framework.MatchesManager import MatchesManager
+ 
+ 
++class ThreadSafeSettingsManager(SettingsManager):
++    """Serialize settings reloads and writes shared by API worker threads."""
++
++    def __init__(self, directory: str) -> None:
++        self._access_lock = RLock()
++        super().__init__(directory)
++
++    def get(self, *keys: str) -> Any | None:
++        with self._access_lock:
++            return super().get(*keys)
++
++    def write(self, name: str, data: dict[str, Any], *, subpath: str | Path | None = None) -> None:
++        with self._access_lock:
++            super().write(name, data, subpath=subpath)
++
++    def delete(self, name: str, *, subpath: str | Path | None = None) -> None:
++        with self._access_lock:
++            super().delete(name, subpath=subpath)
++
++
++def _order_sort_key(value: Any) -> tuple[int, float]:
++    """Sort key for profile ``order`` values that must never raise.
++
++    Hand-edited profile YAML can hold "2" (string) or 2.5 (float) next to an
++    int, and a TypeError inside the generator ticker predicate would kill the
++    daemon thread (review F4). Numeric values sort first by their number;
++    anything unparseable sorts last, alphabetically.
++    """
++    try:
++        return (0, float(value))
++    except TypeError, ValueError:
++        return (1, 0.0)
++
++
+ def _units_std(settled, n_settled: int, avg_units: float) -> float:
+     """Sample standard deviation of stakes (0.0 when fewer than two slips)."""
+     if n_settled <= 1:
+@@ -91,7 +127,7 @@ class AppLogic:
+         self._config_path = config_path
+ 
+         configure(config_path)
+-        self._settings = SettingsManager(config_path)
++        self._settings = ThreadSafeSettingsManager(config_path)
+         ensure_default_profiles(config_path + "/profiles", self._settings)
+ 
+         # Initialize core assistants
+@@ -160,42 +196,23 @@ class AppLogic:
+     # ── TickerService callbacks ───────────────────────────────────────────────
+ 
+     def _is_generator_hour_met(self) -> bool:
+-        """Predicate to check if it's time to run the generator (once per daily window)."""
+-        now = datetime.now()
+-        today_key = now.strftime("%Y-%m-%d")
++        """Predicate: any active profile's own daily window is due.
+ 
+-        # Get target hour and minute from current settings
+-        svc_cfg = self._settings.get("services") or {}
+-        target_hour = int(svc_cfg.get("generate_hour", 8))
+-        target_minute = int(svc_cfg.get("generate_minute", 0))
+-
+-        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+-
+-        # If the scheduled time hasn't arrived yet, nothing to do
+-        if now < target_time:
+-            return False
+-
+-        # Check in-memory guard first (fastest path during normal operation)
+-        if self._last_generator_run == today_key:
+-            return False
++        There is no global schedule time anymore: a profile without its own
++        generate_hour/generate_minute never fires (per-profile windows only).
++        """
++        now = datetime.now()
+ 
+-        # On restart, _last_generator_run is None — fall back to persisted timestamp.
+-        # If last_time_generated is from today and the scheduled time has already
+-        # passed, we treat generation as already done for today.
+-        runtime_cfg = self._settings.get("runtime_state") or {}
+-        last_generated = runtime_cfg.get("last_time_generated")
+-        if last_generated:
+-            try:
+-                last_dt = datetime.fromisoformat(last_generated)
+-                if last_dt.strftime("%Y-%m-%d") == today_key:
+-                    # Already ran today — sync in-memory guard and skip
+-                    self._last_generator_run = today_key
+-                    return False
+-            except (ValueError, TypeError):
+-                pass
++        # Per-profile windows: fire as soon as one active profile is due.
++        profiles_raw = self._settings.get("profiles") or {}
++        for name in self._get_active_profiles():
++            cfg = profiles_raw.get(name) or {}
++            hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
++            if hour is not None and minute is not None and self._profile_schedule_met(name, cfg, now=now):
++                return True
+ 
+-        self._last_generator_run = today_key
+-        return True
++        # No global window: the generator fires only on per-profile windows.
++        return False
+ 
+     def _check_for_changes(self) -> bool:
+         """HEAD request to check if GitHub release has changed via ETag."""
+@@ -263,18 +280,130 @@ class AppLogic:
+         ]
+ 
+     def _do_generate(self) -> None:
+-        """Ticker daemon: generate slips for active profiles at the scheduled hour."""
++        """Ticker daemon: generate slips for due profiles at their scheduled hour."""
+         try:
+             profiles = self._get_active_profiles()
++            profiles = {name: tup for name, tup in profiles.items() if self._is_profile_due(name)}
+             if profiles:
+                 self.generate_slips(profiles)
++                self._claim_profile_runs(profiles)
+                 runtime = self._settings.get("runtime_state") or {}
+                 runtime["last_time_generated"] = datetime.now().isoformat()
+                 self._settings.write("runtime_state", runtime)
+-            self._broadcast_slips_updated()
++                self._broadcast_slips_updated()
+         except Exception as exc:
+             print(f"[Generator] ERROR: {exc}")
+ 
++    # ── Per-profile generation schedule (T4) ──────────────────────────────────
++
++    def _profile_cfg(self, name: str) -> dict:
++        """Return the stored YAML dict for a profile (empty when missing)."""
++        return (self._settings.get("profiles") or {}).get(name) or {}
++
++    def _profile_schedule_met(self, name: str, cfg: dict | None = None, now: datetime | None = None) -> bool:
++        """True when the profile's own daily window has arrived today.
++
++        With a per-profile generate_hour/generate_minute the window is that
++        profile's own time; without it the legacy global services window is
++        used. A once-per-day guard (persisted per profile) blocks re-runs.
++        """
++        cfg = self._profile_cfg(name) if cfg is None else cfg
++        if not (cfg.get("auto_generate") or cfg.get("run_daily_count")):
++            return False
++        now = now or datetime.now()
++        today_key = now.strftime("%Y-%m-%d")
++        hour, minute = cfg.get("generate_hour"), cfg.get("generate_minute")
++        # No global fallback: a profile without its own window never fires.
++        if hour is None or minute is None:
++            return False
++        target = now.replace(
++            hour=int(hour) if hour is not None else 8,
++            minute=int(minute or 0),
++            second=0,
++            microsecond=0,
++        )
++        if now < target:
++            return False
++        stamps = (self._settings.get("runtime_state") or {}).get("profile_last_generated") or {}
++        return stamps.get(name) != today_key
++
++    def _is_profile_due(self, name: str, now: datetime | None = None) -> bool:
++        """Daemon due-check.
++
++        Legacy profiles (no per-profile hour/minute) are gated by the same
++        once-per-day stamp as per-profile ones, so a profile invoked directly
++        (manual generation, tests) cannot regenerate twice in one day
++        (review F2).
++        """
++        return self._profile_schedule_met(name, now=now)
++
++    def _claim_profile_runs(self, profiles: dict) -> None:
++        """Persist today's run stamps for every generated profile.
++
++        Stamping all profiles (not only per-profile ones) keeps the claim
++        symmetric with ``_is_profile_due`` so a legacy profile cannot
++        regenerate twice in a day (review F2).
++        """
++        today_key = datetime.now().strftime("%Y-%m-%d")
++        runtime = self._settings.get("runtime_state") or {}
++        stamps = runtime.get("profile_last_generated") or {}
++        for name in profiles:
++            stamps[name] = today_key
++        runtime["profile_last_generated"] = stamps
++        self._settings.write("runtime_state", runtime)
++
++    def get_profile_schedules(self) -> list[dict]:
++        """Profile schedule rows for the Services UI (every saved profile).
++
++        Persisted values only: a profile without its own order/window reports
++        ``None`` rather than a fabricated default, so a later Save cannot
++        materialize ``order: 0`` or pin a legacy window into YAML (review F3).
++        """
++        rows = []
++        for name, cfg in (self._settings.get("profiles") or {}).items():
++            rows.append(
++                {
++                    "name": name,
++                    "auto_generate": bool(cfg.get("auto_generate") or cfg.get("run_daily_count", 0) > 0),
++                    "generate_hour": cfg.get("generate_hour"),
++                    "generate_minute": cfg.get("generate_minute"),
++                    "units": cfg.get("units", 1.0),
++                    "target_payout": cfg.get("target_payout"),
++                    "run_daily_count": cfg.get("run_daily_count")
++                    or (1 if (cfg.get("auto_generate") or cfg.get("run_daily_count")) else 0),
++                    "order": cfg.get("order"),
++                }
++            )
++        return rows
++
++    def save_profile_schedules(self, rows: list[dict]) -> None:
++        """Merge per-profile schedule rows into each profile's YAML (T4)."""
++        for row in rows:
++            name = row.get("name")
++            if not name:
++                continue
++            cfg = dict(self._profile_cfg(name))
++            if not cfg and name not in (self._settings.get("profiles") or {}):
++                continue
++            cfg.update(
++                {
++                    k: row[k]
++                    for k in (
++                        "auto_generate",
++                        "generate_hour",
++                        "generate_minute",
++                        "units",
++                        "target_payout",
++                        "run_daily_count",
++                        "order",
++                    )
++                    if k in row
++                }
++            )
++            if row.get("run_daily_count") is not None:
++                cfg["run_daily_count"] = row["run_daily_count"]
++            self._settings.write(name, cfg, subpath="profiles")
++
+     def _do_verify(self) -> None:
+         """Ticker daemon: poll live scores and settle active slips."""
+         try:
+@@ -778,15 +907,26 @@ class AppLogic:
+     # ── Helpers ──────────────────────────────────────────────────────────[...]
+ 
+     def _get_active_profiles(self) -> dict[str, tuple]:
+-        """Convert stored profiles to dict of {name: (BetSlipConfig, units, count, target_payout)}."""
++        """Active profiles as {name: (BetSlipConfig, units, count, target_payout)}.
++
++        Ordering: explicit ``order`` ascending first, unordered profiles keep their
++        settings-dict (insertion) order after them. A profile is active when
++        ``auto_generate`` is set or it has a legacy truthy ``run_daily_count``;
++        auto_generate-only profiles run once per day (count 1).
++        """
+         profiles_raw = self._settings.get("profiles") or {}
++        active = {name: cfg for name, cfg in profiles_raw.items() if cfg.get("auto_generate") or cfg.get("run_daily_count")}
++        ordered = sorted(
++            (n for n, c in active.items() if c.get("order") is not None),
++            key=lambda n: _order_sort_key(active[n]["order"]),
++        )
++        unordered = [n for n, c in active.items() if c.get("order") is None]
+         return {
+             name: (
+-                _yaml_to_config(cfg),
+-                cfg.get("units", 1.0),
+-                cfg.get("run_daily_count", 0),
+-                cfg.get("target_payout"),
++                _yaml_to_config(active[name]),
++                active[name].get("units", 1.0),
++                active[name].get("run_daily_count") or (1 if active[name].get("auto_generate") else 0),
++                active[name].get("target_payout"),
+             )
+-            for name, cfg in profiles_raw.items()
+-            if cfg.get("run_daily_count")
++            for name in ordered + unordered
+         }
+diff --git a/bet_dashboard/backend/core/schemas.py b/bet_dashboard/backend/core/schemas.py
+index 391f92c..36dc965 100644
+--- a/bet_dashboard/backend/core/schemas.py
++++ b/bet_dashboard/backend/core/schemas.py
+@@ -1,6 +1,8 @@
+ """Pydantic request/response models for the API."""
+ 
+-from pydantic import BaseModel
++from typing import Self
++
++from pydantic import BaseModel, model_validator
+ 
+ from bet_framework.markets.enums import MarketKey, MarketType
+ 
+@@ -14,10 +16,10 @@ class BetSlipConfigIn(BaseModel):
+     target_legs: int = 3
+     max_legs_overflow: int | None = None
+     consensus_floor: float = 50.0
+-    min_odds: float = 1.05
++    min_leg_odds: float = 1.05
+     tolerance_factor: float | None = None
+     stop_threshold: float | None = None
+-    min_legs_fill_ratio: float = 0.70
++    min_legs_fill_ratio: float | None = 0.70
+     quality_vs_balance: float = 0.5
+     consensus_vs_sources: float = 0.5
+     included_markets: list[str] | None = None
+@@ -28,7 +30,7 @@ class BetSlipConfigIn(BaseModel):
+     # Advanced
+     consensus_shrinkage_k: float | None = None
+     min_source_edge: float | None = None
+-    max_single_leg_odds: float | None = None
++    max_leg_odds: float = 3.5
+     tol_lower: float | None = None
+     tol_upper: float | None = None
+     balance_decay: str = "linear"
+@@ -81,22 +83,32 @@ class ProfileIn(BaseModel):
+     target_legs: int = 3
+     max_legs_overflow: int | None = None
+     consensus_floor: float = 50.0
+-    min_odds: float = 1.05
++    min_leg_odds: float = 1.05
+     tolerance_factor: float | None = None
+     stop_threshold: float | None = None
+-    min_legs_fill_ratio: float = 0.70
++    min_legs_fill_ratio: float | None = 0.70
+     quality_vs_balance: float = 0.5
+     consensus_vs_sources: float = 0.5
+     included_markets: list[str] | None = None
+     included_leagues: list[str] | None = None
+     excluded_sources: list[str] | None = None
+-    units: float = 1.0
++    # None = "not provided" → keep whatever is already persisted (desync C:
++    # the Build tab no longer owns stake values; only the Services page does).
++    units: float | None = None
+     target_payout: float | None = None
+-    run_daily_count: int = 0
++    # None = "not provided" → keep whatever is already persisted (legacy
++    # run_daily_count / per-profile schedule set on the Services page survive
++    # a Smart Builder save instead of being reset to 0).
++    run_daily_count: int | None = None
++    # T4: auto-generation ordering and per-profile schedule (tri-state: keep when omitted)
++    order: int | None = None
++    auto_generate: bool | None = None
++    generate_hour: int | None = None
++    generate_minute: int | None = None
+     # Advanced
+     consensus_shrinkage_k: float | None = None
+     min_source_edge: float | None = None
+-    max_single_leg_odds: float | None = None
++    max_leg_odds: float = 3.5
+     tol_lower: float | None = None
+     tol_upper: float | None = None
+     balance_decay: str = "linear"
+@@ -160,11 +172,32 @@ class BetSlipOut(BaseModel):
+ # ── Services ──────────────────────────────────────────────────────────────────
+ 
+ 
++class ProfileScheduleIn(BaseModel):
++    """Per-profile auto-generation schedule row (T4)."""
++
++    name: str
++    auto_generate: bool | None = None
++    generate_hour: int | None = None
++    generate_minute: int | None = None
++    units: float | None = None
++    target_payout: float | None = None
++    run_daily_count: int | None = None
++    order: int | None = None
++
++
+ class ServicesSettingsIn(BaseModel):
+     """Payload for service scheduler settings."""
+ 
+-    generate_hour: int
+-    generate_minute: int = 0
++    generate_hour: int | None = None
++    generate_minute: int | None = None
++    profile_schedules: list[ProfileScheduleIn] | None = None
++
++    @model_validator(mode="after")
++    def _require_hour_without_profile_schedules(self) -> Self:
++        """Legacy body (no profile_schedules) still requires generate_hour."""
++        if self.profile_schedules is None and self.generate_hour is None:
++            raise ValueError("generate_hour is required when profile_schedules is absent")
++        return self
+ 
+ 
+ # ── Odds History ──────────────────────────────────────────────────────────────
+diff --git a/bet_dashboard/backend/openapi.generated.json b/bet_dashboard/backend/openapi.generated.json
+index 4bef4fe..2ad7ddd 100644
+--- a/bet_dashboard/backend/openapi.generated.json
++++ b/bet_dashboard/backend/openapi.generated.json
+@@ -689,7 +689,7 @@
+           "profiles"
+         ],
+         "summary": "Save Profile",
+-        "description": "Persist a named builder profile.",
++        "description": "Persist a named builder profile.\n\nScheduling/ordering keys (run_daily_count, order, auto_generate,\ngenerate_hour, generate_minute) are tri-state in the payload: when the\ncaller omits them, the values already persisted for this profile are\ncarried over instead of being reset. That keeps a Smart Builder save from\nsilently wiping a schedule configured on the Services page (review F1).",
+         "operationId": "save_profile_api_profiles_post",
+         "requestBody": {
+           "content": {
+@@ -874,7 +874,7 @@
+           "services"
+         ],
+         "summary": "Save Settings",
+-        "description": "Persist scheduler hour/minute settings.",
++        "description": "Persist scheduler hour/minute settings and per-profile schedules.",
+         "operationId": "save_settings_api_services_settings_post",
+         "requestBody": {
+           "content": {
+@@ -1176,9 +1176,9 @@
+             "title": "Consensus Floor",
+             "default": 50.0
+           },
+-          "min_odds": {
++          "min_leg_odds": {
+             "type": "number",
+-            "title": "Min Odds",
++            "title": "Min Leg Odds",
+             "default": 1.05
+           },
+           "tolerance_factor": {
+@@ -1204,7 +1204,14 @@
+             "title": "Stop Threshold"
+           },
+           "min_legs_fill_ratio": {
+-            "type": "number",
++            "anyOf": [
++              {
++                "type": "number"
++              },
++              {
++                "type": "null"
++              }
++            ],
+             "title": "Min Legs Fill Ratio",
+             "default": 0.7
+           },
+@@ -1304,16 +1311,10 @@
+             ],
+             "title": "Min Source Edge"
+           },
+-          "max_single_leg_odds": {
+-            "anyOf": [
+-              {
+-                "type": "number"
+-              },
+-              {
+-                "type": "null"
+-              }
+-            ],
+-            "title": "Max Single Leg Odds"
++          "max_leg_odds": {
++            "type": "number",
++            "title": "Max Leg Odds",
++            "default": 3.5
+           },
+           "tol_lower": {
+             "anyOf": [
+@@ -1777,9 +1778,9 @@
+             "title": "Consensus Floor",
+             "default": 50.0
+           },
+-          "min_odds": {
++          "min_leg_odds": {
+             "type": "number",
+-            "title": "Min Odds",
++            "title": "Min Leg Odds",
+             "default": 1.05
+           },
+           "tolerance_factor": {
+@@ -1805,7 +1806,14 @@
+             "title": "Stop Threshold"
+           },
+           "min_legs_fill_ratio": {
+-            "type": "number",
++            "anyOf": [
++              {
++                "type": "number"
++              },
++              {
++                "type": "null"
++              }
++            ],
+             "title": "Min Legs Fill Ratio",
+             "default": 0.7
+           },
+@@ -1862,9 +1870,15 @@
+             "title": "Excluded Sources"
+           },
+           "units": {
+-            "type": "number",
+-            "title": "Units",
+-            "default": 1.0
++            "anyOf": [
++              {
++                "type": "number"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Units"
+           },
+           "target_payout": {
+             "anyOf": [
+@@ -1878,22 +1892,61 @@
+             "title": "Target Payout"
+           },
+           "run_daily_count": {
+-            "type": "integer",
+-            "title": "Run Daily Count",
+-            "default": 0
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Run Daily Count"
+           },
+-          "consensus_shrinkage_k": {
++          "order": {
+             "anyOf": [
+               {
+-                "type": "number"
++                "type": "integer"
+               },
+               {
+                 "type": "null"
+               }
+             ],
+-            "title": "Consensus Shrinkage K"
++            "title": "Order"
+           },
+-          "min_source_edge": {
++          "auto_generate": {
++            "anyOf": [
++              {
++                "type": "boolean"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Auto Generate"
++          },
++          "generate_hour": {
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Generate Hour"
++          },
++          "generate_minute": {
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Generate Minute"
++          },
++          "consensus_shrinkage_k": {
+             "anyOf": [
+               {
+                 "type": "number"
+@@ -1902,9 +1955,9 @@
+                 "type": "null"
+               }
+             ],
+-            "title": "Min Source Edge"
++            "title": "Consensus Shrinkage K"
+           },
+-          "max_single_leg_odds": {
++          "min_source_edge": {
+             "anyOf": [
+               {
+                 "type": "number"
+@@ -1913,7 +1966,12 @@
+                 "type": "null"
+               }
+             ],
+-            "title": "Max Single Leg Odds"
++            "title": "Min Source Edge"
++          },
++          "max_leg_odds": {
++            "type": "number",
++            "title": "Max Leg Odds",
++            "default": 3.5
+           },
+           "tol_lower": {
+             "anyOf": [
+@@ -1983,22 +2041,137 @@
+         "title": "ProfileIn",
+         "description": "Payload for saving a named builder profile."
+       },
+-      "ServicesSettingsIn": {
++      "ProfileScheduleIn": {
+         "properties": {
++          "name": {
++            "type": "string",
++            "title": "Name"
++          },
++          "auto_generate": {
++            "anyOf": [
++              {
++                "type": "boolean"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Auto Generate"
++          },
+           "generate_hour": {
+-            "type": "integer",
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
+             "title": "Generate Hour"
+           },
+           "generate_minute": {
+-            "type": "integer",
+-            "title": "Generate Minute",
+-            "default": 0
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Generate Minute"
++          },
++          "units": {
++            "anyOf": [
++              {
++                "type": "number"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Units"
++          },
++          "target_payout": {
++            "anyOf": [
++              {
++                "type": "number"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Target Payout"
++          },
++          "run_daily_count": {
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Run Daily Count"
++          },
++          "order": {
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Order"
+           }
+         },
+         "type": "object",
+         "required": [
+-          "generate_hour"
++          "name"
+         ],
++        "title": "ProfileScheduleIn",
++        "description": "Per-profile auto-generation schedule row (T4)."
++      },
++      "ServicesSettingsIn": {
++        "properties": {
++          "generate_hour": {
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Generate Hour"
++          },
++          "generate_minute": {
++            "anyOf": [
++              {
++                "type": "integer"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Generate Minute"
++          },
++          "profile_schedules": {
++            "anyOf": [
++              {
++                "items": {
++                  "$ref": "#/components/schemas/ProfileScheduleIn"
++                },
++                "type": "array"
++              },
++              {
++                "type": "null"
++              }
++            ],
++            "title": "Profile Schedules"
++          }
++        },
++        "type": "object",
+         "title": "ServicesSettingsIn",
+         "description": "Payload for service scheduler settings."
+       },
+diff --git a/bet_dashboard/backend/routers/builder.py b/bet_dashboard/backend/routers/builder.py
+index 4ccb0f1..895cb48 100644
+--- a/bet_dashboard/backend/routers/builder.py
++++ b/bet_dashboard/backend/routers/builder.py
+@@ -32,7 +32,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
+         target_legs=body.target_legs,
+         max_legs_overflow=body.max_legs_overflow,
+         consensus_floor=body.consensus_floor,
+-        min_odds=body.min_odds,
++        min_leg_odds=body.min_leg_odds,
+         tolerance_factor=body.tolerance_factor,
+         stop_threshold=body.stop_threshold,
+         min_legs_fill_ratio=body.min_legs_fill_ratio,
+@@ -46,7 +46,7 @@ def _to_config(body: BetSlipConfigIn) -> BetSlipConfig:
+         # Advanced
+         consensus_shrinkage_k=body.consensus_shrinkage_k,
+         min_source_edge=body.min_source_edge,
+-        max_single_leg_odds=body.max_single_leg_odds,
++        max_leg_odds=body.max_leg_odds,
+         tol_lower=body.tol_lower,
+         tol_upper=body.tol_upper,
+         balance_decay=body.balance_decay,
+diff --git a/bet_dashboard/backend/routers/profiles.py b/bet_dashboard/backend/routers/profiles.py
+index 4049007..1a3a0e5 100644
+--- a/bet_dashboard/backend/routers/profiles.py
++++ b/bet_dashboard/backend/routers/profiles.py
+@@ -24,12 +24,30 @@ def list_profiles(request: Request):
+ 
+ @router.post("")
+ def save_profile(request: Request, body: ProfileIn):
+-    """Persist a named builder profile."""
++    """Persist a named builder profile.
++
++    Scheduling/ordering keys (run_daily_count, order, auto_generate,
++    generate_hour, generate_minute) are tri-state in the payload: when the
++    caller omits them, the values already persisted for this profile are
++    carried over instead of being reset. That keeps a Smart Builder save from
++    silently wiping a schedule configured on the Services page (review F1).
++    """
+     app = _get(request)
+     name = "".join(c for c in body.name if c.isalnum() or c in ("_", "-")).lower()
+     if not name:
+         raise HTTPException(400, "Invalid profile name")
+ 
++    existing = (app.settings.get("profiles") or {}).get(name, {})
++    if not isinstance(existing, dict):
++        existing = {}
++
++    # Desync C: units/target_payout are owned by the Services page. A
++    # Smart Builder save omits them (they are session-only in the Build tab),
++    # so an omitted value keeps whatever is already persisted; only an
++    # explicit body value writes through.
++    units = body.units if body.units is not None else existing.get("units", 1.0)
++    target_payout = body.target_payout if body.target_payout is not None else existing.get("target_payout")
++
+     # Use shared helper to convert ProfileIn to YAML dict
+     data = _config_to_yaml_dict(
+         BetSlipConfig(
+@@ -37,7 +55,7 @@ def save_profile(request: Request, body: ProfileIn):
+             target_legs=body.target_legs,
+             max_legs_overflow=body.max_legs_overflow,
+             consensus_floor=body.consensus_floor,
+-            min_odds=body.min_odds,
++            min_leg_odds=body.min_leg_odds,
+             tolerance_factor=body.tolerance_factor,
+             stop_threshold=body.stop_threshold,
+             min_legs_fill_ratio=body.min_legs_fill_ratio,
+@@ -49,7 +67,7 @@ def save_profile(request: Request, body: ProfileIn):
+             # Advanced
+             consensus_shrinkage_k=body.consensus_shrinkage_k,
+             min_source_edge=body.min_source_edge,
+-            max_single_leg_odds=body.max_single_leg_odds,
++            max_leg_odds=body.max_leg_odds,
+             tol_lower=body.tol_lower,
+             tol_upper=body.tol_upper,
+             balance_decay=body.balance_decay,
+@@ -57,10 +75,31 @@ def save_profile(request: Request, body: ProfileIn):
+             odds_movement_weight=body.odds_movement_weight,
+             odds_movement_strength_min=body.odds_movement_strength_min,
+         ),
+-        units=body.units,
+-        target_payout=body.target_payout,
++        units=units,
++        target_payout=target_payout,
+         run_daily_count=body.run_daily_count,
++        order=body.order,
++        auto_generate=body.auto_generate,
++        generate_hour=body.generate_hour,
++        generate_minute=body.generate_minute,
+     )
++    # Omitted scheduling keys keep their persisted values; unknown keys on
++    # disk are carried over so future additions are not dropped.
++    for key in (
++        "run_daily_count",
++        "order",
++        "auto_generate",
++        "generate_hour",
++        "generate_minute",
++    ):
++        if key not in data and key in existing:
++            data[key] = existing[key]
++    # AUTO B: min_legs_fill_ratio=None means Auto. BetSlipConfig.__post_init__
++    # resolves None to 0.90 and asdict would persist that explicit number, so
++    # the request value is restored verbatim — null stays null (Auto).
++    data["min_legs_fill_ratio"] = body.min_legs_fill_ratio
++    for key, value in existing.items():
++        data.setdefault(key, value)
+     app.settings.write(name, data, subpath="profiles")
+     return {"name": name, "data": data}
+ 
+diff --git a/bet_dashboard/backend/routers/services.py b/bet_dashboard/backend/routers/services.py
+index 8692bbb..9b3512a 100644
+--- a/bet_dashboard/backend/routers/services.py
++++ b/bet_dashboard/backend/routers/services.py
+@@ -85,14 +85,22 @@ def get_services(request: Request):
+         "services": services_out,
+         "generate_hour": svc_cfg.get("generate_hour", 8),
+         "generate_minute": svc_cfg.get("generate_minute", 0),
++        "profile_schedules": app.get_profile_schedules(),
+         "server_time": now,
+     }
+ 
+ 
+ @router.post("/settings")
+ def save_settings(request: Request, body: ServicesSettingsIn):
+-    """Persist scheduler hour/minute settings."""
+-    _get(request).save_service_settings(body.generate_hour, body.generate_minute)
++    """Persist scheduler hour/minute settings and per-profile schedules."""
++    app = _get(request)
++    if body.profile_schedules is not None:
++        rows = [row.model_dump() for row in body.profile_schedules]
++        app.save_profile_schedules(rows)
++        if body.generate_hour is not None:
++            app.save_service_settings(body.generate_hour, body.generate_minute or 0)
++        return {"profile_schedules": rows}
++    app.save_service_settings(body.generate_hour, body.generate_minute or 0)
+     return {
+         "generate_hour": body.generate_hour,
+         "generate_minute": body.generate_minute,
+diff --git a/bet_dashboard/backend/tests/test_config_helpers.py b/bet_dashboard/backend/tests/test_config_helpers.py
+index baff308..5f06a78 100644
+--- a/bet_dashboard/backend/tests/test_config_helpers.py
++++ b/bet_dashboard/backend/tests/test_config_helpers.py
+@@ -4,7 +4,7 @@ Scope (per issue #62 spec, testing-subissues-58-71.md):
+ - _yaml_to_config() parses ALL BetSlipConfig fields
+ - ensure_default_profiles() seeds built-in profiles into a fresh config dir
+ - Clamping boundaries for every clamped field (target_odds [1.10, 1000],
+-  target_legs [1, 100], consensus_floor, min_odds, tolerances, advanced ...)
++  target_legs [1, 100], consensus_floor, min_leg_odds, tolerances, advanced ...)
+ - excluded_sources list preserved through the YAML -> config path
+ - Advanced fields parsed and preserved
+ - Profile YAML round-trip (save -> load -> verify) via SettingsManager
+@@ -47,7 +47,7 @@ CLAMP_BOUNDS = [
+     ("target_odds", 1.10, 1000.0),
+     ("target_legs", 1, 100),
+     ("consensus_floor", 0.0, 100.0),
+-    ("min_odds", 1.01, 10.0),
++    ("min_leg_odds", 1.01, 10.0),
+     ("min_legs_fill_ratio", 0.50, 1.00),
+     ("quality_vs_balance", 0.0, 1.0),
+     ("consensus_vs_sources", 0.0, 1.0),
+@@ -56,7 +56,7 @@ CLAMP_BOUNDS = [
+     ("max_legs_overflow", 0, 5),
+     ("consensus_shrinkage_k", 1.0, 10.0),
+     ("min_source_edge", 0.0, 0.50),
+-    ("max_single_leg_odds", 1.0, 10.0),
++    ("max_leg_odds", 1.01, 10.0),
+     ("tol_lower", 0.01, 1.00),
+     ("tol_upper", 0.01, 1.00),
+     ("min_pick_quality", 0.0, 1.00),
+@@ -81,7 +81,6 @@ OPTIONAL_CLAMP_FIELDS = [
+     "max_legs_overflow",
+     "consensus_shrinkage_k",
+     "min_source_edge",
+-    "max_single_leg_odds",
+     "tol_lower",
+     "tol_upper",
+     "min_pick_quality",
+@@ -108,7 +107,7 @@ def make_full_profile_dict(**overrides) -> dict:
+         "target_legs": 4,
+         "max_legs_overflow": 2,
+         "consensus_floor": 60.0,
+-        "min_odds": 1.20,
++        "min_leg_odds": 1.20,
+         "tolerance_factor": 0.30,
+         "stop_threshold": 0.85,
+         "min_legs_fill_ratio": 0.75,
+@@ -116,7 +115,7 @@ def make_full_profile_dict(**overrides) -> dict:
+         "consensus_vs_sources": 0.55,
+         "consensus_shrinkage_k": 4.0,
+         "min_source_edge": 0.06,
+-        "max_single_leg_odds": 3.50,
++        "max_leg_odds": 3.50,
+         "tol_lower": 0.35,
+         "tol_upper": 0.20,
+         "balance_decay": "linear",
+@@ -149,7 +148,7 @@ class TestYamlToConfig:
+         assert cfg.target_legs == 4
+         assert cfg.max_legs_overflow == 2
+         assert cfg.consensus_floor == 60.0
+-        assert cfg.min_odds == 1.20
++        assert cfg.min_leg_odds == 1.20
+         assert cfg.tolerance_factor == 0.30
+         assert cfg.stop_threshold == 0.85
+         assert cfg.min_legs_fill_ratio == 0.75
+@@ -157,7 +156,7 @@ class TestYamlToConfig:
+         assert cfg.consensus_vs_sources == 0.55
+         assert cfg.consensus_shrinkage_k == 4.0
+         assert cfg.min_source_edge == 0.06
+-        assert cfg.max_single_leg_odds == 3.50
++        assert cfg.max_leg_odds == 3.50
+         assert cfg.tol_lower == 0.35
+         assert cfg.tol_upper == 0.20
+         assert cfg.balance_decay == "linear"
+@@ -196,7 +195,7 @@ class TestYamlToConfig:
+         assert cfg.target_odds == 4.5
+         assert cfg.target_legs == 5
+         assert cfg.consensus_floor == defaults.consensus_floor
+-        assert cfg.min_odds == defaults.min_odds
++        assert cfg.min_leg_odds == defaults.min_leg_odds
+         assert cfg.balance_decay == defaults.balance_decay
+ 
+     def test_excluded_sources_list_preserved(self) -> None:
+@@ -231,10 +230,10 @@ class TestYamlToConfig:
+     def test_clamping_applied_through_yaml_path(self) -> None:
+         """[P0] Values outside bounds are clamped by BetSlipConfig.__post_init__
+         when constructed through _yaml_to_config (end-to-end YAML -> clamp)."""
+-        cfg = _yaml_to_config({"target_odds": 5000.0, "target_legs": 999, "min_odds": 0.2})
++        cfg = _yaml_to_config({"target_odds": 5000.0, "target_legs": 999, "min_leg_odds": 0.2})
+         assert cfg.target_odds == 1000.0
+         assert cfg.target_legs == 100
+-        assert cfg.min_odds == 1.01
++        assert cfg.min_leg_odds == 1.01
+ 
+ 
+ class TestConfigClamping:
+@@ -271,11 +270,11 @@ class TestConfigClamping:
+                 "target_odds": 99.0,
+                 "target_legs": 0,
+                 "consensus_floor": 250.0,
+-                "min_odds": 42.0,
++                "min_leg_odds": 42.0,
+                 "tolerance_factor": 5.0,
+                 "consensus_shrinkage_k": -1.0,
+                 "min_source_edge": 9.0,
+-                "max_single_leg_odds": 50.0,
++                "max_leg_odds": 50.0,
+                 "tol_lower": 7.0,
+                 "tol_upper": 0.0,
+                 "min_pick_quality": 4.0,
+@@ -286,11 +285,11 @@ class TestConfigClamping:
+         assert cfg.target_odds == 99.0
+         assert cfg.target_legs == 1
+         assert cfg.consensus_floor == 100.0
+-        assert cfg.min_odds == 10.0
++        assert cfg.min_leg_odds == 10.0
+         assert cfg.tolerance_factor == 0.80
+         assert cfg.consensus_shrinkage_k == 1.0
+         assert cfg.min_source_edge == 0.50
+-        assert cfg.max_single_leg_odds == 10.0
++        assert cfg.max_leg_odds == 10.0
+         assert cfg.tol_lower == 1.00
+         assert cfg.tol_upper == 0.01
+         assert cfg.min_pick_quality == 1.00
+@@ -413,7 +412,7 @@ class TestProfileRoundTrip:
+             target_legs=4,
+             max_legs_overflow=1,
+             consensus_floor=65.0,
+-            min_odds=1.25,
++            min_leg_odds=1.25,
+             tolerance_factor=0.28,
+             stop_threshold=0.90,
+             min_legs_fill_ratio=0.80,
+@@ -421,7 +420,7 @@ class TestProfileRoundTrip:
+             consensus_vs_sources=0.40,
+             consensus_shrinkage_k=2.5,
+             min_source_edge=0.04,
+-            max_single_leg_odds=3.80,
++            max_leg_odds=3.80,
+             tol_lower=0.30,
+             tol_upper=0.15,
+             balance_decay="linear",
+diff --git a/bet_dashboard/backend/tests/test_logic_lifecycle.py b/bet_dashboard/backend/tests/test_logic_lifecycle.py
+index 06f819c..56939e1 100644
+--- a/bet_dashboard/backend/tests/test_logic_lifecycle.py
++++ b/bet_dashboard/backend/tests/test_logic_lifecycle.py
+@@ -270,43 +270,89 @@ class TestAppLogicLifecycle:
+         assert app._is_generator_hour_met() is False
+         assert app._last_generator_run is None
+ 
+-    def test_generator_predicate_true_on_first_call_after_target(self, app_env, monkeypatch) -> None:
+-        """[P0] First evaluation after the target time fires once per day."""
+-        app = app_env.app
+-        self._freeze_now(monkeypatch)
+-        assert app._is_generator_hour_met() is True
+-        assert app._last_generator_run == "2026-09-24"
++    def test_generator_predicate_true_on_first_call_after_target(self, tmp_path, monkeypatch) -> None:
++        """[P0] First evaluation inside the profile's own window fires."""
++        env = build_app(
++            tmp_path,
++            monkeypatch,
++            profiles={
++                "due": {
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                    "units": 1.0,
++                },
++            },
++        )
++        app = env.app
++        try:
++            self._freeze_now(monkeypatch)
++            assert app._is_generator_hour_met() is True
++        finally:
++            app._assistant.conn.close()
++            app._matches_manager.close()
+ 
+-    def test_generator_predicate_in_memory_guard_blocks_second_call(self, app_env, monkeypatch) -> None:
+-        """[P0] The in-memory guard blocks a second run on the same day."""
+-        app = app_env.app
+-        self._freeze_now(monkeypatch)
+-        assert app._is_generator_hour_met() is True
+-        assert app._is_generator_hour_met() is False
++    def test_generator_predicate_in_memory_guard_blocks_second_call(self, tmp_path, monkeypatch) -> None:
++        """[P0] The per-profile once-per-day guard blocks a second run."""
++        env = build_app(
++            tmp_path,
++            monkeypatch,
++            profiles={
++                "due": {
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                    "units": 1.0,
++                },
++            },
++        )
++        app = env.app
++        try:
++            self._freeze_now(monkeypatch)
++            assert app._is_generator_hour_met() is True
++            app._claim_profile_runs({"due": (None, 1.0, 1, None)})
++            assert app._is_generator_hour_met() is False
++        finally:
++            app._assistant.conn.close()
++            app._matches_manager.close()
+ 
+     def test_generator_predicate_respects_persisted_timestamp_same_day(self, tmp_path, monkeypatch) -> None:
+-        """[P0] On restart a same-day persisted timestamp blocks the run and syncs the guard."""
++        """[P0] On restart a same-day per-profile stamp blocks that profile."""
+         env = build_app(
+             tmp_path,
+             monkeypatch,
+-            runtime_state={"last_time_generated": "2026-09-24T08:30:00"},
++            profiles={
++                "due": {
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                    "units": 1.0,
++                },
++            },
++            runtime_state={"profile_last_generated": {"due": "2026-09-24"}},
+         )
+         app = env.app
+         try:
+             self._freeze_now(monkeypatch)
+             assert app._is_generator_hour_met() is False
+-            assert app._last_generator_run == "2026-09-24"
+-            assert app._is_generator_hour_met() is False  # guard now blocks
+         finally:
+             app._assistant.conn.close()
+             app._matches_manager.close()
+ 
+     def test_generator_predicate_persisted_yesterday_runs_again(self, tmp_path, monkeypatch) -> None:
+-        """[P1] A persisted timestamp from yesterday does not block today's run."""
++        """[P1] A per-profile stamp from yesterday does not block today's run."""
+         env = build_app(
+             tmp_path,
+             monkeypatch,
+-            runtime_state={"last_time_generated": "2026-09-23T08:30:00"},
++            profiles={
++                "due": {
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                    "units": 1.0,
++                },
++            },
++            runtime_state={"profile_last_generated": {"due": "2026-09-23"}},
+         )
+         app = env.app
+         try:
+@@ -317,11 +363,19 @@ class TestAppLogicLifecycle:
+             app._matches_manager.close()
+ 
+     def test_generator_predicate_invalid_persisted_timestamp_runs(self, tmp_path, monkeypatch) -> None:
+-        """[P2] A corrupt persisted timestamp is ignored; the run proceeds."""
++        """[P2] A corrupt per-profile stamp is ignored; the run proceeds."""
+         env = build_app(
+             tmp_path,
+             monkeypatch,
+-            runtime_state={"last_time_generated": "garbage"},
++            profiles={
++                "due": {
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                    "units": 1.0,
++                },
++            },
++            runtime_state={"profile_last_generated": {"due": "garbage-not-a-date"}},
+         )
+         app = env.app
+         try:
+@@ -469,13 +523,17 @@ class TestAppLogicLifecycle:
+                 "target_odds": 2.0,
+                 "target_legs": 1,
+                 "consensus_floor": 50.0,
+-                "min_odds": 1.05,
++                "min_leg_odds": 1.05,
+                 "tolerance_factor": 0.30,
+                 "stop_threshold": 0.50,
+                 "odds_movement_weight": 0.0,
+                 "odds_movement_strength_min": 0.2,
+                 "units": 1.0,
+                 "run_daily_count": 1,
++                # Explicit 00:00 window: window-aware due-checking (review F2)
++                # makes this test independent of the wall clock.
++                "generate_hour": 0,
++                "generate_minute": 0,
+             }
+         }
+         env = build_app(tmp_path, monkeypatch, profiles=profiles)
+@@ -492,12 +550,11 @@ class TestAppLogicLifecycle:
+             app._assistant.conn.close()
+             app._matches_manager.close()
+ 
+-    def test_do_generate_without_profiles_only_broadcasts(self, app_env, broadcast_capture) -> None:
+-        """[P1] No active profiles → broadcast only, nothing persisted."""
++    def test_do_generate_without_profiles_broadcasts_nothing(self, app_env, broadcast_capture) -> None:
++        """[P1] No active profiles → nothing generated and no needless broadcast."""
+         app_env.app._do_generate()
+         assert app_env.app.settings.get("runtime_state") is None
+-        assert broadcast_capture[-1]["event"] == "slips_updated"
+-        assert "live_data" not in broadcast_capture[-1]
++        assert not [c for c in broadcast_capture if c["event"] == "slips_updated"]
+ 
+     def test_do_generate_swallows_errors_without_broadcast(self, app_env, monkeypatch, broadcast_capture) -> None:
+         """[P1] A failing generate is logged, swallowed, and never broadcast.
+diff --git a/bet_dashboard/backend/tests/test_logic_profile_ordering.py b/bet_dashboard/backend/tests/test_logic_profile_ordering.py
+new file mode 100644
+index 0000000..ba6fb01
+--- /dev/null
++++ b/bet_dashboard/backend/tests/test_logic_profile_ordering.py
+@@ -0,0 +1,363 @@
++"""[P0] T4: profile generation ordering + per-profile auto-generation schedules.
++
++Covers AppLogic._get_active_profiles ordering/active filtering,
++_profile_schedule_met windows and once-per-day guards, _do_generate
++per-profile filtering, and the services router profile_schedules contract.
++"""
++
++from datetime import datetime
++
++import pytest
++from tests.logic_test_helpers import build_app
++
++PROFILE = {
++    "target_odds": 2.0,
++    "target_legs": 1,
++    "consensus_floor": 50.0,
++    "min_leg_odds": 1.05,
++    "tolerance_factor": 0.30,
++    "stop_threshold": 0.50,
++    "odds_movement_weight": 0.0,
++    "odds_movement_strength_min": 0.2,
++    "units": 1.0,
++}
++
++
++def _freeze(monkeypatch, year=2026, month=9, day=24, hour=9, minute=0) -> None:
++    """Pin core.logic.datetime.now() to a fixed wall-clock time."""
++
++    class Frozen(datetime):
++        @classmethod
++        def now(cls, tz=None):
++            return cls(year, month, day, hour, minute)
++
++    monkeypatch.setattr("core.logic.datetime", Frozen)
++
++
++@pytest.fixture()
++def env(tmp_path, monkeypatch):
++    built = build_app(tmp_path, monkeypatch, profiles={})
++    yield built
++    built.app._assistant.conn.close()
++    built.app._matches_manager.close()
++
++
++def _save_profiles(app, profiles) -> None:
++    """Write raw profile YAML dicts through the SettingsManager."""
++    for name, cfg in profiles.items():
++        app.settings.write(name, cfg, subpath="profiles")
++
++
++class TestGetActiveProfilesOrdering:
++    """[P0] _get_active_profiles: deterministic order, active filter, tuple shape."""
++
++    def test_legacy_run_daily_count_only(self, env) -> None:
++        """[P0] Legacy run_daily_count>0 profiles stay active with same tuple shape."""
++        _save_profiles(env.app, {"a": {**PROFILE, "run_daily_count": 2}, "b": {**PROFILE}})
++        active = env.app._get_active_profiles()
++        assert list(active) == ["a"]
++        cfg, units, count, payout = active["a"]
++        assert count == 2 and units == 1.0 and payout is None
++        assert cfg.target_odds == 2.0
++
++    def test_order_ascending_then_insertion(self, env) -> None:
++        """[P0] Explicit order sorts ascending; unordered keep settings order after."""
++        _save_profiles(
++            env.app,
++            {
++                "zeta": {**PROFILE, "run_daily_count": 1, "order": 2},
++                "alpha": {**PROFILE, "run_daily_count": 1, "order": 1},
++                "mid": {**PROFILE, "run_daily_count": 1, "order": 1},
++                "plain1": {**PROFILE, "run_daily_count": 1},
++                "plain2": {**PROFILE, "run_daily_count": 1},
++            },
++        )
++        assert list(env.app._get_active_profiles()) == [
++            "alpha",
++            "mid",
++            "zeta",
++            "plain1",
++            "plain2",
++        ]
++
++    def test_auto_generate_active_without_run_daily_count(self, env) -> None:
++        """[P0] auto_generate-only profiles are active and default to count 1."""
++        _save_profiles(env.app, {"auto": {**PROFILE, "auto_generate": True}, "off": {**PROFILE}})
++        active = env.app._get_active_profiles()
++        assert list(active) == ["auto"]
++        assert active["auto"][2] == 1
++
++    def test_explicit_legacy_zero_order_runs_first(self, env) -> None:
++        """[P1] order=0 is explicit (runs first), distinct from missing order."""
++        _save_profiles(
++            env.app,
++            {
++                "noseq": {**PROFILE, "run_daily_count": 1},
++                "zero": {**PROFILE, "run_daily_count": 1, "order": 0},
++            },
++        )
++        assert list(env.app._get_active_profiles()) == ["zero", "noseq"]
++
++
++class TestProfileScheduleMet:
++    """[P0] _profile_schedule_met: per-profile window, legacy fallback, daily guard."""
++
++    def test_inactive_profile_never_met(self, env) -> None:
++        """[P0] Profiles that are neither auto_generate nor daily are never due."""
++        assert env.app._profile_schedule_met("ghost", {"units": 1.0}) is False
++
++    def test_per_profile_window_before_hour_false(self, env, monkeypatch) -> None:
++        """[P0] Before the profile's own hour the schedule is not met."""
++        cfg = {"auto_generate": True, "generate_hour": 12, "generate_minute": 0}
++        _freeze(monkeypatch, hour=9)
++        assert env.app._profile_schedule_met("p", cfg) is False
++
++    def test_per_profile_window_after_hour_true(self, env, monkeypatch) -> None:
++        """[P0] At/after the profile's own hour the schedule is met."""
++        cfg = {"run_daily_count": 1, "generate_hour": 8, "generate_minute": 30}
++        _freeze(monkeypatch, hour=9)
++        assert env.app._profile_schedule_met("p", cfg) is True
++
++    def test_no_per_profile_window_never_met(self, env, monkeypatch) -> None:
++        """[P0] No global fallback: a profile without its own window never fires."""
++        env.app.save_service_settings(8, 0)
++        _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
++        _freeze(monkeypatch, hour=7)
++        assert env.app._profile_schedule_met("legacy") is False
++        _freeze(monkeypatch, hour=9)
++        assert env.app._profile_schedule_met("legacy") is False
++        assert env.app._is_generator_hour_met() is False
++
++    def test_daily_guard_blocks_second_run(self, env, monkeypatch) -> None:
++        """[P0] A per-profile stamp for today blocks a second run today."""
++        cfg = {"auto_generate": True, "generate_hour": 8, "generate_minute": 0}
++        _save_profiles(env.app, {"p": {**PROFILE, **cfg}})
++        _freeze(monkeypatch, hour=9)
++        assert env.app._profile_schedule_met("p") is True
++        env.app._claim_profile_runs({"p": (None, 1.0, 1, None)})
++        assert env.app._profile_schedule_met("p") is False
++
++    def test_stamp_from_yesterday_allows_run(self, env, monkeypatch) -> None:
++        """[P1] A yesterday stamp does not block today's run."""
++        cfg = {"auto_generate": True, "generate_hour": 8, "generate_minute": 0}
++        _save_profiles(env.app, {"p": {**PROFILE, **cfg}})
++        env.app.settings.write(
++            "runtime_state",
++            {"profile_last_generated": {"p": "2026-09-23"}},
++        )
++        _freeze(monkeypatch, hour=9)
++        assert env.app._profile_schedule_met("p") is True
++
++
++class TestGeneratorPredicatePerProfile:
++    """[P0] _is_generator_hour_met fires on any active profile's window."""
++
++    def test_per_profile_due_fires_predicate(self, env, monkeypatch) -> None:
++        """[P0] A due per-profile window returns True even outside global window."""
++        env.app.save_service_settings(23, 0)  # global window not reached at 09:00
++        _save_profiles(
++            env.app,
++            {
++                "early": {
++                    **PROFILE,
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                }
++            },
++        )
++        _freeze(monkeypatch, hour=9)
++        assert env.app._is_generator_hour_met() is True
++
++    def test_legacy_only_no_window_never_fires(self, env, monkeypatch) -> None:
++        """[P0] Legacy-only setups (no per-profile window) never fire."""
++        env.app.save_service_settings(8, 0)
++        _save_profiles(env.app, {"legacy": {**PROFILE, "run_daily_count": 1}})
++        _freeze(monkeypatch, hour=9)
++        assert env.app._is_generator_hour_met() is False
++
++
++class TestDoGeneratePerProfile:
++    """[P0] _do_generate filters to due profiles and stamps per-profile runs."""
++
++    def test_due_profile_generates_and_stamps(self, env, monkeypatch, broadcast_capture) -> None:
++        """[P0] The due profile generates a slip and gets a per-profile stamp."""
++        from tests.logic_test_helpers import seed_matches_db
++
++        seed_matches_db(env.matches_db, rows=[])
++        _save_profiles(
++            env.app,
++            {
++                "due": {
++                    **PROFILE,
++                    "auto_generate": True,
++                    "generate_hour": 8,
++                    "generate_minute": 0,
++                },
++                "later": {
++                    **PROFILE,
++                    "auto_generate": True,
++                    "generate_hour": 20,
++                    "generate_minute": 0,
++                },
++            },
++        )
++        generated: list[str] = []
++
++        def fake_generate(profiles):
++            generated.extend(profiles)
++            return {}
++
++        monkeypatch.setattr(env.app, "generate_slips", fake_generate)
++        _freeze(monkeypatch, hour=9)
++        env.app._do_generate()
++        assert generated == ["due"]
++        runtime = env.app.settings.get("runtime_state") or {}
++        assert (runtime.get("profile_last_generated") or {}).get("due") == "2026-09-24"
++        assert "later" not in (runtime.get("profile_last_generated") or {})
++        assert broadcast_capture[-1]["event"] == "slips_updated"
++
++    def test_nothing_due_generates_nothing(self, env, monkeypatch, broadcast_capture) -> None:
++        """[P0] When no profile is due nothing generates and no timestamps persist."""
++        _save_profiles(
++            env.app,
++            {
++                "later": {
++                    **PROFILE,
++                    "auto_generate": True,
++                    "generate_hour": 20,
++                    "generate_minute": 0,
++                }
++            },
++        )
++
++        def boom(profiles):
++            raise AssertionError("generate_slips must not run")
++
++        monkeypatch.setattr(env.app, "generate_slips", boom)
++        _freeze(monkeypatch, hour=9)
++        before = len(broadcast_capture)
++        env.app._do_generate()
++        assert env.app.settings.get("runtime_state") is None
++        # F17: a no-op tick appends no slips_updated broadcast, so clients do
++        # not refetch slips for nothing.
++        assert len(broadcast_capture) == before
++
++
++class TestProfileSchedulesAPI:
++    """[P0] GET/POST /api/services profile_schedules contract."""
++
++    def test_get_includes_profile_schedules_rows(self, env) -> None:
++        """[P0] Every saved profile appears with defaults from legacy config."""
++        env.app.save_service_settings(8, 30)
++        _save_profiles(
++            env.app,
++            {
++                "legacy": {
++                    **PROFILE,
++                    "run_daily_count": 1,
++                    "units": 2.0,
++                    "target_payout": 50.0,
++                },
++                "auto": {
++                    **PROFILE,
++                    "auto_generate": True,
++                    "generate_hour": 6,
++                    "generate_minute": 15,
++                    "order": 3,
++                },
++                "off": {**PROFILE},
++            },
++        )
++        rows = {r["name"]: r for r in env.app.get_profile_schedules()}
++        assert {"legacy", "auto", "off"} <= set(rows)
++        # F3: GET reports persisted values only — a legacy profile has no
++        # per-profile window/order of its own, so the row carries None instead
++        # of a fabricated default that a later Save would materialize.
++        assert rows["legacy"] == {
++            "name": "legacy",
++            "auto_generate": True,
++            "generate_hour": None,
++            "generate_minute": None,
++            "units": 2.0,
++            "target_payout": 50.0,
++            "run_daily_count": 1,
++            "order": None,
++        }
++        assert rows["auto"]["generate_hour"] == 6
++        assert rows["auto"]["generate_minute"] == 15
++        assert rows["auto"]["order"] == 3
++        assert rows["off"]["auto_generate"] is False
++        assert rows["off"]["order"] is None
++
++    def test_save_profile_schedules_merges_without_dropping_keys(self, env) -> None:
++        """[P0] POSTed rows merge into YAML and keep unrelated profile keys."""
++        _save_profiles(env.app, {"p": {**PROFILE, "run_daily_count": 1}})
++        env.app.save_profile_schedules(
++            [
++                {
++                    "name": "p",
++                    "auto_generate": True,
++                    "generate_hour": 7,
++                    "generate_minute": 45,
++                    "units": 3.0,
++                    "target_payout": 25.0,
++                    "order": 5,
++                }
++            ]
++        )
++        stored = env.app.settings.get("profiles")["p"]
++        assert stored["auto_generate"] is True
++        assert stored["generate_hour"] == 7
++        assert stored["generate_minute"] == 45
++        assert stored["units"] == 3.0
++        assert stored["target_payout"] == 25.0
++        assert stored["order"] == 5
++        assert stored["run_daily_count"] == 1  # untouched keys survive
++        assert stored["target_odds"] == PROFILE["target_odds"]
++
++    def test_save_profile_schedules_clears_target_payout_with_explicit_null(self, env) -> None:
++        """[P1] F5: an explicit null clears target_payout instead of being ignored."""
++        _save_profiles(
++            env.app,
++            {"p": {**PROFILE, "auto_generate": True, "target_payout": 99.0}},
++        )
++        env.app.save_profile_schedules([{"name": "p", "auto_generate": True, "target_payout": None}])
++        stored = env.app.settings.get("profiles")["p"]
++        assert stored["target_payout"] is None
++        assert stored["auto_generate"] is True
++
++    def test_save_profile_schedules_ignores_unknown_profile(self, env) -> None:
++        """[P1] Rows for unknown profiles are skipped, existing data untouched."""
++        _save_profiles(env.app, {"p": {**PROFILE, "run_daily_count": 1}})
++        env.app.save_profile_schedules([{"name": "ghost", "auto_generate": True}])
++        assert "ghost" not in env.app.settings.get("profiles")
++
++
++class TestOrderingRobustness:
++    """[P0] F4/F2: hand-edited YAML and legacy profiles survive the ticker."""
++
++    def test_mixed_order_types_do_not_raise(self, env) -> None:
++        """[P0] A quoted or float order alongside ints sorts instead of raising."""
++        _save_profiles(
++            env.app,
++            {
++                "a": {**PROFILE, "auto_generate": True, "order": "2"},
++                "b": {**PROFILE, "auto_generate": True, "order": 1},
++                "c": {**PROFILE, "auto_generate": True, "order": 3},
++            },
++        )
++        active = list(env.app._get_active_profiles())
++        assert active.index("b") < active.index("a") < active.index("c")
++
++    def test_windowed_profile_is_stamped_on_generate(self, env, monkeypatch) -> None:
++        """[P0] A profile with its own window is stamped on generate."""
++        _save_profiles(
++            env.app,
++            {"due": {**PROFILE, "run_daily_count": 1, "generate_hour": 8, "generate_minute": 0}},
++        )
++        monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {})
++        _freeze(monkeypatch, hour=9)
++        env.app._do_generate()
++        stamps = (env.app.settings.get("runtime_state") or {}).get("profile_last_generated") or {}
++        assert stamps.get("due") == "2026-09-24"
+diff --git a/bet_dashboard/backend/tests/test_logic_slip_ops.py b/bet_dashboard/backend/tests/test_logic_slip_ops.py
+index 66f445c..888671a 100644
+--- a/bet_dashboard/backend/tests/test_logic_slip_ops.py
++++ b/bet_dashboard/backend/tests/test_logic_slip_ops.py
+@@ -28,7 +28,7 @@ def _slip_cfg(**overrides):
+         "target_odds": 2.0,
+         "target_legs": 1,
+         "consensus_floor": 50.0,
+-        "min_odds": 1.05,
++        "min_leg_odds": 1.05,
+         "tolerance_factor": 0.30,
+         "stop_threshold": 0.50,
+         "odds_movement_weight": 0.0,
+@@ -339,7 +339,7 @@ class TestAppLogicSlipOperations:
+                 "target_odds": 2.0,
+                 "target_legs": 1,
+                 "consensus_floor": 50.0,
+-                "min_odds": 1.05,
++                "min_leg_odds": 1.05,
+                 "tolerance_factor": 0.30,
+                 "stop_threshold": 0.50,
+                 "odds_movement_weight": 0.0,
+diff --git a/bet_dashboard/backend/tests/test_router_builder.py b/bet_dashboard/backend/tests/test_router_builder.py
+index 7e8bf31..c653aea 100644
+--- a/bet_dashboard/backend/tests/test_router_builder.py
++++ b/bet_dashboard/backend/tests/test_router_builder.py
+@@ -73,7 +73,7 @@ class TestPreview:
+         cfg = fake_app.build_preview.call_args[0][0]
+         assert cfg.target_odds == 3.0
+         assert cfg.target_legs == 3
+-        assert cfg.min_odds == 1.05
++        assert cfg.min_leg_odds == 1.05
+         assert cfg.balance_decay == "linear"
+ 
+     def test_preview_enum_market_serialized_to_value(self, client, fake_app) -> None:
+@@ -223,7 +223,7 @@ class TestToConfigUnit:
+             target_legs=5,
+             max_legs_overflow=2,
+             consensus_floor=60.0,
+-            min_odds=1.2,
++            min_leg_odds=1.2,
+             tolerance_factor=0.3,
+             stop_threshold=0.9,
+             min_legs_fill_ratio=0.8,
+@@ -236,7 +236,7 @@ class TestToConfigUnit:
+             excluded_sources=["forebet"],
+             consensus_shrinkage_k=2.0,
+             min_source_edge=0.1,
+-            max_single_leg_odds=3.0,
++            max_leg_odds=3.0,
+             tol_lower=0.2,
+             tol_upper=0.15,
+             balance_decay="gaussian",
+@@ -249,7 +249,7 @@ class TestToConfigUnit:
+         assert cfg.target_legs == 5
+         assert cfg.max_legs_overflow == 2
+         assert cfg.consensus_floor == 60.0
+-        assert cfg.min_odds == 1.2
++        assert cfg.min_leg_odds == 1.2
+         assert cfg.tolerance_factor == 0.3
+         assert cfg.stop_threshold == 0.9
+         assert cfg.min_legs_fill_ratio == 0.8
+@@ -262,7 +262,7 @@ class TestToConfigUnit:
+         assert cfg.excluded_sources == ["forebet"]
+         assert cfg.consensus_shrinkage_k == 2.0
+         assert cfg.min_source_edge == 0.1
+-        assert cfg.max_single_leg_odds == 3.0
++        assert cfg.max_leg_odds == 3.0
+         assert cfg.tol_lower == 0.2
+         assert cfg.tol_upper == 0.15
+         assert cfg.balance_decay == "gaussian"
+diff --git a/bet_dashboard/backend/tests/test_router_profiles.py b/bet_dashboard/backend/tests/test_router_profiles.py
+index 6e4baa9..b5821d4 100644
+--- a/bet_dashboard/backend/tests/test_router_profiles.py
++++ b/bet_dashboard/backend/tests/test_router_profiles.py
+@@ -3,6 +3,58 @@
+ BASE = "/api/profiles"
+ 
+ 
++class TestSaveProfileSchedulePreservation:
++    """[P0] F1: a builder save must not wipe Services-configured scheduling."""
++
++    def test_omitted_scheduling_keys_keep_persisted_values(self, client, fake_app) -> None:
++        """[P0] Order/schedule/auto_generate/run_daily_count survive an omit."""
++        fake_app.settings.get.return_value = {
++            "safebet": {
++                "order": 4,
++                "auto_generate": True,
++                "generate_hour": 7,
++                "generate_minute": 15,
++                "run_daily_count": 2,
++            }
++        }
++        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["order"] == 4
++        assert written["auto_generate"] is True
++        assert written["generate_hour"] == 7
++        assert written["generate_minute"] == 15
++        assert written["run_daily_count"] == 2
++
++    def test_provided_scheduling_keys_are_persisted(self, client, fake_app) -> None:
++        """[P0] Explicitly sent scheduling fields are written through."""
++        fake_app.settings.get.return_value = None
++        r = client.post(
++            BASE,
++            json={
++                "name": "Safe Bet",
++                "target_odds": 4.0,
++                "order": 1,
++                "auto_generate": True,
++                "generate_hour": 6,
++                "generate_minute": 30,
++            },
++        )
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["order"] == 1
++        assert written["auto_generate"] is True
++        assert written["generate_hour"] == 6
++        assert written["generate_minute"] == 30
++
++    def test_omitted_run_daily_count_keeps_legacy_value(self, client, fake_app) -> None:
++        """[P0] The frontend no longer sends run_daily_count; legacy survives."""
++        fake_app.settings.get.return_value = {"safebet": {"run_daily_count": 3}}
++        client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["run_daily_count"] == 3
++
++
+ class TestListProfiles:
+     def test_list_returns_settings_profiles(self, client, fake_app) -> None:
+         expected = {"safe": {"units": 1.0}, "bold": {"units": 2.0}}
+@@ -20,7 +72,12 @@ class TestListProfiles:
+ 
+ class TestSaveProfile:
+     def _body(self, **overrides):
+-        body = {"name": "Safe Bet", "target_odds": 4.0, "units": 2.5, "run_daily_count": 3}
++        body = {
++            "name": "Safe Bet",
++            "target_odds": 4.0,
++            "units": 2.5,
++            "run_daily_count": 3,
++        }
+         body.update(overrides)
+         return body
+ 
+@@ -58,12 +115,14 @@ class TestSaveProfile:
+ 
+     def test_save_defaults_applied(self, client, fake_app) -> None:
+         client.post(BASE, json={"name": "d"})
+-        data = fake_app.settings.write.call_args[0][1]
+-        assert data["target_odds"] == 3.0
+-        assert data["target_legs"] == 3
+-        assert data["units"] == 1.0
+-        assert data["run_daily_count"] == 0
+-        assert data["balance_decay"] == "linear"
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["target_odds"] == 3.0
++        assert written["target_legs"] == 3
++        assert written["units"] == 1.0
++        # F1: run_daily_count is opt-in — omitted it is not written as 0, so a
++        # legacy auto-generation profile keeps its schedule across a builder save.
++        assert "run_daily_count" not in written
++        assert written["balance_decay"] == "linear"
+ 
+ 
+ class TestDeleteProfile:
+@@ -72,3 +131,61 @@ class TestDeleteProfile:
+         assert r.status_code == 200
+         assert r.json() == {"deleted": "gone"}
+         fake_app.settings.delete.assert_called_once_with("gone", subpath="profiles")
++
++
++class TestSaveProfileMergeOnWrite:
++    """[P0] Desync C: a Builder save must not clobber Services-owned units/target_payout."""
++
++    def test_omitted_units_target_payout_keep_persisted(self, client, fake_app) -> None:
++        """[P0] Omitted units/target_payload preserve the persisted profile values."""
++        fake_app.settings.get.return_value = {"safebet": {"units": 2.5, "target_payout": 42.0}}
++        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["units"] == 2.5
++        assert written["target_payout"] == 42.0
++
++    def test_explicit_units_target_payout_persist(self, client, fake_app) -> None:
++        """[P0] Explicitly sent units/target_payout are written through."""
++        fake_app.settings.get.return_value = {"safebet": {"units": 2.5, "target_payout": 42.0}}
++        r = client.post(
++            BASE,
++            json={"name": "Safe Bet", "target_odds": 4.0, "units": 7.0, "target_payout": 100.0},
++        )
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["units"] == 7.0
++        assert written["target_payout"] == 100.0
++
++    def test_new_profile_omitted_gets_defaults(self, client, fake_app) -> None:
++        """[P0] A brand-new profile with omitted stake fields gets defaults."""
++        fake_app.settings.get.return_value = None
++        r = client.post(BASE, json={"name": "Safe Bet", "target_odds": 4.0})
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["units"] == 1.0
++        assert written["target_payout"] is None
++
++
++class TestSaveProfileFillRatioAutoRoundTrip:
++    """[P0] AUTO B: min_legs_fill_ratio=null must persist as null (Auto), not 0.90."""
++
++    def test_null_fill_ratio_persists_as_null(self, client, fake_app) -> None:
++        """[P0] Explicit null survives the save verbatim -- no 0.90 coercion."""
++        r = client.post(
++            BASE,
++            json={"name": "Safe Bet", "target_odds": 4.0, "units": 1.0, "min_legs_fill_ratio": None},
++        )
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["min_legs_fill_ratio"] is None
++
++    def test_explicit_fill_ratio_persists(self, client, fake_app) -> None:
++        """[P0] An explicit fill ratio is written through unchanged."""
++        r = client.post(
++            BASE,
++            json={"name": "Safe Bet", "target_odds": 4.0, "units": 1.0, "min_legs_fill_ratio": 0.62},
++        )
++        assert r.status_code == 200
++        written = fake_app.settings.write.call_args[0][1]
++        assert written["min_legs_fill_ratio"] == 0.62
+diff --git a/bet_dashboard/backend/tests/test_router_services.py b/bet_dashboard/backend/tests/test_router_services.py
+index f707dfb..95edfa8 100644
+--- a/bet_dashboard/backend/tests/test_router_services.py
++++ b/bet_dashboard/backend/tests/test_router_services.py
+@@ -26,6 +26,7 @@ def services_client():
+     # services router reads app.settings (AppLogic property), not app.logic.settings —
+     # bind it to the fake's settings facade so per-test _settings mutations are visible.
+     mock.settings = mock.logic.settings
++    mock.get_profile_schedules.return_value = []
+     mock.services = {
+         "puller": SimpleNamespace(enabled=True, is_alive=lambda: True, interval=300),
+         "generator": SimpleNamespace(enabled=False, is_alive=lambda: False, interval=300),
+@@ -51,7 +52,13 @@ class TestGetServices:
+     def test_services_envelope_shape(self, services_client) -> None:
+         tc, _ = services_client
+         data = tc.get(BASE).json()
+-        assert set(data) == {"services", "generate_hour", "generate_minute", "server_time"}
++        assert set(data) == {
++            "services",
++            "generate_hour",
++            "generate_minute",
++            "profile_schedules",
++            "server_time",
++        }
+ 
+     def test_generator_next_run_today_when_hour_ahead(self, services_client, frozen_clock) -> None:
+         tc, mock = services_client
+@@ -174,7 +181,10 @@ class TestToggleService:
+     def test_toggle_unknown_service_returns_enabled_false(self, services_client) -> None:
+         tc, mock = services_client
+         mock.toggle_service.return_value = False
+-        assert tc.post(f"{BASE}/ghost/toggle").json() == {"name": "ghost", "enabled": False}
++        assert tc.post(f"{BASE}/ghost/toggle").json() == {
++            "name": "ghost",
++            "enabled": False,
++        }
+ 
+     def test_toggle_broadcasts_service_toggled_event(self, services_client, broadcast_capture) -> None:
+         """Contract: toggling must notify WS clients with service_toggled payload."""
+@@ -184,7 +194,12 @@ class TestToggleService:
+ 
+         def toggle_side_effect(name) -> bool:
+             ws_module.ws_manager.broadcast_sync(
+-                {"event": "service_toggled", "name": name, "enabled": False, "timestamp": "2030-01-01T00:00:00"}
++                {
++                    "event": "service_toggled",
++                    "name": name,
++                    "enabled": False,
++                    "timestamp": "2030-01-01T00:00:00",
++                }
+             )
+             return False
+ 
+diff --git a/bet_framework/BetAssistant.py b/bet_framework/BetAssistant.py
+index 9cd79a0..9c97a73 100644
+--- a/bet_framework/BetAssistant.py
++++ b/bet_framework/BetAssistant.py
+@@ -52,8 +52,8 @@ from bet_framework.core.consensus import calc_consensus
+ from bet_framework.core.outcomes import determine_outcome, parse_score
+ from bet_framework.core.scoring import (
+     adjusted_consensus,
++    resolve_max_leg_odds,
+     resolve_max_legs,
+-    resolve_max_single_leg_odds,
+     resolve_min_pick_quality,
+     resolve_min_source_edge,
+     resolve_shrinkage_k,
+@@ -655,7 +655,7 @@ class BetAssistant(BaseStorageManager):
+                     continue
+                 consensus = float(row.get(cons_col, 0))
+                 odds = float(row.get(odds_col, 0))
+-                if consensus >= cfg.consensus_floor and odds >= cfg.min_odds:
++                if consensus >= cfg.consensus_floor and odds >= cfg.min_leg_odds:
+                     sources = int(row.get("sources", 0))
+                     opt = CandidateLeg(
+                         match_name=match_name,
+@@ -910,10 +910,10 @@ class BetAssistant(BaseStorageManager):
+             return None
+         consensus = float(row.get(cons_col, 0))
+         odds = float(row.get(odds_col, 0))
+-        if not (consensus >= cfg.consensus_floor and odds >= cfg.min_odds):
++        if not (consensus >= cfg.consensus_floor and odds >= cfg.min_leg_odds):
+             return None
+         # Hard filter for max single leg odds
+-        if odds > resolve_max_single_leg_odds(cfg):
++        if odds > resolve_max_leg_odds(cfg):
+             return None
+ 
+         # Apply shrinkage BEFORE edge check (Phase 1 fix)
+diff --git a/bet_framework/core/Slip.py b/bet_framework/core/Slip.py
+index 481d6aa..17163b9 100644
+--- a/bet_framework/core/Slip.py
++++ b/bet_framework/core/Slip.py
+@@ -198,7 +198,7 @@ class BetSlipConfig:
+     │ max_legs_overflow[0–5]        Extra legs allowed beyond target.          │
+     ├─ QUALITY GATE ───────────────────────────────────────────────────────────┤
+     │ consensus_floor    [0–100]   Minimum source agreement percentage.        │
+-    │ min_odds           [1.01–10] Minimum bookmaker odds (filters near-certs).│
++    │ min_leg_odds       [1.01–10] Minimum odds for any single leg.             │
+     ├─ ODDS TOLERANCE ─────────────────────────────────────────────────────────┤
+     │ tolerance_factor   [0.05–0.80] ±band around ideal per-leg odds.          │
+     │                              None = auto-derived.                        │
+@@ -213,8 +213,7 @@ class BetSlipConfig:
+     │ consensus_shrinkage_k [1.0–10.0] Source-weighted consensus adjustment.    │
+     │                              None = auto (3.0).                          │
+     │ min_source_edge       [0.0–0.50] Minimum edge over implied probability.  │
+-    │ max_single_leg_odds   [1.0–10.0] Maximum odds for any single leg.        │
+-    │                              None = auto (3.5).                          │
++    │ max_leg_odds       [1.01–10] Maximum odds for any single leg.             │
+     │ tol_lower             [0.01–1.00] Lower tolerance band (below ideal).    │
+     │ tol_upper             [0.01–1.00] Upper tolerance band (above ideal).    │
+     │                              None = auto (tol_lower=tol, tol_upper=tol*0.6)│
+@@ -239,14 +238,14 @@ class BetSlipConfig:
+ 
+     # Quality gate
+     consensus_floor: float = 50.0
+-    min_odds: float = 1.05
++    min_leg_odds: float = 1.05
+ 
+     # Odds tolerance
+     tolerance_factor: float | None = None
+ 
+     # Stop condition
+     stop_threshold: float | None = None
+-    min_legs_fill_ratio: float = 0.70
++    min_legs_fill_ratio: float | None = 0.70
+ 
+     # Scoring weights
+     quality_vs_balance: float = 0.5
+@@ -255,7 +254,7 @@ class BetSlipConfig:
+     # Advanced
+     consensus_shrinkage_k: float | None = None
+     min_source_edge: float | None = None
+-    max_single_leg_odds: float | None = None
++    max_leg_odds: float = 3.5
+     tol_lower: float | None = None
+     tol_upper: float | None = None
+     balance_decay: str = "gaussian"
+@@ -270,8 +269,12 @@ class BetSlipConfig:
+         self.target_odds = max(1.10, min(1000.0, self.target_odds))
+         self.target_legs = max(1, min(100, self.target_legs))
+         self.consensus_floor = max(0.0, min(100.0, self.consensus_floor))
+-        self.min_odds = max(1.01, min(10.0, self.min_odds))
+-        self.min_legs_fill_ratio = max(0.50, min(1.00, self.min_legs_fill_ratio))
++        self.min_leg_odds = max(1.01, min(10.0, self.min_leg_odds))
++        # None = Auto → 0.90 fill ratio.
++        self.min_legs_fill_ratio = max(
++            0.50,
++            min(1.00, 0.90 if self.min_legs_fill_ratio is None else self.min_legs_fill_ratio),
++        )
+         self.quality_vs_balance = max(0.0, min(1.0, self.quality_vs_balance))
+         self.consensus_vs_sources = max(0.0, min(1.0, self.consensus_vs_sources))
+ 
+@@ -285,7 +288,7 @@ class BetSlipConfig:
+         # Advanced validation
+         self.consensus_shrinkage_k = _clamp_optional(self.consensus_shrinkage_k, 1.0, 10.0)
+         self.min_source_edge = _clamp_optional(self.min_source_edge, 0.0, 0.50)
+-        self.max_single_leg_odds = _clamp_optional(self.max_single_leg_odds, 1.0, 10.0)
++        self.max_leg_odds = max(1.01, min(10.0, self.max_leg_odds))
+         self.tol_lower = _clamp_optional(self.tol_lower, 0.01, 1.00)
+         self.tol_upper = _clamp_optional(self.tol_upper, 0.01, 1.00)
+         if self.balance_decay not in ("linear", "gaussian"):
+@@ -309,7 +312,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=2,
+         max_legs_overflow=0,  # never add a 3rd leg
+         consensus_floor=75.0,  # only near-certain picks (3/4 sources)
+-        min_odds=1.10,  # filter out dead-cert noisy legs
++        min_leg_odds=1.10,  # filter out dead-cert noisy legs
+         tolerance_factor=0.20,  # band around ideal odds
+         stop_threshold=0.92,  # stop early if 92 % of target reached
+         min_legs_fill_ratio=1.00,  # must fill both legs, no shortcuts
+@@ -317,7 +320,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         consensus_vs_sources=0.70,  # within quality, favour raw consensus %
+         consensus_shrinkage_k=4.0,  # shrinkage to reward multi-source
+         min_source_edge=0.05,  # small edge floor above implied prob
+-        max_single_leg_odds=2.00,  # cap any single leg at 2.00
++        max_leg_odds=2.00,  # cap any single leg at 2.00
+         balance_decay="gaussian",  # smooth penalty for market imbalance
+         min_pick_quality=0.30,  # reject any pick below 0.30 quality
+         included_markets=[],
+@@ -333,14 +336,14 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=3,
+         max_legs_overflow=1,  # allow upgrade to 4-fold if quality is there
+         consensus_floor=55.0,  # moderate agreement threshold
+-        min_odds=1.05,  # keep the default light filter
++        min_leg_odds=1.05,  # keep the default light filter
+         tolerance_factor=0.25,  # balanced band
+         stop_threshold=0.90,  # slightly looser stop than low risk
+         min_legs_fill_ratio=0.70,  # ok to stop at 2/3 legs if odds met
+         quality_vs_balance=0.50,  # perfectly neutral
+         consensus_vs_sources=0.60,  # favor consensus/quality slightly more
+         min_source_edge=0.03,  # weed out low-edge noise
+-        max_single_leg_odds=3.50,  # standard single-leg cap
++        max_leg_odds=3.50,  # standard single-leg cap
+         balance_decay="linear",  # simple linear decay
+         min_pick_quality=0.20,  # standard quality floor
+     ),
+@@ -356,7 +359,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=5,
+         max_legs_overflow=2,  # up to 7-fold for long accumulators
+         consensus_floor=50.0,  # accept even 50/50 split picks
+-        min_odds=1.05,  # keep near-certs available for glue legs
++        min_leg_odds=1.05,  # keep near-certs available for glue legs
+         tolerance_factor=0.40,  # wide band — flexible per-leg odds
+         stop_threshold=0.85,  # stop much earlier if odds climb fast
+         min_legs_fill_ratio=0.60,  # can stop at 3/5 legs
+@@ -364,7 +367,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         consensus_vs_sources=0.45,  # slightly favour source count
+         consensus_shrinkage_k=2.0,  # lighter shrinkage — trust raw signal
+         min_source_edge=None,  # no minimum edge — cast widest net
+-        max_single_leg_odds=5.00,  # higher cap for juicier individual legs
++        max_leg_odds=5.00,  # higher cap for juicier individual legs
+         balance_decay="gaussian",  # softer imbalance penalty
+         min_pick_quality=0.15,  # lower floor — accept borderline picks
+     ),
+@@ -372,7 +375,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+     # Strategy: A 4-leg build targeting 8x.  Scoring is deliberately biased
+     # towards source diversity over raw consensus — this profile trusts
+     # picks that appear across many independent scrapers, even if no single
+-    # source shows overwhelming confidence.  Higher min_odds filters out
++    # source shows overwhelming confidence. Higher min_leg_odds filters out
+     # short-priced legs, ensuring every selection carries meaningful value.
+     # Asymmetric tolerance (auto-derived from tolerance_factor with
+     # tol_upper = factor * 0.6) naturally flattens the upside band,
+@@ -382,7 +385,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         target_legs=4,
+         max_legs_overflow=1,  # allow 5-fold if math works out
+         consensus_floor=52.0,  # low floor — rely on source breadth
+-        min_odds=1.30,  # firm price floor — no dead certs
++        min_leg_odds=1.30,  # firm price floor — no dead certs
+         tolerance_factor=0.30,  # moderate band
+         tol_lower=0.35,  # slightly wider downside tolerance
+         tol_upper=0.20,  # tighter upside — cap longshots
+@@ -392,7 +395,7 @@ PROFILES: dict[str, BetSlipConfig] = {
+         consensus_vs_sources=0.25,  # heavily favour source count
+         consensus_shrinkage_k=4.0,  # strong shrinkage — reward multi-source
+         min_source_edge=0.08,  # meaningful edge requirement
+-        max_single_leg_odds=4.00,  # moderate ceiling
++        max_leg_odds=4.00,  # moderate ceiling
+         balance_decay="linear",  # simple linear decay
+         min_pick_quality=0.25,  # moderate quality floor
+     ),
+diff --git a/bet_framework/core/scoring.py b/bet_framework/core/scoring.py
+index 49ee08a..6847e79 100644
+--- a/bet_framework/core/scoring.py
++++ b/bet_framework/core/scoring.py
+@@ -11,7 +11,7 @@ Public surface
+   resolve_stop_threshold(cfg)                    → float
+   resolve_max_legs(cfg)                          → int
+   resolve_shrinkage_k(cfg)                       → float
+-  resolve_max_single_leg_odds(cfg)               → float
++  resolve_max_leg_odds(cfg)                      → float
+   resolve_min_pick_quality(cfg)                  → float
+   resolve_min_source_edge(cfg)                   → float
+   score_consensus(consensus, cfg)                → float
+@@ -70,9 +70,9 @@ def resolve_shrinkage_k(cfg: BetSlipConfig) -> float:
+     return cfg.consensus_shrinkage_k if cfg.consensus_shrinkage_k is not None else 3.0
+ 
+ 
+-def resolve_max_single_leg_odds(cfg: BetSlipConfig) -> float:
+-    """Return the maximum allowed odds for any single leg. Auto = 3.5."""
+-    return cfg.max_single_leg_odds if cfg.max_single_leg_odds is not None else 3.5
++def resolve_max_leg_odds(cfg: BetSlipConfig) -> float:
++    """Return the maximum allowed odds for any single leg."""
++    return cfg.max_leg_odds
+ 
+ 
+ def resolve_min_pick_quality(cfg: BetSlipConfig) -> float:
+@@ -203,7 +203,7 @@ def score_pick(
+     """
+     tolerance = resolve_tolerance(cfg)
+     shrinkage_k = resolve_shrinkage_k(cfg)
+-    max_leg_odds = resolve_max_single_leg_odds(cfg)
++    max_leg_odds = resolve_max_leg_odds(cfg)
+     # Consensus: use pre-adjusted if available, else compute
+     if use_preadjusted and opt._adjusted_consensus > 0:
+         consensus = opt._adjusted_consensus
+diff --git a/bet_framework/tests/test_bet_assistant.py b/bet_framework/tests/test_bet_assistant.py
+index 7cc685f..fdee2ec 100644
+--- a/bet_framework/tests/test_bet_assistant.py
++++ b/bet_framework/tests/test_bet_assistant.py
+@@ -675,7 +675,7 @@ class TestBuildSlip:
+         assert legs == []
+ 
+     def test_edge_no_matches_pass_quality_gate(self, loaded_ba) -> None:
+-        cfg = BetSlipConfig(consensus_floor=100.0, min_odds=99.0)
++        cfg = BetSlipConfig(consensus_floor=100.0, min_leg_odds=99.0)
+         legs = loaded_ba.build_slip(cfg)
+         assert legs == []
+ 
+diff --git a/bet_framework/tests/test_scoring.py b/bet_framework/tests/test_scoring.py
+index 3d7160b..11edea9 100644
+--- a/bet_framework/tests/test_scoring.py
++++ b/bet_framework/tests/test_scoring.py
+@@ -2,7 +2,7 @@
+ Gap tests for bet_framework/core/scoring.py (GitHub issue #70).
+ 
+ Covered public API:
+-  resolve_shrinkage_k / resolve_max_single_leg_odds / resolve_min_pick_quality /
++  resolve_shrinkage_k / resolve_max_leg_odds / resolve_min_pick_quality /
+   resolve_min_source_edge      - auto-defaults vs explicit config values
+   adjusted_consensus           - Bayesian shrinkage formula spot checks
+   classify_odds_movement       - case-insensitive and whitespace variants
+@@ -29,7 +29,7 @@ from bet_framework.core.scoring import (
+     apply_odds_movement_adjustment,
+     classify_odds_movement,
+     odds_movement_factor,
+-    resolve_max_single_leg_odds,
++    resolve_max_leg_odds,
+     resolve_min_pick_quality,
+     resolve_min_source_edge,
+     resolve_shrinkage_k,
+@@ -87,11 +87,11 @@ class TestResolveHelpers:
+         # BetSlipConfig clamps shrinkage_k to [1.0, 10.0] in __post_init__.
+         assert resolve_shrinkage_k(make_cfg(consensus_shrinkage_k=0.2)) == 1.0
+ 
+-    def test_max_single_leg_odds_none_defaults_to_35(self) -> None:
+-        assert resolve_max_single_leg_odds(make_cfg()) == 3.5
++    def test_max_leg_odds_none_defaults_to_35(self) -> None:
++        assert resolve_max_leg_odds(make_cfg()) == 3.5
+ 
+-    def test_max_single_leg_odds_explicit(self) -> None:
+-        assert resolve_max_single_leg_odds(make_cfg(max_single_leg_odds=2.0)) == 2.0
++    def test_max_leg_odds_explicit(self) -> None:
++        assert resolve_max_leg_odds(make_cfg(max_leg_odds=2.0)) == 2.0
+ 
+     def test_min_pick_quality_none_defaults(self) -> None:
+         assert resolve_min_pick_quality(make_cfg()) == 0.20
+@@ -332,7 +332,7 @@ class TestScorePickTiers:
+ 
+ class TestScorePickMaxOddsGate:
+     def test_odds_above_default_gate_returns_tier_two_zeros(self) -> None:
+-        # [P0] Line 216: hard gate at resolve_max_single_leg_odds() default 3.5.
++        # [P0] Line 216: hard gate at resolve_max_leg_odds() default 3.5.
+         leg = make_leg(odds=3.6)
+         assert score_pick(leg, 1.5, 10, make_cfg()) == (2, 0.0, 0.0)
+ 
+@@ -342,13 +342,13 @@ class TestScorePickMaxOddsGate:
+         assert (tier, score) != (2, 0.0)
+ 
+     def test_explicit_lower_gate(self) -> None:
+-        cfg = make_cfg(max_single_leg_odds=2.0)
++        cfg = make_cfg(max_leg_odds=2.0)
+         leg = make_leg(odds=2.5)
+         assert score_pick(leg, 1.5, 10, cfg) == (2, 0.0, 0.0)
+ 
+     def test_gate_fires_before_any_tier_logic(self) -> None:
+         # Even a perfect-balance pick above the gate returns zeros.
+-        cfg = make_cfg(max_single_leg_odds=2.0)
++        cfg = make_cfg(max_leg_odds=2.0)
+         leg = make_leg(odds=2.5)
+         assert score_pick(leg, 2.5, 10, cfg) == (2, 0.0, 0.0)
+ 
+diff --git a/docs/api.md b/docs/api.md
+index 85e7535..f305603 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -134,7 +134,7 @@ Generate a slip preview from a builder configuration.
+   "target_legs": 3,
+   "max_legs_overflow": null,
+   "consensus_floor": 50.0,
+-  "min_odds": 1.05,
++  "min_leg_odds": 1.05,
+   "included_markets": null,
+   "included_leagues": null,
+   "tolerance_factor": null,
+@@ -146,7 +146,7 @@ Generate a slip preview from a builder configuration.
+   "date_to": null,
+   "consensus_shrinkage_k": null,
+   "min_source_edge": null,
+-  "max_single_leg_odds": null,
++  "max_leg_odds": 3.5,
+   "tol_lower": null,
+   "tol_upper": null,
+   "balance_decay": "gaussian",
+diff --git a/docs/backend.md b/docs/backend.md
+index 5a4e9c0..4fd9ecd 100644
+--- a/docs/backend.md
++++ b/docs/backend.md
+@@ -724,7 +724,7 @@ target_odds: 2.0
+ target_legs: 2
+ max_legs_overflow: 0
+ consensus_floor: 75.0
+-min_odds: 1.10
++min_leg_odds: 1.10
+ tolerance_factor: 0.20
+ stop_threshold: 0.92
+ min_legs_fill_ratio: 1.00
+@@ -732,7 +732,7 @@ quality_vs_balance: 0.70
+ consensus_vs_sources: 0.70
+ consensus_shrinkage_k: 4.0
+ min_source_edge: 0.05
+-max_single_leg_odds: 2.00
++max_leg_odds: 2.00
+ balance_decay: "gaussian"
+ min_pick_quality: 0.30
+ units: 1.0
+diff --git a/docs/frontend.md b/docs/frontend.md
+index affd798..5c7a404 100644
+--- a/docs/frontend.md
++++ b/docs/frontend.md
+@@ -481,7 +481,7 @@ export interface BuilderConfig {
+   target_legs: number;
+   max_legs_overflow: number | null;
+   consensus_floor: number;
+-  min_odds: number;
++  min_leg_odds: number;
+   included_markets: string[] | null;
+   included_leagues: string[] | null;
+   tolerance_factor: number | null;
+diff --git a/setup/seed_e2e.py b/setup/seed_e2e.py
+index b24206a..43f8de2 100644
+--- a/setup/seed_e2e.py
++++ b/setup/seed_e2e.py
+@@ -15,7 +15,10 @@ expand demo-data.ts AND this seed in the same change. Two jobs:
+      Arsenal   75% home @1.90 — 3/4 home votes, 4 sources
+      Liverpool 42/28/30 @2.40/3.20/2.90 — 21/14/15 of 50 votes, 5 sources
+      Barcelona 38/26/36 @2.70/3.30/2.50 — 19/13/18 of 50 votes, 6 sources
+-2. Park the puller/generator/verifier daemons via services.yaml so the seeded
++2. Write the per-profile auto-generation schedule rows shared with
++   bet_dashboard/frontend/e2e/fixtures/demo-data.ts into ``profiles/<name>.yaml``
++   — the layout SettingsManager reads back through ``get_profile_schedules``.
++3. Park the puller/generator/verifier daemons via services.yaml so the seeded
+    rows survive the whole playwright run — the puller would otherwise merge
+    the upstream prod DB on its first 5-minute tick and evict the past-dated
+    Arsenal row mid-run.
+@@ -38,6 +41,8 @@ import sys
+ from dataclasses import asdict
+ from pathlib import Path
+ 
++import yaml
++
+ # Container: /app (image WORKDIR). Local runs: repo root next to setup/.
+ _APP_ROOT = os.environ.get("E2E_SEED_APP_ROOT", "/app")
+ _REPO_ROOT = str(Path(__file__).resolve().parents[1])
+@@ -45,7 +50,9 @@ sys.path.insert(
+     0, _APP_ROOT if Path(_APP_ROOT, "bet_framework").is_dir() else _REPO_ROOT
+ )
+ 
++from bet_dashboard.backend.core.config_helpers import _config_to_yaml_dict
+ from bet_framework.core.Match import Odds, Score
++from bet_framework.core.Slip import BetSlipConfig
+ from bet_framework.MatchesManager import MatchesManager
+ 
+ MATCHES_DB = os.environ.get("MATCHES_DB_PATH", "/app/workspace/data/matches.db")
+@@ -134,6 +141,43 @@ DEMO_MATCHES = [
+ 
+ # All three daemons parked: puller would merge the upstream DB (evicting the
+ # past-dated Arsenal row), generator/verifier would touch slips mid-run.
++# Two-track: per-profile schedule rows IDENTICAL to DEMO_PROFILE_SCHEDULES in
++# bet_dashboard/frontend/e2e/fixtures/demo-data.ts. SettingsManager nests
++# ``profiles/<name>.yaml`` as settings['profiles'][name], which is what
++# AppLogic.get_profile_schedules() reads for the Services page.
++_PROFILE_SCHEDULES = [
++    {
++        "name": "low",
++        "auto_generate": True,
++        "generate_hour": 8,
++        "generate_minute": 30,
++        "units": 1.0,
++        "target_payout": None,
++        "run_daily_count": 1,
++        "order": 0,
++    },
++    {
++        "name": "medium",
++        "auto_generate": True,
++        "generate_hour": 10,
++        "generate_minute": 0,
++        "units": None,
++        "target_payout": 50.0,
++        "run_daily_count": 2,
++        "order": 1,
++    },
++    {
++        "name": "high_risk",
++        "auto_generate": False,
++        "generate_hour": 12,
++        "generate_minute": 15,
++        "units": None,
++        "target_payout": None,
++        "run_daily_count": 0,
++        "order": 2,
++    },
++]
++
+ _SERVICES_YAML = (
+     "services:\n"
+     "  generate_hour: 9\n"
+@@ -162,6 +206,29 @@ def main() -> None:
+         shutil.copytree(_SRC_CONFIG, CONFIG_DIR, dirs_exist_ok=True)
+     (CONFIG_DIR / "services.yaml").write_text(_SERVICES_YAML, encoding="utf-8")
+ 
++    # Per-profile schedules: the CI delivery of the same rows as demo-data.ts
++    # (SettingsManager nests profiles/<name>.yaml). The YAML carries the FULL
++    # builder-profile shape (BetSlipConfig defaults + units/target_payout/
++    # run_daily_count) merged with that profile's schedule keys, exactly like
++    # the local track's DEMO_PROFILES (review F7 — one mocked database, two
++    # delivery paths).
++    profiles_dir = CONFIG_DIR / "profiles"
++    profiles_dir.mkdir(parents=True, exist_ok=True)
++    for row in _PROFILE_SCHEDULES:
++        profile = _config_to_yaml_dict(
++            BetSlipConfig(),
++            units=row["units"],
++            target_payout=row["target_payout"],
++            run_daily_count=row["run_daily_count"],
++            order=row["order"],
++            auto_generate=row["auto_generate"],
++            generate_hour=row["generate_hour"],
++            generate_minute=row["generate_minute"],
++        )
++        (profiles_dir / f"{row['name']}.yaml").write_text(
++            yaml.safe_dump(profile, sort_keys=False), encoding="utf-8"
++        )
++
+     # MatchesManager creates the `matches` schema on init; then write rows.
+     MatchesManager(MATCHES_DB)
+     conn = sqlite3.connect(MATCHES_DB)
+@@ -193,8 +260,29 @@ def main() -> None:
+         assert cons["result"]["home"] == expected, (
+             f"{name}: cons_home {cons['result']['home']} != {expected}"
+         )
++    # Two-track self-check: the schedule rows survive as the exact same values
++    # the frontend fixtures serve (catches drift at seed time, not in CI).
++    for row in _PROFILE_SCHEDULES:
++        stored = yaml.safe_load(
++            (profiles_dir / f"{row['name']}.yaml").read_text(encoding="utf-8")
++        )
++        for key in (
++            "auto_generate",
++            "generate_hour",
++            "generate_minute",
++            "units",
++            "target_payout",
++            "run_daily_count",
++            "order",
++        ):
++            assert stored.get(key) == row[key], (
++                f"profile schedule drift for {row['name']}: "
++                f"{key}={stored.get(key)} != {row[key]}"
++            )
++
+     print(
+-        f"e2e seed OK: 3 demo matches in {MATCHES_DB}; daemons parked in {CONFIG_DIR / 'services.yaml'}"
++        f"e2e seed OK: 3 demo matches + {len(_PROFILE_SCHEDULES)} profile schedules "
++        f"in {MATCHES_DB}; daemons parked in {CONFIG_DIR / 'services.yaml'}"
+     )
+ 
+ 

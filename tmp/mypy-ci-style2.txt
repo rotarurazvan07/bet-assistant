@@ -1,0 +1,2 @@
+bet_dashboard/backend/routers/slips.py:80: error: Argument 1 to "float" has incompatible type "Any | None"; expected "str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+Found 1 error in 1 file (checked 7 source files)

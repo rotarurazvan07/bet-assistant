@@ -1,0 +1,13 @@
+diff --git a/docs/frontend.md b/docs/frontend.md
+index affd798..5c7a404 100644
+--- a/docs/frontend.md
++++ b/docs/frontend.md
+@@ -481,7 +481,7 @@ export interface BuilderConfig {
+   target_legs: number;
+   max_legs_overflow: number | null;
+   consensus_floor: number;
+-  min_odds: number;
++  min_leg_odds: number;
+   included_markets: string[] | null;
+   included_leagues: string[] | null;
+   tolerance_factor: number | null;

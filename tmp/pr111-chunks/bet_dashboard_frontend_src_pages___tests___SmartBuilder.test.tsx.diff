@@ -1,0 +1,494 @@
+diff --git a/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx b/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx
+index 6e32243..954ae6f 100644
+--- a/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx
++++ b/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx
+@@ -1,49 +1,76 @@
+-// SmartBuilder page (issue #65). ACTUAL behaviors pinned: 350ms debounced
+-// preview via fetchPreview; localStorage 'smart_builder_state' (cfg with
+-// dates STRIPPED); profile load via loadProfile with ?? defaults; save-name
+-// validation (manual-block + sanitize); Add to Slips leg validation;
+-// excluded cards (manual-only removal). REAL timers: fake timers broke MSW
+-// request delivery under isolate:false (D43 lesson).
++// SmartBuilder page — profile-cards rework contract:
++//   AC-1  heading reads 'Profiles' (active profile shown by the card highlight)
++//   AC-2  first profile is selected by default (no 'manual' state)
++//   AC-3  config changes AUTO-SAVE to the active profile (no Save button)
++//   AC-4  deleting the active profile re-selects the first remaining one
++//   AC-5  Add-to-Slips modal: Units / Target Payout are mutually exclusive
++//         with cross calculated previews, 0.1 steps, blocking behaviour
++// Existing pins kept: 350ms debounce, localStorage payload, excluded cards,
++// refreshKey, real timers (fake timers broke MSW delivery — D43 lesson).
+ 
+ import { describe, it, expect, beforeEach, vi } from 'vitest';
+-import { render, screen, waitFor } from '@testing-library/react';
++import { render, screen, waitFor, within } from '@testing-library/react';
+ import { MemoryRouter } from 'react-router-dom';
+ import userEvent from '@testing-library/user-event';
+ import { http, HttpResponse } from 'msw';
+ import SmartBuilder from '../SmartBuilder';
+ import { server } from '../../test/handlers';
+-import { makeCandidateLeg, makePreviewResult } from '../../test/factories';
++import { makeCandidateLeg, makePreviewResult, makeProfile } from '../../test/factories';
+ 
+-// Order-robust shared stub (final-gate fix): SmartBuilder renders
+-// AnalyticsDashboard → recharts. Registering the IDENTICAL factory in every
+-// recharts-consuming file makes the run order-independent. See
+-// src/test/recharts-stub.tsx.
++// Order-robust shared stub: registering the IDENTICAL factory in every
++// recharts-consuming file makes the run order-independent.
+ vi.mock('recharts', async () => (await import('../../test/recharts-stub')).rechartsStub);
+ 
++// Distinct configs so tests can prove a card click actually LOADED a profile.
++const PROFILES = {
++    cautious: { ...makeProfile({ target_odds: 4, target_legs: 4, units: 2 }), order: 1 },
++    bold: { ...makeProfile({ target_odds: 8, target_legs: 5, units: 3 }), order: 2 },
++};
+ 
+ const PREVIEW = makePreviewResult();
+ let previewCalls = 0;
+ let lastPreviewBody = '';
+-
++let slipPosts = 0;
++let deleted: string[] = [];
++let savedPosts: Array<Record<string, unknown>> = [];
++let profileMap: Record<string, ReturnType<typeof makeProfile>> = { ...PROFILES };
+ 
+ beforeEach(() => {
+     localStorage.clear();
+     previewCalls = 0;
++    lastPreviewBody = '';
++    slipPosts = 0;
++    deleted = [];
++    savedPosts = [];
++    profileMap = { ...PROFILES };
+     server.use(
+         http.post('/api/builder/preview', async ({ request }) => {
+             previewCalls += 1;
+             lastPreviewBody = JSON.stringify(await request.json());
+             return HttpResponse.json(PREVIEW);
+         }),
+-        http.get('/api/profiles', () => HttpResponse.json({})),
++        http.get('/api/profiles', () => HttpResponse.json({ profiles: { ...profileMap } })),
++        http.post('/api/profiles', async ({ request }) => {
++            const body = await request.json() as Record<string, unknown>;
++            savedPosts.push(body);
++            profileMap[String(body.name)] = body as unknown as ReturnType<typeof makeProfile>;
++            return HttpResponse.json({ status: 'ok' });
++        }),
++        http.delete('/api/profiles/:name', ({ params }) => {
++            deleted.push(String(params.name));
++            delete profileMap[String(params.name)];
++            return HttpResponse.json({ ok: true });
++        }),
+         http.get('/api/builder/excluded/details', () => HttpResponse.json({ excluded: [] })),
+         http.get('/api/builder/leagues', () => HttpResponse.json(['England', 'Spain'])),
+         http.get('/api/config/sources', () => HttpResponse.json({ sources: ['forebet'] })),
+-        http.post('/api/slips', () => HttpResponse.json({ slip_id: 7, slip_status: 'Pending' })),
++        http.post('/api/slips', () => {
++            slipPosts += 1;
++            return HttpResponse.json({ slip_id: 7, slip_status: 'Pending' });
++        }),
+     );
+ });
+ 
+-
+ function renderBuilder(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+     return render(
+         <MemoryRouter>
+@@ -54,31 +81,37 @@ function renderBuilder(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+ 
+ async function renderAndHydrate() {
+     renderBuilder();
+-    // real timers: the 350ms debounce resolves inside waitFor's polling window
+     await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
+ }
+ 
+-
+ describe('SmartBuilder page', () => {
+     it('mounts and fires the debounced preview after 350ms', async () => {
+         await renderAndHydrate();
+         expect(screen.getByText('Live Preview — updates with every config change')).toBeInTheDocument();
+-        expect(screen.getByRole('heading', { name: 'Build' })).toBeInTheDocument();
++        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
++    });
++
++    it('uses saved profile order instead of relying on response object order', async () => {
++        profileMap = { bold: PROFILES.bold, cautious: PROFILES.cautious };
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
+     });
+ 
+-    it('renders profile sidebar + builder panel + preview grid', async () => {
++    it('reports a failed profile fetch instead of hiding it as an empty profile list', async () => {
++        server.use(
++            http.get('/api/profiles', () => HttpResponse.json({ detail: 'settings unavailable' }, { status: 500 })),
++        );
+         await renderAndHydrate();
+-        expect(screen.getByText('Profiles')).toBeInTheDocument();
+-        expect(screen.getByText('Bet Shape')).toBeInTheDocument();
+-        expect(screen.getByText('+ Add to Slips')).toBeInTheDocument();
+-        expect(screen.getByText('Reset excluded')).toBeInTheDocument();
++        expect(await screen.findByText(/Profiles could not be loaded/)).toBeInTheDocument();
++        expect(screen.queryByRole('button', { name: 'cautious' })).not.toBeInTheDocument();
+     });
+ 
+     it('config change triggers a NEW debounced preview (count increments)', async () => {
+         const user = userEvent.setup();
+         await renderAndHydrate();
+         const before = previewCalls;
+-        const oddsInput = screen.getAllByDisplayValue('3')[0];
++        const oddsInput = screen.getAllByDisplayValue('4')[0];
+         await user.clear(oddsInput);
+         await user.type(oddsInput, '5');
+         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
+@@ -89,53 +122,277 @@ describe('SmartBuilder page', () => {
+         const saved = localStorage.getItem('smart_builder_state');
+         expect(saved).not.toBeNull();
+         const parsed = JSON.parse(saved as string);
+-        expect(parsed.cfg.target_odds).toBe(3);
++        expect(parsed.cfg.target_odds).toBe(4);
+         expect(parsed.cfg.date_from).toBeNull();
+         expect(parsed.cfg.date_to).toBeNull();
+-        expect(parsed.activeName).toBe('manual');
+-        expect(parsed.units).toBe(1);
++        // first profile auto-selected, no 'manual'
++        expect(parsed.activeName).toBe('cautious');
++        expect(parsed.units).toBe(2);
+     });
+ 
+-    it('profile buttons render from fetchProfiles and load on click', async () => {
+-        server.use(
+-            http.get('/api/profiles', () => HttpResponse.json({ profiles: { cautious: { target_odds: 4, units: 2, target_legs: 4 } } })),
+-        );
++    // ── AC-1/AC-2: heading, active indicator, default selection ─────────────
++
++    it('AC-1: heading reads Profiles with no active-name indicator text', async () => {
++        await renderAndHydrate();
++        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
++        expect(screen.queryByText(/^Profiles: .* active$/)).not.toBeInTheDocument();
++    });
++
++    it('AC-2: the first profile is selected by default (no manual state)', async () => {
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
++    });
++
++    it('AC-1: clicking a card loads its config into the builder', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        const before = previewCalls;
++        await user.click(screen.getByRole('button', { name: 'bold' }));
++        await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
++        expect(lastPreviewBody).toContain('"target_odds":8');
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
++    });
++
++    it('AC-1: header no longer carries Reset excluded or Run Daily', async () => {
++        await renderAndHydrate();
++        expect(screen.queryByText('Reset excluded')).not.toBeInTheDocument();
++        expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
++    });
++
++    // ── AC-4: per-card delete re-selects the first remaining profile ────────
++
++    it('AC-4: deleting the ACTIVE profile re-selects the first remaining one', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true')
++        await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
++        await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
++        expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
++        expect(screen.queryByRole('button', { name: 'cautious' })).not.toBeInTheDocument();
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
++    });
++
++    it('AC-4: X on a NON-active profile deletes it and keeps the active one', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(screen.getByRole('button', { name: 'bold' }));
++        await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
++        await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
++        expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
++    });
++
++    // ── AC-3: auto-save replaces the Save button ────────────────────────────
++
++    it('AC-3: there is no Save button — config changes auto-save to the profile', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
++        const before = savedPosts.length;
++        const oddsInput = screen.getAllByDisplayValue('4')[0];
++        await user.clear(oddsInput);
++        await user.type(oddsInput, '6');
++        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
++        expect(savedPosts[savedPosts.length - 1].name).toBe('cautious');
++        expect(await screen.findByText("✓ Saved to 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
++    });
++
++    it('AC-3: switching a profile does not re-save the previous config', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        const before = savedPosts.length;
++        await user.click(screen.getByRole('button', { name: 'bold' }));
++        await new Promise(r => setTimeout(r, 900));
++        expect(savedPosts.length).toBe(before);
++    });
++
++    // ── Desync C: stake fields are Services-owned ──────────────────────────
++
++    it('config auto-save payload omits units/target_payout (Services-owned)', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        const before = savedPosts.length;
++        const oddsInput = screen.getAllByDisplayValue('4')[0];
++        await user.clear(oddsInput);
++        await user.type(oddsInput, '6');
++        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
++        const body = savedPosts[savedPosts.length - 1];
++        expect(body.name).toBe('cautious');
++        expect(body).not.toHaveProperty('units');
++        expect(body).not.toHaveProperty('target_payout');
++    });
++
++    it('Add-to-Slips modal stake entry never persists to the profile', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const unitsInput = await screen.findByLabelText('Units');
++        await user.clear(unitsInput);
++        await user.type(unitsInput, '5');
++        await user.click(screen.getByRole('button', { name: 'Add to Slips' }));
++        await waitFor(() => expect(slipPosts).toBe(1), { timeout: 3000 });
++        await new Promise(r => setTimeout(r, 900));
++        expect(savedPosts.length).toBe(0);
++    });
++
++    it('mount hydrates cfg/units from disk when the persisted selection still exists', async () => {
++        localStorage.setItem('smart_builder_state', JSON.stringify({
++            cfg: { target_odds: 99 },
++            activeName: 'bold',
++            units: 9.9,
++            targetPayout: 9.9,
++        }));
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
++        const saved = JSON.parse(localStorage.getItem('smart_builder_state')!);
++        expect(saved.units).toBe(3);
++        expect(saved.targetPayout).toBe(0);
++        expect(saved.cfg.target_odds).toBe(8);
++    });
++
++    it('mount survives a corrupt localStorage payload (defaults, no crash)', async () => {
++        localStorage.setItem('smart_builder_state', '{not valid json');
++        await renderAndHydrate();
++        // No crash: the page renders profile cards and the writer effect
++        // repairs storage into a valid payload with a selected profile.
++        expect(screen.getByTestId('profile-cards')).toBeInTheDocument();
++        const saved = JSON.parse(localStorage.getItem('smart_builder_state')!);
++        expect(saved.cfg).toBeTruthy();
++        expect(typeof saved.activeName).toBe('string');
++        expect(saved.activeName.length).toBeGreaterThan(0);
++    });
++
++    // ── '+' creates new{N} from the current config ──────────────────────────
++
++    it('+ saves the current cfg as new1 and selects it', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(screen.getByRole('button', { name: 'Create new profile' }));
++        await waitFor(() => expect(savedPosts.some(p => p.name === 'new1')).toBe(true), { timeout: 3000 });
++        const card = await screen.findByRole('button', { name: 'new1' }, { timeout: 3000 });
++        expect(card).toHaveAttribute('aria-pressed', 'true');
++        expect(await screen.findByText("✓ Saved to 'new1'", {}, { timeout: 3000 })).toBeInTheDocument();
++    });
++
++    it('rapid double-click on + never creates a duplicate name', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.dblClick(screen.getByRole('button', { name: 'Create new profile' }));
++        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(0), { timeout: 3000 });
++        const names = savedPosts.map(p => String(p.name));
++        expect(new Set(names).size).toBe(names.length);
++        expect(names.every(n => n === 'new1' || n === 'new2')).toBe(true);
++    });
++
++    it('+ picks new2 when new1 already exists', async () => {
+         const user = userEvent.setup();
++        profileMap = { ...PROFILES, new1: makeProfile({ target_odds: 2 }) };
+         await renderAndHydrate();
+-        const chip = await screen.findByText('cautious');
+-        await user.click(chip);
+-        const input = screen.getByPlaceholderText('profile name') as HTMLInputElement;
+-        await waitFor(() => expect(input.value).toBe('cautious'), { timeout: 3000 });
+-        await waitFor(() => expect(lastPreviewBody).toContain('"target_odds":4'), { timeout: 3000 });
++        await user.click(screen.getByRole('button', { name: 'Create new profile' }));
++        await waitFor(() => expect(savedPosts.some(p => p.name === 'new2')).toBe(true), { timeout: 3000 });
+     });
+ 
+-    it('save with empty/manual name is blocked with status', async () => {
++    // ── AC-5: Add-to-Slips confirmation modal — mutual exclusivity ──────────
++
++    it('AC-5: + Add to Slips opens the modal with BOTH inputs empty (no Off placeholder)', async () => {
+         const user = userEvent.setup();
+         await renderAndHydrate();
+-        await user.click(screen.getByText('Save'));
+-        expect(screen.getByText('Enter a profile name first.')).toBeInTheDocument();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        expect(within(dialog).getByText('Target Payout')).toBeInTheDocument();
++        expect(within(dialog).getByRole('button', { name: 'Add to Slips' })).toBeInTheDocument();
++        expect((within(dialog).getByLabelText('Units') as HTMLInputElement).value).toBe('');
++        expect((within(dialog).getByLabelText('Target Payout') as HTMLInputElement).value).toBe('');
++        expect(within(dialog).getByLabelText('Units')).not.toBeDisabled();
++        expect(within(dialog).getByLabelText('Target Payout')).not.toBeDisabled();
++        expect(within(dialog).getByLabelText('Target Payout')).not.toHaveAttribute('placeholder');
+     });
+ 
+-    it('save with valid name POSTs and confirms', async () => {
++    it('AC-6: confirm POSTs the slip and closes the modal', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        await user.click(await screen.findByRole('button', { name: 'Add to Slips' }, { timeout: 3000 }));
++        await waitFor(() => expect(slipPosts).toBe(1), { timeout: 3000 });
++        expect(await screen.findByText(/Slip #7 added/, {}, { timeout: 3000 })).toBeInTheDocument();
++        expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument();
++    });
++
++    it('AC-7: Escape closes the modal without posting', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        expect(await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 })).toBeInTheDocument();
++        await user.keyboard('{Escape}');
++        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument());
++        expect(slipPosts).toBe(0);
++    });
++
++    it('AC-7: Cancel closes the modal without posting', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
++        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument());
++        expect(slipPosts).toBe(0);
++    });
++
++    it('AC-5: both inputs use 0.1 steps', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        expect(within(dialog).getByLabelText('Units')).toHaveAttribute('step', '0.1');
++        expect(within(dialog).getByLabelText('Target Payout')).toHaveAttribute('step', '0.1');
++    });
++
++    it('AC-5: writing Target Payout disables Units and previews computed units', async () => {
+         const user = userEvent.setup();
+-        let saved = 0;
+         server.use(
+-            http.post('/api/profiles', () => {
+-                saved += 1;
+-                return HttpResponse.json({ status: 'ok' });
++            http.post('/api/builder/preview', async () => {
++                previewCalls += 1;
++                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
+             }),
+         );
+         await renderAndHydrate();
+-        const nameInput = screen.getByPlaceholderText('profile name');
+-        await user.clear(nameInput);
+-        await user.type(nameInput, 'My Profile!');
+-        await user.click(screen.getByText('Save'));
+-        expect(await screen.findByText(/Profile 'myprofile' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
+-        expect(saved).toBe(1);
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        const payoutInput = within(dialog).getByLabelText('Target Payout');
++        await user.clear(payoutInput);
++        await user.type(payoutInput, '25');
++        // 25 / 2.5 = 10 units — computed into the now-disabled Units input
++        await waitFor(() => {
++            const unitsInput = within(dialog).getByLabelText('Units') as HTMLInputElement;
++            expect(unitsInput.disabled).toBe(true);
++            expect(Number(unitsInput.value)).toBe(10);
++        }, { timeout: 3000 });
+     });
+ 
+-    it('Add to Slips with empty preview shows No legs status', async () => {
++    it('AC-5: writing Units disables Target Payout and previews computed payout', async () => {
+         const user = userEvent.setup();
++        server.use(
++            http.post('/api/builder/preview', async () => {
++                previewCalls += 1;
++                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
++            }),
++        );
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        const unitsInput = within(dialog).getByLabelText('Units');
++        await user.clear(unitsInput);
++        await user.type(unitsInput, '4');
++        // 4 × 2.5 = 10 payout — computed into the now-disabled Target Payout input
++        await waitFor(() => {
++            const payoutInput = within(dialog).getByLabelText('Target Payout') as HTMLInputElement;
++            expect(payoutInput.disabled).toBe(true);
++            expect(Number(payoutInput.value)).toBe(10);
++        }, { timeout: 3000 });
++    });
++
++    it('empty preview hides + Add to Slips entirely', async () => {
+         server.use(
+             http.post('/api/builder/preview', async () => {
+                 previewCalls += 1;
+@@ -145,16 +402,10 @@ describe('SmartBuilder page', () => {
+         renderBuilder();
+         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
+         expect(screen.getByText('No preview yet')).toBeInTheDocument();
+-        await user.click(screen.getByText('+ Add to Slips'));
+-        expect(screen.getByText('No legs in preview.')).toBeInTheDocument();
++        expect(screen.queryByText('+ Add to Slips')).not.toBeInTheDocument();
+     });
+ 
+-    it('Add to Slips with valid legs POSTs and confirms with slip id', async () => {
+-        const user = userEvent.setup();
+-        await renderAndHydrate();
+-        await user.click(screen.getByText('+ Add to Slips'));
+-        expect(await screen.findByText(/Slip #7 added/, {}, { timeout: 3000 })).toBeInTheDocument();
+-    });
++    // ── kept pins: excluded cards ───────────────────────────────────────────
+ 
+     it('excluded matches cards render from fetchExcludedDetails', async () => {
+         server.use(
+@@ -202,22 +453,9 @@ describe('SmartBuilder page', () => {
+         await waitFor(() => expect(lastPreviewBody).toContain('2026-09-25'), { timeout: 3000 });
+     });
+ 
+-    it('target payout auto-calculates units from preview odds', async () => {
+-        const user = userEvent.setup();
+-        server.use(
+-            http.post('/api/builder/preview', async () => {
+-                previewCalls += 1;
+-                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
+-            }),
+-        );
++    it('localStorage payload carries no removed keys (runDaily gone)', async () => {
+         await renderAndHydrate();
+-        const payoutInput = screen.getByPlaceholderText('Off');
+-        await user.clear(payoutInput);
+-        await user.type(payoutInput, '25');
+-        // 25 / 2.5 = 10 units
+-        await waitFor(() => {
+-            const unitsInput = screen.getByDisplayValue('10') as HTMLInputElement;
+-            expect(unitsInput).toBeInTheDocument();
+-        }, { timeout: 3000 });
++        const parsed = JSON.parse(localStorage.getItem('smart_builder_state') as string);
++        expect(parsed.runDaily).toBeUndefined();
+     });
+ });

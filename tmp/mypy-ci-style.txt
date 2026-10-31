@@ -1,0 +1,5 @@
+bet_framework/markets/catalog.py: error: Source file found twice under different module names: "catalog" and "bet_framework.markets.catalog"
+bet_framework/markets/catalog.py: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#mapping-file-paths-to-modules for more info
+bet_framework/markets/catalog.py: note: Common resolutions include:
+bet_framework/markets/catalog.py: note:     a) adding `__init__.py` somewhere,
+bet_framework/markets/catalog.py: note:     b) using `--explicit-package-bases` or adjusting `MYPYPATH`

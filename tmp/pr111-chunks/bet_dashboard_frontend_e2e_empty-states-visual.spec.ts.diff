@@ -1,0 +1,13 @@
+diff --git a/bet_dashboard/frontend/e2e/empty-states-visual.spec.ts b/bet_dashboard/frontend/e2e/empty-states-visual.spec.ts
+index 0bba9d6..32c52ab 100644
+--- a/bet_dashboard/frontend/e2e/empty-states-visual.spec.ts
++++ b/bet_dashboard/frontend/e2e/empty-states-visual.spec.ts
+@@ -37,8 +37,6 @@ async function mockServicesGeneratorOff(page: Page) {
+                     generator: { name: 'generator', description: 'gen', enabled: false, alive: false },
+                     verifier: { name: 'verifier', description: 'verify', enabled: true, alive: true },
+                 },
+-                generate_hour: 9,
+-                generate_minute: 0,
+                 server_time: '2026-09-24T12:00:00',
+             }),
+         });

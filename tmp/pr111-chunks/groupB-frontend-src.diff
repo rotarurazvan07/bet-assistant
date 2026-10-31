@@ -1,0 +1,3219 @@
+diff --git a/bet_dashboard/frontend/src/api/__tests__/data.test.ts b/bet_dashboard/frontend/src/api/__tests__/data.test.ts
+index 98572d6..13cd6cd 100644
+--- a/bet_dashboard/frontend/src/api/__tests__/data.test.ts
++++ b/bet_dashboard/frontend/src/api/__tests__/data.test.ts
+@@ -46,13 +46,13 @@ describe('builder endpoints', () => {
+         }));
+         const cfg = {
+             target_odds: 6.0, target_legs: 3, max_legs_overflow: null,
+-            consensus_floor: 50.0, min_odds: 1.05,
++            consensus_floor: 50.0, min_leg_odds: 1.05,
+             included_markets: null, included_leagues: null,
+             tolerance_factor: null, stop_threshold: null,
+             min_legs_fill_ratio: 0.7, quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
+             date_from: null, date_to: null, excluded_sources: null,
+             consensus_shrinkage_k: null, min_source_edge: null,
+-            max_single_leg_odds: null, tol_lower: null, tol_upper: null,
++            max_leg_odds: 10.0, tol_lower: null, tol_upper: null,
+             balance_decay: 'gaussian', min_pick_quality: null,
+             odds_movement_weight: null, odds_movement_strength_min: null,
+         } as Parameters<typeof fetchPreview>[0];
+diff --git a/bet_dashboard/frontend/src/components/BuilderPanel.tsx b/bet_dashboard/frontend/src/components/BuilderPanel.tsx
+index 48a74a7..240d476 100644
+--- a/bet_dashboard/frontend/src/components/BuilderPanel.tsx
++++ b/bet_dashboard/frontend/src/components/BuilderPanel.tsx
+@@ -77,11 +77,53 @@ function AccordionSection({ title, icon, tip, defaultOpen = false, children }: {
+ 
+ // ── Row Components ────────────────────────────────────────────────────────────
+ 
+-function Row({ label, tip, children }: { label: string; tip?: string; children: React.ReactNode }) {
++type NumberFieldProps = React.ComponentProps<typeof NumberField>;
++
++function NumberField({ value, onChange, min, max, step = 1, className = 'w-20' }: {
++    value: number;
++    onChange: (v: number) => void;
++    min?: number;
++    max?: number;
++    step?: number;
++    className?: string;
++}) {
++    const decimals = (String(step).split('.')[1] ?? '').length;
++    const bump = (dir: 1 | -1) => {
++        const next = +(value + dir * step).toFixed(decimals);
++        onChange(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, next)));
++    };
++    const chevron = (d: string) => (
++        <svg width="8" height="5" viewBox="0 0 8 5" fill="none" stroke="currentColor"
++            strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
++    );
++
++    return (
++        <div className={`relative ${className}`}>
++            <input className="field w-full" type="number" min={min} max={max} step={step}
++                style={{ paddingRight: 16 }}
++                value={value} onChange={e => onChange(+e.target.value)} />
++            <div className="absolute right-0 inset-y-0 w-4 flex flex-col">
++                <button type="button" tabIndex={-1} className="num-step" onClick={() => bump(1)}>
++                    {chevron('M1 4L4 1L7 4')}
++                </button>
++                <button type="button" tabIndex={-1} className="num-step" onClick={() => bump(-1)}>
++                    {chevron('M1 1L4 4L7 1')}
++                </button>
++            </div>
++        </div>
++    );
++}
++
++function Row({ label, tip, children, num }: {
++    label: string;
++    tip?: string;
++    children?: React.ReactNode;
++    num?: NumberFieldProps;        // shortcut: renders a NumberField as the value
++}) {
+     return (
+         <BaseDataRow
+             label={label}
+-            value={children}
++            value={num ? <NumberField {...num} /> : children}
+             actions={tip && <TooltipIcon text={tip} align="right" />}
+         />
+     );
+@@ -190,8 +232,13 @@ function ToggleSwitch({ enabled, onToggle }: {
+     );
+ }
+ 
+-function NullableRow({ label, tip, enabled, onToggle, children }: {
+-    label: string; tip?: string; enabled: boolean; onToggle: (v: boolean) => void; children: React.ReactNode;
++function NullableRow({ label, tip, enabled, onToggle, children, num }: {
++    label: string;
++    tip?: string;
++    enabled: boolean;
++    onToggle: (v: boolean) => void;
++    children?: React.ReactNode;
++    num?: NumberFieldProps;        // shortcut: renders a NumberField as the body
+ }) {
+     return (
+         <div className="py-2.5" style={{ borderBottom: '1px solid var(--border)', overflow: 'visible' }}>
+@@ -202,7 +249,7 @@ function NullableRow({ label, tip, enabled, onToggle, children }: {
+                 </div>
+                 <ToggleSwitch enabled={enabled} onToggle={onToggle} />
+             </div>
+-            {enabled && <div className="mt-2 fade-in">{children}</div>}
++            {enabled && <div className="mt-2 fade-in">{num ? <NumberField {...num} /> : children}</div>}
+         </div>
+     );
+ }
+@@ -252,349 +299,161 @@ function DualSlider({ label, tip, left, right, value, onChange, disabled = false
+     );
+ }
+ 
+-// ── Main Panel ────────────────────────────────────────────────────────────────
++const CHIP_SIZE = {
++    md: { cls: 'px-3 py-2.5 rounded-xl text-[10px]', glow: '0 4px 12px var(--accent-glow)', idle: 'var(--bg-raised)' },
++    sm: { cls: 'px-2 py-2 rounded-lg text-[9px] leading-tight truncate', glow: '0 2px 8px var(--accent-glow)', idle: 'var(--bg-card)' },
++} as const;
++
++function ChipGrid({ items, selected, onChange, label = (s: string) => s, cols = 3, size = 'sm' }: {
++    items: string[];
++    selected: string[] | null;
++    onChange: (next: string[] | null) => void;
++    label?: (item: string) => string;
++    cols?: 2 | 3;
++    size?: keyof typeof CHIP_SIZE;
++}) {
++    const s = CHIP_SIZE[size];
+ 
+-export default function BuilderPanel({ cfg, availableLeagues, availableSources, onChange }: Props) {
+-    const up = <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => onChange(set(cfg, k, v));
++    const toggle = (item: string) => {
++        const cur = selected ?? items;
++        const next = cur.includes(item) ? cur.filter(x => x !== item) : [...cur, item];
++        onChange(next.length === 0 || next.length === items.length ? null : next);
++    };
+ 
+-    const allSelected = !cfg.included_markets ||
+-        ALL_MARKETS.every(m => cfg.included_markets!.includes(m));
++    return (
++        <div className={`grid ${cols === 2 ? 'grid-cols-2 gap-2.5' : 'grid-cols-3 gap-1.5'} py-2`}>
++            {items.map(item => {
++                const active = selected == null || selected.includes(item);
++                return (
++                    <button
++                        key={item}
++                        type="button"
++                        title={item}
++                        onClick={() => toggle(item)}
++                        className={`${s.cls} font-sans font-bold uppercase transition-all duration-200 text-center`}
++                        style={{
++                            background: active ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)' : s.idle,
++                            color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
++                            border: `1px solid ${active ? 'var(--border-accent)' : 'var(--border)'}`,
++                            boxShadow: active ? s.glow : 'none',
++                        }}
++                    >
++                        {label(item)}
++                    </button>
++                );
++            })}
++        </div>
++    );
++}
+ 
+-    function toggleMarket(m: string) {
+-        const cur = cfg.included_markets ?? ALL_MARKETS;
+-        const next = cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m];
+-        onChange(set(cfg, 'included_markets', next.length === ALL_MARKETS.length ? null : next));
+-    }
++type NullableNumKey = {
++    [K in keyof BuilderConfig]: null extends BuilderConfig[K]
++        ? (NonNullable<BuilderConfig[K]> extends number ? K : never)
++        : never;
++}[keyof BuilderConfig];
++
++interface NullableSliderSpec {
++    key: NullableNumKey;
++    label: string;
++    tip: string;
++    auto: number;
++    start?: number;
++    min: number; max: number; step: number;
++    scale?: number;
++    format: (uiValue: number) => string;
++}
+ 
+-    return (
+-        <div className="space-y-3">
+-            {/* ── Bet Shape ──────────────────────────────────────────── */}
+-            <AccordionSection title="Bet Shape" icon="🎲" defaultOpen={true}>
+-                <Row label="Target Odds"
+-                    tip="Desired cumulative odds for the entire slip.">
+-                    <input className="field w-20" type="number" min={1.1} max={1000} step={0.1}
+-                        value={cfg.target_odds}
+-                        onChange={e => up('target_odds', +e.target.value)} />
+-                </Row>
+-                <Row label="Target Legs" tip="Desired number of selections (1–100).">
+-                    <input className="field w-20" type="number" min={1} max={100} step={1}
+-                        value={cfg.target_legs}
+-                        onChange={e => up('target_legs', +e.target.value)} />
+-                </Row>
+-                <NullableRow label="Max Overflow"
+-                    tip="Extra legs allowed beyond target. Auto = +1 for 2-4 legs, +2 for 5+."
+-                    enabled={cfg.max_legs_overflow !== null}
+-                    onToggle={v => up('max_legs_overflow', v ? 1 : null)}>
+-                    <input className="field w-20" type="number" min={0} max={5} step={1}
+-                        value={cfg.max_legs_overflow ?? 1}
+-                        onChange={e => up('max_legs_overflow', +e.target.value)} />
+-                </NullableRow>
+-            </AccordionSection>
+-
+-            {/* ── Quality Gate ──────────────────────────────────────── */}
+-            <AccordionSection title="Quality Gate" icon="🛡️" defaultOpen={true}>
+-                <SliderRow label="Consensus Floor"
+-                    tip="Minimum source agreement %. Picks below this are discarded."
+-                    value={cfg.consensus_floor} min={50} max={100} step={1}
+-                    format={v => `${v}%`} onChange={v => up('consensus_floor', v)} />
+-                <Row label="Min Odds" tip="Minimum bookmaker odds. Filters near-certain outcomes.">
+-                    <input className="field w-20" type="number" min={1.01} max={10} step={0.01}
+-                        value={cfg.min_odds} onChange={e => up('min_odds', +e.target.value)} />
+-                </Row>
+-            </AccordionSection>
+-
+-            {/* ── Markets ──────────────────────────────────────────── */}
+-            <AccordionSection title="Markets" icon="🏷️" defaultOpen={true}>
+-                <div className="grid grid-cols-2 gap-2.5 py-2">
+-                    {ALL_MARKETS.map(m => {
+-                        const active = allSelected || (cfg.included_markets ?? []).includes(m);
+-                        return (
+-                            <button
+-                                key={m}
+-                                type="button"
+-                                onClick={() => toggleMarket(m)}
+-                                className="px-3 py-2.5 rounded-xl text-[10px] font-sans font-bold uppercase
+-                                           transition-all duration-200 text-center"
+-                                style={{
+-                                    background: active
+-                                        ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+-                                        : 'var(--bg-raised)',
+-                                    color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
+-                                    border: active
+-                                        ? '1px solid var(--border-accent)'
+-                                        : '1px solid var(--border)',
+-                                    boxShadow: active
+-                                        ? '0 4px 12px var(--accent-glow)'
+-                                        : 'none',
+-                                }}
+-                            >
+-                                {/* AC-1: render the presentation label (like Discover/Live Preview), never the raw canonical key */}
+-                                {marketLabel(m)}
+-                            </button>
+-                        );
+-                    })}
+-                </div>
+-            </AccordionSection>
+-
+-            {/* ── Leagues ──────────────────────────────────────────── */}
+-            {availableLeagues.length > 0 && (
+-                <AccordionSection
+-                    title={`Leagues ${cfg.included_leagues ? `(${cfg.included_leagues.length})` : '(All)'}`}
+-                    icon="🏆"
+-                    defaultOpen={false}
+-                >
+-                    <div className="grid grid-cols-3 gap-1.5 py-2">
+-                        {availableLeagues.map(league => {
+-                            const active = cfg.included_leagues?.includes(league) ?? false;
+-                            return (
+-                                <button
+-                                    key={league}
+-                                    type="button"
+-                                    onClick={() => {
+-                                        let next: string[] | null;
+-                                        if (active) {
+-                                            next = (cfg.included_leagues ?? []).filter(l => l !== league);
+-                                            if (next.length === 0) next = null;
+-                                        } else {
+-                                            next = [...(cfg.included_leagues ?? []), league];
+-                                        }
+-                                        up('included_leagues', next);
+-                                    }}
+-                                    className="px-2 py-2 rounded-lg text-[9px] font-sans font-bold uppercase
+-                                               transition-all duration-200 text-center leading-tight truncate"
+-                                    title={league}
+-                                    style={{
+-                                        background: active
+-                                            ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+-                                            : 'var(--bg-card)',
+-                                        color: active ? 'var(--text-bright)' : 'var(--text-secondary)',
+-                                        border: active
+-                                            ? '1px solid var(--border-accent)'
+-                                            : '1px solid var(--border)',
+-                                        boxShadow: active
+-                                            ? '0 2px 8px var(--accent-glow)'
+-                                            : 'none',
+-                                    }}
+-                                >
+-                                    {league}
+-                                </button>
+-                            );
+-                        })}
+-                    </div>
+-                    {cfg.included_leagues && (
+-                        <div className="mt-2 pt-2 border-t flex justify-end" style={{ borderColor: 'var(--border)' }}>
+-                            <button
+-                                className="text-[10px] font-mono uppercase px-2 py-1 rounded hover:bg-white/5 transition-colors"
+-                                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+-                                onClick={() => up('included_leagues', null)}
+-                            >
+-                                Clear All
+-                            </button>
+-                        </div>
+-                    )}
+-                </AccordionSection>
+-            )}
++const pct = (v: number) => `${v}%`;
++
++const STOP_SLIDERS: NullableSliderSpec[] = [
++    // { key: 'tolerance_factor', label: 'Tolerance Factor', auto: 0.25, min: 5, max: 80, step: 1, format: pct, tip: '±% band around ideal per-leg odds. Tier 1 picks sit within this band.' },
++    { key: 'tol_lower', label: 'Lower Tolerance', auto: 0.2, min: 1, max: 100, step: 1, format: pct, tip: 'Max % drift allowed BELOW ideal per-leg odds. Overrides the global factor.' },
++    { key: 'tol_upper', label: 'Upper Tolerance', auto: 0.15, min: 1, max: 100, step: 1, format: pct, tip: 'Max % drift allowed ABOVE ideal per-leg odds. Overrides the global factor.' },
++    { key: 'stop_threshold', label: 'Stop Threshold', auto: 0.90, min: 50, max: 100, step: 1, format: pct, tip: 'Stop building when odds ≥ target × threshold AND enough legs are filled.' },
++    { key: 'min_legs_fill_ratio', label: 'Min Legs Fill Ratio', auto: 0.90, min: 50, max: 100, step: 5, format: pct, tip: 'Min fraction of legs before early stop is allowed.' },
++    { key: 'max_legs_overflow', label: 'Max Overflow', auto: 1, start: 1, min: 0, max: 5, step: 1, scale: 1, format: v => String(v), tip: 'Extra legs allowed beyond target. Auto = +1 for 2-4 legs, +2 for 5+.' },
++];
++
++const SCORING_SLIDERS: NullableSliderSpec[] = [
++    { key: 'consensus_shrinkage_k', label: 'Shrinkage k', auto: 3, scale: 1, min: 1, max: 10, step: 0.5, format: v => v.toFixed(1), tip: 'Weight factor for source-weighted consensus adjustment.' },
++    { key: 'min_source_edge', label: 'Min Source Edge', auto: 0, start: 0.05, min: 0, max: 50, step: 1, format: pct, tip: 'Minimum edge over implied probability (hard filter).' },
++    { key: 'odds_movement_strength_min', label: 'Movement Min Strength', auto: 0.05, min: 5, max: 20, step: 1, format: pct, tip: 'Minimum odds change % required before movement scoring kicks in.' },
++];
++
++const MOVEMENT_WEIGHT: NullableSliderSpec = {
++    key: 'odds_movement_weight', label: 'Odds Movement Weight', auto: 0.05, min: 0, max: 30, step: 1, format: pct,
++    tip: 'How much odds movement influences the final score. Dropping odds boost a pick, rising odds penalise it.',
++};
++
++function CfgNullableSlider({ cfg, up, spec }: { cfg: BuilderConfig; up: <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => void; spec: NullableSliderSpec }) {
++    const scale = spec.scale ?? 100;
++    const start = spec.start ?? spec.auto;
++    const raw = cfg[spec.key] as number | null;
++    return <NullableRow label={spec.label} tip={`${spec.tip} Auto = ${spec.format(spec.auto * scale)}.`}
++        enabled={raw !== null} onToggle={v => up(spec.key, (v ? start : null) as BuilderConfig[typeof spec.key])}>
++        <InlineSlider value={+((raw ?? start) * scale).toFixed(2)} min={spec.min} max={spec.max} step={spec.step}
++            format={spec.format} onChange={v => up(spec.key, (v / scale) as BuilderConfig[typeof spec.key])} />
++    </NullableRow>;
++}
+ 
+-            {/* ── Sources ────────────────────────────────────────────── */}
+-            {availableSources.length > 0 && (
+-                <AccordionSection
+-                    title={`Sources ${cfg.excluded_sources ? `(${availableSources.length - cfg.excluded_sources.length}/${availableSources.length})` : `(${availableSources.length})`}`}
+-                    icon="📡"
+-                    defaultOpen={false}
+-                >
+-                    <div className="grid grid-cols-3 gap-1.5 py-2">
+-                        {availableSources.map((source: string) => {
+-                            const excluded = cfg.excluded_sources?.includes(source) ?? false;
+-                            return (
+-                                <button
+-                                    key={source}
+-                                    type="button"
+-                                    onClick={() => {
+-                                        let next: string[] | null;
+-                                        if (excluded) {
+-                                            next = (cfg.excluded_sources ?? []).filter(s => s !== source);
+-                                            if (next.length === 0) next = null;
+-                                        } else {
+-                                            next = [...(cfg.excluded_sources ?? []), source];
+-                                        }
+-                                        up('excluded_sources', next);
+-                                    }}
+-                                    className="px-2 py-2 rounded-lg text-[9px] font-sans font-bold uppercase
+-                                               transition-all duration-200 text-center leading-tight truncate"
+-                                    title={source}
+-                                    style={{
+-                                        background: excluded
+-                                            ? 'var(--bg-raised)'
+-                                            : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)',
+-                                        color: excluded ? 'var(--text-secondary)' : 'var(--text-bright)',
+-                                        border: excluded
+-                                            ? '1px solid var(--border)'
+-                                            : '1px solid var(--border-accent)',
+-                                        boxShadow: excluded
+-                                            ? 'none'
+-                                            : '0 2px 8px var(--accent-glow)',
+-                                    }}
+-                                >
+-                                    {source}
+-                                </button>
+-                            );
+-                        })}
+-                    </div>
+-                </AccordionSection>
+-            )}
++const SubHead = ({ children }: { children: React.ReactNode }) => (
++    <div className="pt-3 pb-1 text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>{children}</div>
++);
+ 
+-            {/* ── Tolerance & Stop ──────────────────────────────────── */}
+-            <AccordionSection title="Tolerance & Stop" icon="⚡" defaultOpen={false}>
+-                <NullableRow label="Tolerance Factor"
+-                    tip="±% band around ideal per-leg odds. Tier 1 picks sit within this band."
+-                    enabled={cfg.tolerance_factor !== null}
+-                    onToggle={v => up('tolerance_factor', v ? 0.25 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.tolerance_factor ?? 0.25) * 100)}
+-                        min={5} max={80} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('tolerance_factor', v / 100)} />
+-                </NullableRow>
+-                <NullableRow label="Stop Threshold"
+-                    tip="Stop building when odds ≥ target × threshold AND enough legs are filled."
+-                    enabled={cfg.stop_threshold !== null}
+-                    onToggle={v => up('stop_threshold', v ? 0.91 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.stop_threshold ?? 0.91) * 100)}
+-                        min={50} max={100} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('stop_threshold', v / 100)} />
+-                </NullableRow>
+-                <SliderRow label="Min Legs Fill Ratio"
+-                    tip="Min fraction of legs before early stop is allowed."
+-                    value={Math.round(cfg.min_legs_fill_ratio * 100)}
+-                    min={50} max={100} step={5}
+-                    format={v => `${v}%`}
+-                    onChange={v => up('min_legs_fill_ratio', v / 100)} />
+-            </AccordionSection>
+-
+-            {/* ── Scoring ──────────────────────────────────────────── */}
+-            <AccordionSection
+-                title="Scoring"
+-                icon="📐"
+-                tip="Balances quality vs balance and source agreement vs consensus. Adjust sliders to fine-tune selection behavior."
+-                defaultOpen={false}
+-            >
+-                <DualSlider
+-                    label="Distribution Logic"
+-                    tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality."
+-                    left="Balance" right="Quality"
+-                    value={cfg.quality_vs_balance}
+-                    onChange={v => up('quality_vs_balance', v)} />
+-                <DualSlider
+-                    label="Agreement Logic"
+-                    tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources."
+-                    left="Sources" right="Consensus"
+-                    value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources}
+-                    disabled={cfg.consensus_floor === 100}
+-                    onChange={v => up('consensus_vs_sources', v)} />
+-            </AccordionSection>
+-
+-            {/* ── Odds Movement ──────────────────────────────────────── */}
+-            <AccordionSection
+-                title="Odds Movement"
+-                icon="📊"
+-                tip="Use bookmaker odds movement to confirm or penalise picks. Dropping odds = confirmation, rising odds = doubt."
+-                defaultOpen={false}
+-            >
+-                <NullableRow label="Movement Weight"
+-                    tip="How much odds movement influences the final score. Confirms (odds dropping) boost, infirms (odds rising) penalise. Auto = 5%."
+-                    enabled={cfg.odds_movement_weight !== null}
+-                    onToggle={v => up('odds_movement_weight', v ? 0.05 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.odds_movement_weight ?? 0.05) * 100)}
+-                        min={0} max={30} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('odds_movement_weight', v / 100)} />
+-                </NullableRow>
+-                <NullableRow label="Min Strength"
+-                    tip="Minimum odds change % required before movement scoring kicks in. Auto = 5%."
+-                    enabled={cfg.odds_movement_strength_min !== null}
+-                    onToggle={v => up('odds_movement_strength_min', v ? 0.05 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.odds_movement_strength_min ?? 0.05) * 100)}
+-                        min={5} max={20} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('odds_movement_strength_min', v / 100)} />
+-                </NullableRow>
+-            </AccordionSection>
+-
+-            {/* ── Advanced ──────────────────────────────────────────── */}
+-            <AccordionSection title="Advanced" icon="⚙️" defaultOpen={false}>
+-                <NullableRow label="Shrinkage k"
+-                    tip="Weight factor for source-weighted consensus adjustment. Auto = 3.0."
+-                    enabled={cfg.consensus_shrinkage_k !== null}
+-                    onToggle={v => up('consensus_shrinkage_k', v ? 3.0 : null)}>
+-                    <InlineSlider
+-                        value={cfg.consensus_shrinkage_k ?? 3}
+-                        min={1} max={10} step={0.5}
+-                        format={v => v.toFixed(1)}
+-                        onChange={v => up('consensus_shrinkage_k', v)} />
+-                </NullableRow>
+-                <NullableRow label="Min Source Edge"
+-                    tip="Minimum edge over implied probability (hard filter). Auto = 0.0."
+-                    enabled={cfg.min_source_edge !== null}
+-                    onToggle={v => up('min_source_edge', v ? 0.05 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.min_source_edge ?? 0.05) * 100)}
+-                        min={0} max={50} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('min_source_edge', v / 100)} />
+-                </NullableRow>
+-                <NullableRow label="Max Leg Odds"
+-                    tip="Maximum odds for any single leg. Auto = 3.5."
+-                    enabled={cfg.max_single_leg_odds !== null}
+-                    onToggle={v => up('max_single_leg_odds', v ? 3.5 : null)}>
+-                    <InlineSlider
+-                        value={(cfg.max_single_leg_odds ?? 3.5) * 10}
+-                        min={10} max={100} step={5}
+-                        format={v => (v / 10).toFixed(1)}
+-                        onChange={v => up('max_single_leg_odds', v / 10)} />
+-                </NullableRow>
+-                <Row label="Balance Decay"
+-                    tip="Decay method for balancing selections. Linear = steady decay, Gaussian = bell-shaped decay with stronger central weighting.">
+-                    <select className="field w-28" value={cfg.balance_decay}
+-                        onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}>
+-                        <option value="linear">Linear</option>
+-                        <option value="gaussian">Gaussian</option>
+-                    </select>
+-                </Row>
+-                <NullableRow label="Min Quality"
+-                    tip="Minimum quality score to accept a pick. Auto = 0.20."
+-                    enabled={cfg.min_pick_quality !== null}
+-                    onToggle={v => up('min_pick_quality', v ? 0.2 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)}
+-                        min={0} max={100} step={5}
+-                        format={v => (v / 100).toFixed(2)}
+-                        onChange={v => up('min_pick_quality', v / 100)} />
+-                </NullableRow>
+-                <NullableRow label="Lower Tolerance"
+-                    tip="Max % drift allowed BELOW ideal per-leg odds. Overrides global factor."
+-                    enabled={cfg.tol_lower !== null}
+-                    onToggle={v => up('tol_lower', v ? 0.2 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.tol_lower ?? 0.2) * 100)}
+-                        min={1} max={100} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('tol_lower', v / 100)} />
+-                </NullableRow>
+-                <NullableRow label="Upper Tolerance"
+-                    tip="Max % drift allowed ABOVE ideal per-leg odds. Overrides global factor."
+-                    enabled={cfg.tol_upper !== null}
+-                    onToggle={v => up('tol_upper', v ? 0.15 : null)}>
+-                    <InlineSlider
+-                        value={Math.round((cfg.tol_upper ?? 0.15) * 100)}
+-                        min={1} max={100} step={1}
+-                        format={v => `${v}%`}
+-                        onChange={v => up('tol_upper', v / 100)} />
+-                </NullableRow>
+-            </AccordionSection>
+-        </div>
+-    );
++export default function BuilderPanel({ cfg, availableLeagues, availableSources, onChange }: Props) {
++    const up = <K extends keyof BuilderConfig>(k: K, v: BuilderConfig[K]) => onChange(set(cfg, k, v));
++    const slider = (spec: NullableSliderSpec) => <CfgNullableSlider key={spec.key} cfg={cfg} up={up} spec={spec} />;
++    const marketsOn = cfg.included_markets?.length ?? ALL_MARKETS.length;
++    const leaguesOn = cfg.included_leagues?.length ?? availableLeagues.length;
++    const sourcesOn = availableSources.length - (cfg.excluded_sources?.length ?? 0);
++
++    return <div className="space-y-3">
++        <AccordionSection title="Bet Shape" icon="🎲" defaultOpen={true}>
++            <Row label="Target Odds" tip="Desired cumulative odds for the entire slip."
++                num={{ value: cfg.target_odds, min: 1.1, max: 1000, step: 0.1, onChange: v => up('target_odds', v) }} />
++            <Row label="Target Legs" tip="Desired number of selections (1–100)."
++                num={{ value: cfg.target_legs, min: 1, max: 100, step: 1, onChange: v => up('target_legs', v) }} />
++            <Row label="Min Leg Odds" tip="Minimum bookmaker odds for a single leg. Filters near-certain outcomes."
++                num={{ value: cfg.min_leg_odds, min: 1.01, max: 10, step: 0.01, onChange: v => up('min_leg_odds', v) }} />
++            <Row label="Max Leg Odds" tip="Maximum bookmaker odds for a single leg."
++                num={{ value: cfg.max_leg_odds, min: 1.01, max: 10, step: 0.01, onChange: v => up('max_leg_odds', v) }} />
++        </AccordionSection>
++
++        <AccordionSection title="Filters" icon="🏷️" defaultOpen={true}>
++            <div className="space-y-3">
++                <AccordionSection title={`Markets (${marketsOn}/${ALL_MARKETS.length})`} icon="⚽" defaultOpen={false}>
++                    <ChipGrid items={ALL_MARKETS} cols={2} size="md" label={marketLabel} selected={cfg.included_markets} onChange={v => up('included_markets', v)} />
++                </AccordionSection>
++                {availableLeagues.length > 0 && (
++                    <AccordionSection title={`Leagues (${leaguesOn}/${availableLeagues.length})`} icon="🌍">
++                        <ChipGrid items={availableLeagues} selected={cfg.included_leagues} onChange={v => up('included_leagues', v)} />
++                    </AccordionSection>
++                )}
++                {availableSources.length > 0 && (
++                    <AccordionSection title={`Sources (${sourcesOn}/${availableSources.length})`} icon="📡">
++                        <ChipGrid items={availableSources} selected={cfg.excluded_sources ? availableSources.filter(s => !cfg.excluded_sources!.includes(s)) : null} onChange={v => up('excluded_sources', v ? availableSources.filter(s => !v.includes(s)) : null)} />
++                    </AccordionSection>
++                )}
++            </div>
++        </AccordionSection>
++
++        <AccordionSection title="Quality" icon="🛡️" defaultOpen={true}>
++            <SliderRow label="Consensus Floor" tip="Minimum source agreement %. Picks below this are discarded." value={cfg.consensus_floor} min={50} max={100} step={1} format={pct} onChange={v => up('consensus_floor', v)} />
++            <NullableRow label="Min Quality" tip="Minimum quality score to accept a pick. Auto = 0.20." enabled={cfg.min_pick_quality !== null} onToggle={v => up('min_pick_quality', v ? 0.2 : null)}><InlineSlider value={Math.round((cfg.min_pick_quality ?? 0.2) * 100)} min={0} max={100} step={5} format={v => (v / 100).toFixed(2)} onChange={v => up('min_pick_quality', v / 100)} /></NullableRow>
++        </AccordionSection>
++
++        <AccordionSection title="Strategy" icon="📐" defaultOpen={false} tip="How the builder trades breadth against strength when it picks legs.">
++            <DualSlider label="Distribution Logic" tip="Balances quality vs balance in selection. Left = prioritize balance, Right = prioritize quality." left="Balance" right="Quality" value={cfg.quality_vs_balance} onChange={v => up('quality_vs_balance', v)} />
++            <DualSlider label="Agreement Logic" tip="Weights source agreement vs consensus. Left = prioritize source agreement, Right = prioritize consensus among sources." left="Sources" right="Consensus" value={cfg.consensus_floor === 100 ? 0 : cfg.consensus_vs_sources} disabled={cfg.consensus_floor === 100} onChange={v => up('consensus_vs_sources', v)} />
++            {slider(MOVEMENT_WEIGHT)}
++        </AccordionSection>
++
++        <AccordionSection title="Advanced" icon="⚙️" defaultOpen={false}>
++            <SubHead>Leg tolerance & stopping</SubHead>
++            {STOP_SLIDERS.map(slider)}
++            <SubHead>Scoring</SubHead>
++            {SCORING_SLIDERS.map(slider)}
++            <Row label="Balance Decay" tip="Decay method for balancing selections. Linear = steady decay, Gaussian = bell-shaped decay with stronger central weighting."><select className="field w-28" value={cfg.balance_decay} onChange={e => up('balance_decay', e.target.value as 'linear' | 'gaussian')}><option value="linear">Linear</option><option value="gaussian">Gaussian</option></select></Row>
++        </AccordionSection>
++    </div>;
+ }
+diff --git a/bet_dashboard/frontend/src/components/OnboardingTour.tsx b/bet_dashboard/frontend/src/components/OnboardingTour.tsx
+index f4ad6e7..90157fd 100644
+--- a/bet_dashboard/frontend/src/components/OnboardingTour.tsx
++++ b/bet_dashboard/frontend/src/components/OnboardingTour.tsx
+@@ -13,9 +13,9 @@ const STEPS = [
+     },
+     {
+         route: '/builder',
+-        title: 'Create your strategy',
+-        body: 'Pick a preset, watch Live Preview, then save your profile.',
+-        targets: ['[data-profile-chip]', 'input[placeholder="profile name"]', '[data-tour="build-preview"]', '[data-tour="build-save"]'],
++        title: 'Profiles & live preview',
++        body: 'Pick a profile, tweak the config (auto-saves), watch Live Preview.',
++        targets: ['[data-testid="profile-cards"] button', '[data-tour="build-preview"]'],
+     },
+     {
+         route: '/slips',
+diff --git a/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx b/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx
+index a5e6a35..6e0df5c 100644
+--- a/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx
++++ b/bet_dashboard/frontend/src/components/__tests__/BuilderPanel.test.tsx
+@@ -1,7 +1,10 @@
+-// BuilderPanel (issue #64 P2). ACTUAL (cycle-12 divergence): immediate
+-// onChange (NO debounce); AccordionSection sections; market toggle
+-// null-means-all; league/source multi-selects; balance_decay select;
+-// NO date pickers (Layout owns dates).
++// BuilderPanel (issue #64 P2). ACTUAL (post-#118 merge contract): immediate
++// onChange (NO debounce); AccordionSection sections (Bet Shape, Filters >
++// Markets/Leagues/Sources, Quality, Strategy, Advanced); ChipGrid market /
++// league / source toggles with null-means-all semantics (chip renders the
++// presentation label via marketLabel, title keeps the canonical key);
++// NullableRow toggles gate their slider body (enabled-only render);
++// balance_decay select; NO date pickers (Layout owns dates).
+ 
+ import { describe, it, expect, vi } from 'vitest';
+ import { render, screen, fireEvent } from '@testing-library/react';
+@@ -17,7 +20,7 @@ function baseCfg(overrides: Partial<BuilderConfig> = {}): BuilderConfig {
+         target_legs: 3,
+         max_legs_overflow: null,
+         consensus_floor: 50,
+-        min_odds: 1.05,
++        min_leg_odds: 1.05,
+         included_markets: null,
+         included_leagues: null,
+         tolerance_factor: null,
+@@ -30,7 +33,7 @@ function baseCfg(overrides: Partial<BuilderConfig> = {}): BuilderConfig {
+         excluded_sources: null,
+         consensus_shrinkage_k: null,
+         min_source_edge: null,
+-        max_single_leg_odds: null,
++        max_leg_odds: 10.0,
+         tol_lower: null,
+         tol_upper: null,
+         balance_decay: 'gaussian',
+@@ -50,11 +53,42 @@ function renderPanel(cfgOverrides: Partial<BuilderConfig> = {}, leagues: string[
+ }
+ 
+ 
++// DualSlider (restored from pre-#41 design): label + tooltip row, then the
++// SliderWithTicks range input flanked by left/right caption spans. The range
++// input carries no aria-label, so locate it through the label span's row.
++function dualSliderInput(label: string): HTMLInputElement | undefined {
++    const span = Array.from(document.querySelectorAll('span')).find(
++        (s) => s.textContent === label
++    );
++    if (!span) return undefined;
++    const row = span.closest('div[style*="border-bottom"]') ?? span.parentElement;
++    return (row?.querySelector('input[type="range"]') as HTMLInputElement | undefined) ?? undefined;
++}
++
++// ToggleSwitch's clickable <button> ('w-10 h-5') contains only the knob span —
++// the 'Auto'/'Set' labels are OUTSIDE the button, so text queries can't reach it.
++function toggleButtons(): HTMLElement[] {
++    return Array.from(document.querySelectorAll('button')).filter(
++        (b) => b.className.includes('w-10 h-5'),
++    ) as HTMLElement[];
++}
++
++// Sections render collapsed children with opacity 0 + pointerEvents none, but
++// they stay in the DOM — open the section by clicking its header button first.
++async function openSection(user: ReturnType<typeof userEvent.setup>, name: RegExp) {
++    await user.click(screen.getByRole('button', { name }));
++}
++
++
+ describe('BuilderPanel', () => {
+     it('renders all accordion section titles', () => {
+         renderPanel();
+-        for (const title of ['Bet Shape', 'Quality Gate', 'Markets', 'Tolerance & Stop', 'Scoring', 'Odds Movement', 'Advanced']) {
+-            expect(screen.getByText(title)).toBeInTheDocument();
++        // section headers are the only BUTTONS with these names (Strategy's
++        // 'Agreement Logic' caption span also says 'Quality' — role query
++        // disambiguates headers from caption text). Header buttons prefix an
++        // emoji icon, so match the title as a substring.
++        for (const title of ['Bet Shape', 'Filters', 'Quality', 'Strategy', 'Advanced']) {
++            expect(screen.getByRole('button', { name: new RegExp(title) })).toBeInTheDocument();
+         }
+     });
+ 
+@@ -83,75 +117,70 @@ describe('BuilderPanel', () => {
+         expect(screen.getByText(/Leagues/)).toBeInTheDocument();
+     });
+ 
+-    it('league toggle: single add from null cfg, add to populated, remove, remove-to-null', async () => {
++    it('league toggle: single add from null cfg, add to populated, remove', async () => {
+         // Controlled component: each click computes next state from the CURRENT
+-        // cfg prop. Multi-click sequences in one render drift (the parent
+-        // applies onChange → re-renders; a test that doesn't rerender keeps
+-        // stale cfg). Fresh render per toggle keeps assertions deterministic.
++        // cfg prop. A test that doesn't rerender keeps a stale cfg, so fresh
++        // render per toggle keeps assertions deterministic.
+         const user = userEvent.setup();
+ 
+-        // 1. add England from null cfg → ['England']
++        // 1. null cfg selects ALL leagues — chip is active; removing England
++        //    leaves ['Spain'] (null → array transition).
+         const t1 = renderPanel({}, ['England', 'Spain']);
+-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
++        // Filters is defaultOpen — do NOT click its header (it would close it).
++        await openSection(user, /Leagues/);
+         await user.click(screen.getByTitle('England'));
+         let last = t1.onChange.mock.calls[t1.onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.included_leagues).toEqual(['England']);
+-
++        expect(last.included_leagues).toEqual(['Spain']);
+         t1.unmount();
+ 
+-        // 2. add Spain to cfg already containing England → ['England', 'Spain']
+-        const t2 = renderPanel({ included_leagues: ['England'] }, ['England', 'Spain']);
+-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
+-        await user.click(screen.getByTitle('Spain'));
++        // 2. remove England from a FULL explicit set → ['Spain'].
++        const t2 = renderPanel({ included_leagues: ['England', 'Spain'] }, ['England', 'Spain']);
++        await openSection(user, /Leagues/);
++        await user.click(screen.getByTitle('England'));
+         last = t2.onChange.mock.calls[t2.onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.included_leagues).toEqual(['England', 'Spain']);
+-
++        expect(last.included_leagues).toEqual(['Spain']);
+         t2.unmount();
+ 
+-        // 3. remove England from populated cfg → ['Spain']
+-        const t3 = renderPanel({ included_leagues: ['England', 'Spain'] }, ['England', 'Spain']);
+-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
++        // 3. re-adding the removed league completes the set → null (all).
++        const t3 = renderPanel({ included_leagues: ['Spain'] }, ['England', 'Spain']);
++        await openSection(user, /Leagues/);
+         await user.click(screen.getByTitle('England'));
+         last = t3.onChange.mock.calls[t3.onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.included_leagues).toEqual(['Spain']);
+-
+-        t3.unmount();
+-
+-        // 4. remove last remaining → null (all)
+-        const t4 = renderPanel({ included_leagues: ['Spain'] }, ['England', 'Spain']);
+-        await user.click(screen.getByRole('button', { name: /Leagues/ }));
+-        await user.click(screen.getByTitle('Spain'));
+-        last = t4.onChange.mock.calls[t4.onChange.mock.calls.length - 1][0] as BuilderConfig;
+         expect(last.included_leagues).toBeNull();
++        t3.unmount();
+     });
+ 
+     it('source toggle adds to excluded_sources', async () => {
+         const user = userEvent.setup();
+         const { onChange } = renderPanel({}, [], ['forebet', 'predictz']);
+-        await user.click(screen.getByRole('button', { name: /Sources/ }));
++        await openSection(user, /Sources/);
++        // all sources selected (excluded_sources null) → clicking excludes it.
+         await user.click(screen.getByTitle('forebet'));
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+         expect(last.excluded_sources).toEqual(['forebet']);
+     });
+ 
+-    it('Clear All leagues resets to null', async () => {
++    it('market toggle: complete-set chip click → null; partial set stays array', async () => {
+         const user = userEvent.setup();
+-        const { onChange } = renderPanel({ included_leagues: ['England'] }, ['England']);
+-        await user.click(screen.getByText(/Leagues/));
+-        await user.click(screen.getByText('Clear All'));
+-        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.included_leagues).toBeNull();
+-    });
++        // null cfg = ALL markets selected. Clicking one chip excludes it →
++        // an all-but-one array (first click never jumps straight to null;
++        // only completing the set again does).
++        const t1 = renderPanel({ included_markets: null });
++        await openSection(user, /Markets/);
++        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
++        let last = t1.onChange.mock.calls[t1.onChange.mock.calls.length - 1][0] as BuilderConfig;
++        expect(last.included_markets).toHaveLength(ALL_MARKETS.length - 1);
++        expect(last.included_markets).not.toContain(ALL_MARKETS[0]);
++        t1.unmount();
+ 
+-    it('market toggle: removing last-but-one market keeps array; removing to all → null', async () => {
+-        const user = userEvent.setup();
+-        // cfg has ONE market excluded → included_markets is array of all-but-one
+-        const allButOne = ALL_MARKETS.slice(1);
+-        const { onChange } = renderPanel({ included_markets: allButOne });
+-        // toggle the one market NOT in the list (ALL_MARKETS[0]) → adds it back → all → null
+-        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) })); // chip renders the presentation label
+-        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.included_markets).toBeNull(); // complete set → null (all)
++        // cfg already EXCLUDES one market — clicking that same market chip
++        // re-completes the set → null (means all).
++        const t2 = renderPanel({ included_markets: ALL_MARKETS.slice(1) });
++        await openSection(user, /Markets/);
++        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
++        last = t2.onChange.mock.calls[t2.onChange.mock.calls.length - 1][0] as BuilderConfig;
++        expect(last.included_markets).toBeNull();
++        t2.unmount();
+     });
+ 
+     it('Markets filter chips render presentation labels, NOT raw canonical keys (AC-1 regression)', () => {
+@@ -162,8 +191,10 @@ describe('BuilderPanel', () => {
+             const label = marketLabel(m);
+             expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+             if (label !== m) {
+-                // the raw key text must NOT be rendered anywhere
+-                expect(screen.queryByText(m)).not.toBeInTheDocument();
++                // the raw key text must NOT be rendered as a chip button name
++                // (title attribute keeps the canonical key for identity — see
++                // the getByTitle locators above — which is intentional).
++                expect(screen.queryByRole('button', { name: m })).not.toBeInTheDocument();
+             }
+         }
+         // pin a known key/label pair so a catalog rename cannot silently pass
+@@ -171,19 +202,18 @@ describe('BuilderPanel', () => {
+         expect(marketLabel(ALL_MARKETS[0])).not.toBe(ALL_MARKETS[0]);
+     });
+ 
+-    it('market toggle still identifies markets by canonical key in included_markets (identity unchanged)', async () => {
+-        const user = userEvent.setup();
+-        const { onChange } = renderPanel();
+-        await user.click(screen.getByRole('button', { name: marketLabel(ALL_MARKETS[0]) }));
+-        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        // first click on an all-selected board excludes that one market (all-but-one array)
+-        expect(last.included_markets).toHaveLength(ALL_MARKETS.length - 1);
+-        expect(last.included_markets).not.toContain(ALL_MARKETS[0]);
++    it('market identity stays canonical in included_markets (chip title = key)', () => {
++        renderPanel();
++        // ChipGrid sets title={item} (canonical key) for every market chip.
++        for (const m of ALL_MARKETS) {
++            expect(screen.getByTitle(m)).toBeInTheDocument();
++        }
+     });
+ 
+     it('balance_decay select switches linear/gaussian', async () => {
+         const user = userEvent.setup();
+         const { onChange } = renderPanel({ balance_decay: 'gaussian' });
++        await openSection(user, /Advanced/);
+         const select = screen.getByDisplayValue('Gaussian');
+         await user.selectOptions(select, 'linear');
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+@@ -192,61 +222,55 @@ describe('BuilderPanel', () => {
+ });
+ 
+ // ── Gap-closing: NullableRow toggles + slider helpers (coverage cycle) ──
+-// NOTE: ToggleSwitch's clickable <button> contains only the knob span — the
+-// 'Auto'/'Set' labels are OUTSIDE the button, so text queries can't reach it.
+-// Select toggle buttons structurally (className 'w-10 h-5').
+ 
+-function toggleButtons(): HTMLElement[] {
+-    return Array.from(document.querySelectorAll('button')).filter(
+-        (b) => b.className.includes('w-10 h-5'),
+-    ) as HTMLElement[];
+-}
+-
+-describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () => {
+-    it('NullableRow toggle (Max Overflow) fires onChange with the enabled default', async () => {
++describe('BuilderPanel — Quality / Strategy / Advanced sections', () => {
++    it('NullableRow toggle (Min Quality) fires onChange with the enabled default', async () => {
+         const user = userEvent.setup();
+-        const { onChange } = renderPanel({ max_legs_overflow: null });
+-        // Bet Shape is defaultOpen; Max Overflow is its only toggle (toggles[0])
++        const { onChange } = renderPanel({ min_pick_quality: null });
++        // Quality is defaultOpen; Min Quality is its only toggle (toggles[0]).
+         const toggles = toggleButtons();
+         expect(toggles.length).toBeGreaterThan(0);
+         await user.click(toggles[0]);
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.max_legs_overflow).toBe(1);
++        expect(last.min_pick_quality).toBe(0.2);
+     });
+ 
+-    it('InlineSlider onChange fires via range input (Tolerance Factor)', () => {
+-        // Controlled panel: the test cfg is what renders — pass tolerance_factor
++    it('Min Quality InlineSlider onChange fires via range input', () => {
++        // Controlled panel: the test cfg is what renders — pass min_pick_quality
+         // ENABLED from the start so the InlineSlider mounts (the toggle-onclick
+-        // path is covered by the Max Overflow test; the parent applying onChange
+-        // and re-rendering is the app's job, not the test's).
+-        const { onChange } = renderPanel({ tolerance_factor: 0.25 });
+-        // find the TolFactor slider by its rendered value (0.25 * 100 = 25)
++        // path is covered by the test above; the parent applying onChange and
++        // re-rendering is the app's job, not the test's).
++        const { onChange } = renderPanel({ min_pick_quality: 0.2 });
++        // find the slider by its rendered value (0.2 * 100 = 20)
+         const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
+-        const tolSlider = sliders.find((s) => s.value === '25');
+-        expect(tolSlider).toBeDefined();
+-        fireEvent.change(tolSlider as HTMLInputElement, { target: { value: '50' } });
++        const qSlider = sliders.find((s) => s.value === '20');
++        expect(qSlider).toBeDefined();
++        fireEvent.change(qSlider as HTMLInputElement, { target: { value: '45' } });
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.tolerance_factor).toBe(0.5);
++        expect(last.min_pick_quality).toBe(0.45);
+     });
+ 
+-    it('Scoring DualSliders fire quality_vs_balance and consensus_vs_sources', async () => {
++    it('Strategy DualSliders fire quality_vs_balance and consensus_vs_sources', async () => {
+         const user = userEvent.setup();
+         const { onChange } = renderPanel({ consensus_floor: 80 });
+-        await user.click(screen.getByRole('button', { name: /Scoring/ }));
+-        // sliders in DOM (T&S closed): QG floor(0), MinLegsFill(1),
+-        // Distribution Logic(2), Agreement Logic(3)
+-        const sliders = document.querySelectorAll('input[type="range"]');
+-        fireEvent.change(sliders[2], { target: { value: '80' } });
++        await openSection(user, /Strategy/);
++        // DualSlider renders SliderWithTicks (range input, no aria-label) between
++        // its left/right caption spans — locate each row by its label text.
++        const quality = dualSliderInput('Distribution Logic');
++        const agreement = dualSliderInput('Agreement Logic');
++        expect(quality, 'Distribution Logic DualSlider not found').toBeDefined();
++        expect(agreement, 'Agreement Logic DualSlider not found').toBeDefined();
++        fireEvent.change(quality as HTMLInputElement, { target: { value: '80' } });
+         let last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+         expect(last.quality_vs_balance).toBe(0.8);
+-        fireEvent.change(sliders[3], { target: { value: '30' } });
++        fireEvent.change(agreement as HTMLInputElement, { target: { value: '30' } });
+         last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+         expect(last.consensus_vs_sources).toBe(0.3);
+     });
+ 
+     it('Advanced NullableRow slider (Shrinkage k) change', () => {
+-        // Same controlled-panel pattern as TolFactor: pass enabled cfg so the
+-        // InlineSlider mounts. Find by rendered value (cfg 3 → '3').
++        // Same controlled-panel pattern: pass enabled cfg so the InlineSlider
++        // mounts. Find by rendered value (cfg 3 → '3').
+         const { onChange } = renderPanel({ consensus_shrinkage_k: 3 });
+         const sliders = Array.from(document.querySelectorAll('input[type="range"]')) as HTMLInputElement[];
+         const shrinkSlider = sliders.find((s) => s.value === '3');
+@@ -256,10 +280,10 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
+         expect(last.consensus_shrinkage_k).toBe(6);
+     });
+ 
+-    it('Quality Gate SliderRow (Consensus Floor) fires onChange', () => {
++    it('Quality SliderRow (Consensus Floor) fires onChange', () => {
+         const { onChange } = renderPanel({ consensus_floor: 70 });
+         const sliders = document.querySelectorAll('input[type="range"]');
+-        // Quality Gate is defaultOpen — its slider is the first in the DOM
++        // Quality is defaultOpen — its slider is the first in the DOM
+         fireEvent.change(sliders[0], { target: { value: '85' } });
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+         expect(last.consensus_floor).toBe(85);
+@@ -268,22 +292,23 @@ describe('BuilderPanel — Tolerance & Stop / Scoring / Advanced sections', () =
+     it('Agreement Logic disabled at consensus_floor 100 (DualSlider disabled)', async () => {
+         const user = userEvent.setup();
+         renderPanel({ consensus_floor: 100 });
+-        await user.click(screen.getByRole('button', { name: /Scoring/ }));
+-        const sliders = document.querySelectorAll('input[type="range"]');
+-        // Agreement Logic is sliders[3] (see Scoring test comment)
+-        expect((sliders[3] as HTMLInputElement).disabled).toBe(true);
++        await openSection(user, /Strategy/);
++        const agreement = dualSliderInput('Agreement Logic');
++        expect(agreement, 'Agreement Logic DualSlider not found').toBeDefined();
++        expect((agreement as HTMLInputElement).disabled).toBe(true);
+     });
+ });
+ 
+-describe('BuilderPanel — parametrized slider onChange paths', () => {
++describe('BuilderPanel — Advanced slider onChange paths', () => {
+     // Each field: [cfgValue, renderedSliderValue, fireValue, expected]
+     // Unique slider values per render (others null) disambiguate the by-value find.
++    // All these sliders live in the (closed-by-default) Advanced section — its
++    // children stay in the DOM, so the by-value query reaches them directly.
+     const cases: Array<[keyof BuilderConfig, number, string, string, number]> = [
+         ['stop_threshold', 0.92, '92', '95', 0.95],
+         ['odds_movement_weight', 0.06, '6', '10', 0.1],
+         ['odds_movement_strength_min', 0.07, '7', '12', 0.12],
+         ['min_source_edge', 0.04, '4', '10', 0.1],
+-        ['max_single_leg_odds', 3.7, '37', '40', 4.0],
+         ['min_pick_quality', 0.23, '23', '30', 0.3],
+         ['tol_lower', 0.21, '21', '30', 0.3],
+         ['tol_upper', 0.16, '16', '25', 0.25],
+@@ -301,11 +326,22 @@ describe('BuilderPanel — parametrized slider onChange paths', () => {
+         unmount();
+     });
+ 
+-    it('NullableRow toggle-off fires onChange with null (Max Overflow enabled → off)', async () => {
++    it('Max Leg Odds number input fires onChange with updated cfg', () => {
++        // WS-D rename pin: max_single_leg_odds → max_leg_odds. Bet Shape renders
++        // Max Leg Odds as a number input (min 1.01, step 0.01), not a slider.
++        const { onChange } = renderPanel({ max_leg_odds: 3.7 });
++        const input = screen.getByDisplayValue('3.7') as HTMLInputElement;
++        expect(input.type).toBe('number');
++        fireEvent.change(input, { target: { value: '4.5' } });
++        const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
++        expect(last.max_leg_odds).toBe(4.5);
++    });
++
++    it('NullableRow toggle-off fires onChange with null (Min Quality enabled → off)', async () => {
+         const user = userEvent.setup();
+-        const { onChange } = renderPanel({ max_legs_overflow: 1 });
++        const { onChange } = renderPanel({ min_pick_quality: 0.2 });
+         await user.click(toggleButtons()[0]);
+         const last = onChange.mock.calls[onChange.mock.calls.length - 1][0] as BuilderConfig;
+-        expect(last.max_legs_overflow).toBeNull();
++        expect(last.min_pick_quality).toBeNull();
+     });
+ });
+diff --git a/bet_dashboard/frontend/src/components/__tests__/OnboardingTour.test.tsx b/bet_dashboard/frontend/src/components/__tests__/OnboardingTour.test.tsx
+index 511512a..5af7aac 100644
+--- a/bet_dashboard/frontend/src/components/__tests__/OnboardingTour.test.tsx
++++ b/bet_dashboard/frontend/src/components/__tests__/OnboardingTour.test.tsx
+@@ -44,11 +44,11 @@ describe('OnboardingTour', () => {
+         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+     });
+ 
+-    it('Next moves to Create your strategy', async () => {
++    it('Next moves to Profiles & live preview', async () => {
+         const user = userEvent.setup();
+         renderTour();
+         await user.click(screen.getByRole('button', { name: 'Next' }));
+-        expect(screen.getByRole('dialog', { name: 'Create your strategy' })).toBeInTheDocument();
++        expect(screen.getByRole('dialog', { name: 'Profiles & live preview' })).toBeInTheDocument();
+     });
+ 
+     it('Back is disabled on step 0', () => {
+diff --git a/bet_dashboard/frontend/src/components/ui.tsx b/bet_dashboard/frontend/src/components/ui.tsx
+index d8e428d..2a0e9a7 100644
+--- a/bet_dashboard/frontend/src/components/ui.tsx
++++ b/bet_dashboard/frontend/src/components/ui.tsx
+@@ -90,8 +90,11 @@ export function Tooltip({ text, align = 'center', children }: TooltipProps) {
+       ref={triggerRef}
+       className="relative inline-flex items-center"
+       style={{ cursor: 'default' }}
++      tabIndex={0}
+       onMouseEnter={() => setVisible(true)}
+       onMouseLeave={() => setVisible(false)}
++      onFocus={() => setVisible(true)}
++      onBlur={() => setVisible(false)}
+     >
+       {children}
+ 
+diff --git a/bet_dashboard/frontend/src/index.css b/bet_dashboard/frontend/src/index.css
+index bedc675..b14757e 100644
+--- a/bet_dashboard/frontend/src/index.css
++++ b/bet_dashboard/frontend/src/index.css
+@@ -98,27 +98,43 @@
+     color: var(--text-muted);
+   }
+ 
+-  /* Number inputs — clean monospace, no spinners */
+-  input[type=number].field {
+-    font-family: var(--font-mono);
+-    font-size: 13px;
+-    font-weight: 500;
+-    text-align: right;
+-    letter-spacing: 0.02em;
+-    -moz-appearance: textfield;
+-    padding-right: 10px;
+-  }
++/* Number inputs: custom stepper arrows (pair with <NumberField />) */
++input[type="number"].field {
++  font-family: var(--font-mono);
++  font-size: 13px;
++  font-weight: 500;
++  text-align: right;
++  letter-spacing: 0.02em;
++  appearance: textfield;
++  -moz-appearance: textfield;
++  padding-right: 2px;
++}
+ 
+-  input[type=number].field::-webkit-outer-spin-button,
+-  input[type=number].field::-webkit-inner-spin-button {
+-    -webkit-appearance: none;
+-    margin: 0;
+-  }
++input[type="number"].field::-webkit-inner-spin-button,
++input[type="number"].field::-webkit-outer-spin-button {
++  -webkit-appearance: none;
++  margin: 0;
++}
+ 
+-  input[type=number].field:focus {
+-    border-color: var(--accent);
+-    background: rgba(61, 123, 255, .04);
+-  }
++.num-step {
++  flex: 1;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  padding: 0;
++  border: 0;
++  background: transparent;
++  color: var(--text-secondary);
++  opacity: 0.6;
++  cursor: pointer;
++  transition: opacity 0.15s;
++}
++.num-step:hover { opacity: 1; color: var(--accent); }
++
++input[type="number"].field:focus {
++  border-color: var(--accent);
++  background: rgba(61, 123, 255, .04);
++}
+ 
+   /* Select */
+   select.field {
+diff --git a/bet_dashboard/frontend/src/pages/Services.tsx b/bet_dashboard/frontend/src/pages/Services.tsx
+index 0326ab4..2a6aa22 100644
+--- a/bet_dashboard/frontend/src/pages/Services.tsx
++++ b/bet_dashboard/frontend/src/pages/Services.tsx
+@@ -1,133 +1,95 @@
+-import { useCallback, useEffect, useState } from 'react';
+-import { fetchServices, saveServiceSettings, toggleService } from '../api/data';
++import { useCallback, useEffect, useRef, useState } from 'react';
++import { fetchServices, toggleService } from '../api/data';
+ import EmptyState, { ServicesEmptyIcon } from '../components/EmptyState';
+ import ServiceCard from '../components/ServiceCard';
+ import { TooltipIcon } from '../components/ui';
+-import type { ServicesData } from '../types';
+-
+-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+-import { StaticTimePicker } from '@mui/x-date-pickers/StaticTimePicker';
+-import { createTheme, ThemeProvider } from '@mui/material/styles';
+-import dayjs from 'dayjs';
+-
+-// Custom theme mapping the high-fidelity CSS variable tokens
+-const muiDarkTheme = createTheme({
+-    palette: {
+-        mode: 'dark',
+-        background: {
+-            default: '#131C2E', // var(--bg-raised)
+-            paper: '#18243A',   // var(--bg-card)
+-        },
+-        primary: {
+-            main: '#7C3AED',    // var(--purple)
+-        },
+-        text: {
+-            primary: '#C9D6F0',   // var(--text-primary)
+-            secondary: '#b8c1d3', // var(--text-secondary)
+-        },
+-    },
+-    typography: {
+-        fontFamily: "'JetBrains Mono', 'Inter', monospace",
+-        fontSize: 12,
+-    },
+-    components: {
+-        MuiPickersLayout: {
+-            styleOverrides: {
+-                root: {
+-                    backgroundColor: '#131C2E',
+-                    color: '#C9D6F0',
+-                    border: '1px solid rgba(255, 255, 255, 0.07)',
+-                    borderRadius: '12px',
+-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
+-                    overflow: 'hidden',
+-                },
+-            },
+-        },
+-        MuiPickersToolbar: {
+-            styleOverrides: {
+-                root: {
+-                    backgroundColor: '#18243A',
+-                    borderRight: '1px solid rgba(255, 255, 255, 0.07)',
+-                    '& .MuiTypography-root': {
+-                        fontFamily: "'Outfit', sans-serif",
+-                    },
+-                },
+-            },
+-        },
+-        MuiClock: {
+-            styleOverrides: {
+-                root: {
+-                    backgroundColor: '#131C2E',
+-                },
+-            },
+-        },
+-        MuiClockPointer: {
+-            styleOverrides: {
+-                root: {
+-                    backgroundColor: '#7C3AED',
+-                },
+-                thumb: {
+-                    backgroundColor: '#7C3AED',
+-                    borderColor: '#7C3AED',
+-                },
+-            },
+-        },
+-        MuiClockNumber: {
+-            styleOverrides: {
+-                root: {
+-                    fontFamily: "'JetBrains Mono', monospace",
+-                    color: '#b8c1d3',
+-                    '&.Mui-selected': {
+-                        color: '#ffffff',
+-                    },
+-                },
+-            },
+-        },
+-        MuiClockAmPmSelectedCircle: {
+-            styleOverrides: {
+-                root: {
+-                    backgroundColor: '#7C3AED',
+-                },
+-            },
+-        },
+-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+-    } as any,
+-});
++import client from '../api/client';
++import type { ProfileSchedule, ServicesData } from '../types';
+ 
+ export default function Services() {
+     const [data, setData] = useState<ServicesData | null>(null);
+-    const [genHour, setGenHour] = useState(8);
+-    const [genMinute, setGenMinute] = useState(0);
+-    const [status, setStatus] = useState('');
++    // Per-profile auto-generation rows: null = backend served the legacy
++    // shape only, the per-profile section stays hidden and nothing changes.
++    const [rows, setRows] = useState<ProfileSchedule[] | null>(null);
++    const [rowsSaved, setRowsSaved] = useState('');
++    // Auto-save to disk on change (same pattern as the builder tab): only a
++    // real row edit sets this flag — loading rows never rewrites disk.
++    const dirtyRef = useRef(false);
++    const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+ 
+     const load = useCallback(async () => {
+         try {
+             const d = await fetchServices();
+             setData(d);
+-            setGenHour(d.generate_hour);
+-            setGenMinute(d.generate_minute);
++            setRows(d.profile_schedules
++                ? [...d.profile_schedules].sort(
++                    // order may be null/non-numeric on hand-edited YAML: coerce
++                    // and tie-break by name so the rendered order is stable.
++                    (a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name),
++                )
++                : null);
+         } catch {
+-            // Network/API failure: keep the loading card rather than crash;
+-            // surface the failure in the status line (existing app pattern).
+-            setStatus('⚠ Failed to load services — check connection');
++            // Network/API failure: keep the loading card rather than crash.
++            setData(null);
+         }
+     }, []);
+ 
+     // eslint-disable-next-line react-hooks/set-state-in-effect
+     useEffect(() => { load(); }, [load]);
+ 
+-    async function handleSave() {
+-        await saveServiceSettings(genHour, genMinute);
+-        setStatus('✓ Settings saved — schedules recalculated');
+-        load();
+-    }
++    // Auto-save rows (debounced 600ms) — the manual Save button is gone.
++    useEffect(() => {
++        if (!rows?.length || !dirtyRef.current) return;
++        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
++        saveDebounceRef.current = setTimeout(async () => {
++            dirtyRef.current = false;
++            try {
++                await client.post('/services/settings', { profile_schedules: rows });
++                setRowsSaved('✓ Profile schedules saved');
++            } catch {
++                dirtyRef.current = true;
++                setRowsSaved('⚠ Failed to save profile schedules — will retry on next change');
++            }
++        }, 600);
++        return () => {
++            if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
++        };
++    }, [rows]);
+ 
+     async function handleToggle(name: string) {
+         await toggleService(name);
+         await load();
+     }
+ 
++    function patchRow(index: number, patch: Partial<ProfileSchedule>) {
++        dirtyRef.current = true;
++        setRows(cur => (cur ?? []).map((row, i) => (i === index ? { ...row, ...patch } : row)));
++    }
++
++    // Units and Target Payout are mutually exclusive: writing one blocks the
++    // other. Typing in units clears the payout; typing a payout keeps units
++    // stored but the units input becomes read-only via the disabled flag.
++    function patchUnits(index: number, raw: string) {
++        const units = raw === '' ? 0 : Number(raw);
++        patchRow(index, { units, target_payout: units > 0 ? null : (rows?.[index]?.target_payout ?? null) });
++    }
++
++    function patchPayout(index: number, raw: string) {
++        patchRow(index, { target_payout: raw === '' ? null : Number(raw) });
++    }
++
++    function moveRow(index: number, direction: -1 | 1) {
++        dirtyRef.current = true;
++        setRows(cur => {
++            if (!cur) return cur;
++            const target = index + direction;
++            if (target < 0 || target >= cur.length) return cur;
++            const next = [...cur];
++            [next[index], next[target]] = [next[target], next[index]];
++            return next.map((row, i) => ({ ...row, order: i }));
++        });
++    }
++
+     if (!data) return (
+         <div>
+             <div className="flex items-baseline justify-between mb-5">
+@@ -136,9 +98,7 @@ export default function Services() {
+                 </h1>
+             </div>
+             <div className="card text-center py-16">
+-                <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>
+-                    Loading services…
+-                </p>
++                <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>Loading services…</p>
+             </div>
+         </div>
+     );
+@@ -156,22 +116,20 @@ export default function Services() {
+                 </span>
+             </div>
+ 
+-            {/* AC-06: guidance only when generator exists and is off. Loader stays loader. */}
++            {/* Guidance only when the generator exists and is off. */}
+             {data.services?.generator && !data.services.generator.enabled && (
+                 <div className="mb-5">
+                     <EmptyState
+                         icon={<ServicesEmptyIcon />}
+                         title="Generate Slips is off"
+-                        steps={['Enable Generate Slips service', 'Set schedule', 'Save']}
++                        steps={['Enable Generate Slips service', 'Set a per-profile schedule', 'Changes save automatically']}
+                         primary={{ label: 'Enable Generate Slips', onClick: () => { void handleToggle('generator'); } }}
+-                        secondary={{ label: 'Save Settings', onClick: () => { void handleSave(); } }}
+                     />
+                 </div>
+             )}
+ 
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+-
+-                {/* Service cards */}
++                {/* Service cards — each a third of the row on wide screens */}
+                 {Object.values(data.services ?? {}).map(svc => (
+                     <ServiceCard
+                         key={svc.name}
+@@ -180,54 +138,139 @@ export default function Services() {
+                     />
+                 ))}
+ 
+-                {/* Scheduler settings */}
+-                <div className="card p-4 lg:col-span-3">
+-                    <p className="font-mono text-[10px] tracking-widest uppercase mb-4"
+-                        style={{ color: 'var(--text-secondary)' }}>Scheduled Time</p>
+-
+-                    <div className="grid grid-cols-1 gap-6 mb-4">
+-
+-                        {/* Generate Slips hour */}
+-                        <div>
+-                            <div className="flex items-center gap-1.5 mb-4">
+-                                <span className="font-sans text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+-                                    Generate Slips
+-                                    <TooltipIcon text="Creates betting slips based on builder configurations and predictions. Runs daily at the scheduled time." align="right" />
+-                                </span>
+-                            </div>
+-
+-                            <div className="flex justify-center lg:justify-start">
+-                                <ThemeProvider theme={muiDarkTheme}>
+-                                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+-                                        <StaticTimePicker
+-                                            ampm={false}
+-                                            orientation="landscape"
+-                                            value={dayjs().hour(genHour).minute(genMinute).second(0)}
+-                                            onChange={(newValue) => {
+-                                                if (newValue) {
+-                                                    setGenHour(newValue.hour());
+-                                                    setGenMinute(newValue.minute());
+-                                                }
+-                                            }}
+-                                            slotProps={{
+-                                                actionBar: {
+-                                                    actions: []
+-                                                }
+-                                            }}
+-                                        />
+-                                    </LocalizationProvider>
+-                                </ThemeProvider>
+-                            </div>
++                {/* Per-profile auto-generation schedule: the only scheduling
++                    surface. The global schedule time is gone — each profile
++                    runs at its own row time with no fallback. Edits auto-save
++                    to disk (same debounce pattern as the builder tab). */}
++                {rows && rows.length > 0 && (
++                    <div className="card p-4 lg:col-span-3">
++                        <div className="flex items-center gap-1.5 mb-4">
++                            <p className="font-mono text-[10px] tracking-widest uppercase"
++                                style={{ color: 'var(--text-secondary)' }}>Per-Profile Scheduling</p>
++                            <TooltipIcon
++                                text="Each profile generates at its own time. Units and Target Payout are mutually exclusive — fill one, the other is blocked. Daily run count caps how many slips that profile builds per day. Changes save automatically."
++                                align="right"
++                            />
++                            {rowsSaved && (
++                                <span className="ml-auto text-[11px] font-mono" style={{ color: 'var(--win)' }}>{rowsSaved}</span>
++                            )}
+                         </div>
+-                    </div>
+ 
+-                    <div className="flex items-center gap-3 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+-                        <button className="btn-primary" onClick={handleSave}>Save Settings</button>
+-                        {status && (
+-                            <span className="text-[11px] font-mono" style={{ color: 'var(--win)' }}>{status}</span>
+-                        )}
++                        <div className="overflow-x-auto">
++                            <table className="w-full border-collapse">
++                                <thead>
++                                    <tr className="text-left">
++                                        {['Profile', 'Time', 'Daily', 'Auto', 'Units', 'Target Payout', 'Order'].map(h => (
++                                            <th key={h} className="pb-2 pr-3 font-mono text-[10px] tracking-wider uppercase font-normal"
++                                                style={{ color: 'var(--text-secondary)' }}>{h}</th>
++                                        ))}
++                                    </tr>
++                                </thead>
++                                <tbody>
++                                    {rows.map((row, i) => {
++                                        const payoutOn = row.target_payout != null && row.target_payout > 0;
++                                        const unitsOn = !payoutOn && (row.units ?? 0) > 0;
++                                        return (
++                                            <tr key={row.name} className="border-t" style={{ borderColor: 'var(--border)' }}>
++                                                <td className="py-2 pr-3">
++                                                    <span className="font-mono text-[12px]" title={row.name}
++                                                        style={{ color: 'var(--text-bright)' }}>{row.name}</span>
++                                                </td>
++                                                <td className="py-2 pr-3">
++                                                    <div className="flex items-center gap-1">
++                                                        <select
++                                                            aria-label={`Generation hour for ${row.name}`}
++                                                            className="field w-20"
++                                                            value={row.generate_hour}
++                                                            onChange={(e) => patchRow(i, { generate_hour: Number(e.target.value) })}
++                                                        >
++                                                            {Array.from({ length: 24 }, (_, h) => (
++                                                                <option key={h} value={h}>{String(h).padStart(2, '0')}</option>
++                                                            ))}
++                                                        </select>
++                                                        <span className="font-mono text-[12px]" style={{ color: 'var(--text-secondary)' }}>:</span>
++                                                        <select
++                                                            aria-label={`Generation minute for ${row.name}`}
++                                                            className="field w-20"
++                                                            value={row.generate_minute}
++                                                            onChange={(e) => patchRow(i, { generate_minute: Number(e.target.value) })}
++                                                        >
++                                                            {Array.from({ length: 60 }, (_, m) => (
++                                                                <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
++                                                            ))}
++                                                        </select>
++                                                    </div>
++                                                </td>
++                                                <td className="py-2 pr-3">
++                                                    <input
++                                                        aria-label={`Daily run count for ${row.name}`}
++                                                        className="field w-20"
++                                                        type="number"
++                                                        min={0}
++                                                        step={1}
++                                                        value={row.run_daily_count ?? 0}
++                                                        onChange={(e) => patchRow(i, { run_daily_count: e.target.value === '' ? 0 : Number(e.target.value) })}
++                                                    />
++                                                </td>
++                                                <td className="py-2 pr-3">
++                                                    <button
++                                                        className={row.auto_generate ? 'btn-primary' : 'btn-ghost'}
++                                                        aria-label={`${row.auto_generate ? 'Disable' : 'Enable'} auto-generation for ${row.name}`}
++                                                        onClick={() => patchRow(i, { auto_generate: !row.auto_generate })}
++                                                    >
++                                                        {row.auto_generate ? 'On' : 'Off'}
++                                                    </button>
++                                                </td>
++                                                <td className="py-2 pr-3">
++                                                    <input
++                                                        aria-label={`Units for ${row.name}`}
++                                                        className="field w-20"
++                                                        type="number"
++                                                        min={0}
++                                                        step={0.1}
++                                                        disabled={payoutOn}
++                                                        style={{ opacity: payoutOn ? 0.5 : 1, cursor: payoutOn ? 'not-allowed' : 'text' }}
++                                                        value={row.units ?? ''}
++                                                        onChange={(e) => patchUnits(i, e.target.value)}
++                                                    />
++                                                </td>
++                                                <td className="py-2 pr-3">
++                                                    <input
++                                                        aria-label={`Target payout for ${row.name}`}
++                                                        className="field w-24"
++                                                        type="number"
++                                                        min={0}
++                                                        step={0.1}
++                                                        disabled={unitsOn}
++                                                        style={{ opacity: unitsOn ? 0.5 : 1, cursor: unitsOn ? 'not-allowed' : 'text' }}
++                                                        value={row.target_payout ?? ''}
++                                                        onChange={(e) => patchPayout(i, e.target.value)}
++                                                    />
++                                                </td>
++                                                <td className="py-2">
++                                                    <div className="flex items-center gap-1">
++                                                        <button
++                                                            className="btn-ghost"
++                                                            aria-label={`Move ${row.name} up`}
++                                                            disabled={i === 0}
++                                                            onClick={() => moveRow(i, -1)}
++                                                        >↑</button>
++                                                        <button
++                                                            className="btn-ghost"
++                                                            aria-label={`Move ${row.name} down`}
++                                                            disabled={i === rows.length - 1}
++                                                            onClick={() => moveRow(i, 1)}
++                                                        >↓</button>
++                                                    </div>
++                                                </td>
++                                            </tr>
++                                        );
++                                    })}
++                                </tbody>
++                            </table>
++                        </div>
+                     </div>
+-                </div>
++                )}
+             </div>
+         </div>
+     );
+diff --git a/bet_dashboard/frontend/src/pages/SmartBuilder.tsx b/bet_dashboard/frontend/src/pages/SmartBuilder.tsx
+index 4410dad..96bb2ec 100644
+--- a/bet_dashboard/frontend/src/pages/SmartBuilder.tsx
++++ b/bet_dashboard/frontend/src/pages/SmartBuilder.tsx
+@@ -5,7 +5,6 @@ import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
+ import { FirstSlipToast } from '../components/OnboardingTour';
+ import { markFirstSlip } from '../components/tourStorage';
+ import AnalyticsDashboard from '../components/AnalyticsDashboard';
+-import { TooltipIcon } from '../components/ui';
+ import {
+     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
+     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
+@@ -17,14 +16,14 @@ import type { BuilderConfig, Profile, ProfilesMap, PreviewResult, ManualLegIn }
+ 
+ const DEFAULT_CFG: BuilderConfig = {
+     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
+-    consensus_floor: 50, min_odds: 1.05, included_markets: null, included_leagues: null,
+-    tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: 0.7,
++    consensus_floor: 50, min_leg_odds: 1.05, included_markets: null, included_leagues: null,
++    tolerance_factor: null, stop_threshold: null, min_legs_fill_ratio: null,
+     quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
+     date_from: null, date_to: null,
+     excluded_sources: null,
+     consensus_shrinkage_k: null,
+     min_source_edge: null,
+-    max_single_leg_odds: null,
++    max_leg_odds: 3.5,
+     tol_lower: null,
+     tol_upper: null,
+     balance_decay: 'gaussian',
+@@ -33,8 +32,136 @@ const DEFAULT_CFG: BuilderConfig = {
+     odds_movement_strength_min: null,
+ };
+ 
++function orderedProfileNames(profiles: ProfilesMap): string[] {
++    return Object.keys(profiles).sort((a, b) => {
++        const orderA = Number(profiles[a].order) || 0;
++        const orderB = Number(profiles[b].order) || 0;
++        return orderA - orderB || a.localeCompare(b);
++    });
++}
++
+ interface Props { filters: GlobalFilters; refreshKey: number }
+ 
++// Units and Target Payout are mutually exclusive: the filled one drives the
++// slip stake, the other shows a live calculated preview while disabled.
++interface AddToSlipsModalProps {
++    legsCount: number;
++    totalOdds: number;
++    units: number;
++    targetPayout: number;
++    onUnitsChange: (units: number) => void;
++    onTargetPayoutChange: (payout: number) => void;
++    onConfirm: () => void;
++    onClose: () => void;
++}
++
++function AddToSlipsModal({
++    legsCount, totalOdds, units, targetPayout,
++    onUnitsChange, onTargetPayoutChange, onConfirm, onClose,
++}: AddToSlipsModalProps) {
++    // Escape closes (matches SlipDetailModal overlay contract).
++    useEffect(() => {
++        const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
++        window.addEventListener('keydown', handleEscape);
++        return () => window.removeEventListener('keydown', handleEscape);
++    }, [onClose]);
++
++    // Both inputs start EMPTY on open (no placeholder text). Typing a number
++    // in one field claims it: the other field becomes disabled and shows the
++    // live calculated preview. Clearing the field releases it back to empty
++    // and re-enables the other input. One field is active at a time.
++    const [mode, setMode] = useState<'units' | 'payout' | null>(null);
++    const [unitsText, setUnitsText] = useState('');
++    const [payoutText, setPayoutText] = useState('');
++
++    const payoutActive = mode === 'payout';
++    const unitsActive = mode === 'units';
++    // required units for the typed payout = payout / total odds, 1dp
++    const previewUnits = Math.round((targetPayout / (totalOdds || 1)) * 10) / 10;
++    // resulting payout for the typed units = units × total odds, 1dp
++    const previewPayout = Math.round(units * (totalOdds || 1) * 10) / 10;
++
++    return (
++        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
++            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
++            <div role="dialog" aria-modal="true" aria-label="Add to Slips"
++                className="relative w-full max-w-md rounded-xl shadow-2xl"
++                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
++                <div className="px-5 py-4 border-b flex items-center justify-between"
++                    style={{ borderColor: 'var(--border)' }}>
++                    <h2 className="text-lg font-display font-bold" style={{ color: 'var(--text-bright)' }}>
++                        Add to Slips
++                    </h2>
++                    <span className="text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
++                        {legsCount} legs @ {totalOdds.toFixed(2)}
++                    </span>
++                </div>
++                <div className="px-5 py-4 space-y-4">
++                    <p className="text-[11px] font-sans" style={{ color: 'var(--text-secondary)' }}>
++                        Units and Target Payout are mutually exclusive — fill one, the other previews the calculated value.
++                    </p>
++                    <div className="flex items-center gap-3">
++                        <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Units</span>
++                        <input
++                            aria-label="Units"
++                            className="field w-24"
++                            type="number"
++                            min={0.1}
++                            step={0.1}
++                            autoFocus
++                            disabled={payoutActive}
++                            style={{
++                                opacity: payoutActive ? 0.5 : 1,
++                                cursor: payoutActive ? 'not-allowed' : 'text',
++                                color: payoutActive ? 'var(--text-secondary)' : undefined,
++                            }}
++                            value={payoutActive ? String(previewUnits) : unitsText}
++                            onChange={e => {
++                                const v = e.target.value;
++                                setUnitsText(v);
++                                setMode(v === '' ? null : 'units');
++                                onUnitsChange(v === '' ? 1 : +v);
++                            }} />
++                        {payoutActive && (
++                            <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
++                        )}
++                    </div>
++                    <div className="flex items-center gap-3">
++                        <span className="text-[10px] font-mono uppercase w-24" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
++                        <input
++                            aria-label="Target Payout"
++                            className="field w-24"
++                            type="number"
++                            min={0}
++                            step={0.1}
++                            disabled={unitsActive}
++                            style={{
++                                opacity: unitsActive ? 0.5 : 1,
++                                cursor: unitsActive ? 'not-allowed' : 'text',
++                                color: unitsActive ? 'var(--text-secondary)' : undefined,
++                            }}
++                            value={unitsActive ? String(previewPayout) : payoutText}
++                            onChange={e => {
++                                const v = e.target.value;
++                                setPayoutText(v);
++                                setMode(v === '' ? null : 'payout');
++                                onTargetPayoutChange(v === '' ? 0 : +v);
++                            }} />
++                        {unitsActive && (
++                            <span className="text-[10px] font-mono" style={{ color: 'var(--text-secondary)' }}>preview</span>
++                        )}
++                    </div>
++                </div>
++                <div className="px-5 py-4 border-t flex justify-end gap-2"
++                    style={{ borderColor: 'var(--border)' }}>
++                    <button className="btn-ghost" onClick={onClose}>Cancel</button>
++                    <button className="btn-success" onClick={onConfirm}>Add to Slips</button>
++                </div>
++            </div>
++        </div>
++    );
++}
++
+ const STORAGE_KEY = 'smart_builder_state';
+ 
+ export default function SmartBuilder({ filters, refreshKey }: Props) {
+@@ -47,20 +174,17 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+         }
+         return DEFAULT_CFG;
+     });
++    // The 'manual' profile is gone: the active selection is always a saved
++    // profile and defaults to the first one served by the backend.
+     const [activeName, setActiveName] = useState(() => {
+         const saved = localStorage.getItem(STORAGE_KEY);
+-        return saved ? JSON.parse(saved).activeName : 'manual';
++        return saved ? (JSON.parse(saved).activeName || '') : '';
+     });
+     const [units, setUnits] = useState(() => {
+         const saved = localStorage.getItem(STORAGE_KEY);
+-        return saved ? JSON.parse(saved).units : 1.0;
+-    });
+-    const [runDaily, setRunDaily] = useState(() => {
+-        const saved = localStorage.getItem(STORAGE_KEY);
+-        return saved ? JSON.parse(saved).runDaily : 0;
++        return saved ? (JSON.parse(saved).units ?? 1.0) : 1.0;
+     });
+ 
+-    // New: Target Payout logic
+     const [targetPayout, setTargetPayout] = useState(() => {
+         const saved = localStorage.getItem(STORAGE_KEY);
+         return saved ? (JSON.parse(saved).targetPayout ?? 0) : 0;
+@@ -74,7 +198,13 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+     const [availableSources, setAvailableSources] = useState<string[]>([]);
+     const [status, setStatus] = useState('');
+     const [milestoneOpen, setMilestoneOpen] = useState(false);
++    const [slipModalOpen, setSlipModalOpen] = useState(false);
+     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
++    // Auto-save to the active profile: only a real profile-config edit sets this
++    // flag — profile switches/loads and session-only stake/payout entry in the
++    // Add-to-Slips modal must not rewrite disk.
++    const dirtyRef = useRef(false);
++    const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+ 
+     // Persist state to localStorage
+     useEffect(() => {
+@@ -82,19 +212,57 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+             cfg: { ...cfg, date_from: null, date_to: null },
+             activeName,
+             units,
+-            runDaily,
+             targetPayout
+         }));
+-    }, [cfg, activeName, units, runDaily, targetPayout]);
++    }, [cfg, activeName, units, targetPayout]);
+ 
+     // Load profiles + excluded on mount
+     useEffect(() => {
+-        fetchProfiles().then(p => setProfiles(p ?? {})).catch(() => setProfiles({}));
++        // Legacy payloads kept a `runDaily` key that no longer exists in this
++        // page (moved to Services); drop it once so storage stays clean.
++        const saved = localStorage.getItem(STORAGE_KEY);
++        if (saved) {
++            try {
++                const parsed = JSON.parse(saved) as Record<string, unknown>;
++                if ('runDaily' in parsed) {
++                    delete parsed.runDaily;
++                    localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
++                }
++            } catch {
++                // Corrupt payload: leave it for the writer to overwrite.
++            }
++        }
++        fetchProfiles()
++            .then(p => setProfiles(p))
++            .catch(() => setStatus('⚠ Profiles could not be loaded — check the server and refresh to retry'));
+         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
+         fetchLeagues().then(setAvailableLeagues).catch(() => setAvailableLeagues([]));
+         fetchSourcesConfig().then(c => setAvailableSources(c.sources)).catch(() => setAvailableSources([]));
+     }, []);
+ 
++    // Once profiles arrive: disk is the single source of truth. A persisted
++    // selection that still exists is re-hydrated from disk (stale localStorage
++    // cfg/units never win); nothing persisted selects the first profile. A
++    // user edit in flight is never clobbered and any pending debounced save
++    // is cancelled.
++    useEffect(() => {
++        if (Object.keys(profiles).length === 0) return;
++        if (dirtyRef.current) return;
++        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
++        if (activeName && activeName in profiles) {
++            loadProfile(activeName, profiles[activeName]);
++            return;
++        }
++        const first = orderedProfileNames(profiles)[0];
++        setActiveName(first);
++        const data = profiles[first];
++        setCfg(cfgFromProfile(data));
++        setUnits(data.units ?? 1);
++        setTargetPayout(data.target_payout ?? 0);
++        dirtyRef.current = false;
++        // preview triggered by the effect below via mergedCfg dependency chain
++    }, [profiles]); // eslint-disable-line react-hooks/exhaustive-deps -- one-shot default selection when profiles load
++
+     // Compute merged config with global date filters (for preview only)
+     const mergedCfg = { ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null };
+ 
+@@ -113,9 +281,17 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+         }, 350);
+     }, []);
+ 
++    // Stake fields are deliberately NOT sent: units/target_payout are owned by
++    // the Services page (desync C). Omitting them keeps the backend's
++    // merge-on-write behaviour — persisted values survive a builder save.
++    function profileFromConfig(name: string) {
++        return { name, ...cfg, date_from: null, date_to: null };
++    }
++
+     function handleCfgChange(next: BuilderConfig) {
+         setCfg(next);
+-        setActiveName('manual');
++        dirtyRef.current = true;
++        setStatus('');
+         triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+     }
+ 
+@@ -125,10 +301,37 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+     useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
+ 
+     // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
+-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate: fires ONLY on excluded_sources changes; other cfg fields flow through handleCfgChange
++    const lastExcluded = useRef<string | null>(null);
+     useEffect(() => {
++        if (lastExcluded.current === JSON.stringify(cfg.excluded_sources ?? null)) return;
++        lastExcluded.current = JSON.stringify(cfg.excluded_sources ?? null);
+         triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+-    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]);
++    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- cfg is read, not tracked: exclusion-only trigger with a change guard
++
++    // Auto-save to the ACTIVE profile (debounced). The manual Save button is
++    // gone — every config change lands on the selected profile on disk.
++    // Session-only stake/payout entry (Add-to-Slips modal, auto-calc from target
++    // payout) never sets dirtyRef, so it cannot reach disk; units/targetPayout
++    // are no longer deps because the payload no longer carries them.
++    useEffect(() => {
++        if (!activeName || !dirtyRef.current) return;
++        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
++        saveDebounceRef.current = setTimeout(async () => {
++            dirtyRef.current = false;
++            try {
++                await saveProfile(profileFromConfig(activeName));
++                const updated = await fetchProfiles();
++                setProfiles(updated ?? {});
++                setStatus(`✓ Saved to '${activeName}'`);
++            } catch {
++                dirtyRef.current = true;
++                setStatus('⚠ Save failed — will retry on next change');
++            }
++        }, 600);
++        return () => {
++            if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
++        };
++    }, [cfg, activeName]); // eslint-disable-line react-hooks/exhaustive-deps -- profileFromConfig/filters read at call time; deps cover every payload input (stake fields excluded)
+ 
+     // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
+     useEffect(() => {
+@@ -162,18 +365,18 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+         triggerPreview(mergedCfg);
+     }
+ 
+-    function loadProfile(name: string, data: Profile) {
+-        const next: BuilderConfig = {
++    function cfgFromProfile(data: Profile): BuilderConfig {
++        return {
+             target_odds: data.target_odds ?? 3,
+             target_legs: data.target_legs ?? 3,
+             max_legs_overflow: data.max_legs_overflow ?? null,
+             consensus_floor: data.consensus_floor ?? 50,
+-            min_odds: data.min_odds ?? 1.05,
++            min_leg_odds: data.min_leg_odds ?? 1.05,
+             included_markets: data.included_markets ?? null,
+             included_leagues: data.included_leagues ?? null,
+             tolerance_factor: data.tolerance_factor ?? null,
+             stop_threshold: data.stop_threshold ?? null,
+-            min_legs_fill_ratio: data.min_legs_fill_ratio ?? 0.7,
++            min_legs_fill_ratio: data.min_legs_fill_ratio ?? null,
+             quality_vs_balance: data.quality_vs_balance ?? 0.5,
+             consensus_vs_sources: data.consensus_vs_sources ?? 0.5,
+             date_from: null,
+@@ -181,7 +384,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+             excluded_sources: data.excluded_sources ?? null,
+             consensus_shrinkage_k: data.consensus_shrinkage_k ?? null,
+             min_source_edge: data.min_source_edge ?? null,
+-            max_single_leg_odds: data.max_single_leg_odds ?? null,
++            max_leg_odds: data.max_leg_odds ?? 3.5,
+             tol_lower: data.tol_lower ?? null,
+             tol_upper: data.tol_upper ?? null,
+             balance_decay: data.balance_decay ?? 'gaussian',
+@@ -189,34 +392,60 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+             odds_movement_weight: data.odds_movement_weight ?? null,
+             odds_movement_strength_min: data.odds_movement_strength_min ?? null,
+         };
+-        setCfg(next);
++    }
++
++    function loadProfile(name: string, data: Profile) {
++        setCfg(cfgFromProfile(data));
+         setActiveName(name);
+         setUnits(data.units ?? 1);
+-        setRunDaily(data.run_daily_count ?? 0);
+         setTargetPayout(data.target_payout ?? 0);
+-        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
++        dirtyRef.current = false;
++        triggerPreview({ ...cfgFromProfile(data), date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+     }
+ 
+-    async function handleSaveProfile() {
+-        const clean = activeName.replace(/[^a-z0-9_-]/gi, '').toLowerCase();
+-        if (!clean || clean === 'manual') {
+-            setStatus('Enter a profile name first.'); return;
++    // Per-card delete. Deleting the ACTIVE profile re-selects the first
++    // remaining profile (there is no 'manual' fallback anymore).
++    async function handleDeleteProfile(name: string) {
++        if (!name || !(name in profiles)) {
++            setStatus(`'${name}' is not a saved profile`);
++            return;
+         }
+-        // Profile accepts null dates (cycle-6 pin: runtime-only keys nulled on
+-        // disk) — null them explicitly instead of destructuring them out.
+-        await saveProfile({ name: clean, ...cfg, date_from: null, date_to: null, units, target_payout: targetPayout, run_daily_count: runDaily });
++        await deleteProfile(name);
+         const updated = await fetchProfiles();
+         setProfiles(updated ?? {});
+-        setStatus(`✓ Profile '${clean}' saved`);
++        const remaining = orderedProfileNames(updated ?? {});
++        if (activeName === name) {
++            if (remaining.length > 0) {
++                loadProfile(remaining[0], (updated as ProfilesMap)[remaining[0]]);
++            } else {
++                setActiveName('');
++            }
++        }
++        setStatus(`Deleted '${name}'`);
+     }
+ 
+-    async function handleDeleteProfile() {
+-        if (!activeName || activeName === 'manual') return;
+-        await deleteProfile(activeName);
+-        const updated = await fetchProfiles();
+-        setProfiles(updated ?? {});
+-        setActiveName('manual');
+-        setStatus(`Deleted '${activeName}'`);
++    // '+' creates a profile copying the CURRENT builder config. Name is the
++    // smallest unused new{N} — deterministic even after deletions.
++    const createBusy = useRef(false);
++    async function handleCreateProfile() {
++        // Two fast clicks would both read the same stale profiles map and
++        // both save 'new1' (POST overwrites same-name profiles) — guard the
++        // in-flight save so '+' is single-shot until the refetch lands.
++        if (createBusy.current) return;
++        createBusy.current = true;
++        try {
++            let n = 1;
++            while (`new${n}` in profiles) n += 1;
++            const name = `new${n}`;
++            const payload = profileFromConfig(name);
++            await saveProfile(payload);
++            const updated = await fetchProfiles();
++            setProfiles(updated ?? {});
++            loadProfile(name, updated?.[name] ?? (payload as unknown as Profile));
++            setStatus(`✓ Saved to '${name}'`);
++        } finally {
++            createBusy.current = false;
++        }
+     }
+ 
+     async function handleAddToSlips() {
+@@ -254,7 +483,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+         }));
+ 
+         const id = await addSlip(activeName, manualLegs, units);
+-        // AC-06: first successful addSlip (Build) counts as first slip.
++        setSlipModalOpen(false);
++        // first successful addSlip (Build) counts as first slip.
+         if (markFirstSlip()) setMilestoneOpen(true);
+         setStatus(`✓ Slip #${id} added to '${activeName}'`);
+         triggerPreview(mergedCfg);
+@@ -267,44 +497,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+             {/* ── Left Sidebar — Responsive width ─────────────────────────────── */}
+             <div className="w-full xl:w-[350px] 2xl:w-[400px] shrink-0">
+                 <div className="sticky top-4 space-y-4">
+-                    <div className="rounded-xl overflow-hidden"
+-                        style={{
+-                            background: 'linear-gradient(180deg, var(--bg-base) 0%, var(--bg-surface) 100%)',
+-                            border: '1px solid var(--border)',
+-                            boxShadow: 'var(--shadow-lg)',
+-                        }}>
+-                        <div className="px-5 pt-5 pb-4"
+-                            style={{ borderBottom: '1px solid var(--border)' }}>
+-                            <div className="flex items-center gap-2 mb-3">
+-                                <span className="text-sm">👤</span>
+-                                <span className="text-[10px] font-mono tracking-[0.2em] uppercase font-medium"
+-                                    style={{ color: 'var(--text-secondary)' }}>Profiles</span>
+-                            </div>
+-                            <div className="flex flex-wrap gap-1.5">
+-                                {Object.keys(profiles).map(name => (
+-                                    <button key={name}
+-                                        data-profile-chip
+-                                        className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-lg transition-all duration-200"
+-                                        style={{
+-                                            background: activeName === name
+-                                                ? 'linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%)'
+-                                                : 'var(--bg-card)',
+-                                            border: `1px solid ${activeName === name ? 'var(--accent)' : 'var(--border)'}`,
+-                                            color: activeName === name ? 'var(--text-bright)' : 'var(--text-secondary)',
+-                                            boxShadow: activeName === name ? 'var(--accent-glow)' : 'none',
+-                                        }}
+-                                        onClick={() => loadProfile(name, profiles[name])}>
+-                                        {name}
+-                                    </button>
+-                                ))}
+-                                {!Object.keys(profiles).length && (
+-                                    <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+-                                        No saved profiles yet
+-                                    </span>
+-                                )}
+-                            </div>
+-                        </div>
+-                        <div className="px-3 py-4">
++                    <div className="rounded-xl overflow-hidden">
++                        <div>
+                             <BuilderPanel
+                                 cfg={cfg}
+                                 availableLeagues={availableLeagues}
+@@ -325,39 +519,84 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+                         border: '1px solid var(--border)',
+                         backdropFilter: 'blur(10px)',
+                     }}>
+-                    {/* AC-03: page heading in the management bar */}
+-                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Build</h1>
+-                    <div className="flex items-center gap-3 flex-wrap">
+-                        <input className="field w-40" placeholder="profile name"
+-                            value={activeName} onChange={e => setActiveName(e.target.value)} />
+-                        <button className="btn-primary" data-tour="build-save" onClick={handleSaveProfile}>Save</button>
+-                        <button className="btn-danger" onClick={handleDeleteProfile}>Delete</button>
+-
+-                        {/* Units & Target Payout */}
+-                        <div className="flex items-center gap-3 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
+-                            <div className="flex items-center gap-2">
+-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Units</span>
+-                                <input className="field w-16" type="number" min={0.1} step={0.1}
+-                                    disabled={targetPayout > 0}
+-                                    style={{ opacity: targetPayout > 0 ? 0.5 : 1, cursor: targetPayout > 0 ? 'not-allowed' : 'text' }}
+-                                    value={units} onChange={e => setUnits(+e.target.value)} />
+-                            </div>
+-                            <div className="flex items-center gap-2">
+-                                <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Target Payout</span>
+-                                <TooltipIcon text="Automatically calculates units based on desired payout. Enter your target payout amount and the system will determine the required units to achieve it." align="right" />
+-                                <input className="field w-20" type="number" min={0} step={5}
+-                                    placeholder="Off"
+-                                    value={targetPayout || ''} onChange={e => setTargetPayout(+e.target.value)} />
+-                            </div>
+-                        </div>
+-
+-                        <button className="btn-success" onClick={handleAddToSlips}>+ Add to Slips</button>
+-                        <button className="btn-ghost" onClick={handleClearExcluded}>Reset excluded</button>
+-
+-                        <div className="flex items-center gap-2 border-l pl-3" style={{ borderColor: 'var(--border)' }}>
+-                            <span className="text-[10px] font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Run Daily</span>
+-                            <input className="field w-16" type="number" min={0} step={1}
+-                                value={runDaily} onChange={e => setRunDaily(+e.target.value)} />
++                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Profiles</h1>
++                    <div className="flex items-start gap-3 flex-wrap mt-2">
++                        {/* Profile cards: every saved profile renders as a card;
++                            click selects+loads it; edits auto-save to it. */}
++                        <div className="flex items-center gap-2 flex-wrap" data-testid="profile-cards">
++                            {orderedProfileNames(profiles).map(name => {
++                                const active = activeName === name;
++                                return (
++                                    <div key={name}
++                                        data-profile-chip={name}
++                                        className="inline-flex items-center rounded-xl px-1 transition-all duration-200"
++                                        style={{
++                                            background: active
++                                                ? 'linear-gradient(180deg, var(--accent-glow) 0%, var(--bg-raised) 100%)'
++                                                : 'var(--bg-raised)',
++                                            border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
++                                            boxShadow: active ? 'var(--shadow-md)' : 'none',
++                                        }}>
++                                        {/* select the profile */}
++                                        <button
++                                            type="button"
++                                            aria-pressed={active}
++                                            onClick={() => loadProfile(name, profiles[name])}
++                                            className="px-3 py-2 text-sm font-sans font-semibold rounded-xl"
++                                            style={{
++                                                color: active ? 'var(--accent)' : 'var(--text-primary)',
++                                                cursor: 'pointer',
++                                                background: 'transparent',
++                                                border: 'none',
++                                            }}>
++                                            {name}
++                                        </button>
++                                        {/* per-card X: transparent until hover, then loss-red */}
++                                        <button
++                                            type="button"
++                                            className="w-6 h-6 mr-1 flex items-center justify-center rounded-lg transition-all duration-200"
++                                            style={{
++                                                color: 'var(--text-secondary)',
++                                                background: 'transparent',
++                                                border: '1px solid transparent',
++                                                opacity: 0.55,
++                                                cursor: 'pointer',
++                                            }}
++                                            title={`Delete profile '${name}'`}
++                                            aria-label={`Delete profile '${name}'`}
++                                            onMouseEnter={e => {
++                                                e.currentTarget.style.opacity = '1';
++                                                e.currentTarget.style.color = 'var(--loss)';
++                                                e.currentTarget.style.background = 'var(--loss-glow, rgba(239, 68, 68, 0.12))';
++                                                e.currentTarget.style.borderColor = 'var(--loss-border, rgba(239, 68, 68, 0.35))';
++                                            }}
++                                            onMouseLeave={e => {
++                                                e.currentTarget.style.opacity = '0.55';
++                                                e.currentTarget.style.color = 'var(--text-secondary)';
++                                                e.currentTarget.style.background = 'transparent';
++                                                e.currentTarget.style.borderColor = 'transparent';
++                                            }}
++                                            onClick={() => void handleDeleteProfile(name)}
++                                        >✕</button>
++                                    </div>
++                                );
++                            })}
++                            {/* trailing '+': same card treatment, accent-tinted */}
++                            <button
++                                aria-label="Create new profile"
++                                className="inline-flex items-center justify-center w-9 h-9 rounded-xl text-lg font-bold transition-all duration-200"
++                                style={{
++                                    background: activeName && profiles[activeName]
++                                        ? 'linear-gradient(180deg, var(--accent-glow) 0%, var(--bg-raised) 100%)'
++                                        : 'var(--bg-raised)',
++                                    border: `1px solid ${activeName && profiles[activeName] ? 'var(--accent)' : 'var(--border)'}`,
++                                    color: 'var(--accent)',
++                                    cursor: 'pointer',
++                                    boxShadow: 'var(--shadow-sm, none)',
++                                }}
++                                title="Create a new profile from the current config"
++                                onClick={() => void handleCreateProfile()}
++                            >+</button>
+                         </div>
+ 
+                         {status && (
+@@ -396,32 +635,34 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+                             style={{ color: 'var(--text-secondary)' }}>
+                             Live Preview — updates with every config change
+                         </span>
++                        {/* Add to Slips OPENS the confirmation modal (Units +
++                            Target Payout live there); confirm posts the slip.
++                            Hidden when the preview is empty. */}
++                        {(preview?.legs?.length ?? 0) > 0 && (
++                            <button className="btn-success ml-auto" onClick={() => setSlipModalOpen(true)}>+ Add to Slips</button>
++                        )}
+                         {loading && (
+                             <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
+-                                style={{
+-                                    color: 'var(--accent)',
+-                                    background: 'var(--accent-glow)',
+-                                }}>building…</span>
++                                style={{ color: 'var(--accent)', background: 'var(--accent-glow)' }}>building…</span>
+                         )}
+                     </div>
+ 
+                     <div style={{ opacity: loading ? 0.5 : 1, transition: 'opacity .2s ease' }}>
+-                        {/* AC-03: replace BetPreview empty branch only; populated cards stay */}
+                         {!(preview?.legs?.length) ? (
+                             <EmptyState
+                                 icon={<BuildEmptyIcon />}
+                                 title="No preview yet"
+-                                steps={['Select a preset', 'Test config', 'Add to Slips']}
++                                steps={['Select a profile', 'Tweak the config', 'Add to Slips']}
+                                 primary={{
+-                                    label: 'Select a Preset',
++                                    label: 'Select a Profile',
+                                     onClick: () => {
+-                                        const first = document.querySelector<HTMLElement>('[data-profile-chip]');
+-                                        const target = first ?? document.querySelector<HTMLInputElement>('input[placeholder="profile name"]');
++                                        // Focus the first profile card button so
++                                        // keyboard users land on the control.
++                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] button');
+                                         target?.focus();
+                                         target?.scrollIntoView({ block: 'center' });
+                                     },
+                                 }}
+-                                secondary={{ label: 'Add to Slips', onClick: () => { void handleAddToSlips(); } }}
+                             />
+                         ) : (
+                             <BetPreview
+@@ -506,6 +747,18 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
+                 )}
+             </div>
+         </div>
++        {slipModalOpen && (
++            <AddToSlipsModal
++                legsCount={preview?.legs?.length ?? 0}
++                totalOdds={preview?.total_odds ?? 1}
++                units={units}
++                targetPayout={targetPayout}
++                onUnitsChange={(u) => { setUnits(u); setTargetPayout(0); }}
++                onTargetPayoutChange={(p) => { setTargetPayout(p); }}
++                onConfirm={() => void handleAddToSlips()}
++                onClose={() => setSlipModalOpen(false)}
++            />
++        )}
+         <FirstSlipToast open={milestoneOpen} onClose={() => setMilestoneOpen(false)} />
+         </>
+     );
+diff --git a/bet_dashboard/frontend/src/pages/__tests__/Services.test.tsx b/bet_dashboard/frontend/src/pages/__tests__/Services.test.tsx
+index 07d9582..5012354 100644
+--- a/bet_dashboard/frontend/src/pages/__tests__/Services.test.tsx
++++ b/bet_dashboard/frontend/src/pages/__tests__/Services.test.tsx
+@@ -1,20 +1,18 @@
+-// Services page (issue #65). ACTUAL divergences (cycle 13): settings use a
+-// MUI StaticTimePicker (NOT spec's hour/minute number inputs); NO Pull DB
+-// button on this page (that is Layout's Pull Update, cycle-12 tested);
+-// status line confirms save. MSW serves /api/services.
++// Services page. Divergences (cycle 14): the global schedule time is gone —
++// per-profile rows are the only scheduling surface. Units / Target Payout are
++// mutually exclusive inputs (0.1 steps, no cross preview). Daily run count is
++// a numeric step-1 input. MSW serves /api/services.
+ 
+ import { describe, it, expect, beforeEach } from 'vitest';
+-import { render, screen, waitFor } from '@testing-library/react';
++import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import { http, HttpResponse } from 'msw';
+ import Services from '../Services';
+ import { server } from '../../test/handlers';
+ import { makeServicesData, makeServiceInfo } from '../../test/factories';
+ 
+-
+ const DATA = makeServicesData();
+ 
+-
+ beforeEach(() => {
+     server.use(
+         http.get('/api/services', () => HttpResponse.json(DATA)),
+@@ -22,7 +20,6 @@ beforeEach(() => {
+     );
+ });
+ 
+-
+ describe('Services page', () => {
+     it('shows the loading state before data arrives', () => {
+         server.use(
+@@ -48,7 +45,6 @@ describe('Services page', () => {
+         for (const svc of services) {
+             expect(screen.getByText(svc.name)).toBeInTheDocument();
+         }
+-        // active (alive && enabled) card shows Running
+         expect(screen.getAllByText(/Running|Stopped/).length).toBe(services.length);
+     });
+ 
+@@ -70,37 +66,19 @@ describe('Services page', () => {
+         await waitFor(() => expect(calls).toBeGreaterThan(before));
+     });
+ 
+-    it('Save Settings POSTs and shows the confirmation status', async () => {
+-        const user = userEvent.setup();
+-        let saved = 0;
+-        server.use(
+-            http.post('/api/services/settings', () => {
+-                saved += 1;
+-                return HttpResponse.json({ status: 'ok' });
+-            }),
+-        );
+-        render(<Services />);
+-        await screen.findByText('Automation Services');
+-        await user.click(screen.getByText('Save Settings'));
+-        expect(await screen.findByText(/Settings saved/)).toBeInTheDocument();
+-        expect(saved).toBe(1);
+-    });
+-
+-    it('renders the MUI StaticTimePicker scheduler panel (divergence: no hour/minute inputs)', async () => {
++    it('the global schedule time picker is gone', async () => {
+         render(<Services />);
+         await screen.findByText('Automation Services');
+-        expect(screen.getByText('Scheduled Time')).toBeInTheDocument();
+-        expect(screen.getByText('Generate Slips')).toBeInTheDocument();
+-        // spec wished hour/minute inputs; actual is the MUI clock — pin its presence
+-        expect(document.querySelector('.MuiClock-root')).not.toBeNull();
++        expect(screen.queryByText('Scheduled Time')).not.toBeInTheDocument();
++        expect(screen.queryByText('Save Settings')).not.toBeInTheDocument();
++        expect(document.querySelector('.MuiClock-root')).toBeNull();
+     });
+ 
+     it('fetch failure path keeps the loading card (no crash)', async () => {
+         server.use(http.get('/api/services', () => HttpResponse.error()));
+         render(<Services />);
+-        // error state: data stays null → loading card persists; assert no crash markers
+         await new Promise((r) => setTimeout(r, 50));
+-        expect(screen.queryByText('Scheduled Time')).not.toBeInTheDocument();
++        expect(screen.queryByText('Per-Profile Scheduling')).not.toBeInTheDocument();
+     });
+ 
+     it('does not show EmptyState when generator is enabled', async () => {
+@@ -129,7 +107,6 @@ describe('Services page', () => {
+         render(<Services />);
+         expect(await screen.findByText('Generate Slips is off')).toBeInTheDocument();
+         expect(screen.getByRole('button', { name: 'Enable Generate Slips' })).toBeInTheDocument();
+-        expect(screen.getAllByRole('button', { name: 'Save Settings' }).length).toBeGreaterThan(0);
+         await user.click(screen.getByRole('button', { name: 'Enable Generate Slips' }));
+         await waitFor(() => expect(toggles).toBe(1));
+     });
+@@ -144,3 +121,113 @@ describe('Services page', () => {
+         }
+     });
+ });
++
++// ── Per-profile scheduling table ────────────────────────────────────────────
++
++const ROWS = [
++    { name: 'low', auto_generate: true, generate_hour: 8, generate_minute: 30, units: 1.0, target_payout: null, run_daily_count: 1, order: 0 },
++    { name: 'medium', auto_generate: true, generate_hour: 10, generate_minute: 0, units: null, target_payout: 50, run_daily_count: 2, order: 1 },
++    { name: 'high_risk', auto_generate: false, generate_hour: 12, generate_minute: 15, units: null, target_payout: null, run_daily_count: 0, order: 2 },
++];
++
++function serveRows(posts: Array<Record<string, unknown>>) {
++    server.use(
++        http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: ROWS }))),
++        http.post('/api/services/settings', async ({ request }) => {
++            posts.push(await request.json() as Record<string, unknown>);
++            return HttpResponse.json({ ok: true });
++        }),
++    );
++}
++
++describe('Services per-profile scheduler', () => {
++    it('renders one row per profile with column headers', async () => {
++        server.use(http.get('/api/services', () => HttpResponse.json(
++            makeServicesData({ profile_schedules: ROWS }),
++        )));
++        render(<Services />);
++        await screen.findByText('Per-Profile Scheduling');
++        for (const header of ['Profile', 'Time', 'Daily', 'Auto', 'Units', 'Target Payout', 'Order']) {
++            expect(screen.getByRole('columnheader', { name: header })).toBeInTheDocument();
++        }
++        for (const row of ROWS) {
++            expect(screen.getByTitle(row.name)).toBeInTheDocument();
++            expect(screen.getByLabelText(`Generation hour for ${row.name}`)).toBeInTheDocument();
++            expect(screen.getByLabelText(`Daily run count for ${row.name}`)).toBeInTheDocument();
++        }
++        // first row cannot move up; last row cannot move down
++        expect(screen.getByRole('button', { name: 'Move low up' })).toBeDisabled();
++        expect(screen.getByRole('button', { name: 'Move high_risk down' })).toBeDisabled();
++    });
++
++    it('hides the per-profile section when the backend serves no rows', async () => {
++        render(<Services />);
++        await screen.findByText('Automation Services');
++        expect(screen.queryByText('Per-Profile Scheduling')).not.toBeInTheDocument();
++    });
++
++    it('no Save button — an edit auto-saves all rows in one POST (600ms debounce)', async () => {
++        const user = userEvent.setup();
++        const posts: Array<Record<string, unknown>> = [];
++        serveRows(posts);
++        render(<Services />);
++        await screen.findByText('Per-Profile Scheduling');
++        expect(screen.queryByRole('button', { name: 'Save Profile Schedules' })).not.toBeInTheDocument();
++
++        await user.selectOptions(screen.getByRole('combobox', { name: 'Generation hour for medium' }), '14');
++        fireEvent.change(screen.getByLabelText('Daily run count for medium'), { target: { value: '3' } });
++        await user.click(screen.getByRole('button', { name: 'Enable auto-generation for high_risk' }));
++
++        // debounced: no POST before the timer, then one POST with all rows
++        expect(posts).toHaveLength(0);
++        await waitFor(() => expect(posts).toHaveLength(1), { timeout: 3000 });
++        const rows = posts[0].profile_schedules as Array<Record<string, number | string | boolean | null>>;
++        expect(rows).toHaveLength(3);
++        expect(rows[1]).toMatchObject({ name: 'medium', generate_hour: 14, run_daily_count: 3 });
++        expect(rows[2]).toMatchObject({ name: 'high_risk', auto_generate: true });
++        expect(posts[0].generate_hour).toBeUndefined();
++    });
++
++    it('units and target payout are mutually exclusive per row', async () => {
++        serveRows([]);
++        render(<Services />);
++        await screen.findByText('Per-Profile Scheduling');
++        // medium has target_payout → its Units input is disabled
++        expect(screen.getByLabelText('Units for medium')).toBeDisabled();
++        // low has units → its payout input is disabled
++        expect(screen.getByLabelText('Target payout for low')).toBeDisabled();
++        // high_risk has neither → both enabled
++        expect(screen.getByLabelText('Units for high_risk')).not.toBeDisabled();
++        expect(screen.getByLabelText('Target payout for high_risk')).not.toBeDisabled();
++        // writing units on high_risk blocks its payout input
++        fireEvent.change(screen.getByLabelText('Units for high_risk'), { target: { value: '2.5' } });
++        await waitFor(() => expect(screen.getByLabelText('Target payout for high_risk')).toBeDisabled());
++        // inputs use the right steps
++        expect(screen.getByLabelText('Units for high_risk')).toHaveAttribute('step', '0.1');
++        expect(screen.getByLabelText('Daily run count for low')).toHaveAttribute('step', '1');
++    });
++
++    it('up/down reorder rows and the auto-save POST carries the new order', async () => {
++        const user = userEvent.setup();
++        const posts: Array<Record<string, unknown>> = [];
++        serveRows(posts);
++        render(<Services />);
++        await screen.findByText('Per-Profile Scheduling');
++        await user.click(screen.getByRole('button', { name: 'Move medium up' }));
++        await waitFor(() => expect(posts).toHaveLength(1), { timeout: 3000 });
++        const rows = posts[0].profile_schedules as Array<Record<string, string>>;
++        expect(rows.map(r => r.name)).toEqual(['medium', 'low', 'high_risk']);
++    });
++
++    it('shows a failure status when the auto-save POST fails', async () => {
++        const user = userEvent.setup();
++        server.use(
++            http.get('/api/services', () => HttpResponse.json(makeServicesData({ profile_schedules: ROWS }))),
++            http.post('/api/services/settings', () => HttpResponse.error()),
++        );
++        render(<Services />);
++        await screen.findByText('Per-Profile Scheduling');
++        await user.click(screen.getByRole('button', { name: 'Enable auto-generation for high_risk' }));
++        expect(await screen.findByText(/Failed to save profile schedules/)).toBeInTheDocument();
++    });
++});
+\ No newline at end of file
+diff --git a/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx b/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx
+index 6e32243..d8a4536 100644
+--- a/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx
++++ b/bet_dashboard/frontend/src/pages/__tests__/SmartBuilder.test.tsx
+@@ -1,49 +1,76 @@
+-// SmartBuilder page (issue #65). ACTUAL behaviors pinned: 350ms debounced
+-// preview via fetchPreview; localStorage 'smart_builder_state' (cfg with
+-// dates STRIPPED); profile load via loadProfile with ?? defaults; save-name
+-// validation (manual-block + sanitize); Add to Slips leg validation;
+-// excluded cards (manual-only removal). REAL timers: fake timers broke MSW
+-// request delivery under isolate:false (D43 lesson).
++// SmartBuilder page — profile-cards rework contract:
++//   AC-1  heading reads 'Profiles' (active profile shown by the card highlight)
++//   AC-2  first profile is selected by default (no 'manual' state)
++//   AC-3  config changes AUTO-SAVE to the active profile (no Save button)
++//   AC-4  deleting the active profile re-selects the first remaining one
++//   AC-5  Add-to-Slips modal: Units / Target Payout are mutually exclusive
++//         with cross calculated previews, 0.1 steps, blocking behaviour
++// Existing pins kept: 350ms debounce, localStorage payload, excluded cards,
++// refreshKey, real timers (fake timers broke MSW delivery — D43 lesson).
+ 
+ import { describe, it, expect, beforeEach, vi } from 'vitest';
+-import { render, screen, waitFor } from '@testing-library/react';
++import { render, screen, waitFor, within } from '@testing-library/react';
+ import { MemoryRouter } from 'react-router-dom';
+ import userEvent from '@testing-library/user-event';
+ import { http, HttpResponse } from 'msw';
+ import SmartBuilder from '../SmartBuilder';
+ import { server } from '../../test/handlers';
+-import { makeCandidateLeg, makePreviewResult } from '../../test/factories';
++import { makeCandidateLeg, makePreviewResult, makeProfile } from '../../test/factories';
+ 
+-// Order-robust shared stub (final-gate fix): SmartBuilder renders
+-// AnalyticsDashboard → recharts. Registering the IDENTICAL factory in every
+-// recharts-consuming file makes the run order-independent. See
+-// src/test/recharts-stub.tsx.
++// Order-robust shared stub: registering the IDENTICAL factory in every
++// recharts-consuming file makes the run order-independent.
+ vi.mock('recharts', async () => (await import('../../test/recharts-stub')).rechartsStub);
+ 
++// Distinct configs so tests can prove a card click actually LOADED a profile.
++const PROFILES = {
++    cautious: { ...makeProfile({ target_odds: 4, target_legs: 4, units: 2 }), order: 1 },
++    bold: { ...makeProfile({ target_odds: 8, target_legs: 5, units: 3 }), order: 2 },
++};
+ 
+ const PREVIEW = makePreviewResult();
+ let previewCalls = 0;
+ let lastPreviewBody = '';
+-
++let slipPosts = 0;
++let deleted: string[] = [];
++let savedPosts: Array<Record<string, unknown>> = [];
++let profileMap: Record<string, ReturnType<typeof makeProfile>> = { ...PROFILES };
+ 
+ beforeEach(() => {
+     localStorage.clear();
+     previewCalls = 0;
++    lastPreviewBody = '';
++    slipPosts = 0;
++    deleted = [];
++    savedPosts = [];
++    profileMap = { ...PROFILES };
+     server.use(
+         http.post('/api/builder/preview', async ({ request }) => {
+             previewCalls += 1;
+             lastPreviewBody = JSON.stringify(await request.json());
+             return HttpResponse.json(PREVIEW);
+         }),
+-        http.get('/api/profiles', () => HttpResponse.json({})),
++        http.get('/api/profiles', () => HttpResponse.json({ profiles: { ...profileMap } })),
++        http.post('/api/profiles', async ({ request }) => {
++            const body = await request.json() as Record<string, unknown>;
++            savedPosts.push(body);
++            profileMap[String(body.name)] = body as unknown as ReturnType<typeof makeProfile>;
++            return HttpResponse.json({ status: 'ok' });
++        }),
++        http.delete('/api/profiles/:name', ({ params }) => {
++            deleted.push(String(params.name));
++            delete profileMap[String(params.name)];
++            return HttpResponse.json({ ok: true });
++        }),
+         http.get('/api/builder/excluded/details', () => HttpResponse.json({ excluded: [] })),
+         http.get('/api/builder/leagues', () => HttpResponse.json(['England', 'Spain'])),
+         http.get('/api/config/sources', () => HttpResponse.json({ sources: ['forebet'] })),
+-        http.post('/api/slips', () => HttpResponse.json({ slip_id: 7, slip_status: 'Pending' })),
++        http.post('/api/slips', () => {
++            slipPosts += 1;
++            return HttpResponse.json({ slip_id: 7, slip_status: 'Pending' });
++        }),
+     );
+ });
+ 
+-
+ function renderBuilder(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+     return render(
+         <MemoryRouter>
+@@ -54,31 +81,37 @@ function renderBuilder(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+ 
+ async function renderAndHydrate() {
+     renderBuilder();
+-    // real timers: the 350ms debounce resolves inside waitFor's polling window
+     await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
+ }
+ 
+-
+ describe('SmartBuilder page', () => {
+     it('mounts and fires the debounced preview after 350ms', async () => {
+         await renderAndHydrate();
+         expect(screen.getByText('Live Preview — updates with every config change')).toBeInTheDocument();
+-        expect(screen.getByRole('heading', { name: 'Build' })).toBeInTheDocument();
++        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
++    });
++
++    it('uses saved profile order instead of relying on response object order', async () => {
++        profileMap = { bold: PROFILES.bold, cautious: PROFILES.cautious };
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
+     });
+ 
+-    it('renders profile sidebar + builder panel + preview grid', async () => {
++    it('reports a failed profile fetch instead of hiding it as an empty profile list', async () => {
++        server.use(
++            http.get('/api/profiles', () => HttpResponse.json({ detail: 'settings unavailable' }, { status: 500 })),
++        );
+         await renderAndHydrate();
+-        expect(screen.getByText('Profiles')).toBeInTheDocument();
+-        expect(screen.getByText('Bet Shape')).toBeInTheDocument();
+-        expect(screen.getByText('+ Add to Slips')).toBeInTheDocument();
+-        expect(screen.getByText('Reset excluded')).toBeInTheDocument();
++        expect(await screen.findByText(/Profiles could not be loaded/)).toBeInTheDocument();
++        expect(screen.queryByRole('button', { name: 'cautious' })).not.toBeInTheDocument();
+     });
+ 
+     it('config change triggers a NEW debounced preview (count increments)', async () => {
+         const user = userEvent.setup();
+         await renderAndHydrate();
+         const before = previewCalls;
+-        const oddsInput = screen.getAllByDisplayValue('3')[0];
++        const oddsInput = screen.getAllByDisplayValue('4')[0];
+         await user.clear(oddsInput);
+         await user.type(oddsInput, '5');
+         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
+@@ -89,53 +122,265 @@ describe('SmartBuilder page', () => {
+         const saved = localStorage.getItem('smart_builder_state');
+         expect(saved).not.toBeNull();
+         const parsed = JSON.parse(saved as string);
+-        expect(parsed.cfg.target_odds).toBe(3);
++        expect(parsed.cfg.target_odds).toBe(4);
+         expect(parsed.cfg.date_from).toBeNull();
+         expect(parsed.cfg.date_to).toBeNull();
+-        expect(parsed.activeName).toBe('manual');
+-        expect(parsed.units).toBe(1);
++        // first profile auto-selected, no 'manual'
++        expect(parsed.activeName).toBe('cautious');
++        expect(parsed.units).toBe(2);
+     });
+ 
+-    it('profile buttons render from fetchProfiles and load on click', async () => {
+-        server.use(
+-            http.get('/api/profiles', () => HttpResponse.json({ profiles: { cautious: { target_odds: 4, units: 2, target_legs: 4 } } })),
+-        );
++    // ── AC-1/AC-2: heading, active indicator, default selection ─────────────
++
++    it('AC-1: heading reads Profiles with no active-name indicator text', async () => {
++        await renderAndHydrate();
++        expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
++        expect(screen.queryByText(/^Profiles: .* active$/)).not.toBeInTheDocument();
++    });
++
++    it('AC-2: the first profile is selected by default (no manual state)', async () => {
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
++    });
++
++    it('AC-1: clicking a card loads its config into the builder', async () => {
+         const user = userEvent.setup();
+         await renderAndHydrate();
+-        const chip = await screen.findByText('cautious');
+-        await user.click(chip);
+-        const input = screen.getByPlaceholderText('profile name') as HTMLInputElement;
+-        await waitFor(() => expect(input.value).toBe('cautious'), { timeout: 3000 });
+-        await waitFor(() => expect(lastPreviewBody).toContain('"target_odds":4'), { timeout: 3000 });
++        const before = previewCalls;
++        await user.click(screen.getByRole('button', { name: 'bold' }));
++        await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
++        expect(lastPreviewBody).toContain('"target_odds":8');
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
+     });
+ 
+-    it('save with empty/manual name is blocked with status', async () => {
++    it('AC-1: header no longer carries Reset excluded or Run Daily', async () => {
++        await renderAndHydrate();
++        expect(screen.queryByText('Reset excluded')).not.toBeInTheDocument();
++        expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
++    });
++
++    // ── AC-4: per-card delete re-selects the first remaining profile ────────
++
++    it('AC-4: deleting the ACTIVE profile re-selects the first remaining one', async () => {
+         const user = userEvent.setup();
+         await renderAndHydrate();
+-        await user.click(screen.getByText('Save'));
+-        expect(screen.getByText('Enter a profile name first.')).toBeInTheDocument();
++        expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true')
++        await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
++        await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
++        expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
++        expect(screen.queryByRole('button', { name: 'cautious' })).not.toBeInTheDocument();
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
+     });
+ 
+-    it('save with valid name POSTs and confirms', async () => {
++    it('AC-4: X on a NON-active profile deletes it and keeps the active one', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(screen.getByRole('button', { name: 'bold' }));
++        await user.click(screen.getByRole('button', { name: /Delete profile 'cautious'/ }));
++        await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
++        expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
++    });
++
++    // ── AC-3: auto-save replaces the Save button ────────────────────────────
++
++    it('AC-3: there is no Save button — config changes auto-save to the profile', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
++        const before = savedPosts.length;
++        const oddsInput = screen.getAllByDisplayValue('4')[0];
++        await user.clear(oddsInput);
++        await user.type(oddsInput, '6');
++        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
++        expect(savedPosts[savedPosts.length - 1].name).toBe('cautious');
++        expect(await screen.findByText("✓ Saved to 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
++    });
++
++    it('AC-3: switching a profile does not re-save the previous config', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        const before = savedPosts.length;
++        await user.click(screen.getByRole('button', { name: 'bold' }));
++        await new Promise(r => setTimeout(r, 900));
++        expect(savedPosts.length).toBe(before);
++    });
++
++    // ── Desync C: stake fields are Services-owned ──────────────────────────
++
++    it('config auto-save payload omits units/target_payout (Services-owned)', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        const before = savedPosts.length;
++        const oddsInput = screen.getAllByDisplayValue('4')[0];
++        await user.clear(oddsInput);
++        await user.type(oddsInput, '6');
++        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
++        const body = savedPosts[savedPosts.length - 1];
++        expect(body.name).toBe('cautious');
++        expect(body).not.toHaveProperty('units');
++        expect(body).not.toHaveProperty('target_payout');
++    });
++
++    it('Add-to-Slips modal stake entry never persists to the profile', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const unitsInput = await screen.findByLabelText('Units');
++        await user.clear(unitsInput);
++        await user.type(unitsInput, '5');
++        await user.click(screen.getByRole('button', { name: 'Add to Slips' }));
++        await waitFor(() => expect(slipPosts).toBe(1), { timeout: 3000 });
++        await new Promise(r => setTimeout(r, 900));
++        expect(savedPosts.length).toBe(0);
++    });
++
++    it('mount hydrates cfg/units from disk when the persisted selection still exists', async () => {
++        localStorage.setItem('smart_builder_state', JSON.stringify({
++            cfg: { target_odds: 99 },
++            activeName: 'bold',
++            units: 9.9,
++            targetPayout: 9.9,
++        }));
++        await renderAndHydrate();
++        expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
++        const saved = JSON.parse(localStorage.getItem('smart_builder_state')!);
++        expect(saved.units).toBe(3);
++        expect(saved.targetPayout).toBe(0);
++        expect(saved.cfg.target_odds).toBe(8);
++    });
++
++    // ── '+' creates new{N} from the current config ──────────────────────────
++
++    it('+ saves the current cfg as new1 and selects it', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(screen.getByRole('button', { name: 'Create new profile' }));
++        await waitFor(() => expect(savedPosts.some(p => p.name === 'new1')).toBe(true), { timeout: 3000 });
++        const card = await screen.findByRole('button', { name: 'new1' }, { timeout: 3000 });
++        expect(card).toHaveAttribute('aria-pressed', 'true');
++        expect(await screen.findByText("✓ Saved to 'new1'", {}, { timeout: 3000 })).toBeInTheDocument();
++    });
++
++    it('rapid double-click on + never creates a duplicate name', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.dblClick(screen.getByRole('button', { name: 'Create new profile' }));
++        await waitFor(() => expect(savedPosts.length).toBeGreaterThan(0), { timeout: 3000 });
++        const names = savedPosts.map(p => String(p.name));
++        expect(new Set(names).size).toBe(names.length);
++        expect(names.every(n => n === 'new1' || n === 'new2')).toBe(true);
++    });
++
++    it('+ picks new2 when new1 already exists', async () => {
++        const user = userEvent.setup();
++        profileMap = { ...PROFILES, new1: makeProfile({ target_odds: 2 }) };
++        await renderAndHydrate();
++        await user.click(screen.getByRole('button', { name: 'Create new profile' }));
++        await waitFor(() => expect(savedPosts.some(p => p.name === 'new2')).toBe(true), { timeout: 3000 });
++    });
++
++    // ── AC-5: Add-to-Slips confirmation modal — mutual exclusivity ──────────
++
++    it('AC-5: + Add to Slips opens the modal with BOTH inputs empty (no Off placeholder)', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        expect(within(dialog).getByText('Target Payout')).toBeInTheDocument();
++        expect(within(dialog).getByRole('button', { name: 'Add to Slips' })).toBeInTheDocument();
++        expect((within(dialog).getByLabelText('Units') as HTMLInputElement).value).toBe('');
++        expect((within(dialog).getByLabelText('Target Payout') as HTMLInputElement).value).toBe('');
++        expect(within(dialog).getByLabelText('Units')).not.toBeDisabled();
++        expect(within(dialog).getByLabelText('Target Payout')).not.toBeDisabled();
++        expect(within(dialog).getByLabelText('Target Payout')).not.toHaveAttribute('placeholder');
++    });
++
++    it('AC-6: confirm POSTs the slip and closes the modal', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        await user.click(await screen.findByRole('button', { name: 'Add to Slips' }, { timeout: 3000 }));
++        await waitFor(() => expect(slipPosts).toBe(1), { timeout: 3000 });
++        expect(await screen.findByText(/Slip #7 added/, {}, { timeout: 3000 })).toBeInTheDocument();
++        expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument();
++    });
++
++    it('AC-7: Escape closes the modal without posting', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        expect(await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 })).toBeInTheDocument();
++        await user.keyboard('{Escape}');
++        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument());
++        expect(slipPosts).toBe(0);
++    });
++
++    it('AC-7: Cancel closes the modal without posting', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
++        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument());
++        expect(slipPosts).toBe(0);
++    });
++
++    it('AC-5: both inputs use 0.1 steps', async () => {
++        const user = userEvent.setup();
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        expect(within(dialog).getByLabelText('Units')).toHaveAttribute('step', '0.1');
++        expect(within(dialog).getByLabelText('Target Payout')).toHaveAttribute('step', '0.1');
++    });
++
++    it('AC-5: writing Target Payout disables Units and previews computed units', async () => {
+         const user = userEvent.setup();
+-        let saved = 0;
+         server.use(
+-            http.post('/api/profiles', () => {
+-                saved += 1;
+-                return HttpResponse.json({ status: 'ok' });
++            http.post('/api/builder/preview', async () => {
++                previewCalls += 1;
++                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
+             }),
+         );
+         await renderAndHydrate();
+-        const nameInput = screen.getByPlaceholderText('profile name');
+-        await user.clear(nameInput);
+-        await user.type(nameInput, 'My Profile!');
+-        await user.click(screen.getByText('Save'));
+-        expect(await screen.findByText(/Profile 'myprofile' saved/, {}, { timeout: 3000 })).toBeInTheDocument();
+-        expect(saved).toBe(1);
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        const payoutInput = within(dialog).getByLabelText('Target Payout');
++        await user.clear(payoutInput);
++        await user.type(payoutInput, '25');
++        // 25 / 2.5 = 10 units — computed into the now-disabled Units input
++        await waitFor(() => {
++            const unitsInput = within(dialog).getByLabelText('Units') as HTMLInputElement;
++            expect(unitsInput.disabled).toBe(true);
++            expect(Number(unitsInput.value)).toBe(10);
++        }, { timeout: 3000 });
+     });
+ 
+-    it('Add to Slips with empty preview shows No legs status', async () => {
++    it('AC-5: writing Units disables Target Payout and previews computed payout', async () => {
+         const user = userEvent.setup();
++        server.use(
++            http.post('/api/builder/preview', async () => {
++                previewCalls += 1;
++                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
++            }),
++        );
++        await renderAndHydrate();
++        await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
++        const dialog = await screen.findByRole('dialog', { name: 'Add to Slips' }, { timeout: 3000 });
++        const unitsInput = within(dialog).getByLabelText('Units');
++        await user.clear(unitsInput);
++        await user.type(unitsInput, '4');
++        // 4 × 2.5 = 10 payout — computed into the now-disabled Target Payout input
++        await waitFor(() => {
++            const payoutInput = within(dialog).getByLabelText('Target Payout') as HTMLInputElement;
++            expect(payoutInput.disabled).toBe(true);
++            expect(Number(payoutInput.value)).toBe(10);
++        }, { timeout: 3000 });
++    });
++
++    it('empty preview hides + Add to Slips entirely', async () => {
+         server.use(
+             http.post('/api/builder/preview', async () => {
+                 previewCalls += 1;
+@@ -145,16 +390,10 @@ describe('SmartBuilder page', () => {
+         renderBuilder();
+         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
+         expect(screen.getByText('No preview yet')).toBeInTheDocument();
+-        await user.click(screen.getByText('+ Add to Slips'));
+-        expect(screen.getByText('No legs in preview.')).toBeInTheDocument();
++        expect(screen.queryByText('+ Add to Slips')).not.toBeInTheDocument();
+     });
+ 
+-    it('Add to Slips with valid legs POSTs and confirms with slip id', async () => {
+-        const user = userEvent.setup();
+-        await renderAndHydrate();
+-        await user.click(screen.getByText('+ Add to Slips'));
+-        expect(await screen.findByText(/Slip #7 added/, {}, { timeout: 3000 })).toBeInTheDocument();
+-    });
++    // ── kept pins: excluded cards ───────────────────────────────────────────
+ 
+     it('excluded matches cards render from fetchExcludedDetails', async () => {
+         server.use(
+@@ -202,22 +441,9 @@ describe('SmartBuilder page', () => {
+         await waitFor(() => expect(lastPreviewBody).toContain('2026-09-25'), { timeout: 3000 });
+     });
+ 
+-    it('target payout auto-calculates units from preview odds', async () => {
+-        const user = userEvent.setup();
+-        server.use(
+-            http.post('/api/builder/preview', async () => {
+-                previewCalls += 1;
+-                return HttpResponse.json({ legs: [makeCandidateLeg()], total_odds: 2.5, pending_urls: [] });
+-            }),
+-        );
++    it('localStorage payload carries no removed keys (runDaily gone)', async () => {
+         await renderAndHydrate();
+-        const payoutInput = screen.getByPlaceholderText('Off');
+-        await user.clear(payoutInput);
+-        await user.type(payoutInput, '25');
+-        // 25 / 2.5 = 10 units
+-        await waitFor(() => {
+-            const unitsInput = screen.getByDisplayValue('10') as HTMLInputElement;
+-            expect(unitsInput).toBeInTheDocument();
+-        }, { timeout: 3000 });
++        const parsed = JSON.parse(localStorage.getItem('smart_builder_state') as string);
++        expect(parsed.runDaily).toBeUndefined();
+     });
+ });
+diff --git a/bet_dashboard/frontend/src/test/factories.ts b/bet_dashboard/frontend/src/test/factories.ts
+index 8a39dd8..21984f4 100644
+--- a/bet_dashboard/frontend/src/test/factories.ts
++++ b/bet_dashboard/frontend/src/test/factories.ts
+@@ -244,14 +244,14 @@ export function makeProfile(overrides: Partial<Profile> = {}): Profile {
+     return {
+         target_odds: 2.0, target_legs: 3,
+         max_legs_overflow: null,
+-        consensus_floor: 50.0, min_odds: 1.05,
++        consensus_floor: 50.0, min_leg_odds: 1.05,
+         included_markets: null, included_leagues: null, excluded_sources: null,
+         tolerance_factor: null, stop_threshold: null,
+         min_legs_fill_ratio: 0.7, quality_vs_balance: 0.5, consensus_vs_sources: 0.5,
+         units: 1.0, target_payout: null, run_daily_count: 0,
+         date_from: null, date_to: null, excluded_urls: null,
+         consensus_shrinkage_k: null, min_source_edge: null,
+-        max_single_leg_odds: null, tol_lower: null, tol_upper: null,
++        max_leg_odds: 10.0, tol_lower: null, tol_upper: null,
+         balance_decay: 'gaussian', min_pick_quality: null,
+         odds_movement_weight: null, odds_movement_strength_min: null,
+         ...overrides,
+diff --git a/bet_dashboard/frontend/src/types/api.generated.ts b/bet_dashboard/frontend/src/types/api.generated.ts
+index 8300e8b..7dee188 100644
+--- a/bet_dashboard/frontend/src/types/api.generated.ts
++++ b/bet_dashboard/frontend/src/types/api.generated.ts
+@@ -124,6 +124,12 @@ export interface paths {
+     /**
+      * Save Profile
+      * @description Persist a named builder profile.
++     *
++     * Scheduling/ordering keys (run_daily_count, order, auto_generate,
++     * generate_hour, generate_minute) are tri-state in the payload: when the
++     * caller omits them, the values already persisted for this profile are
++     * carried over instead of being reset. That keeps a Smart Builder save from
++     * silently wiping a schedule configured on the Services page (review F1).
+      */
+     post: operations["save_profile_api_profiles_post"];
+   };
+@@ -151,7 +157,7 @@ export interface paths {
+   "/api/services/settings": {
+     /**
+      * Save Settings
+-     * @description Persist scheduler hour/minute settings.
++     * @description Persist scheduler hour/minute settings and per-profile schedules.
+      */
+     post: operations["save_settings_api_services_settings_post"];
+   };
+@@ -240,10 +246,10 @@ export interface components {
+        */
+       consensus_floor?: number;
+       /**
+-       * Min Odds
++       * Min Leg Odds
+        * @default 1.05
+        */
+-      min_odds?: number;
++      min_leg_odds?: number;
+       /** Tolerance Factor */
+       tolerance_factor?: number | null;
+       /** Stop Threshold */
+@@ -252,7 +258,7 @@ export interface components {
+        * Min Legs Fill Ratio
+        * @default 0.7
+        */
+-      min_legs_fill_ratio?: number;
++      min_legs_fill_ratio?: number | null;
+       /**
+        * Quality Vs Balance
+        * @default 0.5
+@@ -277,8 +283,11 @@ export interface components {
+       consensus_shrinkage_k?: number | null;
+       /** Min Source Edge */
+       min_source_edge?: number | null;
+-      /** Max Single Leg Odds */
+-      max_single_leg_odds?: number | null;
++      /**
++       * Max Leg Odds
++       * @default 3.5
++       */
++      max_leg_odds?: number;
+       /** Tol Lower */
+       tol_lower?: number | null;
+       /** Tol Upper */
+@@ -433,10 +442,10 @@ export interface components {
+        */
+       consensus_floor?: number;
+       /**
+-       * Min Odds
++       * Min Leg Odds
+        * @default 1.05
+        */
+-      min_odds?: number;
++      min_leg_odds?: number;
+       /** Tolerance Factor */
+       tolerance_factor?: number | null;
+       /** Stop Threshold */
+@@ -445,7 +454,7 @@ export interface components {
+        * Min Legs Fill Ratio
+        * @default 0.7
+        */
+-      min_legs_fill_ratio?: number;
++      min_legs_fill_ratio?: number | null;
+       /**
+        * Quality Vs Balance
+        * @default 0.5
+@@ -462,24 +471,29 @@ export interface components {
+       included_leagues?: string[] | null;
+       /** Excluded Sources */
+       excluded_sources?: string[] | null;
+-      /**
+-       * Units
+-       * @default 1
+-       */
+-      units?: number;
++      /** Units */
++      units?: number | null;
+       /** Target Payout */
+       target_payout?: number | null;
+-      /**
+-       * Run Daily Count
+-       * @default 0
+-       */
+-      run_daily_count?: number;
++      /** Run Daily Count */
++      run_daily_count?: number | null;
++      /** Order */
++      order?: number | null;
++      /** Auto Generate */
++      auto_generate?: boolean | null;
++      /** Generate Hour */
++      generate_hour?: number | null;
++      /** Generate Minute */
++      generate_minute?: number | null;
+       /** Consensus Shrinkage K */
+       consensus_shrinkage_k?: number | null;
+       /** Min Source Edge */
+       min_source_edge?: number | null;
+-      /** Max Single Leg Odds */
+-      max_single_leg_odds?: number | null;
++      /**
++       * Max Leg Odds
++       * @default 3.5
++       */
++      max_leg_odds?: number;
+       /** Tol Lower */
+       tol_lower?: number | null;
+       /** Tol Upper */
+@@ -496,18 +510,39 @@ export interface components {
+       /** Odds Movement Strength Min */
+       odds_movement_strength_min?: number | null;
+     };
++    /**
++     * ProfileScheduleIn
++     * @description Per-profile auto-generation schedule row (T4).
++     */
++    ProfileScheduleIn: {
++      /** Name */
++      name: string;
++      /** Auto Generate */
++      auto_generate?: boolean | null;
++      /** Generate Hour */
++      generate_hour?: number | null;
++      /** Generate Minute */
++      generate_minute?: number | null;
++      /** Units */
++      units?: number | null;
++      /** Target Payout */
++      target_payout?: number | null;
++      /** Run Daily Count */
++      run_daily_count?: number | null;
++      /** Order */
++      order?: number | null;
++    };
+     /**
+      * ServicesSettingsIn
+      * @description Payload for service scheduler settings.
+      */
+     ServicesSettingsIn: {
+       /** Generate Hour */
+-      generate_hour: number;
+-      /**
+-       * Generate Minute
+-       * @default 0
+-       */
+-      generate_minute?: number;
++      generate_hour?: number | null;
++      /** Generate Minute */
++      generate_minute?: number | null;
++      /** Profile Schedules */
++      profile_schedules?: components["schemas"]["ProfileScheduleIn"][] | null;
+     };
+     /**
+      * SlipIn
+@@ -903,6 +938,12 @@ export interface operations {
+   /**
+    * Save Profile
+    * @description Persist a named builder profile.
++   *
++   * Scheduling/ordering keys (run_daily_count, order, auto_generate,
++   * generate_hour, generate_minute) are tri-state in the payload: when the
++   * caller omits them, the values already persisted for this profile are
++   * carried over instead of being reset. That keeps a Smart Builder save from
++   * silently wiping a schedule configured on the Services page (review F1).
+    */
+   save_profile_api_profiles_post: {
+     requestBody: {
+@@ -997,7 +1038,7 @@ export interface operations {
+   };
+   /**
+    * Save Settings
+-   * @description Persist scheduler hour/minute settings.
++   * @description Persist scheduler hour/minute settings and per-profile schedules.
+    */
+   save_settings_api_services_settings_post: {
+     requestBody: {
+diff --git a/bet_dashboard/frontend/src/types/index.ts b/bet_dashboard/frontend/src/types/index.ts
+index 10f2f34..5938826 100644
+--- a/bet_dashboard/frontend/src/types/index.ts
++++ b/bet_dashboard/frontend/src/types/index.ts
+@@ -61,12 +61,12 @@ export interface BuilderConfig {
+     target_legs: number;
+     max_legs_overflow: number | null;
+     consensus_floor: number;
+-    min_odds: number;
++    min_leg_odds: number;
+     included_markets: string[] | null;
+     included_leagues: string[] | null;
+     tolerance_factor: number | null;
+     stop_threshold: number | null;
+-    min_legs_fill_ratio: number;
++    min_legs_fill_ratio: number | null;
+     quality_vs_balance: number;   // 0-1
+     consensus_vs_sources: number; // 0-1
+     date_from: string | null;
+@@ -75,7 +75,7 @@ export interface BuilderConfig {
+     // Advanced
+     consensus_shrinkage_k: number | null;
+     min_source_edge: number | null;
+-    max_single_leg_odds: number | null;
++    max_leg_odds: number;
+     tol_lower: number | null;
+     tol_upper: number | null;
+     balance_decay: 'linear' | 'gaussian';
+@@ -119,20 +119,24 @@ export interface PreviewResult {
+ export interface Profile {
+     target_odds: number; target_legs: number;
+     max_legs_overflow: number | null;
+-    consensus_floor: number; min_odds: number;
++    order?: number | string | null;
++    consensus_floor: number; min_leg_odds: number;
+     included_markets: string[] | null;
+     included_leagues: string[] | null;
+     excluded_sources: string[] | null;
+     tolerance_factor: number | null; stop_threshold: number | null;
+-    min_legs_fill_ratio: number; quality_vs_balance: number; consensus_vs_sources: number;
+-    units: number;
++    min_legs_fill_ratio: number | null; quality_vs_balance: number; consensus_vs_sources: number;
++    // Stake defaults live on disk (Services-owned); a builder save never sends them.
++    units?: number;
+     target_payout?: number | null;
+-    run_daily_count: number;
++    // Scheduling moved to the Services page (issue #41 note 6 / #95); the Smart
++    // Builder no longer writes it, so profiles read from disk may omit it.
++    run_daily_count?: number;
+     date_from?: null; date_to?: null; excluded_urls?: null;
+     // Advanced
+     consensus_shrinkage_k: number | null;
+     min_source_edge: number | null;
+-    max_single_leg_odds: number | null;
++    max_leg_odds: number;
+     tol_lower: number | null;
+     tol_upper: number | null;
+     balance_decay: 'linear' | 'gaussian';
+@@ -316,6 +320,19 @@ export interface AnalyticsData {
+ 
+ // ── Services ──────────────────────────────────────────────────────────────────
+ 
++/** Per-profile auto-generation schedule (issue #95). Position drives the order
++ * in which the generator builds slips — the most important profile first. */
++export interface ProfileSchedule {
++    name: string;
++    auto_generate: boolean;
++    generate_hour: number;
++    generate_minute: number;
++    units: number | null;
++    target_payout: number | null;
++    run_daily_count: number;
++    order: number;
++}
++
+ export interface ServiceInfo {
+     name: string; description: string;
+     enabled: boolean; alive: boolean;
+@@ -331,6 +348,9 @@ export interface ServicesData {
+     generate_hour: number;
+     generate_minute: number;
+     server_time: string;
++    /** Per-profile auto-generation schedule (issue #95). Optional: absent when
++     * the backend serves the legacy global shape only. */
++    profile_schedules?: ProfileSchedule[];
+ }
+ 
+ // ── WebSocket events ──────────────────────────────────────────────────────────

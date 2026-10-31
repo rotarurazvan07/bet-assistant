@@ -1,0 +1,25 @@
+generate_hour: 9
+generate_minute: 0
+toggles:
+  puller: false
+  generator: false
+  verifier: false
+profiles_schedule:
+  low:
+    enabled: true
+    hour: 9
+    minute: 30
+    units: 2.5
+    target_payout: 100
+  medium:
+    enabled: false
+    hour: 12
+    minute: 0
+    units: 1
+    target_payout: null
+  high_risk:
+    enabled: false
+    hour: 21
+    minute: 0
+    units: 0.5
+    target_payout: null

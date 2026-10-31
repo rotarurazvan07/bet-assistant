@@ -1,0 +1,14 @@
+diff --git a/bet_dashboard/frontend/src/components/ui/index.ts b/bet_dashboard/frontend/src/components/ui/index.ts
+index db8df36..56a16b6 100644
+--- a/bet_dashboard/frontend/src/components/ui/index.ts
++++ b/bet_dashboard/frontend/src/components/ui/index.ts
+@@ -1,3 +1,7 @@
+ export * from './BaseCard';
+ export * from './BaseBadge';
+-export * from './BaseDataRow';
+\ No newline at end of file
++export * from './BaseDataRow';
++// NumberField is intentionally NOT re-exported here: this barrel is shadowed by
++// src/components/ui.tsx (the file wins over the directory), so importing
++// NumberField from '../components/ui' fails to resolve. Import it from
++// '../components/ui/NumberField' directly instead.

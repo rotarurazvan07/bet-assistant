@@ -1,0 +1,22 @@
+diff --git a/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts b/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts
+index 465c074..b97ae4f 100644
+--- a/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts
++++ b/bet_dashboard/frontend/e2e/onboarding-tour.spec.ts
+@@ -37,7 +37,7 @@ test('Next walks / → /builder → /slips then Done persists', async ({ page })
+     await expect(page.getByRole('dialog', { name: 'Find value bets' })).toBeVisible();
+     await page.getByRole('button', { name: 'Next' }).click();
+     await expect(page).toHaveURL(/\/builder/);
+-    await expect(page.getByRole('dialog', { name: 'Create your strategy' })).toBeVisible();
++    await expect(page.getByRole('dialog', { name: 'Profiles & live preview' })).toBeVisible();
+     await page.getByRole('button', { name: 'Next' }).click();
+     await expect(page).toHaveURL(/\/slips/);
+     await expect(page.getByRole('dialog', { name: 'Monitor performance' })).toBeVisible();
+@@ -75,7 +75,7 @@ test('Tab + Enter advances Next', async ({ page }) => {
+     await expect(page.getByRole('dialog', { name: 'Find value bets' })).toBeVisible();
+     await page.getByRole('button', { name: 'Next' }).focus();
+     await page.keyboard.press('Enter');
+-    await expect(page.getByRole('dialog', { name: 'Create your strategy' })).toBeVisible();
++    await expect(page.getByRole('dialog', { name: 'Profiles & live preview' })).toBeVisible();
+ });
+ 
+ test('first Add Slip shows milestone once', async ({ page }) => {
