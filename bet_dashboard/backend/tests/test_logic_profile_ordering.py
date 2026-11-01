@@ -9,7 +9,6 @@ import contextlib
 from datetime import datetime
 
 import pytest
-
 from tests.logic_test_helpers import build_app
 
 PROFILE = {
