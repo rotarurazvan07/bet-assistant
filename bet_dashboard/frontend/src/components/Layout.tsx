@@ -4,7 +4,7 @@ import { pullDb } from '../api/data';
 import OnboardingTour from './OnboardingTour';
 import { TOUR_DONE_KEY } from './tourStorage';
 
-// AC-01/AC-02 (issue #36): workflow-grouped nav — Core → Insights → System;
+// /workflow-grouped nav — Core → Insights → System;
 // routes unchanged, labels renamed to action verbs.
 const NAV_GROUPS = [
     {
@@ -124,9 +124,9 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         </span>
                     </div>
 
-                    {/* Nav — workflow groups (issue #36): Core → Insights → System.
+                    {/* Nav — workflow groups: Core → Insights → System.
                         Anchors stay flat in DOM order inside each group so keyboard
-                        Tab order equals visual order (AC-04). */}
+                        Tab order equals visual order. */}
                     <nav className="flex items-center gap-5 flex-1" aria-label="Primary">
                         {NAV_GROUPS.map((group, groupIndex) => (
                             <Fragment key={group.id}>
@@ -134,7 +134,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                     <span className="nav-separator" aria-hidden="true" />
                                 )}
                                 <div className="flex flex-col justify-center" role="group" aria-label={group.caption}>
-                                    {/* AC-03: micro-caption above group (SM-approved) */}
+                                    {/*micro-caption above group (SM-approved) */}
                                     <span
                                         className="nav-caption"
                                         aria-hidden="true"
@@ -169,7 +169,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         <button className="btn-ghost" onClick={handleRefresh}>
                             Refresh
                         </button>
-                        {/* AC-05: Restart Tour lives in the header — there is no Settings page. */}
+                        {/*Restart Tour lives in the header — there is no Settings page. */}
                         <button
                             type="button"
                             className="btn-ghost"
@@ -214,7 +214,7 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
                 {children({ dateFrom, dateTo })}
             </main>
-            {/* AC-07: mount tour here (Router + Restart). Do not edit App.tsx. */}
+            {/*mount tour here (Router + Restart). Do not edit App.tsx. */}
             <OnboardingTour key={tourEpoch} />
         </div>
     );

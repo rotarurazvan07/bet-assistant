@@ -1,4 +1,4 @@
-"""[P0] API tests for the analytics router endpoint (issue #58).
+"""[P0] API tests for the analytics router endpoint.
 
 Validates the full GET /api/analytics structure, profile/date filter passthrough,
 and the all-numeric-fields-finite guarantee (no NaN/Inf in JSON).
@@ -50,7 +50,7 @@ class TestGetAnalytics:
         assert set(data) >= EXPECTED_KEYS
 
     def test_all_numeric_fields_finite(self, client) -> None:
-        """Issue #58: response must contain no NaN/Inf anywhere."""
+        """response must contain no NaN/Inf anywhere."""
         _assert_finite(client.get(BASE).json())
 
     def test_analytics_with_rich_slips_stays_finite(self, client_factory) -> None:

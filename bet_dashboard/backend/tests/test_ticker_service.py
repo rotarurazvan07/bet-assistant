@@ -1,6 +1,6 @@
-"""Integration tests for core/ticker_service.py (issue #60, cycle 4) — REAL threads.
+"""Integration tests for core/ticker_service.py — REAL threads.
 
-Unlike cycle 3's FakeTicker (wiring inspection), this file exercises REAL
+Unlike's FakeTicker (wiring inspection), this file exercises REAL
 daemon threads and a REAL tick loop with short intervals (0.05s). Synchronization
 is event/condition-based — never sleep-polling:
 - positive waits use TickCounter.wait_at_least() (Condition.notify_all, bounded deadline)
@@ -9,7 +9,7 @@ is event/condition-based — never sleep-polling:
 
 Note: TickerService has no stop() API — teardown parks every thread via
 set_enabled(False); parked daemons block on _wake_event and consume zero CPU.
-Issue #60's "toggle_service()" maps to set_enabled on TickerService itself
+"toggle_service" maps to set_enabled on TickerService itself
 (AppLogic.toggle_service is covered by the e2e integration suite).
 """
 
@@ -180,7 +180,7 @@ class TestSetEnabled:
         assert counter.wait_at_least(frozen + 2, timeout=2.0), "ticking did not resume"
 
     def test_enabled_attribute_flips_via_set_enabled(self, tickers) -> None:
-        """[P2] set_enabled stores the flag (external-call contract from issue #60)."""
+        """[P2] set_enabled stores the flag."""
         counter = TickCounter()
         svc = make_ticker(tickers, counter, interval=0.05)
         assert svc.enabled is True

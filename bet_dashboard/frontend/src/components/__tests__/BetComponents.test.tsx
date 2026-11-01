@@ -1,4 +1,4 @@
-// BetComponents (issue #64 P2). ACTUAL divergences (cycle 12): BetPreview
+// BetComponents. ACTUAL divergences: BetPreview
 // lives HERE (no separate file); empty text 'No matches meet the current
 // criteria.'; NO loading skeleton; pendingUrls → 'In pending slip' strip;
 // tier-2 legs → 'N out-of-band' badge; onExclude fires only with truthy

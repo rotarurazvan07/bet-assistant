@@ -1,4 +1,4 @@
-// BettingTips page (issue #65). ACTUAL divergences: NO 'Add to Builder'
+// BettingTips page. ACTUAL divergences: NO 'Add to Builder'
 // button — market-cell clicks toggle legs into FloatingSlipBuilder directly;
 // sources filter is an MUI Popover with checkboxes (not a plain multiselect);
 // filters persist across 4 localStorage keys; handleAddSlip uses alert().
@@ -277,7 +277,7 @@ describe('BettingTips page', () => {
         });
     });
 
-    it('#39 AC-07: Escape minimizes and restores focus to the triggering cell', async () => {
+    it('#39Escape minimizes and restores focus to the triggering cell', async () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal');

@@ -129,7 +129,7 @@ export interface Profile {
     // Stake defaults live on disk (Services-owned); a builder save never sends them.
     units?: number;
     target_payout?: number | null;
-    // Scheduling moved to the Services page (issue #41 note 6 / #95); the Smart
+    // Scheduling moved to the Services page; the Smart
     // Builder no longer writes it, so profiles read from disk may omit it.
     run_daily_count?: number;
     date_from?: null; date_to?: null; excluded_urls?: null;
@@ -320,7 +320,7 @@ export interface AnalyticsData {
 
 // ── Services ──────────────────────────────────────────────────────────────────
 
-/** Per-profile auto-generation schedule (issue #95). Position drives the order
+/** Per-profile auto-generation schedule. Position drives the order
  * in which the generator builds slips — the most important profile first. */
 export type StakeMode = 'units' | 'payout';
 export type RunStatus = 'ok' | 'failed' | 'running' | null;
@@ -360,7 +360,7 @@ export interface ServiceInfo {
 export interface ServicesData {
     services: Record<string, ServiceInfo>;
     server_time: string;
-    /** Per-profile auto-generation schedule (issue #95). The only scheduling
+    /** Per-profile auto-generation schedule. The only scheduling
      * contract — there is no global generation time (user decision 2026-10-25). */
     profile_schedules?: ProfileSchedule[];
 }

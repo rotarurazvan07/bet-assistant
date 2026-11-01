@@ -1,4 +1,4 @@
-// Visual baselines (issue #38 AC-10). Chromium-only, local-only.
+// Visual baselines. Chromium-only, local-only.
 // installDemoApi required. Do not screenshot mid-flight fly clone.
 import { test, expect, type Page } from '@playwright/test';
 import { installDemoApi, suppressTour } from './fixtures/mock-api';
@@ -28,7 +28,7 @@ test.describe('leg-add feedback @desktop 1280x800', () => {
 
     test('toast + in-slip cell + panel', async ({ page }) => {
         await addDemoHome(page);
-        // Desktop AA drift from table text is pre-existing; same bounded tolerance as #39 full-view shots.
+        // Desktop AA drift from table text is pre-existing; same bounded tolerance as full-view shots.
         await expect(page).toHaveScreenshot('leg-add-desktop-toast.png', { ...mask(page), maxDiffPixels: 500 });
     });
 });

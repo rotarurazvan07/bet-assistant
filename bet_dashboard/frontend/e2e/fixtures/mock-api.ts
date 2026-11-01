@@ -103,7 +103,7 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
     }
 }
 
-/** AC-09: existing specs must not see first-visit tour. */
+/** existing specs must not see first-visit tour. */
 export async function suppressTour(page: Page): Promise<void> {
     await page.addInitScript(() => {
         try {

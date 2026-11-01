@@ -1,4 +1,4 @@
-// Visual baselines (issue #37 AC-10). Chromium-only, local-only.
+// Visual baselines. Chromium-only, local-only.
 import { test, expect } from '@playwright/test';
 import { suppressTour } from './fixtures/mock-api';
 

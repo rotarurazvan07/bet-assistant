@@ -1,4 +1,4 @@
-// Test setup for Vitest (issue #63, cycle 9).
+// Test setup for Vitest.
 // Loads jest-dom matchers, polyfills browser APIs missing in jsdom 30,
 // and installs the MSW server lifecycle hooks.
 

@@ -1,4 +1,4 @@
-// Tour visual baselines (issue #50 AC-11). Chromium-only, local-only.
+// Tour visual baselines. Chromium-only, local-only.
 // installDemoApi + slips/profiles. Do NOT suppress tour. Mask lastPull.
 import { test, expect, type Page } from '@playwright/test';
 import { installDemoApi } from './fixtures/mock-api';

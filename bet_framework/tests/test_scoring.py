@@ -1,5 +1,5 @@
 """
-Gap tests for bet_framework/core/scoring.py (GitHub issue #70).
+Gap tests for bet_framework/core/scoring.py.
 
 Covered public API:
   resolve_shrinkage_k / resolve_max_leg_odds / resolve_min_pick_quality /

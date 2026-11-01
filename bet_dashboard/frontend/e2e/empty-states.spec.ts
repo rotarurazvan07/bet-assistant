@@ -1,5 +1,5 @@
-// Actionable empty states (issue #46 AC-10).
-// THIS STORY IS THE EXPLICIT DEMO-DATA EXCEPTION.
+// Actionable empty states.
+// IS THE EXPLICIT DEMO-DATA EXCEPTION.
 // Do NOT call installDemoApi. Do NOT import DEMO_MATCHES.
 // Discover/Build are forced empty via the narrow beforeEach mocks below —
 // needed locally (Vite 502s) AND in CI, where the stack serves seeded demo

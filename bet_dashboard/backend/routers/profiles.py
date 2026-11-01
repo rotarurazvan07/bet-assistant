@@ -30,7 +30,7 @@ def save_profile(request: Request, body: ProfileIn):
     generate_hour, generate_minute) are tri-state in the payload: when the
     caller omits them, the values already persisted for this profile are
     carried over instead of being reset. That keeps a Smart Builder save from
-    silently wiping a schedule configured on the Services page (review F1).
+    silently wiping a schedule configured on the Services page.
     """
     app = _get(request)
     name = "".join(c for c in body.name if c.isalnum() or c in ("_", "-")).lower()
@@ -41,7 +41,7 @@ def save_profile(request: Request, body: ProfileIn):
     if not isinstance(existing, dict):
         existing = {}
 
-    # Desync C: units/target_payout are owned by the Services page. A
+    # units/target_payout are owned by the Services page. A
     # Smart Builder save omits them (they are session-only in the Build tab),
     # so an omitted value keeps whatever is already persisted; only an
     # explicit body value writes through.
@@ -94,14 +94,14 @@ def save_profile(request: Request, body: ProfileIn):
     ):
         if key not in data and key in existing:
             data[key] = existing[key]
-    # AUTO B: min_legs_fill_ratio=None means Auto. BetSlipConfig.__post_init__
+    # min_legs_fill_ratio=None means Auto. BetSlipConfig.__post_init__
     # resolves None to 0.90 and asdict would persist that explicit number, so
     # the request value is restored verbatim — null stays null (Auto).
     data["min_legs_fill_ratio"] = body.min_legs_fill_ratio
     for key, value in existing.items():
         data.setdefault(key, value)
     # Runtime-only keys (date_from/date_to/excluded_urls) are Build-page
-    # filters and must never be persisted into profile YAML (issue #95).
+    # filters and must never be persisted into profile YAML.
     for k in _RUNTIME_ONLY:
         data.pop(k, None)
     app.settings.write(name, data, subpath="profiles")

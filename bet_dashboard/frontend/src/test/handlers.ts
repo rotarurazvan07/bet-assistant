@@ -1,6 +1,6 @@
-// MSW handlers covering the full backend REST surface (issue #63, cycle 9).
+// MSW handlers covering the full backend REST surface.
 // Response shapes ground-truthed against src/types/index.ts and the backend
-// router contracts (bet_dashboard/backend/routers/*, verified cycles 2-3).
+// router contracts.
 // Paths are absolute (/api/...) because the axios client baseURL is '/api'.
 
 import { http, HttpResponse } from 'msw';

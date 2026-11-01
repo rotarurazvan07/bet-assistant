@@ -1,4 +1,4 @@
-"""[P0] Unit tests for the matches router (issue #58).
+"""[P0] Unit tests for the matches router.
 
 Covers: pagination defaults/bounds, search, date filters, sort_by/sort_dir,
 min_consensus, min_odds, only_significant_movement, excluded_sources,

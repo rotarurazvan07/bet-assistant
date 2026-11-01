@@ -10,12 +10,10 @@ from bet_framework.core.Slip import BetSlipConfig
 
 
 def coerce_key(value):
-    """Coerce a market key to string if not already."""
     return value if isinstance(value, str) else str(value)
 
 
 def coerce_type(value):
-    """Coerce a market type to string if not already."""
     return value if isinstance(value, str) else str(value)
 
 

@@ -31,7 +31,7 @@ def _config_to_yaml_dict(
     d = asdict(cfg)
     # Runtime-only keys (date_from/date_to/excluded_urls) are Build-page
     # filters, never persisted to profile YAML — drop them entirely instead
-    # of writing explicit nulls (issue #95 cleanup).
+    # of writing explicit nulls.
     for k in _RUNTIME_ONLY:
         d.pop(k, None)
     d["units"] = units
@@ -41,7 +41,7 @@ def _config_to_yaml_dict(
     # a legacy auto-generation profile to 0.
     if run_daily_count is not None:
         d["run_daily_count"] = run_daily_count
-    # T4 scheduling/ordering keys are opt-in: only persisted when explicitly set
+    # scheduling/ordering keys are opt-in: only persisted when explicitly set
     if order is not None:
         d["order"] = order
     if auto_generate is not None:

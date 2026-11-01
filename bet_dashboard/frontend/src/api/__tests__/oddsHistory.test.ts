@@ -1,4 +1,4 @@
-// oddsHistory.ts tests (issue #67). Pins path templating and response
+// oddsHistory.ts tests. Pins path templating and response
 // unwrapping for the 4 odds-history functions.
 
 import { describe, it, expect } from 'vitest';

@@ -1,10 +1,10 @@
-"""[P0] API tests for the profiles router (issue #58)."""
+"""[P0] API tests for the profiles router."""
 
 BASE = "/api/profiles"
 
 
 class TestSaveProfileSchedulePreservation:
-    """[P0] F1: a builder save must not wipe Services-configured scheduling."""
+    """[P0]a builder save must not wipe Services-configured scheduling."""
 
     def test_omitted_scheduling_keys_keep_persisted_values(self, client, fake_app) -> None:
         """[P0] Order/schedule/auto_generate/run_daily_count survive an omit."""
@@ -119,7 +119,7 @@ class TestSaveProfile:
         assert written["target_odds"] == 3.0
         assert written["target_legs"] == 3
         assert written["units"] == 1.0
-        # F1: run_daily_count is opt-in — omitted it is not written as 0, so a
+        # run_daily_count is opt-in — omitted it is not written as 0, so a
         # legacy auto-generation profile keeps its schedule across a builder save.
         assert "run_daily_count" not in written
         assert written["balance_decay"] == "linear"
@@ -136,7 +136,7 @@ class TestDeleteProfile:
 
 
 class TestSaveProfileMergeOnWrite:
-    """[P0] Desync C: a Builder save must not clobber Services-owned units/target_payout."""
+    """[P0]: a Builder save must not clobber Services-owned units/target_payout."""
 
     def test_omitted_units_target_payout_keep_persisted(self, client, fake_app) -> None:
         """[P0] Omitted units/target_payload preserve the persisted profile values."""
@@ -170,7 +170,7 @@ class TestSaveProfileMergeOnWrite:
 
 
 class TestSaveProfileFillRatioAutoRoundTrip:
-    """[P0] AUTO B: min_legs_fill_ratio=null must persist as null (Auto), not 0.90."""
+    """[P0]: min_legs_fill_ratio=null must persist as null (Auto), not 0.90."""
 
     def test_null_fill_ratio_persists_as_null(self, client, fake_app) -> None:
         """[P0] Explicit null survives the save verbatim -- no 0.90 coercion."""

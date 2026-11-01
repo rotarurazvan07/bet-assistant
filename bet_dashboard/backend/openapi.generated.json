@@ -689,7 +689,7 @@
           "profiles"
         ],
         "summary": "Save Profile",
-        "description": "Persist a named builder profile.\n\nScheduling/ordering keys (run_daily_count, order, auto_generate,\ngenerate_hour, generate_minute) are tri-state in the payload: when the\ncaller omits them, the values already persisted for this profile are\ncarried over instead of being reset. That keeps a Smart Builder save from\nsilently wiping a schedule configured on the Services page (review F1).",
+        "description": "Persist a named builder profile.\n\nScheduling/ordering keys (run_daily_count, order, auto_generate,\ngenerate_hour, generate_minute) are tri-state in the payload: when the\ncaller omits them, the values already persisted for this profile are\ncarried over instead of being reset. That keeps a Smart Builder save from\nsilently wiping a schedule configured on the Services page.",
         "operationId": "save_profile_api_profiles_post",
         "requestBody": {
           "content": {
@@ -2141,7 +2141,7 @@
           "name"
         ],
         "title": "ProfileScheduleIn",
-        "description": "Per-profile auto-generation schedule row (T4).\n\nIssue #95: BOTH ``units`` and ``target_payout`` are always preserved on\ndisk; ``stake_mode`` (\"units\" | \"payout\") only selects which one is active\nat generation time. A null ``units``/``target_payout`` means \"not\nprovided\" and the persisted value is kept \u2014 switching the segmented\ncontrol can never lose the other field's number."
+        "description": "Per-profile auto-generation schedule row.\n\nBOTH ``units`` and ``target_payout`` are always preserved on\n disk; ``stake_mode`` (\"units\" | \"payout\") only selects which one is active\n at generation time. A null ``units``/``target_payout`` means \"not\n provided\" and the persisted value is kept \u2014 switching the segmented\n control can never lose the other field's number."
       },
       "ServicesSettingsIn": {
         "properties": {

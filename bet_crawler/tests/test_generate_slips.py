@@ -1,4 +1,4 @@
-"""Stage 4: generate_slips tests (issue #68).
+"""Stage 4: generate_slips tests.
 
 Pins: profile loading gate (SystemExit on empty), matches db → slip persistence
 in slips.db, units handling, BetSlipConfig field flow, no-eligible-matches path.

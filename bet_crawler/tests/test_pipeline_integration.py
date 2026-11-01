@@ -1,4 +1,4 @@
-"""Full pipeline integration tests (issue #68): prepare → scrape → merge →
+"""Full pipeline integration tests: prepare → scrape → merge →
 generate → validate, with runner-set isolation and FT/LIVE/PENDING handling.
 
 All HTTP is mocked: stub finders emit matches, and BetAssistant's result-page

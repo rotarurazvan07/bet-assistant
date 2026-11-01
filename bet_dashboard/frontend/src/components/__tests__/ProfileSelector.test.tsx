@@ -1,4 +1,4 @@
-// ProfileSelector (issue #64 P0). ACTUAL behavior (cycle-12 divergence
+// ProfileSelector. ACTUAL behavior (divergence
 // notes): syncs ALL profiles on first load when none selected; blocks
 // deselecting the last profile; SELECT ALL disabled when all selected.
 

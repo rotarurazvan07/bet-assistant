@@ -1,4 +1,4 @@
-// Visual baselines (issue #39 AC-12). Chromium-only, local-only.
+// Visual baselines. Chromium-only, local-only.
 // Local Vite has no backend — installDemoApi serves 2–3 factory matches so
 // the table + populated slip are in the shot. Skipped when E2E_BASE_URL (CI).
 import { test, expect, type Page } from '@playwright/test';
@@ -23,7 +23,7 @@ async function openPopulatedDiscover(page: Page): Promise<void> {
     await cell.click();
     await expect(page.getByText('1 leg selected')).toBeVisible();
     await expect(page.getByText('No legs selected.')).toHaveCount(0);
-    // #38 toast / pulse must not leak into #39 baselines.
+    // toast / pulse must not leak into baselines.
     const toast = page.getByRole('alert');
     if (await toast.count()) {
         await toast.getByRole('button', { name: /close/i }).click();
@@ -61,7 +61,7 @@ test.describe('floating slip builder @mobile 375x667', () => {
     test('sheet 90%', async ({ page }) => {
         await openPopulatedDiscover(page);
         await page.getByRole('button', { name: 'Resize slip sheet' }).click();
-        // AC-12: Restart Tour wraps the 375px header (Workstream E). Do not recapture #39.
+        // Restart Tour wraps the 375px header. Do not recapture.
         await expect(page.locator('.floating-slip-panel')).toHaveScreenshot('slip-mobile-90.png', { maxDiffPixels: 300 });
     });
 

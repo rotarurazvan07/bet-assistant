@@ -1,9 +1,9 @@
-/** Satisfies: AC-02, AC-09 */
+/** Satisfies:*/
 export const TOUR_DONE_KEY = 'bet-assistant-tour-done';
-/** Satisfies: AC-06 */
+/** Satisfies: */
 export const FIRST_SLIP_KEY = 'bet-assistant-first-slip-done';
 
-/** Returns true only on the first successful addSlip. Satisfies: AC-06, AC-10 */
+/** Returns true only on the first successful addSlip. Satisfies:*/
 export function markFirstSlip(): boolean {
     try {
         if (localStorage.getItem(FIRST_SLIP_KEY) === '1') return false;

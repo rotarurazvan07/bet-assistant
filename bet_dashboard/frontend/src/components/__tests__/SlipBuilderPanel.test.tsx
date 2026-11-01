@@ -1,5 +1,5 @@
-// SlipBuilderPanel (issue #64 P1 + #39). ACTUAL: display + units input +
-// Add Slip only. #39 adds: isMobileSheet prop drops the L99 maxHeight trap,
+// SlipBuilderPanel. ACTUAL: display + units input +
+// Add Slip only. adds: isMobileSheet prop drops the L99 maxHeight trap,
 // heading id for aria-labelledby, Ctrl+Enter / Esc window listeners.
 
 import { describe, it, expect, vi } from 'vitest';
@@ -75,14 +75,14 @@ describe('SlipBuilderPanel', () => {
     });
 });
 
-// ── issue #39 ────────────────────────────────────────────────────────────────
-describe('SlipBuilderPanel #39', () => {
-    it('AC-13: heading carries the id used by the dialog aria-labelledby', () => {
+// 
+describe('SlipBuilderPanel', () => {
+    it('heading carries the id used by the dialog aria-labelledby', () => {
         render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} />);
         expect(screen.getByText('Slip Builder').id).toBe('slip-builder-title');
     });
 
-    it('AC-04: Ctrl+Enter calls onSubmit with current units when legs exist', async () => {
+    it('Ctrl+Enter calls onSubmit with current units when legs exist', async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();
         render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={onSubmit} />);
@@ -90,7 +90,7 @@ describe('SlipBuilderPanel #39', () => {
         expect(onSubmit).toHaveBeenCalledWith(1);
     });
 
-    it('AC-04: Ctrl+Enter does nothing when there are no legs', async () => {
+    it('Ctrl+Enter does nothing when there are no legs', async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();
         render(<SlipBuilderPanel legs={[]} onRemoveLeg={() => {}} onSubmit={onSubmit} />);
@@ -98,7 +98,7 @@ describe('SlipBuilderPanel #39', () => {
         expect(onSubmit).not.toHaveBeenCalled();
     });
 
-    it('AC-05: Escape calls onToggleMinimize when expanded', async () => {
+    it('Escape calls onToggleMinimize when expanded', async () => {
         const user = userEvent.setup();
         const onToggleMinimize = vi.fn();
         render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} onToggleMinimize={onToggleMinimize} />);
@@ -106,7 +106,7 @@ describe('SlipBuilderPanel #39', () => {
         expect(onToggleMinimize).toHaveBeenCalledTimes(1);
     });
 
-    it('AC-03/AC-02: mobile sheet drops the calc(100vh - 380px) list maxHeight', () => {
+    it('/mobile sheet drops the calc(100vh - 380px) list maxHeight', () => {
         const { container } = render(<SlipBuilderPanel legs={legs(1)} onRemoveLeg={() => {}} onSubmit={() => {}} isMobileSheet />);
         const list = container.querySelector('.overflow-y-auto') as HTMLElement;
         expect(list.style.maxHeight).toBe('');

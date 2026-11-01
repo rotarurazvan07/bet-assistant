@@ -1,4 +1,4 @@
-"""Stage 1: prepare_scrape tests (issue #68).
+"""Stage 1: prepare_scrape tests.
 
 Pins: chunk file creation, per-runner finder lists, chunk math,
 retry semantics, stdout tasks JSON, runner-set isolation.

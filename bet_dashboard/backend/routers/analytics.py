@@ -31,14 +31,7 @@ def _get_status_value(status) -> str:
 
 
 def _drawdown_data(history: list[dict]) -> list[dict]:
-    """Build drawdown series rows from history.
-
-    Args:
-        history: List of daily history records with cumulative_profit.
-
-    Returns:
-        List of drawdown data points with date, drawdown, peak, and cumulative_profit.
-    """
+    """Build drawdown series rows from history."""
     if not history:
         return []
     peak = 0.0
@@ -62,14 +55,7 @@ def _drawdown_data(history: list[dict]) -> list[dict]:
 
 def _market_breakdown(slips) -> list[dict]:
     # data: market -> { "market": str, "unique_legs": set, "won": 0, "lost": 0, "sum_odds": 0.0, "sum_implied": 0.0, "net_profit": 0.0 }
-    """Aggregate market hit/miss counts into breakdown rows.
-
-    Args:
-        slips: List of slip objects with legs, units, and status.
-
-    Returns:
-        Sorted list of market breakdown dictionaries with win rate, edge, etc.
-    """
+    """Aggregate market hit/miss counts into breakdown rows."""
     data: dict[str, dict] = {}
 
     # Track unique legs to count them only once for win/loss but aggregate profit

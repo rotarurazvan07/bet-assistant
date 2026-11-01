@@ -1,9 +1,9 @@
 <!-- bmad:context -->
-<!-- Verified 2026-09-05 against 9dbb473. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+<!-- Verified 2026-09-05. Managed by an automated context refresher; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
 
 ## bet-assistant
 
-Automated betting intelligence platform: 18+ crawlers, consensus engine, slip builder, real-time React dashboard. Python 3.14 (FastAPI, scrape-kit), Node 22+ (React 19, TypeScript, Vite, MUI v9), Docker. Planning in `docs/`, specs in `_bmad-output/`.
+Automated betting intelligence platform: 18+ crawlers, consensus engine, slip builder, real-time React dashboard. Python 3.14 (FastAPI, scrape-kit), Node 22+ (React 19, TypeScript, Vite, MUI v9), Docker. Planning in `docs/`, specs in `/`.
 
 ## Policy
 
@@ -76,12 +76,32 @@ Any frontend test that needs **populated** data must grow **both tracks together
 
 **Exceptions / never:**
 
-- Empty-state specs (#46) stay empty — no `installDemoApi`, no seed rows for that surface.
+- Empty-state specs stay empty — no `installDemoApi`, no seed rows for that surface.
 - Skip `installDemoApi` when `E2E_BASE_URL` is set (CI already has the seeded stack).
 - Do **not** seed `npm run dev` or `workspace/data/*.db` (pipeline outputs).
 - `e2e-seed` touches only the throwaway compose volume.
 
 <!-- /bmad:context -->
+
+## Published content — no internal bookkeeping
+
+Everything in this repository is published: source, docs, CI config and the
+generated OpenAPI contract are all read by people outside the team. Keep them
+free of internal-only bookkeeping.
+
+- Do not write acceptance-criteria labels, issue/PR/ticket numbers, internal
+  decision or task labels, cycle/wave markers, story/epic/sprint trackers,
+  review notes, CI run identifiers or context-anchored commit hashes into
+  comments, docstrings, docs or CI step names.
+- Write what the code actually does — name the symbol, file or behaviour — and
+  drop the bookkeeping label.
+- The rule that defines "internal reference" is `.semgrep/no-internal-references.yml`.
+  It is enforced by the `Internal-reference hygiene gate` step in the `audit`
+  job of `.github/workflows/cicd.yml`; a finding there fails the build.
+- The only allowed planning-tool mentions are the two managed-block anchor
+  comments above, which the refresher uses to replace this block.
+- When a comment is needed, explain the *why* in one line. A comment that only
+  records where the work came from belongs in the tracker, not in the repo.
 
 ## Canonical market keys (single source of truth)
 

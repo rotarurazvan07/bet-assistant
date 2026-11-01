@@ -16,7 +16,7 @@ fb = importlib.import_module("bet_crawler.finders.ForebetFinder")
 
 @pytest.fixture(autouse=True)
 def _pin_forebet_timezone(monkeypatch) -> None:
-    """Runner-TZ pin (PR #75 CI fix, D51).
+    """Runner-TZ pin.
 
     ForebetFinder.TIMEZONE is `BaseMatchFinder._detect_local_timezone()`
     (ForebetFinder.py:226) — the tzlocal probe resolved at IMPORT time, i.e.

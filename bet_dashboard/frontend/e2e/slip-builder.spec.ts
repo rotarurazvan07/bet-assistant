@@ -1,4 +1,4 @@
-// Floating slip builder E2E + keyboard + axe (issue #39 AC-11).
+// Floating slip builder E2E + keyboard + axe.
 // Local Vite: demo API paints matches; tests still use an empty slip so
 // Ctrl+Enter stays a no-op. AxiosError filter kept for CI/external stack.
 import { test, expect } from '@playwright/test';
@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
     page.on('pageerror', (err) => {
         // Axios proxy failures are environmental noise; WebKit additionally
         // surfaces CORS-blocked XHR as pageerror on the external stack (see
-        // landing.spec.ts + PR #106 remediation) - filter the same class.
+        // landing.spec.ts + remediation) - filter the same class.
         const msg = String(err);
         const isNoise =
             msg.includes('AxiosError')
@@ -70,7 +70,7 @@ test.describe('mobile bottom sheet 375x667', () => {
         // focus it first, exactly like the desktop test focuses the dialog.
         // WebKit drops key events with no active element, so the un-focused
         // variant minimized nothing and the pill never rendered (flake seen on
-        // run 40051098136); focus makes the assertion deterministic.
+        // ); focus makes the assertion deterministic.
         await panel.focus();
         await page.keyboard.press('Escape');
         const pill = page.locator('.floating-slip-minimized');

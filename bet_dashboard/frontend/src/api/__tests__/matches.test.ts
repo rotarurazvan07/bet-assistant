@@ -1,4 +1,4 @@
-// matches.ts tests (issue #67). Pins param serialization: excluded_sources
+// matches.ts tests. Pins param serialization: excluded_sources
 // comma-joined (probed: axios emits arrays as repeated key[] params, so the
 // client-side join() is load-bearing), nulls omitted, booleans verbatim.
 

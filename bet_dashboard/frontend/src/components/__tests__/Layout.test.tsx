@@ -1,8 +1,8 @@
-// Layout (issue #64 P1). ACTUAL (cycle-12 divergence): NO sidebar — top
+// Layout. ACTUAL: NO sidebar — top
 // bar + NavLink×6; Time Horizon pickers on 4 routes only; persisted
 // localStorage 'bet-assistant-time-horizon'; Pull → pullDb() →
 // onMatchesUpdated only when status==='ok'. Needs MemoryRouter wrapper.
-// Issue #36: nav grouped Core/Insights/System — captions above groups,
+// nav grouped Core/Insights/System — captions above groups,
 // separators between groups, flat DOM anchor order = keyboard order.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -35,7 +35,7 @@ function renderLayout(route: string = '/', overrides: LayoutOverrides = {}) {
 
 beforeEach(() => {
     localStorage.clear();
-    // AC-09: existing header/nav assertions must not see first-visit tour.
+    // existing header/nav assertions must not see first-visit tour.
     localStorage.setItem('bet-assistant-tour-done', '1');
 });
 
@@ -46,21 +46,21 @@ describe('Layout', () => {
             return element !== null && content.includes('Bet') && element.className.includes('font-display');
         });
         expect(brand).toBeInTheDocument();
-        // AC-02: renamed labels render
+        // renamed labels render
         for (const label of ['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert']) {
             expect(screen.getByText(label)).toBeInTheDocument();
         }
     });
 
-    it('renders group micro-captions Core, Insights, System (issue #36, SM-approved)', () => {
+    it('renders group micro-captions Core, Insights, System', () => {
         renderLayout();
-        // AC-03: micro-captions above each group
+        // micro-captions above each group
         for (const caption of ['Core', 'Insights', 'System']) {
             expect(screen.getByText(caption)).toBeInTheDocument();
         }
     });
 
-    it('renders nav anchors in grouped DOM order: Core → Insights → System (AC-01, AC-04)', () => {
+    it('renders nav anchors in grouped DOM order: Core → Insights → System', () => {
         renderLayout();
         const nav = document.querySelector('nav');
         expect(nav).not.toBeNull();
@@ -68,27 +68,27 @@ describe('Layout', () => {
         expect(anchors).toEqual(['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert']);
     });
 
-    it('renders group separators between the three groups (AC-03)', () => {
+    it('renders group separators between the three groups', () => {
         renderLayout();
         const nav = document.querySelector('nav');
         expect(nav!.querySelectorAll('.nav-separator')).toHaveLength(2);
     });
 
-    it('labels each nav group for assistive tech (issue #36 polish)', () => {
+    it('labels each nav group for assistive tech', () => {
         renderLayout();
         for (const caption of ['Core', 'Insights', 'System']) {
             expect(screen.getByRole('group', { name: caption })).toBeInTheDocument();
         }
     });
 
-    it('preserves route hrefs unchanged (AC-01: routes untouched)', () => {
+    it('preserves route hrefs unchanged (routes untouched)', () => {
         renderLayout();
         const nav = document.querySelector('nav');
         const hrefs = Array.from(nav!.querySelectorAll('a')).map(a => a.getAttribute('href'));
         expect(hrefs).toEqual(['/', '/builder', '/slips', '/analytics', '/services', '/odds-alert']);
     });
 
-    it('keyboard Tab order follows visual group order (AC-04)', async () => {
+    it('keyboard Tab order follows visual group order', async () => {
         const user = userEvent.setup();
         renderLayout();
         const nav = document.querySelector('nav');

@@ -86,7 +86,7 @@ class PredictzFinder(BaseMatchFinder):
 
         try:
             scrape(urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
-        except FetcherError as exc:  # AC-06: sample 403s must not hard-fail the crawler
+        except FetcherError as exc:  # sample 403s must not hard-fail the crawler
             remaining = [u for u in urls if u not in parsed]
             log_event(
                 logger,
@@ -115,12 +115,7 @@ class PredictzFinder(BaseMatchFinder):
                     )
 
     def _parse_page(self, url, html) -> None:
-        """Parse one predictz league page and emit matches via callback.
-
-        Args:
-            url: The source URL of the league page.
-            html: Raw HTML content of the page.
-        """
+        """Parse one predictz league page and emit matches via callback."""
         try:
             soup = BeautifulSoup(html, "html.parser")
 

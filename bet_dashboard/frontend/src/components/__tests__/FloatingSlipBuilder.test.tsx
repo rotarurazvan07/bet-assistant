@@ -1,6 +1,6 @@
-// FloatingSlipBuilder (issue #64 P1 + #39 mobile sheet). ACTUAL: portal
+// FloatingSlipBuilder. ACTUAL: portal
 // wrapper — minimized shows 'N leg(s) • totalOdds' + ▲; expanded renders
-// SlipBuilderPanel. #39 adds the mobile SwipeableDrawer bottom sheet + drag
+// SlipBuilderPanel. adds the mobile SwipeableDrawer bottom sheet + drag
 // handle, snap 50/90, desktop Unstable_TrapFocus, keyboard + a11y fixes.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -9,7 +9,7 @@ import userEvent from '@testing-library/user-event';
 import FloatingSlipBuilder from '../FloatingSlipBuilder';
 import { makeCandidateLeg } from '../../test/factories';
 
-// AC-01: drive MUI useMediaQuery through matchMedia (no module mocking —
+// drive MUI useMediaQuery through matchMedia (no module mocking —
 // a partial @mui/material mock would leak across shared vitest workers).
 function setMobile(mobile: boolean) {
     Object.defineProperty(window, 'matchMedia', {
@@ -97,15 +97,15 @@ describe('FloatingSlipBuilder', () => {
     });
 });
 
-describe('FloatingSlipBuilder #39 mobile bottom sheet', () => {
-    it('AC-01: mobile expanded renders a bottom sheet with a drag handle', () => {
+describe('FloatingSlipBuilder mobile bottom sheet', () => {
+    it('mobile expanded renders a bottom sheet with a drag handle', () => {
         setMobile(true);
         renderBuilder({ legs: legs(2) });
         expect(screen.getByRole('button', { name: 'Resize slip sheet' })).toBeInTheDocument();
         expect(window.document.querySelector('.floating-slip-panel')).not.toBeNull();
     });
 
-    it('AC-02: handle click toggles snap 50 -> 90 and persists slip-sheet-snap', async () => {
+    it('handle click toggles snap 50 -> 90 and persists slip-sheet-snap', async () => {
         setMobile(true);
         const user = userEvent.setup();
         renderBuilder({ legs: legs(1) });
@@ -118,7 +118,7 @@ describe('FloatingSlipBuilder #39 mobile bottom sheet', () => {
         expect(paper).toHaveStyle({ height: '50dvh' });
     });
 
-    it('AC-08: snap restores from slip-sheet-snap', () => {
+    it('snap restores from slip-sheet-snap', () => {
         setMobile(true);
         localStorage.setItem('slip-sheet-snap', '90');
         renderBuilder({ legs: legs(1) });
@@ -126,28 +126,28 @@ describe('FloatingSlipBuilder #39 mobile bottom sheet', () => {
         expect(paper).toHaveStyle({ height: '90dvh' });
     });
 
-    it('AC-03: desktop keeps the .floating-slip-panel panel, no sheet handle', () => {
+    it('desktop keeps the .floating-slip-panel panel, no sheet handle', () => {
         renderBuilder({ legs: legs(1) });
         expect(window.document.querySelector('.floating-slip-panel')).not.toBeNull();
         expect(screen.queryByRole('button', { name: 'Resize slip sheet' })).not.toBeInTheDocument();
     });
 
-    it('AC-13/AC-06: panel is a named dialog wrapped in the MUI focus trap', () => {
+    it('/panel is a named dialog wrapped in the MUI focus trap', () => {
         renderBuilder({ legs: legs(1) });
         expect(screen.getByRole('dialog', { name: 'Slip Builder' })).toBeInTheDocument();
-        // AC-06 smoke: TrapFocus mounts its tab sentinels around the panel.
+        // smoke: TrapFocus mounts its tab sentinels around the panel.
         expect(window.document.querySelector('[data-testid="sentinelStart"]')).not.toBeNull();
         expect(window.document.querySelector('[data-testid="sentinelEnd"]')).not.toBeNull();
     });
 
-    it('AC-13: minimized pill is a keyboard button using --text-muted-strong', () => {
+    it('minimized pill is a keyboard button using --text-muted-strong', () => {
         setMobile(true);
         renderBuilder({ legs: legs(2), isMinimized: true });
         expect(screen.getByRole('button', { name: /Open slip builder, 2 legs/ })).toBeInTheDocument();
         expect(screen.getByText('▲').style.color).toBe('var(--text-muted-strong)');
     });
 
-    it('AC-04: Ctrl+Enter submits with current units when expanded', async () => {
+    it('Ctrl+Enter submits with current units when expanded', async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();
         renderBuilder({ legs: legs(1), onSubmit });
@@ -155,7 +155,7 @@ describe('FloatingSlipBuilder #39 mobile bottom sheet', () => {
         expect(onSubmit).toHaveBeenCalledWith(1);
     });
 
-    it('AC-04: Ctrl+Enter on an empty slip is a no-op (no onSubmit, no alert)', async () => {
+    it('Ctrl+Enter on an empty slip is a no-op (no onSubmit, no alert)', async () => {
         const user = userEvent.setup();
         const onSubmit = vi.fn();
         const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
@@ -166,7 +166,7 @@ describe('FloatingSlipBuilder #39 mobile bottom sheet', () => {
         alertSpy.mockRestore();
     });
 
-    it('AC-05: Escape minimizes when expanded', async () => {
+    it('Escape minimizes when expanded', async () => {
         const user = userEvent.setup();
         const onToggleMinimize = vi.fn();
         renderBuilder({ legs: legs(1), onToggleMinimize });

@@ -1,7 +1,7 @@
 """
 
 Covers BOTH classes: SoccerVistaFinder_per_league and SoccerVistaFinder_per_match.
-League fixture uses TODAY+1 dates (closest-year search, decision D5).
+League fixture uses TODAY+1 dates.
 """
 
 import importlib

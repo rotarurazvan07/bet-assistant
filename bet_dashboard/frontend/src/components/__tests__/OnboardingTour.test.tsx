@@ -1,4 +1,4 @@
-// Onboarding tour (issue #50 AC-10). MemoryRouter required (useNavigate).
+// Onboarding tour. MemoryRouter required (useNavigate).
 // Do not mock the @mui/material barrel. Role locators only.
 
 import { describe, it, expect, beforeEach } from 'vitest';

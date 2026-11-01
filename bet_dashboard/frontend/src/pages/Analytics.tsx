@@ -1156,7 +1156,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
         return [Math.min(...vals, 0), Math.max(...vals, 0)];
     }, [rollingEdgeData]);
 
-    // AC-05: Analytics empty when stats missing (null payload). Fetch-error catch still sets zeroed stats.
+    // Analytics empty when stats missing (null payload). Fetch-error catch still sets zeroed stats.
     if (!data?.stats) return (
         <div>
             <h1 className="font-display font-bold text-xl mb-5"

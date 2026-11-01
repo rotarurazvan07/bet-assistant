@@ -13,7 +13,7 @@
 #   from the image's pristine boot state (start-dashboard.sh copies /app/config
 #   into the workspace and AppLogic auto-creates empty DBs on boot — verified
 #   against setup/Dockerfile + start-dashboard.sh + nginx.conf).
-# - e2e-seed (PR #94): one-shot service that seeds the demo matches from
+# - e2e-seed: one-shot service that seeds the demo matches from
 #   e2e/fixtures/demo-data.ts into the throwaway volume's matches.db and
 #   parks the ticker daemons (services.yaml) BEFORE the backend boots, so
 #   the specs that skip installDemoApi under E2E_BASE_URL get the same rows

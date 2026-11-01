@@ -28,7 +28,7 @@ class TestOneMillionPredictions:
         assert finder.get_matches_urls() == list(omp.TOP_LEAGUES.keys())
 
     def test_non_top_table_branch(self, monkeypatch) -> None:
-        hub = '<html><body><table aria-label="Predictions by Days"><tr><td><a href="https://onemillionpredictions.com/day1/">D1</a></td></tr><tr><td><a href="https://onemillionpredictions.com/day2/">D2</a></td></tr></table></body></html>'
+        hub = '<html><body><table aria-label="Predictions by Days"><tr><td><a href="https://onemillionpredictions.com/day1/">day one</a></td></tr><tr><td><a href="https://onemillionpredictions.com/day2/">day two</a></td></tr></table></body></html>'
         patch_fetch(monkeypatch, omp, {omp.ONE_MILLION_PREDICTIONS_URL: hub})
         finder, _ = _finder(top_leagues_only=False)
         urls = finder.get_matches_urls()

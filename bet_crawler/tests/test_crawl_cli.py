@@ -1,4 +1,4 @@
-"""CrawlerFactory + CLI wiring tests (issue #68, crawl.py wiring context).
+"""CrawlerFactory + CLI wiring tests.
 
 Pins: runner-set resolution, URL→crawler-key matching, class loading,
 real finder construction safety (offline ctor), skip-pattern injection,

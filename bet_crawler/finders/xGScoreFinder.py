@@ -58,7 +58,7 @@ class xGScoreFinder(BaseMatchFinder):
                     # Wait for the content to reload/update
                     time.sleep(5)
                 else:
-                    # AC-11: wait/fallback to default view; don't empty-fail
+                    # wait/fallback to default view; don't empty-fail
                     logger.info("Could not find 'Week' button; using default view")
                     time.sleep(2)
             except Exception as e:

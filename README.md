@@ -45,11 +45,11 @@ A powerful, 24/7 automated betting intelligence platform. **Bet Assistant** craw
 ```mermaid
 graph TB
     subgraph "GitHub Actions CI/CD"
-        GH1[Scrape Workflow
+        SCRAPE[Scrape Workflow
         prepare-scrape → scrape → merge → release]
-        GH2[Deploy Workflow
+        DEPLOY[Deploy Workflow
         Build & push Docker images]
-        GH3[CI Workflow
+        CICD[CI Workflow
         Auto-fix → Test → Audit → Gate]
     end
 
@@ -94,7 +94,7 @@ graph TB
         Result scraping]
     end
 
-    GH1 --> PS
+    SCRAPE --> PS
     PS --> SC
     SC --> MR
     MR --> MDB
@@ -102,9 +102,9 @@ graph TB
     GS --> SDB
     SDB --> VS
     VS --> SDB
-    GH2 --> BA
-    GH2 --> GR
-    GH3 --> BA
+    DEPLOY --> BA
+    DEPLOY --> GR
+    CICD --> BA
     DC --> BA
     DC --> GR
     DC --> BU

@@ -1,4 +1,4 @@
-"""[P0] API tests for the services router (issue #58).
+"""[P0] API tests for the services router.
 
 Deterministic time control: services._next_run_hour is wall-clock driven;
 tests monkeypatch routers.services.datetime to a fixed value so the

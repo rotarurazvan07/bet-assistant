@@ -1,12 +1,12 @@
 // SmartBuilder page — profile-cards rework contract:
-//   AC-1  heading reads 'Profiles' (active profile shown by the card highlight)
-//   AC-2  first profile is selected by default (no 'manual' state)
-//   AC-3  config changes AUTO-SAVE to the active profile (no Save button)
-//   AC-4  deleting the active profile re-selects the first remaining one
-//   AC-5  Add-to-Slips modal: Units / Target Payout are mutually exclusive
+//    heading reads 'Profiles' (active profile shown by the card highlight)
+//    first profile is selected by default (no 'manual' state)
+//    config changes AUTO-SAVE to the active profile (no Save button)
+//    deleting the active profile re-selects the first remaining one
+//    Add-to-Slips modal: Units / Target Payout are mutually exclusive
 //         with cross calculated previews, 0.1 steps, blocking behaviour
 // Existing pins kept: 350ms debounce, localStorage payload, excluded cards,
-// refreshKey, real timers (fake timers broke MSW delivery — D43 lesson).
+// refreshKey, real timers.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -130,21 +130,21 @@ describe('SmartBuilder page', () => {
         expect(parsed.units).toBe(2);
     });
 
-    // ── AC-1/AC-2: heading, active indicator, default selection ─────────────
+    // ──/heading, active indicator, default selection ─────────────
 
-    it('AC-1: heading reads Profiles with no active-name indicator text', async () => {
+    it('heading reads Profiles with no active-name indicator text', async () => {
         await renderAndHydrate();
         expect(screen.getByRole('heading', { name: 'Profiles' })).toBeInTheDocument();
         expect(screen.queryByText(/^Profiles: .* active$/)).not.toBeInTheDocument();
     });
 
-    it('AC-2: the first profile is selected by default (no manual state)', async () => {
+    it('the first profile is selected by default (no manual state)', async () => {
         await renderAndHydrate();
         expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true');
         expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'false');
     });
 
-    it('AC-1: clicking a card loads its config into the builder', async () => {
+    it('clicking a card loads its config into the builder', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         const before = previewCalls;
@@ -154,15 +154,15 @@ describe('SmartBuilder page', () => {
         expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('AC-1: header no longer carries Reset excluded or Run Daily', async () => {
+    it('header no longer carries Reset excluded or Run Daily', async () => {
         await renderAndHydrate();
         expect(screen.queryByText('Reset excluded')).not.toBeInTheDocument();
         expect(screen.queryByText('Run Daily')).not.toBeInTheDocument();
     });
 
-    // ── AC-4: per-card delete re-selects the first remaining profile ────────
+    // ──per-card delete re-selects the first remaining profile ────────
 
-    it('AC-4: deleting the ACTIVE profile re-selects the first remaining one', async () => {
+    it('deleting the ACTIVE profile re-selects the first remaining one', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         expect(screen.getByRole('button', { name: 'cautious' })).toHaveAttribute('aria-pressed', 'true')
@@ -173,7 +173,7 @@ describe('SmartBuilder page', () => {
         expect(screen.getByRole('button', { name: 'bold' })).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('AC-4: X on a NON-active profile deletes it and keeps the active one', async () => {
+    it('X on a NON-active profile deletes it and keeps the active one', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(screen.getByRole('button', { name: 'bold' }));
@@ -183,9 +183,9 @@ describe('SmartBuilder page', () => {
         expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
-    // ── AC-3: auto-save replaces the Save button ────────────────────────────
+    // ──auto-save replaces the Save button ────────────────────────────
 
-    it('AC-3: there is no Save button — config changes auto-save to the profile', async () => {
+    it('there is no Save button — config changes auto-save to the profile', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
@@ -198,7 +198,7 @@ describe('SmartBuilder page', () => {
         expect(await screen.findByText("✓ Saved to 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
-    it('AC-3: switching a profile does not re-save the previous config', async () => {
+    it('switching a profile does not re-save the previous config', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         const before = savedPosts.length;
@@ -207,7 +207,7 @@ describe('SmartBuilder page', () => {
         expect(savedPosts.length).toBe(before);
     });
 
-    // ── Desync C: stake fields are Services-owned ──────────────────────────
+    // ──: stake fields are Services-owned ──────────────────────────
 
     it('config auto-save payload omits units/target_payout (Services-owned)', async () => {
         const user = userEvent.setup();
@@ -293,9 +293,9 @@ describe('SmartBuilder page', () => {
         await waitFor(() => expect(savedPosts.some(p => p.name === 'new2')).toBe(true), { timeout: 3000 });
     });
 
-    // ── AC-5: Add-to-Slips confirmation modal — mutual exclusivity ──────────
+    // ──Add-to-Slips confirmation modal — mutual exclusivity ──────────
 
-    it('AC-5: + Add to Slips opens the modal with BOTH inputs empty (no Off placeholder)', async () => {
+    it('+ Add to Slips opens the modal with BOTH inputs empty (no Off placeholder)', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
@@ -309,7 +309,7 @@ describe('SmartBuilder page', () => {
         expect(within(dialog).getByLabelText('Target Payout')).not.toHaveAttribute('placeholder');
     });
 
-    it('AC-6: confirm POSTs the slip and closes the modal', async () => {
+    it('confirm POSTs the slip and closes the modal', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
@@ -319,7 +319,7 @@ describe('SmartBuilder page', () => {
         expect(screen.queryByRole('dialog', { name: 'Add to Slips' })).not.toBeInTheDocument();
     });
 
-    it('AC-7: Escape closes the modal without posting', async () => {
+    it('Escape closes the modal without posting', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
@@ -329,7 +329,7 @@ describe('SmartBuilder page', () => {
         expect(slipPosts).toBe(0);
     });
 
-    it('AC-7: Cancel closes the modal without posting', async () => {
+    it('Cancel closes the modal without posting', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
@@ -339,7 +339,7 @@ describe('SmartBuilder page', () => {
         expect(slipPosts).toBe(0);
     });
 
-    it('AC-5: both inputs use 0.1 steps', async () => {
+    it('both inputs use 0.1 steps', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
         await user.click(await screen.findByText('+ Add to Slips', {}, { timeout: 4000 }));
@@ -348,7 +348,7 @@ describe('SmartBuilder page', () => {
         expect(within(dialog).getByLabelText('Target Payout')).toHaveAttribute('step', '0.1');
     });
 
-    it('AC-5: writing Target Payout disables Units and previews computed units', async () => {
+    it('writing Target Payout disables Units and previews computed units', async () => {
         const user = userEvent.setup();
         server.use(
             http.post('/api/builder/preview', async () => {
@@ -370,7 +370,7 @@ describe('SmartBuilder page', () => {
         }, { timeout: 3000 });
     });
 
-    it('AC-5: writing Units disables Target Payout and previews computed payout', async () => {
+    it('writing Units disables Target Payout and previews computed payout', async () => {
         const user = userEvent.setup();
         server.use(
             http.post('/api/builder/preview', async () => {

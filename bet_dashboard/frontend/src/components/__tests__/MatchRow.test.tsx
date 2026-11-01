@@ -1,4 +1,4 @@
-// MatchRow (issue #64 P1). ACTUAL (cycle-12 divergence): NO navigation —
+// MatchRow. ACTUAL: NO navigation —
 // cells build CandidateLeg and fire onCellClick; buildLeg gates on
 // odds>0, consensus>0, result_url, datetime, sources; movement keys derived
 // from MARKET_COLUMNS oddsKey (odds_home → home); row opacity 1 vs 0.25 by

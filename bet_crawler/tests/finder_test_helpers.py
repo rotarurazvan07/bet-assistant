@@ -1,4 +1,4 @@
-"""Shared helpers for finder tests (issue #69, cycle 8)."""
+"""Shared helpers for finder tests."""
 
 from contextlib import contextmanager
 from pathlib import Path
@@ -49,7 +49,7 @@ def make_finder(
     local_timezone="Europe/Bucharest",
     skip_patterns=None,
 ):
-    """Build a finder with the CrawlerFactory constructor contract (cycle 7)."""
+    """Build a finder with the CrawlerFactory constructor contract."""
     if collector is None:
         collector = MatchCollector()
     finder = finder_cls(
@@ -66,7 +66,7 @@ def make_finder(
 def relax_date_window(finder):
     """Fixture dates are far-future (2035): bypass the date gate for parse tests.
 
-    Date policy itself is pinned with dynamic dates in test_base_finder.py (D2).
+    Date policy itself is pinned with dynamic dates in test_base_finder.py.
     """
 
     def always_valid(dt) -> bool:

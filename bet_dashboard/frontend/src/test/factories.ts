@@ -1,4 +1,4 @@
-// Test data factories (issue #63, cycle 9). Every generator matches the
+// Test data factories. Every generator matches the
 // corresponding interface in src/types/index.ts exactly — defaults are valid,
 // overrides are explicit (data-factories knowledge fragment).
 

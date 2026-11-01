@@ -1,4 +1,4 @@
-"""[P0] Unit tests for AppLogic lifecycle (issue #59).
+"""[P0] Unit tests for AppLogic lifecycle.
 
 Covers: __init__ TickerService wiring, properties, refresh_data,
 pull_matches_db (mocked HTTP + real merge), toggle_service persistence +
@@ -542,7 +542,7 @@ class TestAppLogicLifecycle:
                 "odds_movement_strength_min": 0.2,
                 "units": 1.0,
                 "run_daily_count": 1,
-                # Explicit 00:00 window: window-aware due-checking (review F2)
+                # Explicit 00:00 window: window-aware due-checking
                 # makes this test independent of the wall clock.
                 "generate_hour": 0,
                 "generate_minute": 0,

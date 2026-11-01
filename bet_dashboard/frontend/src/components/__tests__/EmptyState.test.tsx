@@ -1,4 +1,4 @@
-// EmptyState (issue #46 AC-09). Presentational: icon, title, numbered steps, CTAs.
+// EmptyState. Presentational: icon, title, numbered steps, CTAs.
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';

@@ -89,7 +89,7 @@ function QualityIndicator({ score }: { score: number }) {
 }
 
 export function BetPreview({ legs, pendingUrls, onExclude, minStrength }: PreviewProps) {
-    // AC-03: empty preview is rendered by SmartBuilder via EmptyState. Keep a silent fallback.
+    // empty preview is rendered by SmartBuilder via EmptyState. Keep a silent fallback.
     if (!legs.length) {
         return null;
     }

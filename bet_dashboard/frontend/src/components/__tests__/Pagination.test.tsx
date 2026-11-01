@@ -1,4 +1,4 @@
-// Pagination (issue #64). SPEC DIVERGENCE: no page-size selector exists —
+// Pagination. SPEC DIVERGENCE: no page-size selector exists —
 // page numbers + prev/next + ellipsis gaps only.
 
 import { describe, it, expect, vi } from 'vitest';

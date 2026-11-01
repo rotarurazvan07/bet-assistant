@@ -32,12 +32,12 @@ function consCell(pct: number, odds: number | null | undefined) {
 interface CellProps {
     pct: number;
     odds: number | null | undefined;
-    // #39 AC-07: the element is forwarded so the page can restore focus to it.
+    // #39the element is forwarded so the page can restore focus to it.
     onClick?: (event: React.MouseEvent<HTMLElement>) => void;
     isActive?: boolean;
     isInSlip?: boolean;
     movement?: OddsMovementDirection;
-    pulsing?: boolean; // AC-01
+    pulsing?: boolean; //
 }
 
 function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement, pulsing = false }: CellProps) {

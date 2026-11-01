@@ -1,6 +1,6 @@
 """
 
-Discovery patched at fetch(); odds flow via FakeBrowserSession (D7).
+Discovery patched at fetch; odds flow via FakeBrowserSession.
 MAX_CONCURRENCY patched to 1 for deterministic single-thread batch path.
 """
 
@@ -21,11 +21,11 @@ from .finder_test_helpers import (
 
 op = importlib.import_module("bet_crawler.finders.OddsPortalFinder")
 
-# D53 (fixture-date rot): league.html carries a FIXED anchor date
+# (fixture-date rot): league.html carries a FIXED anchor date
 # (2026-09-25, generator ANCHOR_TOMORROW). The discovery window is
 # [today, today+N] on the finder's UTC clock — freezing the clock to
 # 2026-09-24 puts that anchor at today+1: deterministically in-window on
-# any runner, any day, forever (predictz D5 protocol applied at module
+# any runner, any day, forever (predictz protocol applied at module
 # scope so future discovery tests inherit the freeze).
 _FROZEN_NOW = dtmod.datetime(2026, 9, 24, 12, 0, 0, tzinfo=dtmod.timezone.utc)
 
@@ -353,7 +353,7 @@ class TestProcessUrlBatch:
         assert collector.first.home_team == "Arsenal"
 
     def test_missing_market_tab_still_adds_match(self, monkeypatch) -> None:
-        """AC-04: a market tab without its table leaves that market None."""
+        """a market tab without its table leaves that market None."""
         monkeypatch.setattr(OddsPortalFinder, "_BROWSER_TIMEOUT_MS", 0)
         session = self._session_map(monkeypatch)
         identity_only = load_fixture("oddsportal", "match_base.html")

@@ -1,4 +1,4 @@
-"""Stage 5: validate_slips tests (issue #68).
+"""Stage 5: validate_slips tests.
 
 Pins: pure delegation to BetAssistant.validate_slips(), summary log line,
 live/settled item lines, Won/Lost icon branches, error propagation.

@@ -93,7 +93,7 @@ class OneMillionPredictionsFinder(BaseMatchFinder):
                         away_team = teams[1]
 
                         score_text = cells[2].get_text(strip=True)
-                        # AC-07: skip if split length < 2 or empty
+                        # skip if split length < 2 or empty
                         parts = score_text.split(":")
                         if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
                             log_event(

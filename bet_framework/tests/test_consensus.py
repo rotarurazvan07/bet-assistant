@@ -1,5 +1,5 @@
 """
-Gap tests for bet_framework/core/consensus.py (GitHub issue #70).
+Gap tests for bet_framework/core/consensus.py.
 
 Covered public API:
   to_pct(n, total)          - count->percentage, zero-total guard, 1 d.p. rounding
@@ -12,7 +12,7 @@ Covered public API:
 
 Architectural note (documented decision): the shrinkage formula lives in
 bet_framework/core/scoring.py::adjusted_consensus, NOT in consensus.py -
-calc_consensus only aggregates raw percentages.  Issue #70's description
+calc_consensus only aggregates raw percentages.  description
 conflates the two; these tests target the real code locations.
 
 Property-based tests (hypothesis): percentage sums, over/under complements,

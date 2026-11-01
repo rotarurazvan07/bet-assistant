@@ -1,4 +1,4 @@
-"""[P0] API tests for the odds_history router (issue #58).
+"""[P0] API tests for the odds_history router.
 
 Covers: /{match_id} history + 404s, /{match_id}/movement, /movements/all,
 /movements/significant, empty-df paths, and the btts_yes/btts_no movement key

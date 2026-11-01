@@ -1,4 +1,4 @@
-"""Shared helpers for AppLogic tests (issue #59, testing-suite plan cycle 3).
+"""Shared helpers for AppLogic tests.
 
 Architecture decisions (documented per plan):
 - FakeTicker replaces core.logic.TickerService during AppLogic construction:
