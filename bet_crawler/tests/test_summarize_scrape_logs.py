@@ -219,7 +219,7 @@ def test_legacy_crawler_logs_are_kept_when_that_job_has_no_jsonl_sidecar(
     assert "Python import failed" in summary["groups"][0]["samples"][0]["message"]
 
 
-# -- Issue #113: near-miss reports in the CI step summary --------------------------------
+# -- Near-miss reports in the CI step summary -------------------------------------------------
 
 
 def _write_near_miss_legacy_log(artifact: Path) -> None:
@@ -250,7 +250,7 @@ def test_near_misses_extracted_from_legacy_merge_log(tmp_path) -> None:
     assert first["away_a"] == "Chelsea"
     assert first["home_b"] == "Arsenal FC"
     assert first["away_b"] == "Chelsea FC"
-    # AC-4: near-miss lines must not inflate issue/severity counts
+    # Near-miss lines must not inflate issue/severity counts
     assert summary["issue_count"] == 1  # only the scrape_kit.fetcher warning remains
     assert summary["severity_counts"] == {"WARNING": 1}
 

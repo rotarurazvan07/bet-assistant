@@ -136,7 +136,7 @@ export interface paths {
   "/api/profiles/{name}": {
     /**
      * Delete Profile
-     * @description Delete a named builder profile.
+     * @description Delete a named builder profile and its runtime_state entry.
      */
     delete: operations["delete_profile_api_profiles__name__delete"];
   };
@@ -513,6 +513,12 @@ export interface components {
     /**
      * ProfileScheduleIn
      * @description Per-profile auto-generation schedule row.
+     *
+     * BOTH ``units`` and ``target_payout`` are always preserved on
+     *  disk; ``stake_mode`` ("units" | "payout") only selects which one is active
+     *  at generation time. A null ``units``/``target_payout`` means "not
+     *  provided" and the persisted value is kept — switching the segmented
+     *  control can never lose the other field's number.
      */
     ProfileScheduleIn: {
       /** Name */
@@ -527,6 +533,8 @@ export interface components {
       units?: number | null;
       /** Target Payout */
       target_payout?: number | null;
+      /** Stake Mode */
+      stake_mode?: string | null;
       /** Run Daily Count */
       run_daily_count?: number | null;
       /** Order */
@@ -968,7 +976,7 @@ export interface operations {
   };
   /**
    * Delete Profile
-   * @description Delete a named builder profile.
+   * @description Delete a named builder profile and its runtime_state entry.
    */
   delete_profile_api_profiles__name__delete: {
     parameters: {

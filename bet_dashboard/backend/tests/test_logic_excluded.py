@@ -9,6 +9,7 @@ against tmp_path SQLite DBs — never workspace DBs.
 """
 
 import pytest
+
 from tests.logic_test_helpers import (
     build_app,
     make_leg_row,

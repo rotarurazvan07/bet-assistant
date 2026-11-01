@@ -124,7 +124,14 @@ class JsonEventFormatter(logging.Formatter):
 
 
 def _infer_finder(logger_name: str) -> tuple[str | None, str | None]:
-    """Infer finder class and source key from a finder module logger name."""
+    """Infer finder class and source key from a finder module logger name.
+
+    Args:
+        logger_name: The logger name to parse (e.g., "bet_crawler.finders.PredictzFinder").
+
+    Returns:
+        Tuple of (source_key, snake_case_finder_name) or (None, None) if not a finder logger.
+    """
     source = logger_name.removeprefix("bet_crawler.finders.").split(".", maxsplit=1)[0]
     if source == logger_name:
         return None, None
@@ -135,7 +142,14 @@ def _infer_finder(logger_name: str) -> tuple[str | None, str | None]:
 
 
 def _default_event(level: int) -> str:
-    """Map legacy log levels to broad machine-readable event names."""
+    """Map legacy log levels to broad machine-readable event names.
+
+    Args:
+        level: The logging level integer.
+
+    Returns:
+        Event name string for the given level.
+    """
     if level >= logging.ERROR:
         return "application.error"
     if level >= logging.WARNING:
@@ -144,7 +158,14 @@ def _default_event(level: int) -> str:
 
 
 def _default_outcome(level: int) -> str:
-    """Map legacy log levels to default event outcomes."""
+    """Map legacy log levels to default event outcomes.
+
+    Args:
+        level: The logging level integer.
+
+    Returns:
+        Outcome string for the given level.
+    """
     if level >= logging.ERROR:
         return "error"
     if level >= logging.WARNING:
@@ -153,6 +174,14 @@ def _default_outcome(level: int) -> str:
 
 
 def _json_handler(path: str) -> logging.Handler:
+    """Get or create a JSONL file handler for the given path.
+
+    Args:
+        path: Path to the JSONL event log file.
+
+    Returns:
+        Configured logging.Handler for JSONL output.
+    """
     resolved = str(Path(path).expanduser().resolve())
     with _HANDLER_LOCK:
         handler = _EVENT_HANDLERS.get(resolved)
@@ -165,12 +194,26 @@ def _json_handler(path: str) -> logging.Handler:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return the familiar scrape-kit logger, with optional JSONL event output."""
+    """Return the familiar scrape-kit logger, with optional JSONL event output.
+
+    Args:
+        name: Logger name (typically __name__).
+
+    Returns:
+        Configured logger instance.
+    """
     return _configure_logger(_get_logger(name))
 
 
 def _configure_logger(logger: logging.Logger) -> logging.Logger:
-    """Add crawler-specific filters and the currently selected JSONL handler."""
+    """Add crawler-specific filters and the currently selected JSONL handler.
+
+    Args:
+        logger: The logger instance to configure.
+
+    Returns:
+        The configured logger instance.
+    """
     if not any(isinstance(item, ExceptionContextFilter) for item in logger.filters):
         logger.addFilter(ExceptionContextFilter())
     event_path = os.environ.get("SCRAPE_EVENT_LOG_PATH")
@@ -185,7 +228,7 @@ def configure_event_logging(path: str | None = None) -> None:
     """Attach the JSONL sidecar to already-created crawler loggers.
 
     Primarily useful for embedding the crawler or testing; command-line runs
-    should set ``SCRAPE_EVENT_LOG_PATH`` before importing the crawler modules.
+    should set SCRAPE_EVENT_LOG_PATH before importing the crawler modules.
     """
     if path is not None:
         os.environ["SCRAPE_EVENT_LOG_PATH"] = path
@@ -202,7 +245,11 @@ def configure_event_logging(path: str | None = None) -> None:
 
 
 def disable_event_logging() -> None:
-    """Detach and close JSONL handlers (mainly for isolated tests)."""
+    """Detach and close JSONL handlers (mainly for isolated tests).
+
+    Removes JsonEventFormatter handlers from all bet_crawler loggers
+    and closes the underlying file handles.
+    """
     for name, candidate in logging.Logger.manager.loggerDict.items():
         if name.startswith("bet_crawler.") and isinstance(candidate, logging.Logger):
             for handler in tuple(candidate.handlers):
