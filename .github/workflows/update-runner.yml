@@ -1,0 +1,176 @@
+name: Update Runner Version
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Monday 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-and-bump:
+    name: Check and bump runner version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get current runner version from Dockerfile
+        id: current
+        run: |
+          set -euo pipefail
+          CURRENT=$(grep -E '^ARG\s+RUNNER_VERSION=' setup/runner.Dockerfile | head -1 | sed -E 's/^ARG\s+RUNNER_VERSION=//')
+          echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
+          echo "Current runner version in Dockerfile: $CURRENT"
+
+      - name: Fetch latest runner release from GitHub API
+        id: latest
+        run: |
+          set -euo pipefail
+          # Authenticated call: without a Bearer token the shared GitHub-hosted
+          # runner egress IPs exhaust the anonymous 60 req/hr API limit within a
+          # day, which silently degrades every scheduled run. GITHUB_TOKEN is
+          # already scoped for this job (see permissions below).
+          AUTH_HEADER="Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"
+          # One retry on transient failure, then fail loudly rather than skip.
+          for attempt in 1 2; do
+            if RESPONSE=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" -H "$AUTH_HEADER" \n              https://api.github.com/repos/actions/runner/releases/latest) && break; then
+              :
+            else
+              echo "Attempt $attempt failed, retrying..." >&2
+              sleep 2
+            fi
+          done
+          
+          # Empty body means both attempts failed (or a non-JSON response such as
+          # an HTML gateway page). Never treat this as "up to date".
+          if [ -z "$RESPONSE" ]; then
+            echo "ERROR: Empty response from GitHub API after retry" >&2
+            echo "fetch_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          if echo "$RESPONSE" | grep -q '"message": "Not Found"'; then
+            echo "ERROR: Repository not found" >&2
+            echo "fetch_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          if echo "$RESPONSE" | grep -q '"message": "API rate limit exceeded"'; then
+            echo "WARNING: GitHub API rate limit exceeded" >&2
+            echo "fetch_failed=true" >> $GITHUB_OUTPUT
+            echo "latest_version=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Filter to stable releases only (exclude pre-release tags like -rc, -beta)
+          LATEST=$(echo "$RESPONSE" | jq -r '.tag_name // empty' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | head -1)
+          
+          if [ -z "$LATEST" ]; then
+            echo "ERROR: Could not extract stable version from API response (no vX.Y.Z tag found)" >&2
+            echo "$RESPONSE" >&2
+            echo "fetch_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          echo "latest_version=$LATEST" >> $GITHUB_OUTPUT
+          echo "fetch_failed=false" >> $GITHUB_OUTPUT
+          echo "Latest runner release: $LATEST"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          set -euo pipefail
+          CURRENT="${{ steps.current.outputs.current_version }}"
+          LATEST="${{ steps.latest.outputs.latest_version }}"
+          FETCH_FAILED="${{ steps.latest.outputs.fetch_failed }}"
+          
+          if [ "$FETCH_FAILED" = "true" ] || [ -z "$LATEST" ]; then
+            echo "Skipping version comparison due to API fetch failure or rate limit"
+            echo "should_bump=false" >> $GITHUB_OUTPUT
+            echo "fetch_failed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Semantic version comparison using sort -V (version sort)
+          if printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -1 | grep -qx "$LATEST" && [ "$CURRENT" != "$LATEST" ]; then
+            echo "New runner version available: $CURRENT -> $LATEST"
+            echo "should_bump=true" >> $GITHUB_OUTPUT
+            echo "old_version=$CURRENT" >> $GITHUB_OUTPUT
+            echo "new_version=$LATEST" >> $GITHUB_OUTPUT
+          else
+            echo "Runner version is up to date ($CURRENT)"
+            echo "should_bump=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for existing PR
+        id: existing-pr
+        if: steps.compare.outputs.should_bump == 'true'
+        run: |
+          set -euo pipefail
+          NEW_VERSION="${{ steps.compare.outputs.new_version }}"
+          # gh's own --jq flag takes an expression only: it does not forward
+          # --arg/--argjson to jq, which is why the previous version died with
+          # "unknown arguments [v 2.338.2 ...]". Fetch JSON with gh, then pipe
+          # into real jq (preinstalled on ubuntu-latest). Head-branch matching is
+          # deliberately NOT used: the created branch is version+run-id unique, so
+          # the PR title is the only stable dedupe key.
+          EXISTING_PR=$(gh pr list --state open --json number,title \
+            | jq -r --arg v "$NEW_VERSION" \
+              '.[] | select(.title | contains("bump runner to " + $v)) | .number' \
+            | head -1)
+          
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR #$EXISTING_PR already exists for version $NEW_VERSION"
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+          else
+            echo "pr_exists=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Dockerfile ARG
+        if: steps.compare.outputs.should_bump == 'true' && steps.existing-pr.outputs.pr_exists != 'true'
+        run: |
+          set -euo pipefail
+          NEW_VERSION="${{ steps.compare.outputs.new_version }}"
+          # Use alternative delimiter to avoid issues with / or & in version
+          sed -i "s|^ARG\s\+RUNNER_VERSION=.*|ARG RUNNER_VERSION=$NEW_VERSION|" setup/runner.Dockerfile
+          echo "Updated setup/runner.Dockerfile ARG RUNNER_VERSION to $NEW_VERSION"
+          grep '^ARG RUNNER_VERSION=' setup/runner.Dockerfile
+
+      - name: Create pull request
+        if: steps.compare.outputs.should_bump == 'true' && steps.existing-pr.outputs.pr_exists != 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: runner-version-bump-${{ steps.compare.outputs.new_version }}-${{ github.run_id }}
+          delete-branch: true
+          title: "chore: bump runner to ${{ steps.compare.outputs.new_version }}"
+          body: |
+            Automated PR to update GitHub Actions runner from ${{ steps.compare.outputs.old_version }} to ${{ steps.compare.outputs.new_version }}
+            
+            Release: https://github.com/actions/runner/releases/tag/v${{ steps.compare.outputs.new_version }}
+          commit-message: "chore: bump runner to ${{ steps.compare.outputs.new_version }}"
+          add-paths: setup/runner.Dockerfile
+          signoff: false
+
+# Documented caveat (no silent change made):
+# PRs opened by a workflow using the default GITHUB_TOKEN do NOT trigger
+# pull_request-triggered workflows (documented GitHub behaviour). Where branch
+# protection requires status checks, such a PR can sit at "Expected - Waiting
+# for status to be reported" and stay unmergeable. If that blocks a bump, the
+# options are (a) close and reopen the PR manually to trigger CI, or (b) use a
+# PAT stored as a secret instead of GITHUB_TOKEN. No new secret is added here -
+# that decision belongs to the repository owner.
