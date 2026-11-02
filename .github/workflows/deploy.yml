@@ -30,7 +30,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push — bet-assistant
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: setup/Dockerfile
@@ -42,7 +42,7 @@ jobs:
           cache-to:   type=gha,mode=max,scope=bet-assistant
 
       - name: Build and push — runner
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: setup/runner.Dockerfile
