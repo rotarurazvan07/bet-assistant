@@ -33,7 +33,7 @@ jobs:
           # Format: owner/repo@version
           # Matches both '- uses: owner/repo@version' and 'uses: owner/repo@version' patterns
           mapfile -t ACTION_REFS < <(
-            find .github/workflows -name '*.yml' ! -name 'update-actions.yml' -exec \n              grep -h 'uses:' {} \; \n              | grep -v '^#' \n              | grep -v 'grep -r' \n              | grep -v 'sed -E' \n              | sed -E 's/.*uses:\s*([^@\s]+@[^\s]+).*/\1/' \n              | sort -u
+            find .github/workflows -name '*.yml' ! -name 'update-actions.yml' -exec \n              grep -h 'uses:' {} \; \n              | grep -Ev '^[[:space:]]*#' \n              | awk '{ $1=$1; print }' \n              | sed -E 's/^([-] )?uses: ([^@[:space:]#]+@[^@[:space:]#]+).*$/\2/' \n              | grep -E '^[^@[:space:]#]+@[^@[:space:]#]+$' \n              | sort -u
           )
           
           # Build JSON array of unique action repositories (owner/repo)
@@ -53,7 +53,9 @@ jobs:
             JSON=$(echo "$JSON" | jq -c --arg repo "$repo" --arg ver "${ACTION_MAP[$repo]}" '. + {($repo): $ver}')
           done
           
-          echo "action_map=$JSON" >> $GITHUB_OUTPUT
+          echo "action_map<<EOF" >> $GITHUB_OUTPUT
+          echo "$JSON" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           echo "Discovered $(echo $JSON | jq 'length') unique actions:"
           echo "$JSON" | jq -r 'to_entries[] | "\(.key)@\(.value)"'
 
@@ -129,9 +131,13 @@ jobs:
             fi
           done
           
-          echo "bumps_json=$BUMPS_JSON" >> $GITHUB_OUTPUT
+          echo "bumps_json<<EOF" >> $GITHUB_OUTPUT
+          echo "$BUMPS_JSON" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           echo "has_bumps=$HAS_BUMPS" >> $GITHUB_OUTPUT
-          echo "pr_body=$PR_BODY" >> $GITHUB_OUTPUT
+          echo "pr_body<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           if [ "$HAS_BUMPS" = "true" ]; then
             echo "Found updates for $(echo $BUMPS_JSON | jq 'length') actions"
