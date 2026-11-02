@@ -29,34 +29,27 @@ jobs:
         id: discover
         run: |
           set -euo pipefail
-          # Extract unique action repos from all workflow files (exclude this workflow)
-          # Format: owner/repo@version
-          # Matches both '- uses: owner/repo@version' and 'uses: owner/repo@version' patterns
-          mapfile -t ACTION_REFS < <(
-            find .github/workflows -name '*.yml' ! -name 'update-actions.yml' -exec \n              grep -h 'uses:' {} \; \n              | grep -Ev '^[[:space:]]*#' \n              | awk '{ $1=$1; print }' \n              | sed -E 's/^([-] )?uses: ([^@[:space:]#]+@[^@[:space:]#]+).*$/\2/' \n              | grep -E '^[^@[:space:]#]+@[^@[:space:]#]+$' \n              | sort -u
-          )
-          
-          # Build JSON array of unique action repositories (owner/repo)
-          # and their current versions (first occurrence wins)
-          declare -A ACTION_MAP
-          for ref in "${ACTION_REFS[@]}"; do
+          # Unique action refs (owner/repo@version) across all workflow files
+          # except this one. Comment lines are dropped before extraction, and
+          # the final grep keeps only well-formed owner/repo@version shapes.
+          ACTION_REFS=$(find .github/workflows -name '*.yml' ! -name 'update-actions.yml' -exec grep -h 'uses:' {} + \
+            | grep -Ev '^[[:space:]]*#' \
+            | awk '{ $1=$1; print }' \
+            | sed -E 's/^([-] )?uses: ([^@[:space:]#]+@[^@[:space:]#]+).*$/\2/' \
+            | grep -E '^[^@[:space:]#]+@[^@[:space:]#]+$' \
+            | sort -u || true)
+          # Build a JSON map repo -> current version (first occurrence wins).
+          JSON='{}'
+          while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
             repo="${ref%@*}"
             version="${ref#*@}"
-            if [[ -z "${ACTION_MAP[$repo]}" ]]; then
-              ACTION_MAP[$repo]="$version"
-            fi
-          done
-          
-          # Output as JSON
-          JSON='{}'
-          for repo in "${!ACTION_MAP[@]}"; do
-            JSON=$(echo "$JSON" | jq -c --arg repo "$repo" --arg ver "${ACTION_MAP[$repo]}" '. + {($repo): $ver}')
-          done
-          
-          echo "action_map<<EOF" >> $GITHUB_OUTPUT
-          echo "$JSON" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "Discovered $(echo $JSON | jq 'length') unique actions:"
+            JSON=$(echo "$JSON" | jq -c --arg k "$repo" --arg v "$version" 'if has($k) then . else . + {($k): $v} end')
+          done <<< "$ACTION_REFS"
+          echo "action_map<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$JSON" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Discovered $(echo "$JSON" | jq 'length') unique actions"
           echo "$JSON" | jq -r 'to_entries[] | "\(.key)@\(.value)"'
 
       - name: Check each action for updates
@@ -64,101 +57,81 @@ jobs:
         run: |
           set -euo pipefail
           ACTION_MAP='${{ steps.discover.outputs.action_map }}'
-          
           AUTH_HEADER="Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"
-          ACCEPT_HEADER="Accept: application/vnd.github.v3+json"
-          
           BUMPS_JSON='{}'
           HAS_BUMPS=false
           PR_BODY=""
-          
-          # Parse action map
-          for repo in $(echo "$ACTION_MAP" | jq -r 'keys[]'); do
+          while IFS= read -r repo; do
+            [ -z "$repo" ] && continue
             current_ver=$(echo "$ACTION_MAP" | jq -r --arg r "$repo" '.[$r]')
-            
             echo "Checking $repo (current: $current_ver)..."
-            
-            # Fetch latest release with retry
             RESPONSE=""
+            # Authenticated call: without a Bearer token the shared GitHub-hosted
+            # runner egress IPs exhaust the anonymous 60 req/hr limit, silently
+            # degrading every scheduled run. One retry on transient failure.
             for attempt in 1 2; do
-              if RESPONSE=$(curl -fsSL -H "$ACCEPT_HEADER" -H "$AUTH_HEADER" \n                   "https://api.github.com/repos/$repo/releases/latest") && break; then
-                :
-              else
-                echo "Attempt $attempt failed for $repo, retrying..." >&2
-                sleep 2
+              if RESPONSE=$(curl -fsSL -H "Accept: application/vnd.github.v3+json" -H "$AUTH_HEADER" "https://api.github.com/repos/$repo/releases/latest") && [ -n "$RESPONSE" ]; then
+                break
               fi
+              echo "Attempt $attempt failed for $repo, retrying..." >&2
+              sleep 2
             done
-            
             if [ -z "$RESPONSE" ]; then
-              echo "WARNING: Empty response from GitHub API for $repo after retry, skipping" >&2
+              echo "WARNING: empty response from GitHub API for $repo, skipping" >&2
               continue
             fi
-            
-            if echo "$RESPONSE" | grep -q '"message": "Not Found"'; then
-              echo "WARNING: Repository $repo not found, skipping" >&2
-              continue
-            fi
-            
             if echo "$RESPONSE" | grep -q '"message": "API rate limit exceeded"'; then
-              echo "WARNING: GitHub API rate limit exceeded for $repo, skipping" >&2
+              echo "WARNING: rate limit exceeded for $repo, skipping" >&2
               continue
             fi
-            
-            # Filter to stable releases only (exclude pre-release tags like -rc, -beta)
-            LATEST=$(echo "$RESPONSE" | jq -r '.tag_name // empty' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | head -1)
-            
+            if echo "$RESPONSE" | grep -q '"message": "Not Found"'; then
+              echo "WARNING: repository $repo not found, skipping" >&2
+              continue
+            fi
+            # Stable-only filter (D5): accept vX.Y.Z tags only.
+            LATEST=$(echo "$RESPONSE" | jq -r '.tag_name // empty' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | head -1 || true)
             if [ -z "$LATEST" ]; then
-              echo "WARNING: No stable release found for $repo (current: $current_ver), skipping" >&2
+              echo "WARNING: no stable release found for $repo, skipping" >&2
               continue
             fi
-            
-            # Compare versions using sort -V (semantic version sort)
-            # Current version might have 'v' prefix or not
-            current_clean=$(echo "$current_ver" | sed 's/^v//')
-            
-            if printf '%s\n%s\n' "$current_clean" "$LATEST" | sort -V | tail -1 | grep -qx "$LATEST" && [ "$current_clean" != "$LATEST" ]; then
-              echo "New version available for $repo: $current_ver -> v$LATEST"
+            current_clean="${current_ver#v}"
+            # Semantic comparison via sort -V; bump only when strictly newer.
+            if [ "$current_clean" != "$LATEST" ] && [ "$(printf '%s\n%s\n' "$current_clean" "$LATEST" | sort -V | tail -1)" = "$LATEST" ]; then
+              echo "UPDATE: $repo $current_ver -> v$LATEST"
               HAS_BUMPS=true
-              
-              # Build bump entry
-              BUMPS_JSON=$(echo "$BUMPS_JSON" | jq -c --arg repo "$repo" --arg old "$current_ver" --arg new "v$LATEST" '. + {($repo): {"old": $old, "new": $new}}')
-              
-              # Add to PR body
-              PR_BODY="$PR_BODY
-- **$repo**: \`$current_ver\` → \`v$LATEST\` (https://github.com/$repo/releases/tag/v$LATEST)"
+              BUMPS_JSON=$(echo "$BUMPS_JSON" | jq -c --arg r "$repo" --arg o "$current_ver" --arg n "v$LATEST" '. + {($r): {old: $o, new: $n}}')
+              PR_BODY="${PR_BODY}"$'\n'"- **${repo}**: \`${current_ver}\` -> \`v${LATEST}\` (https://github.com/${repo}/releases/tag/v${LATEST})"
             else
               echo "$repo is up to date ($current_ver)"
             fi
-          done
-          
-          echo "bumps_json<<EOF" >> $GITHUB_OUTPUT
-          echo "$BUMPS_JSON" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "has_bumps=$HAS_BUMPS" >> $GITHUB_OUTPUT
-          echo "pr_body<<EOF" >> $GITHUB_OUTPUT
-          echo "$PR_BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
+          done < <(echo "$ACTION_MAP" | jq -r 'keys[]')
+          echo "bumps_json=$BUMPS_JSON" >> "$GITHUB_OUTPUT"
+          echo "has_bumps=$HAS_BUMPS" >> "$GITHUB_OUTPUT"
+          echo "pr_body<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$PR_BODY" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
           if [ "$HAS_BUMPS" = "true" ]; then
-            echo "Found updates for $(echo $BUMPS_JSON | jq 'length') actions"
+            echo "Found updates for $(echo "$BUMPS_JSON" | jq 'length') actions"
           else
             echo "All GitHub Actions are up to date"
           fi
 
-      - name: Check existing PR
-        if: steps.check-updates.outputs.has_bumps == 'true'
+      - name: Check for existing PR
         id: existing-pr
+        if: steps.check-updates.outputs.has_bumps == 'true'
         run: |
           set -euo pipefail
-          # Check for existing open PR with same title pattern
-          EXISTING_PR=$(gh pr list --state open --json number,title \n            | jq -r '.[] | select(.title == "chore: bump github actions to latest stable") | .number' \n            | head -1)
-          
+          # The created branch is run-id unique, so the PR title is the only
+          # stable dedupe key (head-branch matching would never match).
+          EXISTING_PR=$(gh pr list --state open --json number,title \
+            | jq -r '.[] | select(.title == "chore: bump github actions to latest stable") | .number' \
+            | head -1 || true)
           if [ -n "$EXISTING_PR" ]; then
-            echo "PR #$EXISTING_PR already exists for actions bump"
-            echo "pr_exists=true" >> $GITHUB_OUTPUT
-            echo "pr_number=$EXISTING_PR" >> $GITHUB_OUTPUT
+            echo "PR #$EXISTING_PR already exists for the actions bump"
+            echo "pr_exists=true" >> "$GITHUB_OUTPUT"
+            echo "pr_number=$EXISTING_PR" >> "$GITHUB_OUTPUT"
           else
-            echo "pr_exists=false" >> $GITHUB_OUTPUT
+            echo "pr_exists=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -168,20 +141,13 @@ jobs:
         run: |
           set -euo pipefail
           BUMPS_JSON='${{ steps.check-updates.outputs.bumps_json }}'
-          
-          # For each action that needs a bump, update all workflow files
           for repo in $(echo "$BUMPS_JSON" | jq -r 'keys[]'); do
             new_ver=$(echo "$BUMPS_JSON" | jq -r --arg r "$repo" '.[$r].new')
-            
-            echo "Updating $repo to $new_ver in all workflow files..."
-            
-            # Use alternative delimiter to avoid issues with / in repo name
-            # Pattern: uses: owner/repo@version
-            # Replace version part only
-            find .github/workflows -name '*.yml' -exec sed -i "s|uses: $repo@[^[:space:]]*|uses: $repo@$new_ver|g" {} +
+            echo "Updating $repo to $new_ver"
+            # Alternative delimiter avoids the slash in owner/repo; the version
+            # tail stops at whitespace, '#' or end of token.
+            find .github/workflows -name '*.yml' -exec sed -i "s|uses: ${repo}@[^[:space:]#]*|uses: ${repo}@${new_ver}|g" {} +
           done
-          
-          echo "Updated workflow files:"
           git diff --stat .github/workflows/
 
       - name: Create pull request
@@ -193,10 +159,10 @@ jobs:
           delete-branch: true
           title: "chore: bump github actions to latest stable"
           body: |
-            Automated PR to update GitHub Actions to latest stable versions
-            
+            Automated PR to update GitHub Actions to latest stable versions.
+
             ${{ steps.check-updates.outputs.pr_body }}
-            
+
             This PR updates action version pins only. No workflow logic changes.
           commit-message: "chore: bump github actions to latest stable"
           add-paths: .github/workflows/
