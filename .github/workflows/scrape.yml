@@ -62,7 +62,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload URL files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: url-files-actions
           path: "*-urls.txt"
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-prepare-actions
           path: |
@@ -117,7 +117,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload URL files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: url-files-local
           path: "*-urls.txt"
@@ -125,7 +125,7 @@ jobs:
 
       - name: Upload log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-prepare-local
           path: |
@@ -178,7 +178,7 @@ jobs:
             2>&1 | tee -a job_log.txt
 
       - name: Upload database
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chunk-${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
@@ -186,7 +186,7 @@ jobs:
 
       - name: Upload log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-scrape-actions-${{ matrix.db_path }}
           path: |
@@ -229,7 +229,7 @@ jobs:
             2>&1 | tee -a job_log.txt
 
       - name: Upload database
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chunk-${{ matrix.db_path }}
           path: ${{ matrix.db_path }}
@@ -237,7 +237,7 @@ jobs:
 
       - name: Upload log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-scrape-local-${{ matrix.db_path }}
           path: |
@@ -288,7 +288,7 @@ jobs:
             2>&1 | tee -a job_log.txt
 
       - name: Upload Final Database
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: final_matches.db
           path: final_matches.db
@@ -296,7 +296,7 @@ jobs:
 
       - name: Upload log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-merge
           path: |
@@ -385,7 +385,7 @@ jobs:
 
       - name: Upload unified log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unified-logs
           path: |
