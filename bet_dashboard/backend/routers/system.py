@@ -64,10 +64,11 @@ def get_sources_config(request: Request):
 def get_timezone_config(request: Request):
     """Get the configured match-data timezone (IANA identifier)."""
     app = _get(request)
-    scraper_cfg = (app.logic.settings.get("scraper_config") or {})
+    scraper_cfg = app.logic.settings.get("scraper_config") or {}
     tz_name = scraper_cfg.get("local_timezone")
     if not tz_name:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=500, detail="scraper_config.local_timezone not configured")
     return {"timezone": tz_name}
 
