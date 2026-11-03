@@ -1639,4 +1639,3 @@ class TestSourceReliabilityTracking:
         assert source_stats["src_good"]["total"] == 2
         assert source_stats["src_bad"]["correct"] == 0
         assert source_stats["src_bad"]["total"] == 2
-
