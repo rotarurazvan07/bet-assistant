@@ -6,6 +6,7 @@ import pytest
 from bet_framework.BetAssistant import BetAssistant, _parse_match_result_html
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.markets.enums import MarketKey, MarketType, MatchStatus, Outcome
+from zoneinfo import ZoneInfo
 
 # ── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ PARENT_DIV = '<div><div class="text-base font-bold min-sm:text-xl text-center">1
 
 @pytest.fixture
 def ba(tmp_path):
-    assistant = BetAssistant(str(tmp_path / "validate.db"))
+    assistant = BetAssistant(str(tmp_path / "validate.db"), tz=ZoneInfo("UTC"))
     yield assistant
     assistant.close()
 

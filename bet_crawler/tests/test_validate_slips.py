@@ -8,6 +8,7 @@ with mocked result pages.
 """
 
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -42,14 +43,14 @@ def run_stage(monkeypatch, report):
     inst.validate_slips.return_value = report
     fake_cls = MagicMock(return_value=inst)
     monkeypatch.setattr(vs_mod, "BetAssistant", fake_cls)
-    validate_slips("slips.db")
+    validate_slips("slips.db", "UTC")
     return inst, fake_cls
 
 
 class TestValidateSlipsP0:
     def test_delegates_to_bet_assistant_and_closes(self, monkeypatch) -> None:
         inst, fake_cls = run_stage(monkeypatch, make_report())
-        fake_cls.assert_called_once_with("slips.db")
+        fake_cls.assert_called_once_with("slips.db", ZoneInfo("UTC"))
         inst.validate_slips.assert_called_once_with()
         inst.close.assert_called_once()
 
@@ -111,4 +112,4 @@ class TestValidateSlipsP1:
         fake_cls = MagicMock(return_value=inst)
         monkeypatch.setattr(vs_mod, "BetAssistant", fake_cls)
         with pytest.raises(RuntimeError, match="boom"):
-            validate_slips("slips.db")
+            validate_slips("slips.db", "UTC")

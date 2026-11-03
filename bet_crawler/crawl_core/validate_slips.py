@@ -2,19 +2,25 @@
 validate_slips module for handling the validate-slips mode logic
 """
 
+from zoneinfo import ZoneInfo
+
 from bet_crawler.crawler_logging import get_logger, log_event, reset_event_totals
 from bet_framework.BetAssistant import BetAssistant
 
 logger = get_logger(__name__)
 
 
-def validate_slips(slips_db_path: str) -> None:
+def validate_slips(slips_db_path: str, local_timezone: str) -> None:
     """
     Delegate entirely to BetAssistant.validate_slips() — no duplicated
     scraping or outcome logic here.
+
+    Args:
+        slips_db_path: Path to the slips SQLite database.
+        local_timezone: IANA timezone identifier (e.g., "Europe/Bucharest").
     """
     reset_event_totals(stage="validate-slips")
-    assistant = BetAssistant(slips_db_path)
+    assistant = BetAssistant(slips_db_path, ZoneInfo(local_timezone))
     close_error = None
     result = None
     try:

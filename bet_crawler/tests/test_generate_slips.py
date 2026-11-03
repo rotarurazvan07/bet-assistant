@@ -7,6 +7,7 @@ explicit profile; daily gating lives in backend AppLogic) — documented diverge
 """
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -26,14 +27,14 @@ def _seed_matches_db(db_path, matches) -> None:
 
 
 def _slips_rows(slips_db):
-    ba = BetAssistant(slips_db)
+    ba = BetAssistant(slips_db, tz=ZoneInfo("UTC"))
     try:
         return ba.fetch_rows("SELECT slip_id, profile, total_odds, units FROM slips")
     finally:
         ba.close()
 
 
-DT = datetime(2026, 9, 25, 15, 0, 0)
+DT = datetime(2030, 1, 1, 20, 0, 0)
 
 
 def _consensus_match(home="United FC", away="Rival FC", url="https://r.com/1"):
@@ -66,7 +67,7 @@ class TestGenerateSlipsP0:
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
         with pytest.raises(SystemExit) as exc:
-            generate_slips(matches_db, slips_db, "ghost", {})
+            generate_slips(matches_db, slips_db, "ghost", {}, "UTC")
         assert exc.value.code == 1
 
     def test_slip_saved_with_units(self, tmp_path) -> None:
@@ -74,7 +75,7 @@ class TestGenerateSlipsP0:
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
         profile = dict(PROFILE, units=2.5)
-        generate_slips(matches_db, slips_db, "aggressive", profile)
+        generate_slips(matches_db, slips_db, "aggressive", profile, "UTC")
         rows = _slips_rows(slips_db)
         assert len(rows) == 1
         assert rows[0]["profile"] == "aggressive"
@@ -85,7 +86,7 @@ class TestGenerateSlipsP0:
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
-        generate_slips(matches_db, slips_db, "plain", dict(PROFILE))
+        generate_slips(matches_db, slips_db, "plain", dict(PROFILE), "UTC")
         rows = _slips_rows(slips_db)
         assert rows[0]["units"] == 1.0
 
@@ -93,7 +94,7 @@ class TestGenerateSlipsP0:
         matches_db = str(tmp_path / "matches.db")
         _seed_matches_db(matches_db, [])
         slips_db = str(tmp_path / "slips.db")
-        generate_slips(matches_db, slips_db, "plain", dict(PROFILE))
+        generate_slips(matches_db, slips_db, "plain", dict(PROFILE), "UTC")
         assert _slips_rows(slips_db) == []
 
     def test_no_eligible_matches_yields_no_slip(self, tmp_path) -> None:
@@ -102,5 +103,5 @@ class TestGenerateSlipsP0:
         _seed_matches_db(matches_db, [_consensus_match()])
         slips_db = str(tmp_path / "slips.db")
         profile = dict(PROFILE, min_leg_odds=99.0)  # odds 1.9 < 99 → no candidate passes the gate
-        generate_slips(matches_db, slips_db, "picky", profile)
+        generate_slips(matches_db, slips_db, "picky", profile, "UTC")
         assert _slips_rows(slips_db) == []

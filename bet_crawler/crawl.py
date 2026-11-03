@@ -291,10 +291,17 @@ if __name__ == "__main__":
     elif args.mode == "generate-slips":
         if not args.matches_db_path or not args.slips_db_path or not args.profile_path:
             build_parser().error("--matches_db_path, --slips_db_path, and --profile_path are required for generate-slips")
+        if not args.config_dir:
+            build_parser().error("--config_dir is required for generate-slips (for timezone)")
+        runtime = load_runtime(args.config_dir)
         profile_name, profile_data = load_profile(args.profile_path)
-        generate_slips(args.matches_db_path, args.slips_db_path, profile_name, profile_data)
+        tz_name = runtime["factory"].runtime_settings.local_timezone
+        generate_slips(args.matches_db_path, args.slips_db_path, profile_name, profile_data, tz_name)
 
     elif args.mode == "validate-slips":
         if not args.slips_db_path:
             build_parser().error("--slips_db_path is required for validate-slips")
-        validate_slips(args.slips_db_path)
+        if not args.config_dir:
+            build_parser().error("--config_dir is required for validate-slips (for timezone)")
+        runtime = load_runtime(args.config_dir)
+        validate_slips(args.slips_db_path, runtime["factory"].runtime_settings.local_timezone)

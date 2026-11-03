@@ -9,7 +9,7 @@ import pytest
 
 from bet_framework.core.Match import Match, Score
 
-DT_BASE = datetime(2026, 9, 25, 15, 0, 0)
+DT_BASE = datetime(2030, 1, 1, 20, 0, 0)
 
 
 def make_match(home="Team A", away="Team B", dt=None, preds=None, odds=None, url=None, league=None):
