@@ -7,6 +7,7 @@ import { getStatusColor, getStatusBadge } from '../utils/colorUtils';
 import { calculateNetProfit } from '../utils/calculationUtils';
 import { marketLabel } from '../config/marketConfig';
 import { getPotentialStatusColor } from '../utils/colorUtils';
+import { useConfigTimezone, formatTimeToMatch, naiveToInstant } from '../hooks/useConfigTimezone';
 
 // ── BetPreview ────────────────────────────────────────────────────────────────
 
@@ -332,6 +333,8 @@ interface SlipCardProps {
 }
 
 export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCardProps) {
+    const { timezone } = useConfigTimezone();
+    const zone = timezone || 'UTC';
     const hdrBg = slip.slip_status === 'Live' ? 'var(--live-bg)' : (slip.slip_status === 'Won' ? 'var(--win-bg)' : slip.slip_status === 'Lost' ? 'var(--loss-bg)' : 'var(--pending-bg)');
     const statusBorderColor = getStatusColor(slip.slip_status);
 
@@ -445,24 +448,29 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                     {slip.slip_status === 'Pending' ? (
                         (() => {
                             // Find the earliest leg datetime that is in the future
-                            const now = new Date();
+                            const nowMs = Date.now();
                             const upcomingLegs = slip.legs
-                                .filter(leg => leg.datetime && new Date(leg.datetime) > now)
-                                .map(leg => new Date(leg.datetime!));
+                                .filter(leg => leg.datetime && naiveToInstant(leg.datetime, zone) > nowMs)
+                                .map(leg => naiveToInstant(leg.datetime!, zone));
 
                             if (upcomingLegs.length === 0) {
                                 return <span style={{ color: 'var(--text-muted)' }}>no upcoming</span>;
                             }
 
-                            const nextMatch = new Date(Math.min(...upcomingLegs.map(d => d.getTime())));
-                            const hoursUntil = (nextMatch.getTime() - now.getTime()) / (1000 * 60 * 60);
+                            const nextMatch = Math.min(...upcomingLegs);
+                            const msUntil = nextMatch - nowMs;
 
-                            if (hoursUntil < 1) {
-                                const mins = Math.round(hoursUntil * 60);
-                                return <span style={{ color: 'var(--text-primary)' }}>Next match in {mins}m</span>;
+                            if (msUntil <= 0) {
+                                return <span style={{ color: 'var(--text-primary)' }}>live</span>;
                             }
 
-                            return <span style={{ color: 'var(--text-primary)' }}>Next match in {Math.round(hoursUntil)}h</span>;
+                            const hours = Math.floor(msUntil / (1000 * 60 * 60));
+                            if (hours >= 1) {
+                                return <span style={{ color: 'var(--text-primary)' }}>Next match in {hours}h</span>;
+                            }
+
+                            const mins = Math.round(msUntil / (1000 * 60));
+                            return <span style={{ color: 'var(--text-primary)' }}>Next match in {mins}m</span>;
                         })()
                     ) : (() => {
                         const netProfit = calculateNetProfit(slip.slip_status, slip.total_odds, slip.units);

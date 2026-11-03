@@ -1144,6 +1144,26 @@
           }
         }
       }
+    },
+    "/api/config/timezone": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Timezone Config",
+        "description": "Get the configured match-data timezone (IANA identifier).",
+        "operationId": "get_timezone_config_api_config_timezone_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

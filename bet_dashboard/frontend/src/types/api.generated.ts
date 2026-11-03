@@ -217,6 +217,13 @@ export interface paths {
      */
     get: operations["get_sources_config_api_config_sources_get"];
   };
+  "/api/config/timezone": {
+    /**
+     * Get Timezone Config
+     * @description Get the configured match-data timezone (IANA identifier).
+     */
+    get: operations["get_timezone_config_api_config_timezone_get"];
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -1209,6 +1216,20 @@ export interface operations {
    * @description Get all unique sources from RUNNER_SETS in scraper_config.yaml
    */
   get_sources_config_api_config_sources_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+    };
+  };
+  /**
+   * Get Timezone Config
+   * @description Get the configured match-data timezone (IANA identifier).
+   */
+  get_timezone_config_api_config_timezone_get: {
     responses: {
       /** @description Successful Response */
       200: {

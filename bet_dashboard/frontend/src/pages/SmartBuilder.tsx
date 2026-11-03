@@ -14,6 +14,7 @@ import {
 } from '../api/data';
 import type { GlobalFilters } from '../components/Layout';
 import type { BuilderConfig, Profile, ProfilesMap, PreviewResult, ManualLegIn } from '../types';
+import { useConfigTimezone, formatMatchTime } from '../hooks/useConfigTimezone';
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
@@ -180,6 +181,7 @@ function readStoredState(): Record<string, unknown> {
 }
 
 export default function SmartBuilder({ filters, refreshKey }: Props) {
+    const { timezone } = useConfigTimezone();
     // Load persisted state from localStorage
     const [cfg, setCfg] = useState<BuilderConfig>(() => ({
         ...DEFAULT_CFG,
@@ -700,9 +702,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {excludedDetails.map((item, i) => {
                                 const dt = item.datetime
-                                    ? new Date(item.datetime).toLocaleString('en-GB', {
-                                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-                                    })
+                                    ? formatMatchTime(item.datetime, timezone)
                                     : '';
                                 return (
                                     <div key={i} className="rounded-lg p-3 group transition-all duration-200"

@@ -100,3 +100,19 @@ class TestWebsocketKeepalive:
         with client.websocket_connect("/ws"):
             pass
         assert len(ws_manager._connections) == before
+
+class TestGetTimezoneConfig:
+    """[P0] GET /api/config/timezone"""
+
+    def test_timezone_returns_configured_tz(self, client, fake_logic) -> None:
+        data = client.get("/api/config/timezone").json()
+        assert data["timezone"] == "UTC"
+
+    def test_timezone_missing_config_returns_500(self, client_factory) -> None:
+        from conftest import FakeDashboardLogic
+        logic = FakeDashboardLogic()
+        logic._settings["scraper_config"] = {}
+        client, _ = client_factory(logic=logic)
+        r = client.get("/api/config/timezone")
+        assert r.status_code == 500
+        assert "not configured" in r.json()["detail"]
