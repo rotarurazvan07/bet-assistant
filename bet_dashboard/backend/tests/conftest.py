@@ -189,7 +189,10 @@ class FakeDashboardLogic:
             "runtime_state": {
                 "profile_last_run": {"low_risk": {"at": "2030-01-01T08:30:00+00:00", "status": "ok", "error": None}}
             },
-            "scraper_config": {"RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]}, "local_timezone": "UTC"},
+            "scraper_config": {
+                "RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]},
+                "local_timezone": "UTC",
+            },
         }
         self.calls: list[str] = []
 
