@@ -93,7 +93,9 @@ interface Props {
 export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement, visibleColumns, pulsingKey }: Props) {
     const { timezone } = useConfigTimezone();
     const dt = match.datetime
-        ? formatMatchTime(match.datetime, timezone)
+        ? formatMatchTime(match.datetime, timezone, 'en-GB', {
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+        }).replace(',', '')
         : '—';
 
     const matchName = `${match.home} - ${match.away}`;
