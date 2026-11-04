@@ -101,6 +101,7 @@ class TestWebsocketKeepalive:
             pass
         assert len(ws_manager._connections) == before
 
+
 class TestGetTimezoneConfig:
     """[P0] GET /api/config/timezone"""
 
@@ -110,6 +111,7 @@ class TestGetTimezoneConfig:
 
     def test_timezone_missing_config_returns_500(self, client_factory) -> None:
         from conftest import FakeDashboardLogic
+
         logic = FakeDashboardLogic()
         logic._settings["scraper_config"] = {}
         client, _ = client_factory(logic=logic)
