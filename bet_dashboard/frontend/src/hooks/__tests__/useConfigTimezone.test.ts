@@ -6,7 +6,7 @@ vi.mock('../../api/client', () => ({
   default: { get: vi.fn().mockResolvedValue({ data: { timezone: 'UTC' } }) },
 }));
 
-import client from '../../api/client';
+// import client from '../../api/client';  // mocked via vi.mock
 
 describe('useConfigTimezone', () => {
   beforeEach(() => {

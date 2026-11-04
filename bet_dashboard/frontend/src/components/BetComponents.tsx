@@ -1,5 +1,5 @@
 import type { CandidateLeg, BetSlip, LiveData, BetLeg} from '../types';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BaseBadge } from './ui/BaseBadge';
 import { formatBetDate } from '../utils/betUtils';
 import { parseTeamNames } from '../utils/teamUtils';
@@ -7,7 +7,7 @@ import { getStatusColor, getStatusBadge } from '../utils/colorUtils';
 import { calculateNetProfit } from '../utils/calculationUtils';
 import { marketLabel } from '../config/marketConfig';
 import { getPotentialStatusColor } from '../utils/colorUtils';
-import { useConfigTimezone, formatTimeToMatch, naiveToInstant } from '../hooks/useConfigTimezone';
+import { useConfigTimezone, naiveToInstant } from '../hooks/useConfigTimezone';
 
 // ── BetPreview ────────────────────────────────────────────────────────────────
 
@@ -335,6 +335,13 @@ interface SlipCardProps {
 export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCardProps) {
     const { timezone } = useConfigTimezone();
     const zone = timezone || 'UTC';
+    // Tick the wall clock once a minute so the upcoming-match countdown refreshes
+    // without calling an impure time source during render.
+    const [nowMs, setNowMs] = useState(() => Date.now());
+    useEffect(() => {
+        const id = setInterval(() => setNowMs(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, []);
     const hdrBg = slip.slip_status === 'Live' ? 'var(--live-bg)' : (slip.slip_status === 'Won' ? 'var(--win-bg)' : slip.slip_status === 'Lost' ? 'var(--loss-bg)' : 'var(--pending-bg)');
     const statusBorderColor = getStatusColor(slip.slip_status);
 
@@ -448,7 +455,6 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                     {slip.slip_status === 'Pending' ? (
                         (() => {
                             // Find the earliest leg datetime that is in the future
-                            const nowMs = Date.now();
                             const upcomingLegs = slip.legs
                                 .filter(leg => leg.datetime && naiveToInstant(leg.datetime, zone) > nowMs)
                                 .map(leg => naiveToInstant(leg.datetime!, zone));

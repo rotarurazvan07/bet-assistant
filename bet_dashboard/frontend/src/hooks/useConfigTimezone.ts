@@ -42,11 +42,24 @@ export function useConfigTimezone() {
 
   useEffect(() => {
     if (cachedTimezone) return;
-    setLoading(true);
+    let active = true;
+
     loadConfigTimezone()
-      .then(setTimezone)
-      .catch(() => setTimezone(null))
-      .finally(() => setLoading(false));
+      .then((tz) => {
+        if (!active) return;
+        setTimezone(tz);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTimezone(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return { timezone, loading };
