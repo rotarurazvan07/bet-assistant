@@ -91,7 +91,7 @@ export default function Services() {
     const [rows, setRows] = useState<ProfileSchedule[] | null>(null);
     const [rowsSaved, setRowsSaved] = useState('');
     // Timestamp of the last successful save — drives the fade-out of the
-    // "✓ Profile schedules saved" indicator so it never lingers forever.
+    // "Profile schedules saved" indicator so it never lingers forever.
     const [rowsSavedAt, setRowsSavedAt] = useState<number | null>(null);
     const savedFadeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Local stake state per row — keeps both values when switching modes
@@ -179,7 +179,7 @@ export default function Services() {
                     };
                 });
                 await client.post('/services/settings', { profile_schedules: payload });
-                setRowsSaved('✓ Profile schedules saved');
+                setRowsSaved('Profile schedules saved');
                 setRowsSavedAt(Date.now());
                 if (savedFadeRef.current) clearTimeout(savedFadeRef.current);
                 // Fade the indicator out after 3s so subsequent saves are visible again
@@ -324,7 +324,7 @@ export default function Services() {
                             {rowsSaved && (
                                 <span
                                     className={`ml-auto text-[11px] font-mono ${rowsSavedAt !== null ? 'sched-saved-fade' : ''}`}
-                                    style={{ color: rowsSaved.startsWith('✓') ? 'var(--win)' : 'var(--loss)' }}
+                                    style={{ color:'var(--win)'  }}
                                 >{rowsSaved}</span>
                             )}
                         </div>

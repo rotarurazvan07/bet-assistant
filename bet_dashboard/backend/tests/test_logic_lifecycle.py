@@ -615,15 +615,12 @@ class TestAppLogicLifecycle:
         assert not broadcast_capture
 
     def test_do_verify_broadcasts_live_leg_data(self, app_env, monkeypatch, broadcast_capture) -> None:
-        """[P0] _do_verify maps live legs to {match: score/minute} and broadcasts."""
-        from bet_framework.core.Slip import LegOutcomeInfo
-
-        report = SimpleNamespace(live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")])
-        monkeypatch.setattr(app_env.app, "validate_slips", lambda: report)
+        """_do_verify runs validation through the progress-broadcasting workflow."""
+        called = []
+        monkeypatch.setattr(app_env.app, "validate_and_broadcast", lambda: called.append(True))
         app_env.app._do_verify()
-        payload = broadcast_capture[-1]
-        assert payload["event"] == "slips_updated"
-        assert payload["live_data"] == {"M 1": {"score": "1:0", "minute": "23"}}
+        assert called == [True]
+        assert not broadcast_capture
 
     def test_do_verify_swallows_errors_without_broadcast(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] A failing verify is logged, swallowed, and never broadcast."""
@@ -631,7 +628,7 @@ class TestAppLogicLifecycle:
         def boom():
             raise RuntimeError("nope")
 
-        monkeypatch.setattr(app_env.app, "validate_slips", boom)
+        monkeypatch.setattr(app_env.app, "validate_and_broadcast", boom)
         app_env.app._do_verify()
         assert not broadcast_capture
 

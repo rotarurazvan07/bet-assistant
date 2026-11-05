@@ -77,7 +77,7 @@ export interface paths {
   "/api/slips": {
     /**
      * Get Slips
-     * @description Return filtered slips with stats and profiles.
+     * @description Return one page of filtered slips and pagination metadata.
      */
     get: operations["get_slips_api_slips_get"];
     /**
@@ -85,6 +85,13 @@ export interface paths {
      * @description Persist a manually-built slip and return its id.
      */
     post: operations["add_slip_api_slips_post"];
+  };
+  "/api/slips/calendar": {
+    /**
+     * Get Slip Calendar
+     * @description Return daily slip counts and realized P&L for a calendar date range.
+     */
+    get: operations["get_slip_calendar_api_slips_calendar_get"];
   };
   "/api/slips/validate_manual": {
     /**
@@ -107,6 +114,13 @@ export interface paths {
      * @description Validate pending slips; return checked/settled/live counts.
      */
     post: operations["validate_slips_api_slips_validate_post"];
+  };
+  "/api/slips/validate/{job_id}/cancel": {
+    /**
+     * Cancel Validation
+     * @description Request cancellation of an active slip validation.
+     */
+    post: operations["cancel_validation_api_slips_validate__job_id__cancel_post"];
   };
   "/api/slips/generate": {
     /**
@@ -801,7 +815,7 @@ export interface operations {
   };
   /**
    * Get Slips
-   * @description Return filtered slips with stats and profiles.
+   * @description Return one page of filtered slips and pagination metadata.
    */
   get_slips_api_slips_get: {
     parameters: {
@@ -810,6 +824,9 @@ export interface operations {
         date_to?: string | null;
         hide_settled?: string | null;
         live_only?: string | null;
+        page?: number;
+        page_size?: number;
+        sort_by?: "net_profit_desc" | "net_profit_asc" | "date_desc" | "date_asc" | "odds_desc" | "odds_asc" | "stake_desc" | "stake_asc";
       };
     };
     requestBody?: {
@@ -840,6 +857,37 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["SlipIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Slip Calendar
+   * @description Return daily slip counts and realized P&L for a calendar date range.
+   */
+  get_slip_calendar_api_slips_calendar_get: {
+    parameters: {
+      query: {
+        date_from: string;
+        date_to: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": string[] | null;
       };
     };
     responses: {
@@ -913,11 +961,49 @@ export interface operations {
    * @description Validate pending slips; return checked/settled/live counts.
    */
   validate_slips_api_slips_validate_post: {
+    requestBody?: {
+      content: {
+        "application/json": {
+          [key: string]: string;
+        } | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
         content: {
           "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Cancel Validation
+   * @description Request cancellation of an active slip validation.
+   */
+  cancel_validation_api_slips_validate__job_id__cancel_post: {
+    parameters: {
+      path: {
+        job_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

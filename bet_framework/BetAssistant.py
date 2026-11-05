@@ -41,13 +41,16 @@ picks, preventing the slip from drifting far from the target total odds.
 import hashlib
 import math
 import re
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime
-from typing import Any
+from threading import Event, Lock
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 from bs4 import BeautifulSoup
-from scrape_kit import BaseStorageManager, get_logger, scrape
+from scrape_kit import BaseStorageManager, get_logger
+from scrape_kit.fetcher import fetch, is_blocked
 
 from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
@@ -581,19 +584,19 @@ class BetAssistant(BaseStorageManager):
             "date_asc": "s.date_generated ASC",
             "odds_desc": "s.total_odds DESC",
             "odds_asc": "s.total_odds ASC",
-            "stake_desc": "s.units DESC",
-            "stake_asc": "s.units ASC",
+            "stake_desc": "COALESCE(s.units, 0) DESC",
+            "stake_asc": "COALESCE(s.units, 0) ASC",
             "net_profit_desc": """CASE
-                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -s.units
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -COALESCE(s.units, 0)
                 WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live') THEN 0
                 WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending') THEN -1e100
-                ELSE s.total_odds * s.units - s.units
+                ELSE s.total_odds * COALESCE(s.units, 0) - COALESCE(s.units, 0)
             END DESC""",
             "net_profit_asc": """CASE
-                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -s.units
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -COALESCE(s.units, 0)
                 WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live') THEN 0
                 WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending') THEN 1e100
-                ELSE s.total_odds * s.units - s.units
+                ELSE s.total_odds * COALESCE(s.units, 0) - COALESCE(s.units, 0)
             END ASC""",
         }
         if sort_by not in sort_expressions:
@@ -917,15 +920,28 @@ class BetAssistant(BaseStorageManager):
 
         return None
 
-    def validate_slips(self) -> ValidationReport:
-        """Scrape result pages, settle legs, and update slip statuses."""
+    def validate_slips(
+        self,
+        progress_callback: Callable[[int, int, str], None] | None = None,
+        cancel_event: Event | None = None,
+    ) -> ValidationReport:
+        """Scrape result pages, settle legs, and optionally report progress."""
         self.reopen_if_changed()
 
         pending = self.fetch_rows(
-            "SELECT leg_id, result_url, market, market_type, match_name FROM legs WHERE status IN ('Pending', 'Live')"
+            """
+            SELECT l.leg_id, l.result_url, l.market, l.market_type, l.match_name
+            FROM legs l
+            WHERE l.status IN ('Pending', 'Live')
+              AND COALESCE(TRIM(l.result_url), '') != ''
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM legs settled
+                  WHERE settled.slip_id = l.slip_id AND settled.status = 'Lost'
+              )
+            """
         )
 
-        checked = len(pending)
         errors = [0]
         live_matches: list[LegOutcomeInfo] = []
         settled_matches: list[LegOutcomeInfo] = []
@@ -938,7 +954,10 @@ class BetAssistant(BaseStorageManager):
             url_to_legs[url].append((leg_id, market, market_type, match_name))
 
         urls = list(url_to_legs.keys())
+        checked = len(urls)
         if not urls:
+            if progress_callback:
+                progress_callback(0, 0, "")
             return ValidationReport(checked=0, settled=[], live=[], errors=0)
 
         def _handle_url(url: str, html: str) -> None:
@@ -963,22 +982,97 @@ class BetAssistant(BaseStorageManager):
                 errors[0] += 1
                 logger.error(f"[BetAssistant] parse error on {url}: {e}")
 
+        max_concurrency = 10
+        completed = 0
+        progress_lock = Lock()
+        active_urls: list[str] = []
+
+        def _report_progress(current_url: str = "") -> None:
+            if not progress_callback:
+                return
+            with progress_lock:
+                active_url = active_urls[0] if active_urls else current_url
+                leg_rows = url_to_legs.get(active_url)
+                current_match = leg_rows[0][3] if leg_rows else ""
+                checked_so_far = completed
+            progress_callback(checked_so_far, checked, current_match)
+
+        def _fetch_url(url: str) -> str:
+            if cancel_event and cancel_event.is_set():
+                return ""
+            with progress_lock:
+                active_urls.append(url)
+            _report_progress(url)
+            last_error: Exception | None = None
+            try:
+                for stealthy_headers in (False, True):
+                    if cancel_event and cancel_event.is_set():
+                        return ""
+                    try:
+                        html = fetch(url, stealthy_headers=stealthy_headers)
+                        if not is_blocked(html):
+                            return html
+                    except Exception as exc:
+                        last_error = exc
+                if last_error:
+                    raise last_error
+                raise RuntimeError(f"Fast scrape remained blocked for {url}")
+            finally:
+                with progress_lock:
+                    active_urls.remove(url)
+
+        executor = ThreadPoolExecutor(max_workers=max_concurrency)
+        futures: dict[Future[str], str] = {}
+        next_url = 0
+        cancelled = False
         try:
-            scrape(
-                urls,
-                _handle_url,
-                mode="fast",
-                max_concurrency=10,
-            )
-        except Exception as e:
-            logger.error(f"[BetAssistant] Scrape failure: {e}")
-            errors[0] += 1
+            _report_progress()
+            while next_url < len(urls) and len(futures) < max_concurrency:
+                if cancel_event and cancel_event.is_set():
+                    cancelled = True
+                    break
+                url = urls[next_url]
+                futures[executor.submit(_fetch_url, url)] = url
+                next_url += 1
+
+            while futures and not cancelled:
+                if cancel_event and cancel_event.is_set():
+                    cancelled = True
+                    break
+                done, _ = wait(futures, timeout=0.2, return_when=FIRST_COMPLETED)
+                for future in done:
+                    url = futures.pop(future)
+                    if cancel_event and cancel_event.is_set():
+                        cancelled = True
+                        break
+                    try:
+                        html = future.result()
+                        if html:
+                            _handle_url(url, html)
+                    except Exception as exc:
+                        errors[0] += 1
+                        logger.error(f"[BetAssistant] scrape failure on {url}: {exc}")
+
+                    with progress_lock:
+                        completed += 1
+                    _report_progress(url)
+                    if next_url < len(urls) and not (cancel_event and cancel_event.is_set()):
+                        next_url_url = urls[next_url]
+                        futures[executor.submit(_fetch_url, next_url_url)] = next_url_url
+                        next_url += 1
+                cancelled = bool(cancel_event and cancel_event.is_set())
+        finally:
+            if cancelled:
+                for future in futures:
+                    future.cancel()
+            executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
 
         return ValidationReport(
             checked=checked,
             settled=settled_matches,
             live=live_matches,
             errors=errors[0],
+            cancelled=cancelled,
         )
 
     def update_leg(self, leg_id: int, status: str, final_score: str | None = None) -> None:

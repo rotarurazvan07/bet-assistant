@@ -326,7 +326,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                 await saveProfile(profileFromConfig(activeName));
                 const updated = await fetchProfiles();
                 setProfiles(updated ?? {});
-                setStatus(`✓ Saved to '${activeName}'`);
+                setStatus(`Saved to '${activeName}'`);
             } catch {
                 dirtyRef.current = true;
                 setStatus('⚠ Save failed — will retry on next change');
@@ -446,7 +446,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
             const updated = await fetchProfiles();
             setProfiles(updated ?? {});
             loadProfile(name, updated?.[name] ?? (payload as unknown as Profile));
-            setStatus(`✓ Saved to '${name}'`);
+            setStatus(`Saved to '${name}'`);
         } finally {
             createBusy.current = false;
         }
@@ -490,7 +490,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setSlipModalOpen(false);
         // first successful addSlip (Build) counts as first slip.
         if (markFirstSlip()) setMilestoneOpen(true);
-        setStatus(`✓ Slip #${id} added to '${activeName}'`);
+        setStatus(`Slip #${id} added to '${activeName}'`);
         triggerPreview(mergedCfg);
         fetchExcludedDetails().then(d => setExcludedDetails(d ?? [])).catch(() => setExcludedDetails([]));
     }
@@ -644,10 +644,6 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                             Hidden when the preview is empty. */}
                         {(preview?.legs?.length ?? 0) > 0 && (
                             <button className="btn-success ml-auto" onClick={() => setSlipModalOpen(true)}>+ Add to Slips</button>
-                        )}
-                        {loading && (
-                            <span className="ml-auto text-[10px] font-mono animate-pulse px-2 py-0.5 rounded"
-                                style={{ color: 'var(--accent)', background: 'var(--accent-glow)' }}>building…</span>
                         )}
                     </div>
 

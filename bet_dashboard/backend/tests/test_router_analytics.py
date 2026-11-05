@@ -81,6 +81,47 @@ class TestGetAnalytics:
         client, _ = client_factory(logic=FakeDashboardLogic(slips=slips))
         _assert_finite(client.get(BASE).json())
 
+    def test_paper_slips_keep_accuracy_without_financial_impact(self, client_factory) -> None:
+        slips = [
+            make_slip(
+                slip_id=1,
+                slip_status="Won",
+                units=None,
+                legs=[
+                    make_leg(
+                        result_url="https://example.com/match/1",
+                        predictions=[{"source": "forebet", "home": 2, "away": 1}],
+                    )
+                ],
+            ),
+            make_slip(
+                slip_id=2,
+                slip_status="Lost",
+                units=0.0,
+                legs=[
+                    make_leg(
+                        status="Lost",
+                        result_url="https://example.com/match/2",
+                        predictions=[{"source": "forebet", "home": 0, "away": 2}],
+                    )
+                ],
+            ),
+        ]
+        client, _ = client_factory(logic=FakeDashboardLogic(slips=slips))
+
+        response = client.get(BASE)
+
+        assert response.status_code == 200
+        data = response.json()
+        _assert_finite(data)
+        assert data["history"][0]["slips_count"] == 2
+        assert data["history"][0]["units_bet"] == 0.0
+        assert data["market_accuracy"][0]["total"] == 2
+        assert data["source_breakdown"][0]["total_predictions"] == 2
+        assert data["source_breakdown"][0]["accuracy"] == 50.0
+        assert data["profile_scatter"][0]["volume"] == 2
+        assert data["profile_scatter"][0]["net_profit"] == 0.0
+
     def test_profiles_filter_forwarded(self, client, fake_logic) -> None:
         client.get(BASE, params={"profiles": "safe"})
         assert "get_slips" in fake_logic.calls

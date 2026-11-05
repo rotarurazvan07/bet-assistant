@@ -195,7 +195,7 @@ describe('SmartBuilder page', () => {
         await user.type(oddsInput, '6');
         await waitFor(() => expect(savedPosts.length).toBeGreaterThan(before), { timeout: 4000 });
         expect(savedPosts[savedPosts.length - 1].name).toBe('cautious');
-        expect(await screen.findByText("✓ Saved to 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
+        expect(await screen.findByText("Saved to 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
     it('switching a profile does not re-save the previous config', async () => {
@@ -272,7 +272,7 @@ describe('SmartBuilder page', () => {
         await waitFor(() => expect(savedPosts.some(p => p.name === 'new1')).toBe(true), { timeout: 3000 });
         const card = await screen.findByRole('button', { name: 'new1' }, { timeout: 3000 });
         expect(card).toHaveAttribute('aria-pressed', 'true');
-        expect(await screen.findByText("✓ Saved to 'new1'", {}, { timeout: 3000 })).toBeInTheDocument();
+        expect(await screen.findByText("Saved to 'new1'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
     it('rapid double-click on + never creates a duplicate name', async () => {

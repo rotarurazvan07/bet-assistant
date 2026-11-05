@@ -593,7 +593,7 @@ thead .sticky-col {
   .sched-spinner { animation: none; }
 }
 
-/* "✓ Profile schedules saved" indicator fades out after 3s */
+/* "Profile schedules saved" indicator fades out after 3s */
 .sched-saved-fade {
   animation: sched-saved-fade 3s ease-out forwards;
 }

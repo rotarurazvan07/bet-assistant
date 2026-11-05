@@ -1,25 +1,38 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchSlips, deleteSlip, validateSlips, generateSlips } from '../api/data';
+import { fetchSlips, deleteSlip, validateSlips, cancelValidation, generateSlips } from '../api/data';
 import EmptyState, { TrackEmptyIcon } from '../components/EmptyState';
 import { SlipCard, SlipDetailModal } from '../components/BetComponents';
 import SlipCalendar from '../components/SlipCalendar';
 import { Toggle } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
-import type { SlipsPage, LiveData, BetSlip } from '../types';
+import type { SlipsPage, LiveData, BetSlip, ValidationCompletion, ValidationProgress } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
 import { Box, Button, Drawer, SwipeableDrawer, Typography, useMediaQuery } from '@mui/material';
 
 const FILTERS_STORAGE_KEY = 'slips_filters_state';
 const PAGE_SIZE = 20;
 
-interface Props { filters: GlobalFilters; refreshKey: number; liveData?: LiveData }
+interface Props {
+    filters: GlobalFilters;
+    refreshKey: number;
+    liveData?: LiveData;
+    validationProgress?: ValidationProgress;
+    validationCompletion?: ValidationCompletion;
+}
 
 type SortOption = 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc' | 'odds_desc' | 'odds_asc' | 'stake_desc' | 'stake_asc';
 
-export default function Slips({ filters, refreshKey, liveData: externalLiveData }: Props) {
+export default function Slips({
+    filters,
+    refreshKey,
+    liveData: externalLiveData,
+    validationProgress,
+    validationCompletion,
+}: Props) {
     const navigate = useNavigate();
+    const { dateFrom, dateTo } = filters;
     const [data, setData] = useState<SlipsPage | null>(null);
 
     // Initialize selectedProfiles from shared storage (persists across Slips/Analytics)
@@ -60,12 +73,64 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     const requestIdRef = useRef(0);
     const loadMoreRef = useRef<HTMLDivElement>(null);
     const [status, setStatus] = useState('');
+    const [statusVisible, setStatusVisible] = useState(false);
+    const statusTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const [validationNotice, setValidationNotice] = useState('');
+    const [validationNoticeVisible, setValidationNoticeVisible] = useState(false);
+    const validationNoticeTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+    const [validationJobId, setValidationJobId] = useState<string | null>(null);
+    const [cancelRequested, setCancelRequested] = useState(false);
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
     const [view, setView] = useState<'grid' | 'calendar'>('grid');
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
+    const completedJobIdRef = useRef<string | null>(null);
+
+    const showStatus = useCallback((message: string) => {
+        statusTimersRef.current.forEach(clearTimeout);
+        statusTimersRef.current = [];
+        setStatus(message);
+        setStatusVisible(true);
+        statusTimersRef.current.push(setTimeout(() => setStatusVisible(false), 4700));
+        statusTimersRef.current.push(setTimeout(() => setStatus(''), 5000));
+    }, []);
+
+    const showValidationNotice = useCallback((message: string) => {
+        validationNoticeTimersRef.current.forEach(clearTimeout);
+        validationNoticeTimersRef.current = [];
+        setValidationNotice(message);
+        setValidationNoticeVisible(true);
+        validationNoticeTimersRef.current.push(setTimeout(() => setValidationNoticeVisible(false), 4700));
+        validationNoticeTimersRef.current.push(setTimeout(() => setValidationNotice(''), 5000));
+    }, []);
+
+    useEffect(() => () => {
+        statusTimersRef.current.forEach(clearTimeout);
+        validationNoticeTimersRef.current.forEach(clearTimeout);
+    }, []);
+
+    useEffect(() => {
+        if (!validationCompletion || completedJobIdRef.current === validationCompletion.job_id) return;
+        completedJobIdRef.current = validationCompletion.job_id;
+        if (validationCompletion.failed) {
+            showValidationNotice('Could not validate results. Please try again.');
+        } else if (validationCompletion.cancelled) {
+            showValidationNotice('Validation stopped.');
+        } else if (validationCompletion.errors) {
+            showValidationNotice(`Validation finished with ${validationCompletion.errors} page error(s).`);
+        } else if (validationCompletion.checked === 0) {
+            showValidationNotice('No active matches to check.');
+        } else {
+            const settled = validationCompletion.settled ?? 0;
+            showValidationNotice(
+                settled > 0
+                    ? `Results checked · ${validationCompletion.checked} match(es) · ${settled} settled`
+                    : `Results checked · ${validationCompletion.checked} match(es)`,
+            );
+        }
+    }, [validationCompletion, showValidationNotice]);
 
 
     // Persist filters to Slips-specific storage
@@ -97,8 +162,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             // If no profiles selected, pass undefined to get all profiles
             // Otherwise pass the selected profiles array
             const params: Parameters<typeof fetchSlips>[0] = {
-                date_from: selectedDate || filters.dateFrom || undefined,
-                date_to: selectedDate || filters.dateTo || undefined,
+                date_from: selectedDate || dateFrom || undefined,
+                date_to: selectedDate || dateTo || undefined,
                 hide_settled: hideSettled,
                 live_only: liveOnly,
                 page,
@@ -129,7 +194,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
         } catch (error) {
             if (requestId !== requestIdRef.current) return;
             console.error('Failed to fetch slips:', error);
-            setStatus('Failed to load slips. Please try again.');
+            showStatus('Failed to load slips. Please try again.');
             if (append) setLoadMoreError(true);
             if (!append) {
                 setData({ slips: [], profiles: [], page: 1, page_size: PAGE_SIZE, total: 0, total_pages: 1 });
@@ -138,7 +203,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             if (requestId === requestIdRef.current) setLoading(false);
             if (append) loadingMoreRef.current = false;
         }
-    }, [selectedProfiles, filters, hideSettled, liveOnly, selectedDate, sortBy, refreshKey]);
+    }, [selectedProfiles, dateFrom, dateTo, hideSettled, liveOnly, selectedDate, sortBy, refreshKey, showStatus]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -168,24 +233,59 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     }, [externalLiveData]);
 
     async function handleValidate() {
-        setStatus('Validating…');
-        const result = await validateSlips();
-        const ld: LiveData = {};
-        result.live_data.forEach(item => {
-            ld[item.match_name] = {
-                score: item.score,
-                minute: item.minute,
-            };
-        });
-        setLocalLiveData(ld);
-        setStatus(`✓ Checked ${result.checked} · Settled ${result.settled} · Live ${result.live}`);
-        load();
+        if (validationJobId) {
+            setCancelRequested(true);
+            try {
+                await cancelValidation(validationJobId);
+            } catch (error) {
+                console.error('Failed to cancel slip validation:', error);
+                setCancelRequested(false);
+                showValidationNotice('Could not cancel validation. Please try again.');
+            }
+            return;
+        }
+
+        const jobId = crypto.randomUUID();
+        setValidationJobId(jobId);
+        setCancelRequested(false);
+        try {
+            const result = await validateSlips(jobId);
+            completedJobIdRef.current = jobId;
+            const ld: LiveData = {};
+            result.live_data.forEach(item => {
+                ld[item.match_name] = {
+                    score: item.score,
+                    minute: item.minute,
+                };
+            });
+            setLocalLiveData(ld);
+            if (result.cancelled) {
+                showValidationNotice('Validation stopped.');
+            } else if (result.checked === 0) {
+                showValidationNotice('No active matches to check.');
+            } else if (result.errors > 0) {
+                showValidationNotice(`Validation finished with ${result.errors} page error(s).`);
+            } else {
+                showValidationNotice(
+                    result.settled > 0
+                        ? `Results checked · ${result.checked} match(es) · ${result.settled} settled`
+                        : `Results checked · ${result.checked} match(es)`,
+                );
+            }
+            load();
+        } catch (error) {
+            console.error('Failed to validate slips:', error);
+            showValidationNotice('Could not validate results. Please try again.');
+        } finally {
+            setValidationJobId(null);
+            setCancelRequested(false);
+        }
     }
 
     async function handleGenerate() {
-        setStatus('Generating…');
+        showStatus('Generating…');
         const result = await generateSlips();
-        setStatus(`✓ Generated ${result.generated} slip(s)`);
+        showStatus(`Generated ${result.generated} slip(s)`);
         load();
     }
 
@@ -196,18 +296,101 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
 
     return (
         <>
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                {status && (
-                    <span className="text-[11px] font-mono" style={{ color: 'var(--accent)' }}>{status}</span>
-                )}
-            </div>
-
             {/* Slip actions and filters */}
             <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <button className="btn-ghost" data-tour="track-validate" onClick={handleValidate}>✓ Validate Results</button>
-                    <button className="btn-success" data-tour="track-generate" onClick={handleGenerate}>✦ Generate Slips</button>
+                <div className="w-full max-w-[520px]">
+                    {(() => {
+                        const progress = validationProgress?.job_id === completedJobIdRef.current
+                            || (validationJobId && validationProgress?.job_id !== validationJobId)
+                            ? undefined
+                            : validationProgress;
+                        const isValidating = validationJobId !== null || progress !== undefined;
+                        const canCancel = validationJobId !== null;
+                        const percent = progress && progress.total > 0
+                            ? Math.min((progress.checked / progress.total) * 100, 100)
+                            : 0;
+                        const progressText = cancelRequested
+                            ? 'Stopping…'
+                            : progress?.current_match
+                                ? `Checking ${progress.current_match}`
+                                : isValidating
+                                    ? 'Checking active matches…'
+                                    : '';
+
+                        return (
+                            <div className="grid min-w-0 grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+                                <button
+                                    type="button"
+                                    data-tour="track-validate"
+                                    onClick={handleValidate}
+                                    aria-label={canCancel ? 'Cancel slip validation' : 'Validate Results'}
+                                    disabled={cancelRequested || (isValidating && !canCancel)}
+                                    className="btn-primary w-full justify-center"
+                                >
+                                    {canCancel ? 'Stop checking' : isValidating ? 'Checking results…' : 'Validate results'}
+                                </button>
+                                {isValidating && (
+                                    <div className="flex min-w-0 items-center gap-2">
+                                        <span
+                                            className="h-2 w-2 shrink-0 animate-pulse rounded-full"
+                                            style={{ background: 'var(--accent)' }}
+                                            aria-hidden="true"
+                                        />
+                                        <span className="min-w-0 truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                            {progressText}
+                                        </span>
+                                        {progress && (
+                                            <>
+                                                <span className="shrink-0 text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>
+                                                    {progress.checked}/{progress.total}
+                                                </span>
+                                                <span
+                                                    className="h-1 w-16 shrink-0 overflow-hidden rounded-full"
+                                                    style={{ background: 'var(--bg-raised)' }}
+                                                    role="progressbar"
+                                                    aria-label="Validation progress"
+                                                    aria-valuemin={0}
+                                                    aria-valuemax={progress.total}
+                                                    aria-valuenow={progress.checked}
+                                                >
+                                                    <span
+                                                        className="block h-full transition-[width] duration-300"
+                                                        style={{ width: `${percent}%`, background: 'var(--accent)' }}
+                                                    />
+                                                </span>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                {!isValidating && validationNotice && (
+                                    <span
+                                        role="status"
+                                        aria-live="polite"
+                                        className="min-w-0 truncate text-xs transition-opacity duration-300"
+                                        style={{
+                                            color: 'var(--text-secondary)',
+                                            opacity: validationNoticeVisible ? 1 : 0,
+                                        }}
+                                    >
+                                        {validationNotice}
+                                    </span>
+                                )}
+                            </div>
+                        );
+                    })()}
+                    <div className="mt-2 grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+                        <button className="btn-success w-full justify-center" data-tour="track-generate" onClick={handleGenerate}>Generate Slips</button>
+                        {status && (
+                            <span
+                                role="status"
+                                aria-live="polite"
+                                className="min-w-0 truncate text-xs transition-opacity duration-300"
+                                style={{ color: 'var(--text-secondary)', opacity: statusVisible ? 1 : 0 }}
+                            >
+                                {status}
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <div

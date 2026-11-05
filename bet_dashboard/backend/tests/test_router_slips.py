@@ -293,10 +293,34 @@ class TestValidateSlips:
             "live_data": [{"match_name": "A - B", "score": "1:0", "minute": 33}],
         }
 
+    def test_validate_accepts_job_id_and_returns_cancelled_state(self, client, fake_app) -> None:
+        fake_app.validate_and_broadcast.return_value = SimpleNamespace(
+            checked=5,
+            settled=[],
+            live=[],
+            errors=0,
+            cancelled=True,
+        )
+        response = client.post(f"{BASE}/validate", json={"job_id": "job-1"})
+        assert response.status_code == 200
+        assert response.json()["cancelled"] is True
+        fake_app.validate_and_broadcast.assert_called_once_with("job-1")
+
     def test_validate_empty_live(self, client, fake_app) -> None:
         fake_app.validate_and_broadcast.return_value = SimpleNamespace(checked=0, settled=[], live=[], errors=[])
         data = client.post(f"{BASE}/validate").json()
         assert data == {"checked": 0, "settled": 0, "live": 0, "errors": [], "live_data": []}
+
+    def test_cancel_validation_sets_abort_flag(self, client, fake_app) -> None:
+        response = client.post(f"{BASE}/validate/job-1/cancel")
+        assert response.status_code == 200
+        assert response.json() == {"cancelled": True}
+        fake_app.cancel_validation.assert_called_once_with("job-1")
+
+    def test_cancel_validation_rejects_unknown_job(self, client, fake_app) -> None:
+        fake_app.cancel_validation.return_value = False
+        response = client.post(f"{BASE}/validate/missing/cancel")
+        assert response.status_code == 409
 
 
 class TestGenerateSlips:

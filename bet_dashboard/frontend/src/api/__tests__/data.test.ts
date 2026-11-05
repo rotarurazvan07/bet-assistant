@@ -16,7 +16,7 @@ import {
     fetchPreview, fetchLeagues, fetchExcluded, fetchExcludedDetails,
     addExcluded, removeExcluded, clearExcluded,
     fetchProfiles, saveProfile, deleteProfile,
-    fetchSlips, fetchSlipCalendar, fetchAllSlips, addSlip, deleteSlip, validateSlips, generateSlips,
+    fetchSlips, fetchSlipCalendar, fetchAllSlips, addSlip, deleteSlip, validateSlips, cancelValidation, generateSlips,
     fetchAnalytics, fetchServices, toggleService,
     pullDb, fetchStatus, fetchSourcesConfig,
 } from '../data';
@@ -243,13 +243,28 @@ describe('slips endpoints', () => {
     });
 
     it('validateSlips returns counts and live_data', async () => {
-        server.use(http.post('/api/slips/validate', () => HttpResponse.json({
-            checked: 5, settled: 3, live: 1, errors: 1,
-            live_data: [{ match_name: 'X vs Y', score: '2:0', minute: "71'" }],
-        })));
-        const result = await validateSlips();
+        let body: unknown;
+        server.use(http.post('/api/slips/validate', async ({ request }) => {
+            body = await request.json();
+            return HttpResponse.json({
+                checked: 5, settled: 3, live: 1, errors: 1,
+                live_data: [{ match_name: 'X vs Y', score: '2:0', minute: "71'" }],
+            });
+        }));
+        const result = await validateSlips('job-1');
         expect(result.checked).toBe(5);
         expect(result.live_data[0].minute).toBe("71'");
+        expect(body).toEqual({ job_id: 'job-1' });
+    });
+
+    it('cancelValidation posts to the job cancellation endpoint', async () => {
+        let cancelledJob = '';
+        server.use(http.post('/api/slips/validate/:jobId/cancel', ({ params }) => {
+            cancelledJob = String(params.jobId);
+            return HttpResponse.json({ cancelled: true });
+        }));
+        await cancelValidation('job-1');
+        expect(cancelledJob).toBe('job-1');
     });
 
     it('generateSlips returns generated + by_profile', async () => {

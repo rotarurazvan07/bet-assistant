@@ -1009,6 +1009,32 @@ class TestGetExcludedUrls:
 
 
 class TestRowsToSlips:
+    def test_missing_units_are_treated_as_paper_trading(self) -> None:
+        rows = [
+            (
+                1,
+                "2026-04-01",
+                "profile",
+                3.0,
+                None,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                MarketKey.HOME,
+                MarketType.RESULT,
+                1.5,
+                Outcome.WON,
+                "http://x",
+                None,
+                None,
+                None,
+            ),
+        ]
+
+        slips = BetAssistant._rows_to_slips(rows)
+
+        assert slips[0].units == 0.0
+        assert slips[0].slip_status == Outcome.WON
+
     def test_normal_groups_legs_under_slip(self) -> None:
         rows = [
             (

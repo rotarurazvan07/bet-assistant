@@ -430,7 +430,7 @@
           "slips"
         ],
         "summary": "Get Slips",
-        "description": "Return filtered slips with stats and profiles.",
+        "description": "Return one page of filtered slips and pagination metadata.",
         "operationId": "get_slips_api_slips_get",
         "parameters": [
           {
@@ -495,6 +495,121 @@
                 }
               ],
               "title": "Live Only"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "net_profit_desc",
+                "net_profit_asc",
+                "date_desc",
+                "date_asc",
+                "odds_desc",
+                "odds_asc",
+                "stake_desc",
+                "stake_asc"
+              ],
+              "type": "string",
+              "default": "date_desc",
+              "title": "Sort By"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Profiles"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips/calendar": {
+      "get": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Get Slip Calendar",
+        "description": "Return daily slip counts and realized P&L for a calendar date range.",
+        "operationId": "get_slip_calendar_api_slips_calendar_get",
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Date To"
             }
           }
         ],
@@ -633,12 +748,83 @@
         "summary": "Validate Slips",
         "description": "Validate pending slips; return checked/settled/live counts.",
         "operationId": "validate_slips_api_slips_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/slips/validate/{job_id}/cancel": {
+      "post": {
+        "tags": [
+          "slips"
+        ],
+        "summary": "Cancel Validation",
+        "description": "Request cancellation of an active slip validation.",
+        "operationId": "cancel_validation_api_slips_validate__job_id__cancel_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }

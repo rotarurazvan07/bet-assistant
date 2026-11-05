@@ -1,11 +1,13 @@
 """Slips API: add, list, delete, validate and generate."""
 
 import math
+import uuid
 from datetime import date
 from typing import Literal
 
 from core.schemas import ManualLegIn, SlipIn
-from fastapi import APIRouter, HTTPException, Query, Request
+from core.logic import ValidationInProgressError
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
@@ -362,9 +364,16 @@ def delete_slip(request: Request, slip_id: int):
 
 
 @router.post("/validate")
-def validate_slips(request: Request):
+def validate_slips(request: Request, body: dict[str, str] | None = Body(default=None)):
     """Validate pending slips; return checked/settled/live counts."""
-    result = _get(request).validate_and_broadcast()
+    job_id = body.get("job_id") if body else None
+    if job_id is not None and not job_id.strip():
+        raise HTTPException(status_code=422, detail="job_id must not be empty")
+    job_id = job_id or str(uuid.uuid4())
+    try:
+        result = _get(request).validate_and_broadcast(job_id)
+    except ValidationInProgressError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     live = [
         {
             "match_name": item.match_name,
@@ -373,13 +382,24 @@ def validate_slips(request: Request):
         }
         for item in result.live
     ]
-    return {
+    response = {
         "checked": result.checked,
         "settled": len(result.settled),
         "live": len(result.live),
         "errors": result.errors,
         "live_data": live,
     }
+    if getattr(result, "cancelled", False):
+        response["cancelled"] = True
+    return response
+
+
+@router.post("/validate/{job_id}/cancel")
+def cancel_validation(request: Request, job_id: str):
+    """Request cancellation of an active slip validation."""
+    if not _get(request).cancel_validation(job_id):
+        raise HTTPException(status_code=409, detail="Validation is not running")
+    return {"cancelled": True}
 
 
 @router.post("/generate")

@@ -25,7 +25,7 @@ function TierBadge({ tier }: { tier: number; }) {
             <BaseBadge
                 status={tier === 1 ? 'success' : 'warning'}
             >
-                {tier === 1 ? '✓ Balanced' : '⚠ Drift'}
+                {tier === 1 ? 'Balanced' : '⚠ Drift'}
             </BaseBadge>
         </div>
     );

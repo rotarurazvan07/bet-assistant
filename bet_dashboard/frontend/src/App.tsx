@@ -10,6 +10,7 @@ import Slips from './pages/Slips';
 import Analytics from './pages/Analytics';
 import Services from './pages/Services';
 import OddsAlert from './pages/OddsAlert';
+import type { ValidationCompletion, ValidationProgress } from './types';
 
 export default function App() {
     const [lastPull, setLastPull] = useState('');
@@ -18,6 +19,8 @@ export default function App() {
     const [slipsRefresh, setSlipsRefresh] = useState(0);
     // Live data from WebSocket validation
     const [liveData, setLiveData] = useState<Record<string, { score: string; minute: string }>>({});
+    const [validationProgress, setValidationProgress] = useState<ValidationProgress | null>(null);
+    const [validationCompletion, setValidationCompletion] = useState<ValidationCompletion | null>(null);
 
     // One-time status load — empty-deps effect runs exactly once on mount
     // (replaces the render-time ref write flagged by react-hooks/refs)
@@ -37,6 +40,34 @@ export default function App() {
             if (ev.live_data && typeof ev.live_data === 'object') {
                 setLiveData(ev.live_data as Record<string, { score: string; minute: string }>);
             }
+        }, []),
+        validation_progress: useCallback((ev) => {
+            if (
+                ev.job_id
+                && typeof ev.checked === 'number'
+                && typeof ev.total === 'number'
+                && typeof ev.current_match === 'string'
+            ) {
+                setValidationProgress({
+                    job_id: ev.job_id,
+                    checked: ev.checked,
+                    total: ev.total,
+                    current_match: ev.current_match,
+                });
+            }
+        }, []),
+        validation_completed: useCallback((ev) => {
+            if (!ev.job_id) return;
+            setValidationProgress(current => current?.job_id === ev.job_id ? null : current);
+            setValidationCompletion({
+                job_id: ev.job_id,
+                checked: ev.checked,
+                settled: ev.settled,
+                live: ev.live,
+                errors: ev.errors,
+                cancelled: ev.cancelled,
+                failed: ev.failed,
+            });
         }, []),
         service_toggled: useCallback(() => {
             // Services component doesn't need refresh as it auto-refreshes on toggle
@@ -67,7 +98,13 @@ export default function App() {
                             <Route path="/builder"
                                 element={<SmartBuilder filters={filters} refreshKey={matchesRefresh} />} />
                             <Route path="/slips"
-                                element={<Slips filters={filters} refreshKey={slipsRefresh} liveData={liveData} />} />
+                                element={<Slips
+                                    filters={filters}
+                                    refreshKey={slipsRefresh}
+                                    liveData={liveData}
+                                    validationProgress={validationProgress ?? undefined}
+                                    validationCompletion={validationCompletion ?? undefined}
+                                />} />
                             <Route path="/analytics"
                                 element={<Analytics filters={filters} refreshKey={slipsRefresh} />} />
                             <Route path="/services"

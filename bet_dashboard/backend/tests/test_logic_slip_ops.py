@@ -337,27 +337,75 @@ class TestAppLogicSlipOperations:
 
     def test_validate_and_broadcast_returns_report_and_live_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P0] validate_and_broadcast returns the report and broadcasts live_data."""
-        report = SimpleNamespace(live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")])
+        report = SimpleNamespace(
+            checked=1,
+            settled=[],
+            errors=0,
+            cancelled=False,
+            live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")],
+        )
 
-        def fake_validate():
+        def fake_validate(**kwargs):
             return report
 
         monkeypatch.setattr(app_env.app, "validate_slips", fake_validate)
         result = app_env.app.validate_and_broadcast()
         assert result is report
-        payload = broadcast_capture[-1]
+        payload = next(item for item in broadcast_capture if item["event"] == "slips_updated")
         assert payload["event"] == "slips_updated"
         assert payload["live_data"] == {"M 1": {"score": "1:0", "minute": "23"}}
+        assert broadcast_capture[-1] == {
+            "event": "validation_completed",
+            "job_id": broadcast_capture[-1]["job_id"],
+            "checked": 1,
+            "settled": 0,
+            "live": 1,
+            "errors": 0,
+            "cancelled": False,
+        }
 
     def test_validate_and_broadcast_no_live_legs_omits_live_data(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] An empty live list still broadcasts, but without a live_data key."""
 
-        def fake_validate():
-            return SimpleNamespace(live=[])
+        def fake_validate(**kwargs):
+            return SimpleNamespace(checked=0, settled=[], errors=0, cancelled=False, live=[])
 
         monkeypatch.setattr(app_env.app, "validate_slips", fake_validate)
         app_env.app.validate_and_broadcast()
-        assert "live_data" not in broadcast_capture[-1]
+        slips_updated = next(item for item in broadcast_capture if item["event"] == "slips_updated")
+        assert "live_data" not in slips_updated
+
+    def test_validate_and_broadcast_streams_progress_and_allows_cancellation(
+        self, app_env, monkeypatch, broadcast_capture
+    ) -> None:
+        report = SimpleNamespace(checked=5, settled=[], live=[], errors=0, cancelled=True)
+
+        def fake_validate(progress_callback, cancel_event):
+            progress_callback(2, 5, "Arsenal vs Chelsea")
+            assert app_env.app.cancel_validation("job-1") is True
+            return report
+
+        monkeypatch.setattr(app_env.app, "validate_slips", fake_validate)
+        assert app_env.app.validate_and_broadcast("job-1") is report
+
+        progress = next(item for item in broadcast_capture if item["event"] == "validation_progress")
+        assert progress == {
+            "event": "validation_progress",
+            "job_id": "job-1",
+            "checked": 2,
+            "total": 5,
+            "current_match": "Arsenal vs Chelsea",
+        }
+        assert broadcast_capture[-1] == {
+            "event": "validation_completed",
+            "job_id": "job-1",
+            "checked": 5,
+            "settled": 0,
+            "live": 0,
+            "errors": 0,
+            "cancelled": True,
+        }
+        assert app_env.app.cancel_validation("job-1") is False
 
     def test_generate_and_broadcast_generates_and_persists(self, tmp_path, monkeypatch, broadcast_capture) -> None:
         """[P0] generate_and_broadcast runs active profiles and persists the timestamp."""
@@ -492,6 +540,53 @@ class TestAppLogicSlipOperations:
         assert st["worst_day_pnl"] is None
         assert st["profit_factor"] == 0.0
         assert st["current_streak"] == 0
+
+    def test_paper_slips_count_for_results_but_not_financial_stats(self, app_env) -> None:
+        seed_slip(
+            app_env.app,
+            date_generated="2030-01-01",
+            total_odds=2.0,
+            units=None,
+            legs=[make_leg_row(status="Won", result_url="https://example.com/paper-win")],
+        )
+        seed_slip(
+            app_env.app,
+            date_generated="2030-01-02",
+            total_odds=3.0,
+            units=0.0,
+            legs=[make_leg_row(status="Lost", result_url="https://example.com/paper-loss")],
+        )
+
+        stats = app_env.app.stats()
+        from core.analytics_utils import calculate_biggest_win_loss, calculate_profit_factor
+
+        assert stats["total_settled"] == 2
+        assert stats["total_won_count"] == 1
+        assert stats["win_rate"] == 50.0
+        assert stats["total_units_bet"] == 0.0
+        assert stats["gross_return"] == 0.0
+        assert stats["net_profit"] == 0.0
+        assert stats["roi_percentage"] == 0.0
+        assert stats["avg_units"] == 0.0
+        assert stats["units_std"] == 0.0
+        assert stats["sharpe_ratio"] is None
+        assert stats["best_day_pnl"] is None
+        assert stats["worst_day_pnl"] is None
+        assert stats["biggest_win_units"] is None
+        assert stats["biggest_loss_units"] is None
+        assert stats["profit_factor"] == 0.0
+
+        daily = app_env.app.daily_summary()
+        assert [row["win_rate"] for row in daily] == [100.0, 50.0]
+        assert all(row["units_bet"] == row["net_profit"] == 0.0 for row in daily)
+        assert app_env.app.market_accuracy() == [{"market": "1", "won": 1, "lost": 1, "total": 2, "accuracy": 50.0}]
+        assert app_env.app.correlation_data() == [
+            {"legs_count": 1, "total_odds": 3.0, "units": 0.0, "status": "Lost", "profit": 0.0},
+            {"legs_count": 1, "total_odds": 2.0, "units": 0.0, "status": "Won", "profit": 0.0},
+        ]
+        slips = app_env.app.get_slips()
+        assert calculate_profit_factor(slips) == 0.0
+        assert calculate_biggest_win_loss(slips) == {"biggest_win_units": None, "biggest_loss_units": None}
 
     def test_stats_respects_profile_and_date_filters(self, app_env) -> None:
         """[P1] stats() filters flow through get_slips (profile + window)."""

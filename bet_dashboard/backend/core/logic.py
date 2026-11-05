@@ -6,9 +6,10 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
-from threading import RLock
-from typing import Any
+from threading import Event, Lock, RLock
+from typing import Any, Callable
 from urllib.parse import urlparse
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -32,6 +33,10 @@ from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.core import leagues
 from bet_framework.core.Slip import CandidateLeg
 from bet_framework.MatchesManager import MatchesManager
+
+
+class ValidationInProgressError(RuntimeError):
+    """Raised when a validation is already active for this application."""
 
 
 class ThreadSafeSettingsManager(SettingsManager):
@@ -140,6 +145,10 @@ class AppLogic:
         self._matches_db_path = matches_db_path
         self._slips_db_path = slips_db_path
         self._config_path = config_path
+        self._validation_lock = Lock()
+        self._validation_run_lock = Lock()
+        self._validation_job_id: str | None = None
+        self._validation_cancel_event: Event | None = None
 
         configure(config_path)
         self._settings = ThreadSafeSettingsManager(config_path)
@@ -579,15 +588,9 @@ class AppLogic:
     def _do_verify(self) -> None:
         """Ticker daemon: poll live scores and settle active slips."""
         try:
-            result = self.validate_slips()
-            live_data = {
-                item.match_name: {
-                    "score": item.score,
-                    "minute": item.minute,
-                }
-                for item in result.live
-            }
-            self._broadcast_slips_updated(live_data)
+            self.validate_and_broadcast()
+        except ValidationInProgressError:
+            return
         except Exception as exc:
             print(f"[Verifier] ERROR: {exc}")
 
@@ -817,7 +820,11 @@ class AppLogic:
 
     # ── Validation ─────────────────────────────────────────────────────────[...]
 
-    def validate_slips(self) -> dict[str, Any]:
+    def validate_slips(
+        self,
+        progress_callback: Callable[[int, int, str], None] | None = None,
+        cancel_event: Event | None = None,
+    ) -> dict[str, Any]:
         """
         Scrape live / finished results and update leg statuses.
 
@@ -830,8 +837,19 @@ class AppLogic:
             "live":     [{"leg_id", "match_name", "score", "minute"}, ...]
         }
         """
-        result = self._assistant.validate_slips()
+        result = self._assistant.validate_slips(
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
+        )
         return result
+
+    def cancel_validation(self, job_id: str) -> bool:
+        """Request cooperative cancellation for the active validation job."""
+        with self._validation_lock:
+            if self._validation_job_id != job_id or self._validation_cancel_event is None:
+                return False
+            self._validation_cancel_event.set()
+            return True
 
     # ── Slip retrieval ───────────────────────────────────────────────────────··[...]
 
@@ -923,11 +941,13 @@ class AppLogic:
         """Return aggregate slip statistics for the current filters."""
         slips = self.get_slips(profile, date_from, date_to)
         settled, won, pending = _partition_slips(slips)
+        staked_settled = [s for s in settled if s.units > 0]
+        staked_won = [s for s in won if s.units > 0]
 
         n_settled = len(settled)
         n_won = len(won)
-        stakes = sum(s.units for s in settled)
-        gross_return = sum(s.total_odds * s.units for s in won)
+        stakes = sum(s.units for s in staked_settled)
+        gross_return = sum(s.total_odds * s.units for s in staked_won)
         net_profit = gross_return - stakes
         actual_win_rate = round((n_won / n_settled * 100) if n_settled else 0.0, 2)
 
@@ -942,11 +962,12 @@ class AppLogic:
         edge = calculate_overall_edge(settled)
 
         # ── Staking consistency ──────────────────────────────────────────────
-        avg_units = round(sum(s.units for s in settled) / n_settled, 2) if n_settled else 0.0
-        units_std = _units_std(settled, n_settled, avg_units)
+        n_staked = len(staked_settled)
+        avg_units = round(sum(s.units for s in staked_settled) / n_staked, 2) if n_staked else 0.0
+        units_std = _units_std(staked_settled, n_staked, avg_units)
 
         # ── Sharpe ratio (daily P&L) ─────────────────────────────────────────
-        daily_pnl, sharpe_ratio = _daily_pnl_and_sharpe(settled)
+        daily_pnl, sharpe_ratio = _daily_pnl_and_sharpe(staked_settled)
 
         # Best and worst day P&L
         best_day_pnl = max(daily_pnl.values()) if daily_pnl else None
@@ -956,13 +977,13 @@ class AppLogic:
         edge_analysis = get_rolling_edge_trend(settled)
 
         # ── New advanced metrics ───────────────────────────────────────────────
-        biggest_win_loss = calculate_biggest_win_loss(settled)
+        biggest_win_loss = calculate_biggest_win_loss(staked_settled)
         biggest_win_units = biggest_win_loss["biggest_win_units"]
         biggest_loss_units = biggest_win_loss["biggest_loss_units"]
 
         # Calculate streak metrics + profit factor
         streak_metrics = calculate_streak_metrics(slips)  # Pass all slips, not just settled ones
-        profit_factor = calculate_profit_factor(settled)
+        profit_factor = calculate_profit_factor(staked_settled)
 
         return {
             "total_settled": n_settled,
@@ -1038,18 +1059,70 @@ class AppLogic:
 
     # ── Slips (with broadcast) ────────────────────────────────────────────────
 
-    def validate_and_broadcast(self) -> Any:
+    def validate_and_broadcast(self, job_id: str | None = None) -> Any:
         """Validate pending slips and broadcast live updates over WS."""
-        result = self.validate_slips()
-        live_data = {
-            item.match_name: {
-                "score": item.score,
-                "minute": item.minute,
+        job_id = job_id or str(uuid4())
+        if not self._validation_run_lock.acquire(blocking=False):
+            raise ValidationInProgressError("Slip validation is already running")
+        cancel_event = Event()
+        with self._validation_lock:
+            if self._validation_job_id is not None:
+                self._validation_run_lock.release()
+                raise ValidationInProgressError("Slip validation is already running")
+            self._validation_job_id = job_id
+            self._validation_cancel_event = cancel_event
+
+        def broadcast_progress(checked: int, total: int, current_match: str) -> None:
+            ws_manager.broadcast_sync(
+                {
+                    "event": "validation_progress",
+                    "job_id": job_id,
+                    "checked": checked,
+                    "total": total,
+                    "current_match": current_match,
+                }
+            )
+
+        try:
+            result = self.validate_slips(
+                progress_callback=broadcast_progress,
+                cancel_event=cancel_event,
+            )
+            live_data = {
+                item.match_name: {
+                    "score": item.score,
+                    "minute": item.minute,
+                }
+                for item in result.live
             }
-            for item in result.live
-        }
-        self._broadcast_slips_updated(live_data)
-        return result
+            self._broadcast_slips_updated(live_data)
+            ws_manager.broadcast_sync(
+                {
+                    "event": "validation_completed",
+                    "job_id": job_id,
+                    "checked": result.checked,
+                    "settled": len(result.settled),
+                    "live": len(result.live),
+                    "errors": result.errors,
+                    "cancelled": result.cancelled,
+                }
+            )
+            return result
+        except Exception:
+            ws_manager.broadcast_sync(
+                {
+                    "event": "validation_completed",
+                    "job_id": job_id,
+                    "failed": True,
+                }
+            )
+            raise
+        finally:
+            with self._validation_lock:
+                if self._validation_job_id == job_id:
+                    self._validation_job_id = None
+                    self._validation_cancel_event = None
+            self._validation_run_lock.release()
 
     def generate_and_broadcast(self) -> dict:
         """Generate slips for active profiles and broadcast over WS.

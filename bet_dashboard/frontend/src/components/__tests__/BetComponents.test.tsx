@@ -45,7 +45,7 @@ describe('BetPreview', () => {
 
     it('tier-1 legs show Balanced badge, no out-of-band warning', () => {
         render(<BetPreview legs={[makeCandidateLeg({ tier: 1 })]} pendingUrls={[]} onExclude={() => {}} totalOdds={0} />);
-        expect(screen.getByText('✓ Balanced')).toBeInTheDocument();
+        expect(screen.getByText('Balanced')).toBeInTheDocument();
         expect(screen.queryByText(/out-of-band/)).not.toBeInTheDocument();
     });
 

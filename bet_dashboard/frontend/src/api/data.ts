@@ -108,12 +108,17 @@ export async function deleteSlip(id: number): Promise<void> {
     await client.delete(`/slips/${id}`);
 }
 
-export async function validateSlips(): Promise<{
+export async function validateSlips(jobId: string): Promise<{
     checked: number; settled: number; live: number; errors: number;
     live_data: Array<{ match_name: string; score: string; minute: string }>;
+    cancelled?: boolean;
 }> {
-    const res = await client.post('/slips/validate');
+    const res = await client.post('/slips/validate', { job_id: jobId });
     return res.data;
+}
+
+export async function cancelValidation(jobId: string): Promise<void> {
+    await client.post(`/slips/validate/${encodeURIComponent(jobId)}/cancel`);
 }
 
 export async function generateSlips(): Promise<{ generated: number; by_profile: Record<string, number> }> {

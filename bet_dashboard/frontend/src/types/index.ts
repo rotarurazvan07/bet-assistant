@@ -385,6 +385,8 @@ export interface ServicesData {
 export type WsEventName =
     | 'matches_updated'
     | 'slips_updated'
+    | 'validation_progress'
+    | 'validation_completed'
     | 'service_toggled'
     | 'pong';
 
@@ -394,6 +396,32 @@ export interface WsEvent {
     name?: string;
     enabled?: boolean;
     live_data?: Record<string, { score: string; minute: string }>;
+    job_id?: string;
+    checked?: number;
+    total?: number;
+    current_match?: string;
+    settled?: number;
+    live?: number;
+    errors?: number;
+    cancelled?: boolean;
+    failed?: boolean;
+}
+
+export interface ValidationProgress {
+    job_id: string;
+    checked: number;
+    total: number;
+    current_match: string;
+}
+
+export interface ValidationCompletion {
+    job_id: string;
+    checked?: number;
+    settled?: number;
+    live?: number;
+    errors?: number;
+    cancelled?: boolean;
+    failed?: boolean;
 }
 
 // ── Odds History ──────────────────────────────────────────────────────────────
