@@ -1,7 +1,10 @@
 """Slips API: add, list, delete, validate and generate."""
 
+import math
+from typing import Literal
+
 from core.schemas import ManualLegIn, SlipIn
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
@@ -252,8 +255,20 @@ def get_slips(
     date_to: str | None = None,
     hide_settled: str | None = None,
     live_only: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sort_by: Literal[
+        "net_profit_desc",
+        "net_profit_asc",
+        "date_desc",
+        "date_asc",
+        "odds_desc",
+        "odds_asc",
+        "stake_desc",
+        "stake_asc",
+    ] = "date_desc",
 ):
-    """Return filtered slips with stats and profiles."""
+    """Return one page of filtered slips and pagination metadata."""
     app = _get(request)
     logic = app.logic
 
@@ -277,32 +292,24 @@ def get_slips(
     hide_settled_bool = to_bool(hide_settled)
     live_only_bool = to_bool(live_only)
 
-    slips = logic.get_slips(prof, date_from or None, date_to or None)
-
-    # Helper to get status string from enum or string
-    def status_str(val):
-        if hasattr(val, "value"):
-            return val.value
-        return str(val)
-
-    if hide_settled_bool:
-        slips = [s for s in slips if status_str(s.slip_status) not in ("Won", "Lost")]
-    if live_only_bool:
-        slips = [s for s in slips if any(status_str(leg.status) == "Live" for leg in s.legs)]
-
-    stats = logic.stats(prof, date_from or None, date_to or None)
-
-    # Get only profiles that have slips in the database (including 'manual')
-    all_slips_for_profiles = logic.get_slips(None, date_from or None, date_to or None)
-    profiles_with_slips = sorted({slip.profile for slip in all_slips_for_profiles})
-
-    # Ensure 'manual' is always included if there are any manual slips
-    # (get_slips already includes it, but this ensures consistency)
+    slips, total, profiles_with_slips = logic.get_slips_page(
+        profile=prof,
+        date_from=date_from or None,
+        date_to=date_to or None,
+        hide_settled=hide_settled_bool,
+        live_only=live_only_bool,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+    )
 
     response_data = {
         "slips": [_slip_to_dict(s) for s in slips],
-        "stats": stats,
         "profiles": profiles_with_slips,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": max(1, math.ceil(total / page_size)),
     }
     return sanitize_floats(response_data)
 

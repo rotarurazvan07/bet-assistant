@@ -1,7 +1,7 @@
 import {useCallback,  useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
 import { getAllMovements } from '../api/oddsHistory';
-import { addSlip, fetchSlips, fetchSourcesConfig, pullDb } from '../api/data';
+import { addSlip, fetchAllSlips, fetchSourcesConfig, pullDb } from '../api/data';
 import EmptyState, { DiscoverEmptyIcon } from '../components/EmptyState';
 import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} from '../types';
 import MatchRow from '../components/MatchRow';
@@ -48,9 +48,9 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         let cancelled = false;
         const loadSlips = async () => {
             try {
-                const slipsData = await fetchSlips({ hide_settled: true });
+                const slipsData = await fetchAllSlips({ hide_settled: true });
                 const selections = new Set<string>();
-                slipsData.slips.forEach((slip: BetSlip) => {
+                slipsData.forEach((slip: BetSlip) => {
                     // Only consider pending or live slips
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
                         slip.legs.forEach((leg: BetLeg) => {
@@ -383,9 +383,9 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             setPendingLegs([]);
             // Refresh slip selections after adding
             try {
-                const slipsData = await fetchSlips({ hide_settled: true });
+                const slipsData = await fetchAllSlips({ hide_settled: true });
                 const selections = new Set<string>();
-                slipsData.slips.forEach((slip: BetSlip) => {
+                slipsData.forEach((slip: BetSlip) => {
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
                         slip.legs.forEach((leg: BetLeg) => {
                             if (leg.result_url && leg.market) {
@@ -419,18 +419,12 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '0px'
+                        marginBottom: '5px'
                     }}>
                         <div style={{
                             display: 'flex',
                             flexDirection: 'column'
                         }}>
-                            <h2 style={{
-                                margin: 0,
-                                color: 'var(--text-bright)',
-                                fontSize: '1.75rem',
-                                fontWeight: 'bold'
-                            }}>Discover</h2>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                                 {data && data.total != null && (
                                     <span style={{

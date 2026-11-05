@@ -4,13 +4,13 @@
 // Pending sent to +/-Infinity); filters persist to 'slips_filters_state'.
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import Slips from '../Slips';
 import { server } from '../../test/handlers';
-import { makeSlipsPage } from '../../test/factories';
+import { makeBetLeg, makeSlip, makeSlipsPage } from '../../test/factories';
 import type { LiveData } from '../../types';
 
 
@@ -43,15 +43,10 @@ function renderPage(overrides: { refreshKey?: number; liveData?: LiveData } = {}
 
 
 describe('Slips page', () => {
-    it('fetches slips and renders title + profile selector + stat cards', async () => {
+    it('fetches slips and renders the actions and slip cards', async () => {
         renderPage();
-        expect(screen.getByText('Track')).toBeInTheDocument();
+        expect(screen.getByText('✓ Validate Results')).toBeInTheDocument();
         await screen.findByText('Arsenal vs Chelsea');
-        const stats = PAGE.stats;
-        expect(screen.getByText(`${stats.total_units_bet} U`)).toBeInTheDocument();
-        expect(screen.getByText(/Win Rate/)).toBeInTheDocument();
-        expect(screen.getByText(`${stats.win_rate}%`)).toBeInTheDocument();
-        expect(screen.getByText(`${stats.roi_percentage}%`)).toBeInTheDocument();
     });
 
     it('renders slip cards with status badges and legs', async () => {
@@ -67,6 +62,7 @@ describe('Slips page', () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal vs Chelsea');
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
         expect(lastSlipsUrl).toContain('hide_settled=false');
         expect(lastSlipsUrl).toContain('live_only=false');
         await user.click(screen.getByText('Hide settled'));
@@ -77,9 +73,11 @@ describe('Slips page', () => {
         const user = userEvent.setup();
         renderPage();
         await screen.findByText('Arsenal vs Chelsea');
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
         const select = screen.getByRole('combobox') as HTMLSelectElement;
         expect(select.value).toBe('net_profit_desc');
         await user.selectOptions(select, 'odds_desc');
+        await waitFor(() => expect(lastSlipsUrl).toContain('sort_by=odds_desc'));
         const saved = localStorage.getItem('slips_filters_state');
         expect(saved).not.toBeNull();
         expect(JSON.parse(saved as string).sortBy).toBe('odds_desc');
@@ -175,6 +173,7 @@ describe('Slips page', () => {
             }),
         );
         renderPage();
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
         await screen.findByText('SELECT PROFILES');
         for (const p of PAGE.profiles) {
             // profile text appears in chips AND slip badges — count matches
@@ -188,5 +187,54 @@ describe('Slips page', () => {
         expect(chip).toBeDefined();
         await user.click(chip as HTMLElement);
         await waitFor(() => expect(lastSlipsUrl).toContain('profiles'));
+    });
+
+    it('loads the next 20 slips when the scroll sentinel intersects', async () => {
+        const pageOne = Array.from({ length: 20 }, (_, index) =>
+            makeSlip({
+                slip_id: index + 1,
+                legs: [makeBetLeg({ match_name: `Team ${index + 1} vs Opponent` })],
+            }),
+        );
+        const pageTwo = makeSlipsPage({
+            slips: [makeSlip({ slip_id: 21, legs: [makeBetLeg({ match_name: 'Team 21 vs Opponent' })] })],
+            page: 2,
+            page_size: 20,
+            total: 21,
+            total_pages: 2,
+        });
+        let observerCallback: IntersectionObserverCallback | undefined;
+        const originalObserver = window.IntersectionObserver;
+        window.IntersectionObserver = class {
+            constructor(callback: IntersectionObserverCallback) { observerCallback = callback; }
+            observe() {}
+            disconnect() {}
+            unobserve() {}
+            takeRecords(): IntersectionObserverEntry[] { return []; }
+        } as unknown as typeof IntersectionObserver;
+        let requestedPage = '';
+        server.use(http.get('/api/slips', ({ request }) => {
+            requestedPage = new URL(request.url).searchParams.get('page') ?? '';
+            return HttpResponse.json(requestedPage === '2' ? pageTwo : {
+                ...pageTwo,
+                slips: pageOne,
+                page: 1,
+            });
+        }));
+        try {
+            renderPage();
+            await screen.findByText('Team 1 vs Opponent');
+            expect(screen.getByText('Team 20 vs Opponent')).toBeInTheDocument();
+            expect(screen.queryByText('Team 21 vs Opponent')).not.toBeInTheDocument();
+            await waitFor(() => expect(observerCallback).toBeDefined());
+            act(() => observerCallback?.(
+                [{ isIntersecting: true } as IntersectionObserverEntry],
+                {} as IntersectionObserver,
+            ));
+            await screen.findByText('Team 21 vs Opponent');
+            expect(requestedPage).toBe('2');
+        } finally {
+            window.IntersectionObserver = originalObserver;
+        }
     });
 });

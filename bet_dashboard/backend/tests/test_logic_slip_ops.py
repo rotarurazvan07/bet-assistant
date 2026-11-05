@@ -261,6 +261,20 @@ class TestAppLogicSlipOperations:
         out = app_env.app.get_slips(date_from="2030-01-02", date_to="2030-01-02")
         assert [s.date_generated.split("T")[0] for s in out] == ["2030-01-02"]
 
+    def test_get_slips_page_applies_profile_and_page_options(self, app_env) -> None:
+        self._seed_three_slips(app_env.app)
+
+        slips, total, profiles = app_env.app.get_slips_page(
+            profile=["a", "b"],
+            page=2,
+            page_size=1,
+            sort_by="date_asc",
+        )
+
+        assert [slip.profile for slip in slips] == ["b"]
+        assert total == 2
+        assert profiles == ["a", "b", "c"]
+
     def test_validate_slips_delegates_and_returns_report(self, app_env) -> None:
         """[P1] validate_slips delegates to BetAssistant and returns its report."""
         report = app_env.app.validate_slips()

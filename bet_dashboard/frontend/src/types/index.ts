@@ -181,8 +181,11 @@ export interface BetSlip {
 
 export interface SlipsPage {
     slips: BetSlip[];
-    stats: SlipStats;
     profiles: string[];
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
 }
 
 export interface SlipStats {

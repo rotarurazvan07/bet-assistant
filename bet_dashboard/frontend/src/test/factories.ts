@@ -107,8 +107,11 @@ export function makeSlipStats(overrides: Partial<SlipStats> = {}): SlipStats {
 export function makeSlipsPage(overrides: Partial<SlipsPage> = {}): SlipsPage {
     return {
         slips: [makeSlip()],
-        stats: makeSlipStats(),
         profiles: ['low', 'medium', 'high_risk'],
+        page: 1,
+        page_size: 20,
+        total: 1,
+        total_pages: 1,
         ...overrides,
     };
 }

@@ -857,6 +857,31 @@ class AppLogic:
             slips = [s for s in slips if s.date_generated.split("T")[0] <= date_to]
         return slips
 
+    def get_slips_page(
+        self,
+        profile: str | list[str] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        hide_settled: bool = False,
+        live_only: bool = False,
+        page: int = 1,
+        page_size: int = 20,
+        sort_by: str = "date_desc",
+    ) -> tuple[list[Any], int, list[str]]:
+        """Return one filtered slip page with total count and available profiles."""
+        if profile == "all":
+            profile = None
+        return self._assistant.get_slips_page(
+            profile=profile,
+            date_from=date_from,
+            date_to=date_to,
+            hide_settled=hide_settled,
+            live_only=live_only,
+            page=page,
+            page_size=page_size,
+            sort_by=sort_by,
+        )
+
     def get_pending_urls(self) -> set:
         """result_urls already present in pending/live slip legs."""
         slips = self.get_slips()

@@ -192,6 +192,7 @@ class FakeDashboardLogic:
         }
         self._pending_urls = {"https://example.com/match/1"}
         self._last_pull = "2030-01-01 09:00"
+        self.last_slips_page_params = None
         self._settings = {
             "services": {"generate_hour": 8, "generate_minute": 30, "toggles": {}},
             "runtime_state": {
@@ -247,6 +248,75 @@ class FakeDashboardLogic:
     def get_slips(self, profile=None, date_from=None, date_to=None):
         self.calls.append("get_slips")
         return list(self._slips)
+
+    def get_slips_page(
+        self,
+        profile=None,
+        date_from=None,
+        date_to=None,
+        hide_settled=False,
+        live_only=False,
+        page=1,
+        page_size=20,
+        sort_by="date_desc",
+    ):
+        self.calls.append("get_slips_page")
+        self.last_slips_page_params = {
+            "profile": profile,
+            "date_from": date_from,
+            "date_to": date_to,
+            "hide_settled": hide_settled,
+            "live_only": live_only,
+            "page": page,
+            "page_size": page_size,
+            "sort_by": sort_by,
+        }
+        slips = list(self._slips)
+        if profile:
+            selected = {profile} if isinstance(profile, str) else set(profile)
+            slips = [slip for slip in slips if slip.profile in selected]
+        if date_from:
+            slips = [slip for slip in slips if slip.date_generated[:10] >= date_from]
+        if date_to:
+            slips = [slip for slip in slips if slip.date_generated[:10] <= date_to]
+
+        def value(status):
+            return status.value if hasattr(status, "value") else str(status)
+
+        if hide_settled:
+            slips = [slip for slip in slips if value(slip.slip_status) not in ("Won", "Lost")]
+        if live_only:
+            slips = [slip for slip in slips if any(value(leg.status) == "Live" for leg in slip.legs)]
+
+        profiles = sorted({
+            slip.profile for slip in self._slips
+            if (not date_from or slip.date_generated[:10] >= date_from)
+            and (not date_to or slip.date_generated[:10] <= date_to)
+        })
+        total = len(slips)
+        sort_key = {
+            "date_desc": lambda slip: slip.date_generated,
+            "date_asc": lambda slip: slip.date_generated,
+            "odds_desc": lambda slip: slip.total_odds,
+            "odds_asc": lambda slip: slip.total_odds,
+            "stake_desc": lambda slip: slip.units,
+            "stake_asc": lambda slip: slip.units,
+            "net_profit_desc": lambda slip: (
+                -float("inf") if value(slip.slip_status) == "Pending"
+                else (slip.total_odds * slip.units - slip.units if value(slip.slip_status) == "Won"
+                      else -slip.units if value(slip.slip_status) == "Lost" else 0)
+            ),
+            "net_profit_asc": lambda slip: (
+                float("inf") if value(slip.slip_status) == "Pending"
+                else (slip.total_odds * slip.units - slip.units if value(slip.slip_status) == "Won"
+                      else -slip.units if value(slip.slip_status) == "Lost" else 0)
+            ),
+        }[sort_by]
+        slips.sort(key=lambda slip: (slip.date_generated, slip.slip_id), reverse=True)
+        descending = sort_by.endswith("_desc")
+        slips.sort(key=sort_key, reverse=descending)
+        start = (page - 1) * page_size
+        return slips[start:start + page_size], total, profiles
 
     def stats(self, profile=None, date_from=None, date_to=None):
         self.calls.append("stats")

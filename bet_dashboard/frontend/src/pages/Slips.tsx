@@ -1,15 +1,17 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchSlips, deleteSlip, validateSlips, generateSlips } from '../api/data';
 import EmptyState, { TrackEmptyIcon } from '../components/EmptyState';
 import { SlipCard, SlipDetailModal } from '../components/BetComponents';
-import { StatCard, Toggle } from '../components/ui';
+import { Toggle } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
 import type { SlipsPage, LiveData, BetSlip } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
+import { Box, Button, Drawer, SwipeableDrawer, Typography, useMediaQuery } from '@mui/material';
 
 const FILTERS_STORAGE_KEY = 'slips_filters_state';
+const PAGE_SIZE = 20;
 
 interface Props { filters: GlobalFilters; refreshKey: number; liveData?: LiveData }
 
@@ -52,8 +54,15 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     const [localLiveData, setLocalLiveData] = useState<LiveData>({});
     const liveData = externalLiveData ?? localLiveData;
     const [loading, setLoading] = useState(false);
+    const [loadMoreError, setLoadMoreError] = useState(false);
+    const loadingMoreRef = useRef(false);
+    const requestIdRef = useRef(0);
+    const loadMoreRef = useRef<HTMLDivElement>(null);
     const [status, setStatus] = useState('');
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const filtersBtnRef = useRef<HTMLButtonElement>(null);
+    const isMobile = useMediaQuery('(max-width:767.95px)');
 
 
     // Persist filters to Slips-specific storage
@@ -61,8 +70,16 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
         localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ hideSettled, liveOnly, sortBy }));
     }, [hideSettled, liveOnly, sortBy]);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (page = 1, append = false) => {
         void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
+        if (append && loadingMoreRef.current) return;
+        const requestId = append ? requestIdRef.current : requestIdRef.current + 1;
+        requestIdRef.current = requestId;
+        if (append) loadingMoreRef.current = true;
+        else {
+            setData(null);
+            setLoadMoreError(false);
+        }
         setLoading(true);
         try {
             // If no profiles selected, pass undefined to get all profiles
@@ -72,13 +89,20 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                 date_to: filters.dateTo || undefined,
                 hide_settled: hideSettled,
                 live_only: liveOnly,
+                page,
+                page_size: PAGE_SIZE,
+                sort_by: sortBy,
             };
             if (selectedProfiles.length > 0) {
                 params.profiles = selectedProfiles;
             }
 
             const d = await fetchSlips(params);
-            setData(d);
+            if (requestId !== requestIdRef.current) return;
+            setLoadMoreError(false);
+            setData(previous => append && previous
+                ? { ...d, slips: [...previous.slips, ...d.slips], profiles: previous.profiles }
+                : d);
             // Update local live data from the slip legs that have live status
             const ld: LiveData = {};
             d.slips.forEach(slip => {
@@ -89,14 +113,40 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                     }
                 });
             });
-            setLocalLiveData(ld);
-        } catch {
-            // Set empty state on error
-            setData({ slips: [], stats: { total_settled: 0, total_won_count: 0, win_rate: 0, implied_win_rate: 0, edge: 0, total_units_bet: 0, gross_return: 0, net_profit: 0, roi_percentage: 0, avg_odds: 0, avg_units: 0, units_std: 0, pending_count: 0, sharpe_ratio: null , kelly_suggested_units: 0, edge_trend: "neutral", recent_edge_value: 0.0, biggest_win_units: null, biggest_loss_units: null, best_day_pnl: null, worst_day_pnl: null, current_streak: 0, longest_win_streak: 0, longest_loss_streak: 0, profit_factor: 0 }, profiles: [] });
-        } finally { setLoading(false); }
-    }, [selectedProfiles, filters, hideSettled, liveOnly, refreshKey]);
+            setLocalLiveData(previous => append ? { ...previous, ...ld } : ld);
+        } catch (error) {
+            if (requestId !== requestIdRef.current) return;
+            console.error('Failed to fetch slips:', error);
+            setStatus('Failed to load slips. Please try again.');
+            if (append) setLoadMoreError(true);
+            if (!append) {
+                setData({ slips: [], profiles: [], page: 1, page_size: PAGE_SIZE, total: 0, total_pages: 1 });
+            }
+        } finally {
+            if (requestId === requestIdRef.current) setLoading(false);
+            if (append) loadingMoreRef.current = false;
+        }
+    }, [selectedProfiles, filters, hideSettled, liveOnly, sortBy, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        const target = loadMoreRef.current;
+        if (!target || loading || loadMoreError || !data || data.page >= data.total_pages) return;
+
+        const observer = new IntersectionObserver(entries => {
+            if (entries[0]?.isIntersecting) {
+                void load(data.page + 1, true);
+            }
+        });
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, [data, loading, loadMoreError, load]);
+
+    function closeFilters() {
+        setFiltersOpen(false);
+        queueMicrotask(() => filtersBtnRef.current?.focus());
+    }
 
     // Update live data when WebSocket pushes new live_data
     useEffect(() => {
@@ -132,90 +182,93 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
         load();
     }
 
-    const stats = data?.stats;
-
-    // Sort slips based on sortBy state
-    const sortedSlips = useMemo(() => {
-        if (!data?.slips) return [];
-
-        const slipsToSort = [...data.slips];
-
-        return slipsToSort.sort((a, b) => {
-            switch (sortBy) {
-                case 'net_profit_desc': {
-                    const calcA = a.slip_status === 'Pending' ? -Infinity : (a.slip_status === 'Won' ? (a.total_odds * a.units) - a.units : a.slip_status === 'Lost' ? -a.units : 0);
-                    const calcB = b.slip_status === 'Pending' ? -Infinity : (b.slip_status === 'Won' ? (b.total_odds * b.units) - b.units : b.slip_status === 'Lost' ? -b.units : 0);
-                    return calcB - calcA;
-                }
-                case 'net_profit_asc': {
-                    const calcA = a.slip_status === 'Pending' ? Infinity : (a.slip_status === 'Won' ? (a.total_odds * a.units) - a.units : a.slip_status === 'Lost' ? -a.units : 0);
-                    const calcB = b.slip_status === 'Pending' ? Infinity : (b.slip_status === 'Won' ? (b.total_odds * b.units) - b.units : b.slip_status === 'Lost' ? -b.units : 0);
-                    return calcA - calcB;
-                }
-                case 'date_desc':
-                    return new Date(b.date_generated).getTime() - new Date(a.date_generated).getTime();
-                case 'date_asc':
-                    return new Date(a.date_generated).getTime() - new Date(b.date_generated).getTime();
-                case 'odds_desc':
-                    return b.total_odds - a.total_odds;
-                case 'odds_asc':
-                    return a.total_odds - b.total_odds;
-                case 'stake_desc':
-                    return b.units - a.units;
-                case 'stake_asc':
-                    return a.units - b.units;
-                default:
-                    return 0;
-            }
-        });
-    }, [data?.slips, sortBy]);
-
     return (
         <>
             {/* Header */}
-            <div className="flex items-center justify-between mb-5">
-                <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
-                    Track
-                </h1>
+            <div className="flex items-center justify-between">
                 {status && (
                     <span className="text-[11px] font-mono" style={{ color: 'var(--accent)' }}>{status}</span>
                 )}
             </div>
 
-            {/* Profile Selection */}
-            <div className="mb-5">
-                <ProfileSelector
-                    profiles={data?.profiles ?? []}
-                    selectedProfiles={selectedProfiles}
-                    onChange={setSelectedProfiles}
-                />
-            </div>
-
-            {/* Controls: Sorting, Validation, Generation, Filters */}
-            <div className="flex items-center gap-3 flex-wrap mb-5">
-                {/* Sort by dropdown */}
-                <select className="field w-56"
-                    data-tour="track-list"
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value as SortOption)}>
-                    <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
-                    <option value="net_profit_asc">Sort: Net Profit (Low → High)</option>
-                    <option value="date_desc">Sort: Date (Newest)</option>
-                    <option value="date_asc">Sort: Date (Oldest)</option>
-                    <option value="odds_desc">Sort: Total Odds (High → Low)</option>
-                    <option value="odds_asc">Sort: Total Odds (Low → High)</option>
-                    <option value="stake_desc">Sort: Stake (High → Low)</option>
-                    <option value="stake_asc">Sort: Stake (Low → High)</option>
-                </select>
-
-                <button className="btn-ghost" data-tour="track-validate" onClick={handleValidate}>✓ Validate Results</button>
-                <button className="btn-success" data-tour="track-generate" onClick={handleGenerate}>✦ Generate Slips</button>
-
-                <div className="flex items-center gap-3 ml-auto">
-                    <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />
-                    <Toggle checked={liveOnly} onChange={setLiveOnly} label="Live only" />
+            {/* Slip actions and filters */}
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <button className="btn-ghost" data-tour="track-validate" onClick={handleValidate}>✓ Validate Results</button>
+                    <button className="btn-success" data-tour="track-generate" onClick={handleGenerate}>✦ Generate Slips</button>
                 </div>
+                <Button
+                    ref={filtersBtnRef}
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setFiltersOpen(open => !open)}
+                    aria-expanded={filtersOpen}
+                    aria-controls="slips-filters-drawer"
+                >
+                    Filters
+                </Button>
             </div>
+
+            {(() => {
+                const drawerBody = (
+                    <Box
+                        id="slips-filters-drawer"
+                        role="document"
+                        sx={{ p: 2, width: isMobile ? '100%' : 360, maxHeight: isMobile ? '85vh' : '100%', overflow: 'auto' }}
+                    >
+                        <Typography id="slips-filters-title" variant="h6" sx={{ color: 'var(--text-bright)', mb: 2 }}>
+                            Filters
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <ProfileSelector
+                                profiles={data?.profiles ?? []}
+                                selectedProfiles={selectedProfiles}
+                                onChange={setSelectedProfiles}
+                            />
+                            <select
+                                className="field w-full"
+                                data-tour="track-list"
+                                value={sortBy}
+                                onChange={e => setSortBy(e.target.value as SortOption)}
+                            >
+                                <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
+                                <option value="net_profit_asc">Sort: Net Profit (Low → High)</option>
+                                <option value="date_desc">Sort: Date (Newest)</option>
+                                <option value="date_asc">Sort: Date (Oldest)</option>
+                                <option value="odds_desc">Sort: Total Odds (High → Low)</option>
+                                <option value="odds_asc">Sort: Total Odds (Low → High)</option>
+                                <option value="stake_desc">Sort: Stake (High → Low)</option>
+                                <option value="stake_asc">Sort: Stake (Low → High)</option>
+                            </select>
+                            <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />
+                            <Toggle checked={liveOnly} onChange={setLiveOnly} label="Live only" />
+                        </Box>
+                    </Box>
+                );
+                const paperSx = { background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+                return isMobile ? (
+                    <SwipeableDrawer
+                        anchor="bottom"
+                        open={filtersOpen}
+                        onOpen={() => setFiltersOpen(true)}
+                        onClose={closeFilters}
+                        aria-labelledby="slips-filters-title"
+                        slotProps={{ paper: { sx: paperSx } }}
+                    >
+                        {drawerBody}
+                    </SwipeableDrawer>
+                ) : (
+                    <Drawer
+                        anchor="right"
+                        open={filtersOpen}
+                        onClose={closeFilters}
+                        aria-labelledby="slips-filters-title"
+                        slotProps={{ paper: { sx: paperSx } }}
+                    >
+                        {drawerBody}
+                    </Drawer>
+                );
+            })()}
 
             {/* Empty state */}
             {/*Track empty when no slips (incl. fetch-error fallback) */}
@@ -229,25 +282,11 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                 />
             )}
 
-            {/* Stats row */}
-            {stats && (
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-                    <StatCard label="Total Bet" value={`${stats.total_units_bet} U`} />
-                    <StatCard label="Gross Return" value={`${stats.gross_return} U`} />
-                    <StatCard label="Net Profit" value={`${stats.net_profit > 0 ? '+' : ''}${stats.net_profit} U`}
-                        positive={stats.net_profit > 0} negative={stats.net_profit < 0} />
-                    <StatCard label="Win Rate" value={`${stats.win_rate}%`} positive={stats.win_rate > 50} />
-                    <StatCard label="ROI" value={`${stats.roi_percentage}%`}
-                        positive={stats.roi_percentage > 0} negative={stats.roi_percentage < 0} />
-                    <StatCard label="Settled" value={stats.total_settled} />
-                </div>
-            )}
-
             {/* Slips Grid */}
-            {data && sortedSlips && sortedSlips.length > 0 && (
+            {data && data.slips.length > 0 && (
                 <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {sortedSlips.map(slip => (
+                        {data.slips.map(slip => (
                             <SlipCard
                                 key={slip.slip_id}
                                 slip={slip}
@@ -257,6 +296,13 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                             />
                         ))}
                     </div>
+                    {data.page < data.total_pages && (
+                        <div ref={loadMoreRef} className="py-6 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            {loading ? 'Loading more slips…' : loadMoreError
+                                ? <button className="btn-ghost" onClick={() => void load(data.page + 1, true)}>Retry loading more</button>
+                                : 'Scroll to load more'}
+                        </div>
+                    )}
                 </div>
             )}
 

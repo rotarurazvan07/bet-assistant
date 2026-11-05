@@ -777,6 +777,58 @@ class TestSaveAndGetSlips:
         slips = ba.get_slips()
         assert slips[0].slip_status == Outcome.PENDING
 
+    def test_slip_page_limits_and_orders_results(self, ba) -> None:
+        for units in range(1, 6):
+            ba.save_slip("p", self._make_legs(1), units=units)
+
+        slips, total, profiles = ba.get_slips_page(page=2, page_size=2, sort_by="stake_asc")
+
+        assert [slip.units for slip in slips] == [3, 4]
+        assert total == 5
+        assert profiles == ["p"]
+
+    def test_slip_page_sorts_net_profit_before_pagination(self, ba) -> None:
+        won_id = ba.save_slip("p", self._make_legs(1), units=1)
+        lost_id = ba.save_slip("p", self._make_legs(1), units=1)
+        pending_id = ba.save_slip("p", self._make_legs(1), units=1)
+        won_leg_id, lost_leg_id = ba.fetch_rows(
+            "SELECT leg_id FROM legs WHERE slip_id IN (?, ?) ORDER BY slip_id",
+            (won_id, lost_id),
+        )
+        ba.update_leg(won_leg_id["leg_id"], Outcome.WON)
+        ba.update_leg(lost_leg_id["leg_id"], Outcome.LOST)
+
+        descending, _, _ = ba.get_slips_page(sort_by="net_profit_desc")
+        ascending, _, _ = ba.get_slips_page(sort_by="net_profit_asc")
+
+        assert [slip.slip_id for slip in descending] == [won_id, lost_id, pending_id]
+        assert [slip.slip_id for slip in ascending] == [lost_id, won_id, pending_id]
+
+    def test_slip_page_applies_status_and_profile_filters_before_pagination(self, ba) -> None:
+        pending_id = ba.save_slip("pending", self._make_legs(1))
+        live_id = ba.save_slip("live", self._make_legs(1))
+        lost_id = ba.save_slip("lost", self._make_legs(1))
+        live_leg_id = ba.fetch_rows("SELECT leg_id FROM legs WHERE slip_id = ?", (live_id,))[0]["leg_id"]
+        lost_leg_id = ba.fetch_rows("SELECT leg_id FROM legs WHERE slip_id = ?", (lost_id,))[0]["leg_id"]
+        ba.update_leg(live_leg_id, Outcome.LIVE)
+        ba.update_leg(lost_leg_id, Outcome.LOST)
+
+        slips, total, profiles = ba.get_slips_page(
+            profile=["pending", "live", "lost"],
+            hide_settled=True,
+            page=1,
+            page_size=1,
+            sort_by="date_asc",
+        )
+        assert [slip.slip_id for slip in slips] == [live_id]
+        assert total == 2
+        assert profiles == ["live", "lost", "pending"]
+
+        live_slips, live_total, _ = ba.get_slips_page(live_only=True)
+        assert [slip.slip_id for slip in live_slips] == [live_id]
+        assert live_total == 1
+        assert pending_id != live_id
+
 
 # ── delete_slip ───────────────────────────────────────────────────────────────
 

@@ -45,9 +45,9 @@ function renderPage(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
 
 
 describe('BettingTips page', () => {
-    it('renders title + match count + the match row', async () => {
+    it('renders filters + match count + the match row', async () => {
         renderPage();
-        expect(screen.getByText('Discover')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
         await screen.findByText('Arsenal');
         expect(screen.getByText(/120 matches/)).toBeInTheDocument();
         expect(screen.getByText(/page 1 of 3/)).toBeInTheDocument();

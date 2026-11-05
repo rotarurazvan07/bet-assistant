@@ -561,6 +561,112 @@ class BetAssistant(BaseStorageManager):
         rows = self.fetch_rows(query, params)
         return self._rows_to_slips(rows)
 
+    def get_slips_page(
+        self,
+        profile: str | list[str] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        hide_settled: bool = False,
+        live_only: bool = False,
+        page: int = 1,
+        page_size: int = 20,
+        sort_by: str = "date_desc",
+    ) -> tuple[list[BetSlip], int, list[str]]:
+        """Return one filtered, sorted page of slips, its total, and available profiles."""
+        if page < 1 or page_size < 1:
+            raise ValueError("page and page_size must be positive")
+
+        sort_expressions = {
+            "date_desc": "s.date_generated DESC",
+            "date_asc": "s.date_generated ASC",
+            "odds_desc": "s.total_odds DESC",
+            "odds_asc": "s.total_odds ASC",
+            "stake_desc": "s.units DESC",
+            "stake_asc": "s.units ASC",
+            "net_profit_desc": """CASE
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -s.units
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live') THEN 0
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending') THEN -1e100
+                ELSE s.total_odds * s.units - s.units
+            END DESC""",
+            "net_profit_asc": """CASE
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -s.units
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live') THEN 0
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending') THEN 1e100
+                ELSE s.total_odds * s.units - s.units
+            END ASC""",
+        }
+        if sort_by not in sort_expressions:
+            raise ValueError(f"Unsupported slip sort order: {sort_by}")
+
+        conditions = []
+        params: list[Any] = []
+        if profile:
+            if isinstance(profile, list):
+                placeholders = ", ".join("?" for _ in profile)
+                conditions.append(f"s.profile IN ({placeholders})")
+                params.extend(profile)
+            elif profile != "all":
+                conditions.append("s.profile = ?")
+                params.append(profile)
+        if date_from:
+            conditions.append("substr(s.date_generated, 1, 10) >= ?")
+            params.append(date_from)
+        if date_to:
+            conditions.append("substr(s.date_generated, 1, 10) <= ?")
+            params.append(date_to)
+        if hide_settled:
+            conditions.extend(
+                [
+                    "NOT EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost')",
+                    """(
+                        EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending')
+                        OR EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live')
+                    )""",
+                ]
+            )
+        if live_only:
+            conditions.append("EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live')")
+
+        where_sql = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        count_rows = self.fetch_rows(f"SELECT COUNT(*) FROM slips s{where_sql}", params)
+        total = int(count_rows[0][0])
+
+        profile_conditions = []
+        profile_params: list[Any] = []
+        if date_from:
+            profile_conditions.append("substr(date_generated, 1, 10) >= ?")
+            profile_params.append(date_from)
+        if date_to:
+            profile_conditions.append("substr(date_generated, 1, 10) <= ?")
+            profile_params.append(date_to)
+        profiles_where = f" WHERE {' AND '.join(profile_conditions)}" if profile_conditions else ""
+        profile_rows = self.fetch_rows(
+            f"SELECT DISTINCT profile FROM slips{profiles_where} ORDER BY profile",
+            profile_params,
+        )
+        profiles = [row[0] for row in profile_rows]
+
+        offset = (page - 1) * page_size
+        rows = self.fetch_rows(
+            f"""
+            SELECT
+                s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
+                l.match_name, l.match_datetime, l.market, l.market_type, l.odds,
+                l.status, l.result_url, l.league, l.predictions, l.final_score
+            FROM (
+                SELECT s.*
+                FROM slips s{where_sql}
+                ORDER BY {sort_expressions[sort_by]}, s.date_generated DESC, s.slip_id DESC
+                LIMIT ? OFFSET ?
+            ) s
+            LEFT JOIN legs l ON s.slip_id = l.slip_id
+            ORDER BY {sort_expressions[sort_by]}, s.date_generated DESC, s.slip_id DESC
+            """,
+            [*params, page_size, offset],
+        )
+        return self._rows_to_slips(rows), total, profiles
+
     def delete_slip(self, slip_id: int) -> None:
         """Delete a slip and its legs by id."""
         with self.db_lock:
