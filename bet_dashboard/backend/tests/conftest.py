@@ -318,6 +318,25 @@ class FakeDashboardLogic:
         start = (page - 1) * page_size
         return slips[start:start + page_size], total, profiles
 
+    def get_daily_slip_pnl(self, date_from, date_to, profile=None):
+        self.calls.append("get_daily_slip_pnl")
+        daily = {}
+        selected = {profile} if isinstance(profile, str) else set(profile or [])
+        for slip in self._slips:
+            slip_date = slip.date_generated[:10]
+            if not date_from <= slip_date <= date_to or (selected and slip.profile not in selected):
+                continue
+            status = slip.slip_status.value if hasattr(slip.slip_status, "value") else str(slip.slip_status)
+            row = daily.setdefault(slip_date, {"date": slip_date, "slips": 0, "wins": 0, "losses": 0, "net_profit": 0.0})
+            row["slips"] += 1
+            if status == "Lost":
+                row["losses"] += 1
+                row["net_profit"] -= slip.units
+            elif status == "Won":
+                row["wins"] += 1
+                row["net_profit"] += slip.total_odds * slip.units - slip.units
+        return [daily[key] for key in sorted(daily)]
+
     def stats(self, profile=None, date_from=None, date_to=None):
         self.calls.append("stats")
         return dict(self._stats)

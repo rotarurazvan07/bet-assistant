@@ -58,6 +58,33 @@ describe('Slips page', () => {
         expect(screen.getAllByText('low').length).toBeGreaterThan(0);
     });
 
+    it('shows either the calendar or slip grid, not both', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal vs Chelsea');
+
+        await user.click(screen.getByRole('button', { name: 'Calendar view' }));
+        expect(await screen.findByRole('region', { name: 'Daily profit calendar' })).toBeInTheDocument();
+        expect(screen.queryByText('Arsenal vs Chelsea')).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Grid view' }));
+        await screen.findByText('Arsenal vs Chelsea');
+        expect(screen.queryByRole('region', { name: 'Daily profit calendar' })).not.toBeInTheDocument();
+    });
+
+    it('only shows slip-specific filters in grid mode', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal vs Chelsea');
+        await user.click(screen.getByRole('button', { name: 'Calendar view' }));
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
+
+        expect(screen.getByText('SELECT PROFILES')).toBeInTheDocument();
+        expect(screen.queryByText('Hide settled')).not.toBeInTheDocument();
+        expect(screen.queryByText('Live only')).not.toBeInTheDocument();
+        expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    });
+
     it('sends hide_settled + live_only params from toggles', async () => {
         const user = userEvent.setup();
         renderPage();

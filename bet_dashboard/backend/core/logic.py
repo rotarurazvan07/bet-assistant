@@ -882,6 +882,17 @@ class AppLogic:
             sort_by=sort_by,
         )
 
+    def get_daily_slip_pnl(
+        self,
+        date_from: str,
+        date_to: str,
+        profile: str | list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return realized daily slip counts and P&L for the selected filters."""
+        if profile == "all":
+            profile = None
+        return self._assistant.get_daily_slip_pnl(date_from, date_to, profile)
+
     def get_pending_urls(self) -> set:
         """result_urls already present in pending/live slip legs."""
         slips = self.get_slips()

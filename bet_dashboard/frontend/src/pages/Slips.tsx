@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchSlips, deleteSlip, validateSlips, generateSlips } from '../api/data';
 import EmptyState, { TrackEmptyIcon } from '../components/EmptyState';
 import { SlipCard, SlipDetailModal } from '../components/BetComponents';
+import SlipCalendar from '../components/SlipCalendar';
 import { Toggle } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
 import type { GlobalFilters } from '../components/Layout';
@@ -60,6 +61,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     const loadMoreRef = useRef<HTMLDivElement>(null);
     const [status, setStatus] = useState('');
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
+    const [view, setView] = useState<'grid' | 'calendar'>('grid');
+    const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
@@ -69,6 +72,15 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
     useEffect(() => {
         localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ hideSettled, liveOnly, sortBy }));
     }, [hideSettled, liveOnly, sortBy]);
+
+    useEffect(() => {
+        if (selectedDate && (
+            (filters.dateFrom && selectedDate < filters.dateFrom)
+            || (filters.dateTo && selectedDate > filters.dateTo)
+        )) {
+            setSelectedDate(null);
+        }
+    }, [filters.dateFrom, filters.dateTo, selectedDate]);
 
     const load = useCallback(async (page = 1, append = false) => {
         void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
@@ -85,8 +97,8 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             // If no profiles selected, pass undefined to get all profiles
             // Otherwise pass the selected profiles array
             const params: Parameters<typeof fetchSlips>[0] = {
-                date_from: filters.dateFrom || undefined,
-                date_to: filters.dateTo || undefined,
+                date_from: selectedDate || filters.dateFrom || undefined,
+                date_to: selectedDate || filters.dateTo || undefined,
                 hide_settled: hideSettled,
                 live_only: liveOnly,
                 page,
@@ -126,7 +138,7 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
             if (requestId === requestIdRef.current) setLoading(false);
             if (append) loadingMoreRef.current = false;
         }
-    }, [selectedProfiles, filters, hideSettled, liveOnly, sortBy, refreshKey]);
+    }, [selectedProfiles, filters, hideSettled, liveOnly, selectedDate, sortBy, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -197,16 +209,53 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                     <button className="btn-ghost" data-tour="track-validate" onClick={handleValidate}>✓ Validate Results</button>
                     <button className="btn-success" data-tour="track-generate" onClick={handleGenerate}>✦ Generate Slips</button>
                 </div>
-                <Button
-                    ref={filtersBtnRef}
-                    variant="outlined"
-                    size="small"
-                    onClick={() => setFiltersOpen(open => !open)}
-                    aria-expanded={filtersOpen}
-                    aria-controls="slips-filters-drawer"
-                >
-                    Filters
-                </Button>
+                <div className="flex items-center gap-2">
+                    <div
+                        className="flex items-center rounded-xl border p-1"
+                        style={{ borderColor: 'var(--border)', background: 'var(--bg-surface)' }}
+                        role="group"
+                        aria-label="Slips view"
+                    >
+                        <button
+                            type="button"
+                            className="rounded-lg px-3 py-1.5 text-sm transition-all"
+                            aria-label="Grid view"
+                            aria-pressed={view === 'grid'}
+                            onClick={() => setView('grid')}
+                            style={{
+                                color: view === 'grid' ? 'var(--text-bright)' : 'var(--text-secondary)',
+                                background: view === 'grid' ? 'var(--bg-card)' : 'transparent',
+                                boxShadow: view === 'grid' ? '0 1px 3px rgba(0,0,0,.18)' : 'none',
+                            }}
+                        >
+                            Grid
+                        </button>
+                        <button
+                            type="button"
+                            className="rounded-lg px-3 py-1.5 text-sm transition-all"
+                            aria-label="Calendar view"
+                            aria-pressed={view === 'calendar'}
+                            onClick={() => setView('calendar')}
+                            style={{
+                                color: view === 'calendar' ? 'var(--text-bright)' : 'var(--text-secondary)',
+                                background: view === 'calendar' ? 'var(--bg-card)' : 'transparent',
+                                boxShadow: view === 'calendar' ? '0 1px 3px rgba(0,0,0,.18)' : 'none',
+                            }}
+                        >
+                            Calendar
+                        </button>
+                    </div>
+                    <Button
+                        ref={filtersBtnRef}
+                        variant="outlined"
+                        size="small"
+                        onClick={() => setFiltersOpen(open => !open)}
+                        aria-expanded={filtersOpen}
+                        aria-controls="slips-filters-drawer"
+                    >
+                        Filters
+                    </Button>
+                </div>
             </div>
 
             {(() => {
@@ -225,23 +274,27 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                                 selectedProfiles={selectedProfiles}
                                 onChange={setSelectedProfiles}
                             />
-                            <select
-                                className="field w-full"
-                                data-tour="track-list"
-                                value={sortBy}
-                                onChange={e => setSortBy(e.target.value as SortOption)}
-                            >
-                                <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
-                                <option value="net_profit_asc">Sort: Net Profit (Low → High)</option>
-                                <option value="date_desc">Sort: Date (Newest)</option>
-                                <option value="date_asc">Sort: Date (Oldest)</option>
-                                <option value="odds_desc">Sort: Total Odds (High → Low)</option>
-                                <option value="odds_asc">Sort: Total Odds (Low → High)</option>
-                                <option value="stake_desc">Sort: Stake (High → Low)</option>
-                                <option value="stake_asc">Sort: Stake (Low → High)</option>
-                            </select>
-                            <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />
-                            <Toggle checked={liveOnly} onChange={setLiveOnly} label="Live only" />
+                            {view === 'grid' && (
+                                <>
+                                    <select
+                                        className="field w-full"
+                                        data-tour="track-list"
+                                        value={sortBy}
+                                        onChange={e => setSortBy(e.target.value as SortOption)}
+                                    >
+                                        <option value="net_profit_desc">Sort: Net Profit (High → Low)</option>
+                                        <option value="net_profit_asc">Sort: Net Profit (Low → High)</option>
+                                        <option value="date_desc">Sort: Date (Newest)</option>
+                                        <option value="date_asc">Sort: Date (Oldest)</option>
+                                        <option value="odds_desc">Sort: Total Odds (High → Low)</option>
+                                        <option value="odds_asc">Sort: Total Odds (Low → High)</option>
+                                        <option value="stake_desc">Sort: Stake (High → Low)</option>
+                                        <option value="stake_asc">Sort: Stake (Low → High)</option>
+                                    </select>
+                                    <Toggle checked={hideSettled} onChange={setHideSettled} label="Hide settled" />
+                                    <Toggle checked={liveOnly} onChange={setLiveOnly} label="Live only" />
+                                </>
+                            )}
                         </Box>
                     </Box>
                 );
@@ -270,44 +323,78 @@ export default function Slips({ filters, refreshKey, liveData: externalLiveData 
                 );
             })()}
 
-            {/* Empty state */}
-            {/*Track empty when no slips (incl. fetch-error fallback) */}
-            {!loading && data && (!data.slips || data.slips.length === 0) && (
-                <EmptyState
-                    icon={<TrackEmptyIcon />}
-                    title="No slips yet"
-                    steps={['Go to Build', 'Generate Slips', 'Validate']}
-                    primary={{ label: 'Generate Slips', onClick: () => { void handleGenerate(); } }}
-                    secondary={{ label: 'Go to Build', onClick: () => navigate('/builder') }}
+            {view === 'calendar' && (
+                <SlipCalendar
+                    profiles={selectedProfiles}
+                    dateFrom={filters.dateFrom}
+                    dateTo={filters.dateTo}
+                    selectedDate={selectedDate}
+                    onSelectDate={day => {
+                        setSelectedDate(day);
+                        setView('grid');
+                    }}
                 />
             )}
 
-            {/* Slips Grid */}
-            {data && data.slips.length > 0 && (
-                <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {data.slips.map(slip => (
-                            <SlipCard
-                                key={slip.slip_id}
-                                slip={slip}
-                                liveData={liveData}
-                                onDelete={handleDelete}
-                                onCardClick={() => setSelectedSlip(slip)}
-                            />
-                        ))}
-                    </div>
-                    {data.page < data.total_pages && (
-                        <div ref={loadMoreRef} className="py-6 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
-                            {loading ? 'Loading more slips…' : loadMoreError
-                                ? <button className="btn-ghost" onClick={() => void load(data.page + 1, true)}>Retry loading more</button>
-                                : 'Scroll to load more'}
+            {view === 'grid' && (
+                <>
+                    {selectedDate && (
+                        <div
+                            className="flex items-center justify-between gap-3 flex-wrap rounded-xl border px-4 py-3 mb-4 text-sm"
+                            style={{
+                                color: 'var(--text-secondary)',
+                                borderColor: 'var(--border)',
+                                background: 'var(--bg-card)',
+                            }}
+                        >
+                            <span>Showing slips for <strong style={{ color: 'var(--text-bright)' }}>{selectedDate}</strong></span>
+                            <div className="flex items-center gap-2">
+                                <button className="btn-ghost" onClick={() => setSelectedDate(null)}>Clear day filter</button>
+                                <button className="btn-ghost" onClick={() => setView('calendar')}>Back to calendar</button>
+                            </div>
                         </div>
                     )}
-                </div>
+
+                    {/* Empty state */}
+                    {/*Track empty when no slips (incl. fetch-error fallback) */}
+                    {!loading && data && (!data.slips || data.slips.length === 0) && (
+                        <EmptyState
+                            icon={<TrackEmptyIcon />}
+                            title="No slips yet"
+                            steps={['Go to Build', 'Generate Slips', 'Validate']}
+                            primary={{ label: 'Generate Slips', onClick: () => { void handleGenerate(); } }}
+                            secondary={{ label: 'Go to Build', onClick: () => navigate('/builder') }}
+                        />
+                    )}
+
+                    {/* Slips Grid */}
+                    {data && data.slips.length > 0 && (
+                        <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {data.slips.map(slip => (
+                                    <SlipCard
+                                        key={slip.slip_id}
+                                        slip={slip}
+                                        liveData={liveData}
+                                        onDelete={handleDelete}
+                                        onCardClick={() => setSelectedSlip(slip)}
+                                    />
+                                ))}
+                            </div>
+                            {data.page < data.total_pages && (
+                                <div ref={loadMoreRef} className="py-6 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
+                                    {loading ? 'Loading more slips…' : loadMoreError
+                                        ? <button className="btn-ghost" onClick={() => void load(data.page + 1, true)}>Retry loading more</button>
+                                        : 'Scroll to load more'}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
             )}
 
             {/* Slip Detail Modal */}
-            {selectedSlip && (
+            {view === 'grid' && selectedSlip && (
                 <SlipDetailModal
                     slip={selectedSlip}
                     liveData={liveData}

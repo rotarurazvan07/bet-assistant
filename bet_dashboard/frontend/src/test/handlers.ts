@@ -6,7 +6,7 @@
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 import {
-    makeMatchesPage, makeSlipsPage,
+    makeMatchesPage, makeSlipsPage, makeSlipCalendarData,
     makeAnalyticsData, makeServicesData, makeProfilesMap, makePreviewResult,
     makeOddsHistory, makeOddsMovementSummary,
 } from './factories';
@@ -35,6 +35,7 @@ export const handlers = [
 
     // ── slips ───────────────────────────────────────────────────────────
     http.get('/api/slips', () => HttpResponse.json(makeSlipsPage())),
+    http.get('/api/slips/calendar', () => HttpResponse.json(makeSlipCalendarData())),
     http.post('/api/slips', () => HttpResponse.json({ slip_id: 42 })),
     http.delete('/api/slips/:id', () => HttpResponse.json({ ok: true })),
     http.post('/api/slips/validate', () => HttpResponse.json({

@@ -9,14 +9,14 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../test/handlers';
 import {
     makePreviewResult, makeProfilesMap, makeProfile,
-    makeSlipsPage, makeAnalyticsData, makeServicesData,
+    makeSlipsPage, makeSlipCalendarData, makeAnalyticsData, makeServicesData,
 } from '../../test/factories';
 import type { ManualLegIn } from '../../types';
 import {
     fetchPreview, fetchLeagues, fetchExcluded, fetchExcludedDetails,
     addExcluded, removeExcluded, clearExcluded,
     fetchProfiles, saveProfile, deleteProfile,
-    fetchSlips, fetchAllSlips, addSlip, deleteSlip, validateSlips, generateSlips,
+    fetchSlips, fetchSlipCalendar, fetchAllSlips, addSlip, deleteSlip, validateSlips, generateSlips,
     fetchAnalytics, fetchServices, toggleService,
     pullDb, fetchStatus, fetchSourcesConfig,
 } from '../data';
@@ -198,6 +198,25 @@ describe('slips endpoints', () => {
 
         expect(requestedPages).toEqual(['1', '2']);
         expect(slips.map(slip => slip.slip_id)).toEqual([1, 2]);
+    });
+
+    it('fetchSlipCalendar sends date and profile filters', async () => {
+        let query = '';
+        server.use(http.get('/api/slips/calendar', ({ request }) => {
+            query = new URL(request.url).search;
+            return HttpResponse.json(makeSlipCalendarData({
+                days: [{ date: '2030-10-07', slips: 3, wins: 2, losses: 1, net_profit: 1.4 }],
+            }));
+        }));
+
+        const calendar = await fetchSlipCalendar({
+            date_from: '2030-10-01', date_to: '2030-10-31', profiles: ['low'],
+        });
+
+        expect(query).toContain('date_from=2030-10-01');
+        expect(query).toContain('date_to=2030-10-31');
+        expect(query).toContain('profiles%5B%5D=low');
+        expect(calendar.days[0].net_profit).toBe(1.4);
     });
 
     it('addSlip POSTs profile/legs/units and returns slip_id', async () => {

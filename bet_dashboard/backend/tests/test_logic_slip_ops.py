@@ -275,6 +275,19 @@ class TestAppLogicSlipOperations:
         assert total == 2
         assert profiles == ["a", "b", "c"]
 
+    def test_daily_slip_pnl_delegates_profile_and_date_filters(self, app_env) -> None:
+        self._seed_three_slips(app_env.app)
+        with app_env.app._assistant.db_lock:
+            app_env.app._assistant.conn.execute(
+                "UPDATE legs SET status = 'Won' WHERE slip_id = "
+                "(SELECT slip_id FROM slips WHERE profile = 'b' LIMIT 1)"
+            )
+            app_env.app._assistant.conn.commit()
+
+        days = app_env.app.get_daily_slip_pnl("2030-01-02", "2030-01-03", profile="b")
+
+        assert days == [{"date": "2030-01-02", "slips": 1, "wins": 1, "losses": 0, "net_profit": 2.0}]
+
     def test_validate_slips_delegates_and_returns_report(self, app_env) -> None:
         """[P1] validate_slips delegates to BetAssistant and returns its report."""
         report = app_env.app.validate_slips()

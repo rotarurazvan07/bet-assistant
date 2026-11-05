@@ -2,7 +2,7 @@ import client from './client';
 import type {
     BuilderConfig, PreviewResult,
     ProfilesMap, Profile,
-    SlipsPage, BetSlip, ManualLegIn,
+    SlipsPage, SlipCalendarData, BetSlip, ManualLegIn,
     AnalyticsData,
     ServicesData,
 } from '../types';
@@ -74,6 +74,13 @@ export async function fetchSlips(params: {
     sort_by?: 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc' | 'odds_desc' | 'odds_asc' | 'stake_desc' | 'stake_asc';
 }): Promise<SlipsPage> {
     const res = await client.get<SlipsPage>('/slips', { params });
+    return res.data;
+}
+
+export async function fetchSlipCalendar(params: {
+    date_from: string; date_to: string; profiles?: string[];
+}): Promise<SlipCalendarData> {
+    const res = await client.get<SlipCalendarData>('/slips/calendar', { params });
     return res.data;
 }
 

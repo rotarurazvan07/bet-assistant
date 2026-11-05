@@ -209,6 +209,31 @@ class TestGetSlips:
         assert client.get(BASE).json()["profiles"] == ["alpha", "zeta"]
 
 
+class TestSlipCalendar:
+    def test_calendar_returns_daily_pnl_for_requested_range(self, client, fake_logic) -> None:
+        response = client.get(
+            f"{BASE}/calendar",
+            params={"date_from": "2030-01-01", "date_to": "2030-01-31", "profiles": "manual"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "days": [{"date": "2030-01-01", "slips": 1, "wins": 1, "losses": 0, "net_profit": 2.0}]
+        }
+        assert "get_daily_slip_pnl" in fake_logic.calls
+
+    def test_calendar_rejects_reversed_date_range(self, client) -> None:
+        response = client.get(
+            f"{BASE}/calendar",
+            params={"date_from": "2030-01-31", "date_to": "2030-01-01"},
+        )
+
+        assert response.status_code == 422
+
+    def test_calendar_requires_valid_date_parameters(self, client) -> None:
+        assert client.get(f"{BASE}/calendar", params={"date_from": "bad", "date_to": "2030-01-01"}).status_code == 422
+
+
 class TestValidateManual:
     """[P1] POST /api/slips/validate_manual"""
 

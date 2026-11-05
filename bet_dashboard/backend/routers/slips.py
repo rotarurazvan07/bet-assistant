@@ -1,10 +1,11 @@
 """Slips API: add, list, delete, validate and generate."""
 
 import math
+from datetime import date
 from typing import Literal
 
 from core.schemas import ManualLegIn, SlipIn
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
@@ -312,6 +313,28 @@ def get_slips(
         "total_pages": max(1, math.ceil(total / page_size)),
     }
     return sanitize_floats(response_data)
+
+
+@router.get("/calendar")
+def get_slip_calendar(
+    request: Request,
+    date_from: date,
+    date_to: date,
+    profiles: list[str] | None = None,
+):
+    """Return daily slip counts and realized P&L for a calendar date range."""
+    if date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from must not be after date_to")
+
+    if profiles is None:
+        profiles = get_profile_params(request)
+    profile_filter = profiles if profiles else None
+    days = _get(request).logic.get_daily_slip_pnl(
+        date_from=date_from.isoformat(),
+        date_to=date_to.isoformat(),
+        profile=profile_filter,
+    )
+    return sanitize_floats({"days": days})
 
 
 @router.post("/validate_manual")

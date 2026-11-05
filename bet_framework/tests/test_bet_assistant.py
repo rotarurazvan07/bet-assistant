@@ -829,6 +829,30 @@ class TestSaveAndGetSlips:
         assert live_total == 1
         assert pending_id != live_id
 
+    def test_daily_slip_pnl_groups_realized_results_and_applies_filters(self, ba) -> None:
+        won_id = ba.save_slip("p", self._make_legs(1), units=2)
+        lost_id = ba.save_slip("p", self._make_legs(1), units=0.5)
+        pending_id = ba.save_slip("p", self._make_legs(1), units=3)
+        other_id = ba.save_slip("other", self._make_legs(1), units=1)
+        ids = [won_id, lost_id, pending_id, other_id]
+        dates = ["2030-10-07T08:00:00", "2030-10-07T12:00:00", "2030-10-08T08:00:00", "2030-10-07T09:00:00"]
+        for slip_id, generated in zip(ids, dates, strict=True):
+            ba.conn.execute("UPDATE slips SET date_generated = ? WHERE slip_id = ?", (generated, slip_id))
+        ba.conn.commit()
+        won_leg_id, lost_leg_id = ba.fetch_rows(
+            "SELECT leg_id FROM legs WHERE slip_id IN (?, ?) ORDER BY slip_id",
+            (won_id, lost_id),
+        )
+        ba.update_leg(won_leg_id["leg_id"], Outcome.WON)
+        ba.update_leg(lost_leg_id["leg_id"], Outcome.LOST)
+
+        days = ba.get_daily_slip_pnl("2030-10-07", "2030-10-08", profile="p")
+
+        assert days == [
+            {"date": "2030-10-07", "slips": 2, "wins": 1, "losses": 1, "net_profit": 0.5},
+            {"date": "2030-10-08", "slips": 1, "wins": 0, "losses": 0, "net_profit": 0.0},
+        ]
+
 
 # ── delete_slip ───────────────────────────────────────────────────────────────
 

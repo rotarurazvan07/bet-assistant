@@ -188,6 +188,18 @@ export interface SlipsPage {
     total_pages: number;
 }
 
+export interface SlipDailyPnl {
+    date: string;
+    slips: number;
+    wins: number;
+    losses: number;
+    net_profit: number;
+}
+
+export interface SlipCalendarData {
+    days: SlipDailyPnl[];
+}
+
 export interface SlipStats {
     total_settled: number; total_won_count: number;
     win_rate: number; implied_win_rate: number; edge: number;

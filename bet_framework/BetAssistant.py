@@ -667,6 +667,64 @@ class BetAssistant(BaseStorageManager):
         )
         return self._rows_to_slips(rows), total, profiles
 
+    def get_daily_slip_pnl(
+        self,
+        date_from: str,
+        date_to: str,
+        profile: str | list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return per-day slip counts and realized P&L for a date range."""
+        conditions = ["substr(s.date_generated, 1, 10) >= ?", "substr(s.date_generated, 1, 10) <= ?"]
+        params: list[Any] = [date_from, date_to]
+        if profile:
+            if isinstance(profile, list):
+                placeholders = ", ".join("?" for _ in profile)
+                conditions.append(f"s.profile IN ({placeholders})")
+                params.extend(profile)
+            elif profile != "all":
+                conditions.append("s.profile = ?")
+                params.append(profile)
+
+        status_sql = """CASE
+            WHEN EXISTS (SELECT 1 FROM legs lost WHERE lost.slip_id = s.slip_id AND lost.status = 'Lost') THEN 'Lost'
+            WHEN EXISTS (SELECT 1 FROM legs live WHERE live.slip_id = s.slip_id AND live.status = 'Live') THEN 'Live'
+            WHEN EXISTS (SELECT 1 FROM legs pending WHERE pending.slip_id = s.slip_id AND pending.status = 'Pending') THEN 'Pending'
+            ELSE 'Won'
+        END"""
+        rows = self.fetch_rows(
+            f"""
+            WITH filtered_slips AS (
+                SELECT s.*, {status_sql} AS slip_status
+                FROM slips s
+                WHERE {" AND ".join(conditions)}
+            )
+            SELECT
+                substr(date_generated, 1, 10) AS slip_date,
+                COUNT(*) AS slips,
+                SUM(CASE WHEN slip_status = 'Won' THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN slip_status = 'Lost' THEN 1 ELSE 0 END) AS losses,
+                SUM(CASE
+                    WHEN slip_status = 'Won' THEN (total_odds * units) - units
+                    WHEN slip_status = 'Lost' THEN -units
+                    ELSE 0
+                END) AS net_profit
+            FROM filtered_slips
+            GROUP BY substr(date_generated, 1, 10)
+            ORDER BY slip_date
+            """,
+            params,
+        )
+        return [
+            {
+                "date": row["slip_date"],
+                "slips": int(row["slips"]),
+                "wins": int(row["wins"]),
+                "losses": int(row["losses"]),
+                "net_profit": float(row["net_profit"] or 0),
+            }
+            for row in rows
+        ]
+
     def delete_slip(self, slip_id: int) -> None:
         """Delete a slip and its legs by id."""
         with self.db_lock:

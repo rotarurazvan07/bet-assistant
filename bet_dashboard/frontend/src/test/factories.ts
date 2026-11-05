@@ -4,7 +4,7 @@
 
 import type {
     Match, MatchesPage, SourcePrediction,
-    BetLeg, BetSlip, SlipsPage, SlipStats,
+    BetLeg, BetSlip, SlipsPage, SlipCalendarData, SlipStats,
     AnalyticsData, HistoryRecord, MarketAccuracy, PnlByMarket, OddsDistBucket,
     CorrelationRecord, ProfileScatterPoint, MarketBreakdown, LeagueBreakdown,
     RollingEdgePoint, DrawdownPoint, ReturnDistribution, TimePatternItem,
@@ -112,6 +112,13 @@ export function makeSlipsPage(overrides: Partial<SlipsPage> = {}): SlipsPage {
         page_size: 20,
         total: 1,
         total_pages: 1,
+        ...overrides,
+    };
+}
+
+export function makeSlipCalendarData(overrides: Partial<SlipCalendarData> = {}): SlipCalendarData {
+    return {
+        days: [],
         ...overrides,
     };
 }

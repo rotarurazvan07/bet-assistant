@@ -3,7 +3,7 @@
 // Exception: explicit empty-state specs. Skip this helper when E2E_BASE_URL.
 // Pathname matchers only — globs like **/api/matches* also steal Vite /src/api/*.ts.
 import type { Page } from '@playwright/test';
-import type { SlipsPage, ProfilesMap } from '../../src/types';
+import type { SlipCalendarData, SlipsPage, ProfilesMap } from '../../src/types';
 import { DEMO_MATCHES, DEMO_MATCHES_PAGE, DEMO_PREVIEW, DEMO_PROFILES, DEMO_PROFILE_SCHEDULES } from './demo-data';
 
 function apiPath(pathname: string, exact: string): boolean {
@@ -12,11 +12,12 @@ function apiPath(pathname: string, exact: string): boolean {
 
 export type DemoApiOpts = {
     slips?: SlipsPage;
+    calendar?: SlipCalendarData;
     profiles?: ProfilesMap;
 };
 
 export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promise<void> {
-    const slipsGet = opts.slips ?? { slips: [], stats: null, profiles: [] };
+    const slipsGet = opts.slips ?? { slips: [], profiles: [], page: 1, page_size: 20, total: 0, total_pages: 1 };
     const preview = opts.preview ?? DEMO_PREVIEW;
     // Smart Builder live preview (two-track: DEMO_PREVIEW mirrors a real /api/builder/preview response — the client posts to /builder/preview).
     await page.route((url) => apiPath(url.pathname, '/api/builder/preview'), async (route) => {
@@ -40,9 +41,44 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
             body: '{}',
         });
     });
+    await page.route((url) => url.pathname === '/api/slips/calendar', async (route) => {
+        const query = new URL(route.request().url()).searchParams;
+        const from = query.get('date_from') ?? '';
+        const to = query.get('date_to') ?? '';
+        const selectedProfiles = query.getAll('profiles[]');
+        const days = (opts.calendar?.days ?? []).filter(day =>
+            day.date >= from
+            && day.date <= to
+            && (selectedProfiles.length === 0 || selectedProfiles.includes('low')),
+        );
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ days }),
+        });
+    });
     await page.route((url) => url.pathname === '/api/slips', async (route) => {
         const method = route.request().method();
-        const body = method === 'GET' ? slipsGet : { slip_id: 1 };
+        let body: unknown = { slip_id: 1 };
+        if (method === 'GET') {
+            const query = new URL(route.request().url()).searchParams;
+            const from = query.get('date_from');
+            const to = query.get('date_to');
+            const start = Number(query.get('page') ?? 1);
+            const pageSize = Number(query.get('page_size') ?? 20);
+            const filtered = slipsGet.slips.filter(slip =>
+                (!from || slip.date_generated.slice(0, 10) >= from)
+                && (!to || slip.date_generated.slice(0, 10) <= to),
+            );
+            body = {
+                ...slipsGet,
+                slips: filtered.slice((start - 1) * pageSize, start * pageSize),
+                page: start,
+                page_size: pageSize,
+                total: filtered.length,
+                total_pages: Math.max(1, Math.ceil(filtered.length / pageSize)),
+            };
+        }
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
