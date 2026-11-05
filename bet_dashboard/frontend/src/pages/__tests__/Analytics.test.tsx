@@ -116,6 +116,27 @@ describe('Analytics page', () => {
         await waitFor(() => expect(calls).toBeGreaterThan(before));
     });
 
+    it('does not refetch when filter object identity changes but dates stay the same', async () => {
+        let calls = 0;
+        server.use(
+            http.get('/api/analytics', () => {
+                calls += 1;
+                return HttpResponse.json(DATA);
+            }),
+        );
+        const { rerender } = renderPage();
+        await screen.findByText('SELECT PROFILES');
+        const initialCalls = calls;
+
+        rerender(
+            <MemoryRouter>
+                <Analytics filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} />
+            </MemoryRouter>,
+        );
+
+        expect(calls).toBe(initialCalls);
+    });
+
     it('date filters are sent when provided', async () => {
         renderPage({ dateFrom: '2026-09-01', dateTo: '2026-09-20' });
         await screen.findByText('SELECT PROFILES');

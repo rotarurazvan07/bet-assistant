@@ -1040,6 +1040,7 @@ function WeekendTick({ x = 0, y = 0, payload, fontSize = 10 }: {
 interface Props { filters: GlobalFilters; refreshKey: number }
 
 export default function Analytics({ filters, refreshKey }: Props) {
+    const { dateFrom, dateTo } = filters;
     const navigate = useNavigate();
     const [data, setData] = useState<AnalyticsData | null>(null);
     const { selectedProfiles, setSelectedProfiles } = useProfileSelection({
@@ -1074,8 +1075,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
         setLoading(true);
         try {
             const params: Parameters<typeof fetchAnalytics>[0] = {
-                date_from: filters.dateFrom || undefined,
-                date_to: filters.dateTo || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
             };
             if (selectedProfiles.length > 0) params.profiles = selectedProfiles;
             const d = await fetchAnalytics(params);
@@ -1107,7 +1108,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 drawdown: [], return_distribution: null, time_patterns: null,
             });
         } finally { setLoading(false); }
-    }, [selectedProfiles, filters, refreshKey]);
+    }, [selectedProfiles, dateFrom, dateTo, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -1179,12 +1180,6 @@ export default function Analytics({ filters, refreshKey }: Props) {
 
     return (
         <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
-
-            {/* Header + Profile Selector */}
-            <div className="flex items-center justify-between mb-4">
-                <h1 className="font-display font-bold text-xl"
-                    style={{ color: 'var(--text-bright)' }}>Analytics</h1>
-            </div>
             <div className="mb-5">
                 <ProfileSelector
                     profiles={data.profiles}

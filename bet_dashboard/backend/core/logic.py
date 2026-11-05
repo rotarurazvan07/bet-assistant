@@ -217,6 +217,15 @@ class AppLogic:
             }
         )
 
+    def _broadcast_generation_updated(self) -> None:
+        """Broadcast changes to generator run status and schedule metadata."""
+        ws_manager.broadcast_sync(
+            {
+                "event": "generation_updated",
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
+
     # ── TickerService callbacks ───────────────────────────────────────────────
 
     def _is_generator_hour_met(self) -> bool:
@@ -316,12 +325,14 @@ class AppLogic:
                 self.generate_slips(due)
                 self._claim_profile_runs(due, status="ok")
                 self._broadcast_slips_updated()
+                self._broadcast_generation_updated()
         except Exception as exc:
             print(f"[Generator] ERROR: {exc}")
             # Mark failing due profiles — status only, no separate stamp map
             due = {name: None for name in (self._get_active_profiles() or {}) if self._is_profile_due(name)}
             if due:
                 self._claim_profile_runs(due, status="failed", error=str(exc))
+                self._broadcast_generation_updated()
 
     # ── Per-profile generation schedule ──────────────────────────────────
 
@@ -1139,11 +1150,13 @@ class AppLogic:
             if profiles:
                 result = self.generate_slips(profiles)
                 self._claim_profile_runs(profiles, status="ok")
+                self._broadcast_generation_updated()
             self._broadcast_slips_updated()
             return result
         except Exception as exc:
             print(f"[Generator] manual ERROR: {exc}")
             self._claim_profile_runs(profiles, status="failed", error=str(exc))
+            self._broadcast_generation_updated()
             self._broadcast_slips_updated()
             raise
 

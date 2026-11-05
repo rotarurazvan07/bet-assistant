@@ -3,7 +3,7 @@
 // mutually exclusive inputs (0.1 steps, no cross preview). Daily run count is
 // a numeric step-1 input. MSW serves /api/services.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -13,7 +13,30 @@ import { makeServicesData, makeServiceInfo, makeProfileSchedule } from '../../te
 
 const DATA = makeServicesData();
 
+class MockWebSocket {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    readyState = MockWebSocket.CONNECTING;
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: string }) => void) | null = null;
+    onclose: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+
+    constructor() {
+        activeSocket = this;
+    }
+
+    send() { /* noop */ }
+    close() {
+        this.readyState = 3;
+        this.onclose?.();
+    }
+}
+
+let activeSocket: MockWebSocket | null = null;
+
 beforeEach(() => {
+    activeSocket = null;
     server.use(
         http.get('/api/services', () => HttpResponse.json(DATA)),
         http.post('/api/services/settings', () => HttpResponse.json({ status: 'ok' })),
@@ -36,6 +59,31 @@ describe('Services page', () => {
         render(<Services />);
         expect(await screen.findByText('Automation Services')).toBeInTheDocument();
         expect(screen.getByText(/Server time:/)).toBeInTheDocument();
+    });
+
+    it('does not refetch services for slip validation updates', async () => {
+        let calls = 0;
+        server.use(
+            http.get('/api/services', () => {
+                calls += 1;
+                return HttpResponse.json(DATA);
+            }),
+        );
+        vi.stubGlobal('WebSocket', MockWebSocket);
+        const rendered = render(<Services />);
+
+        try {
+            await screen.findByText('Automation Services');
+            const initialCalls = calls;
+            activeSocket?.onmessage?.({ data: JSON.stringify({ event: 'slips_updated' }) });
+            expect(calls).toBe(initialCalls);
+
+            activeSocket?.onmessage?.({ data: JSON.stringify({ event: 'generation_updated' }) });
+            await waitFor(() => expect(calls).toBe(initialCalls + 1));
+        } finally {
+            rendered.unmount();
+            vi.unstubAllGlobals();
+        }
     });
 
     it('renders a ServiceCard per service with status badges', async () => {

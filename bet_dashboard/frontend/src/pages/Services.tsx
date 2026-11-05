@@ -140,12 +140,10 @@ export default function Services() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => { load(); }, [load]);
 
-    // Live refresh while sitting on this tab: when the backend finishes a
-    // (scheduled or manual) generation it broadcasts slips_updated — refetch
-    // so Last generated / Next run / status update without a reload. Skip
-    // when there are unsaved local edits pending the debounce.
+    // Slip validation also broadcasts slips_updated, so refresh service state
+    // only for generator runs or service toggles.
     useSocket({
-        slips_updated: useCallback(() => { if (!dirtyRef.current) void load(); }, [load]),
+        generation_updated: useCallback(() => { if (!dirtyRef.current) void load(); }, [load]),
         service_toggled: useCallback(() => { if (!dirtyRef.current) void load(); }, [load]),
     });
 
@@ -312,15 +310,16 @@ export default function Services() {
                 {/* Per-profile auto-generation schedule: the only scheduling
                     surface. Edits auto-save to disk (same debounce pattern as
                     the builder tab). */}
+                <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
+                    Per-Profile Scheduling
+                    <TooltipIcon
+                        text="Each profile generates at its own time. Auto ON means the profile builds automatically at that time; Daily is how many slips it builds per day; Stake is the units or target payout per slip. Auto OFF keeps your settings but builds nothing (Manual only). Order decides which profile generates first when run times coincide. Changes save automatically."
+                        align="right"
+                    />
+                </h1>
                 {rows && rows.length > 0 && (
                     <div className="card p-4 lg:col-span-3">
                         <div className="flex items-center gap-1.5 mb-4">
-                            <p className="font-mono text-[10px] tracking-widest uppercase"
-                                style={{ color: 'var(--text-secondary)' }}>Per-Profile Scheduling</p>
-                            <TooltipIcon
-                                text="Each profile generates at its own time. Auto ON means the profile builds automatically at that time; Daily is how many slips it builds per day; Stake is the units or target payout per slip. Auto OFF keeps your settings but builds nothing (Manual only). Order decides which profile generates first when run times coincide. Changes save automatically."
-                                align="right"
-                            />
                             {rowsSaved && (
                                 <span
                                     className={`ml-auto text-[11px] font-mono ${rowsSavedAt !== null ? 'sched-saved-fade' : ''}`}

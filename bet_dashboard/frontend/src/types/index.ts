@@ -387,6 +387,7 @@ export type WsEventName =
     | 'slips_updated'
     | 'validation_progress'
     | 'validation_completed'
+    | 'generation_updated'
     | 'service_toggled'
     | 'pong';
 

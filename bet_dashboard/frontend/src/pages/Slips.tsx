@@ -298,7 +298,7 @@ export default function Slips({
         <>
             {/* Slip actions and filters */}
             <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-                <div className="w-full max-w-[520px]">
+                <div className="w-full max-w-[800px]">
                     {(() => {
                         const progress = validationProgress?.job_id === completedJobIdRef.current
                             || (validationJobId && validationProgress?.job_id !== validationJobId)
@@ -318,7 +318,7 @@ export default function Slips({
                                     : '';
 
                         return (
-                            <div className="grid min-w-0 grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+                            <div className="grid min-w-0 grid-cols-[200px_minmax(0,1fr)] items-center gap-3">
                                 <button
                                     type="button"
                                     data-tour="track-validate"
@@ -378,7 +378,7 @@ export default function Slips({
                             </div>
                         );
                     })()}
-                    <div className="mt-2 grid grid-cols-[150px_minmax(0,1fr)] items-center gap-3">
+                    <div className="mt-2 grid grid-cols-[200px_minmax(0,1fr)] items-center gap-3">
                         <button className="btn-success w-full justify-center" data-tour="track-generate" onClick={handleGenerate}>Generate Slips</button>
                         {status && (
                             <span

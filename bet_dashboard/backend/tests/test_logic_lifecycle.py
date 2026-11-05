@@ -586,7 +586,7 @@ class TestAppLogicLifecycle:
             assert "profile_last_generated" not in runtime
             assert "profile_last_generated_at" not in runtime
             assert "profile_run_status" not in runtime
-            assert broadcast_capture[-1]["event"] == "slips_updated"
+            assert [event["event"] for event in broadcast_capture[-2:]] == ["slips_updated", "generation_updated"]
         finally:
             app._assistant.conn.close()
             app._matches_manager.close()
