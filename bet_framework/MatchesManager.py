@@ -780,8 +780,8 @@ class MatchesManager(BufferedStorageManager):
 
         try:
             tz = ZoneInfo(local_tz)
-        except Exception:
-            tz = ZoneInfo("UTC")
+        except Exception as e:
+            raise RuntimeError(f"Invalid timezone '{local_tz}': {e}") from e
 
         now_local = datetime.now(tz)
         today_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)

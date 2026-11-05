@@ -52,7 +52,6 @@ services:
       - SLIPS_DB_PATH=/app/workspace/data/slips.db
       - CONFIG_PATH=/app/workspace/config
       - PYTHONPATH=/app
-      - TZ=Europe/Bucharest
     volumes:
       - e2e-workspace:/app/workspace
     ports:

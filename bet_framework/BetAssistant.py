@@ -43,6 +43,7 @@ import math
 import re
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -189,15 +190,15 @@ class BetAssistant(BaseStorageManager):
     """
     All-in-one betting assistant.
 
-    Initialise with a path to an SQLite database (created automatically) and
-    an optional path to a YAML settings file or directory.
+    Initialise with a path to an SQLite database (created automatically)
+    and a timezone for generation-time filtering.
 
     Match data is fed in via load_matches(df) — no external database manager
     is involved.
 
     Typical workflow
     ────────────────
-    assistant = BetAssistant("bets.db")
+    assistant = BetAssistant("bets.db", tz=ZoneInfo("Europe/Bucharest"))
     assistant.load_matches(my_dataframe)
 
     slip_legs = assistant.build_slip("medium_risk")
@@ -212,14 +213,18 @@ class BetAssistant(BaseStorageManager):
     def __init__(
         self,
         db_path: str,
+        tz: ZoneInfo,
     ) -> None:
         """
         Parameters
         ----------
         db_path     : Path to the SQLite file (created if it doesn't exist).
+        tz          : Timezone (ZoneInfo) for generation-time filtering.
+                      Must be provided by caller; no fallback in production code.
         """
         super().__init__(db_path)
         self._df = pd.DataFrame()
+        self._tz = tz
 
     def _create_tables(self) -> None:
         """Create slips and legs tables if missing."""
@@ -463,7 +468,8 @@ class BetAssistant(BaseStorageManager):
         """
         with self.db_lock:
             total_odds = math.prod(leg.odds for leg in legs)
-            date_today = pd.Timestamp.now().strftime("%Y-%m-%d")
+            # date_generated is config-tz naive wall clock (uniform with match datetimes)
+            date_today = pd.Timestamp.now(tz=self._tz).tz_localize(None).strftime("%Y-%m-%d")
 
             cursor = self.conn.execute(
                 "INSERT INTO slips (date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?)",
@@ -837,18 +843,22 @@ class BetAssistant(BaseStorageManager):
     # ── Candidate collection ──────────────────────────────────────────────────
 
     def _collect_candidates(self, cfg: BetSlipConfig) -> list[dict]:
-        # TODO - this wont work unless datetimes are fixed first!
-        # now       = pd.Timestamp.now()
-        # date_from = max(pd.to_datetime(cfg.date_from), now) if cfg.date_from else now
         """Collect candidate legs passing config filters from matches."""
+        # Compute now in config timezone, strip tzinfo for naive comparison
+        # with match datetimes (which are naive wall-clock in config tz).
+        now = pd.Timestamp.now(tz=self._tz).tz_localize(None)
         date_from = pd.to_datetime(cfg.date_from) if cfg.date_from else None
+        # Effective floor is max of profile date_from and current time
+        effective_date_from = max(date_from, now) if date_from is not None else now
         date_to = (pd.to_datetime(cfg.date_to) + pd.Timedelta(days=1)) if cfg.date_to else None
         excluded = set(cfg.excluded_urls or [])
         markets = cfg.included_markets
 
         candidates = []
+        filtered_past_ongoing = 0
         for _, row in self._df.iterrows():
-            if not self._row_passes_filters(row, cfg, date_from, date_to, excluded):
+            if not self._row_passes_filters(row, cfg, effective_date_from, date_to, excluded):
+                filtered_past_ongoing += 1
                 continue
 
             league = None if pd.isna(row.get("league", None)) else row.get("league", None)
@@ -874,10 +884,17 @@ class BetAssistant(BaseStorageManager):
                     if leg is not None:
                         candidates.append(leg)
 
+        if filtered_past_ongoing:
+            logger.debug(f"Excluded {filtered_past_ongoing} past/ongoing matches (generation-time filter)")
         return candidates
 
     def _row_passes_filters(self, row, cfg, date_from, date_to, excluded) -> bool:
-        """Check date, URL and league filters for one match row."""
+        """
+        Check date, URL and league filters for one match row.
+
+        date_from is the effective floor (max of profile date_from and current time
+        in config timezone).
+        """
         if date_from and row["datetime"] < date_from:
             return False
         if date_to and row["datetime"] >= date_to:

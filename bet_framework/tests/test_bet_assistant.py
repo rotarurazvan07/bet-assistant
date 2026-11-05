@@ -19,6 +19,7 @@ import contextlib
 import math
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
@@ -40,7 +41,13 @@ from bet_framework.core.scoring import (
     score_pick,
     score_sources,
 )
-from bet_framework.core.Slip import PROFILES, BetLeg, BetSlipConfig, CandidateLeg, get_profile
+from bet_framework.core.Slip import (
+    PROFILES,
+    BetLeg,
+    BetSlipConfig,
+    CandidateLeg,
+    get_profile,
+)
 from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.enums import MarketKey, MarketType, Outcome
 
@@ -57,7 +64,7 @@ def test_candidate_market_map_matches_canonical_catalog() -> None:
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-DT_BASE = datetime(2026, 4, 5, 15, 0, 0)
+DT_BASE = datetime(2030, 1, 1, 20, 0, 0)
 
 
 def make_matches_df(n=5, sources_per_match=3, with_odds: bool = True, with_url: bool = True):
@@ -102,7 +109,7 @@ def make_matches_df(n=5, sources_per_match=3, with_odds: bool = True, with_url: 
 
 @pytest.fixture
 def ba(tmp_path):
-    assistant = BetAssistant(str(tmp_path / "slips.db"))
+    assistant = BetAssistant(str(tmp_path / "slips.db"), tz=ZoneInfo("Europe/Bucharest"))
     yield assistant
     with contextlib.suppress(Exception):
         assistant.close()
@@ -111,8 +118,26 @@ def ba(tmp_path):
 @pytest.fixture
 def loaded_ba(tmp_path):
     """BetAssistant with matches pre-loaded."""
-    assistant = BetAssistant(str(tmp_path / "loaded.db"))
+    assistant = BetAssistant(str(tmp_path / "loaded.db"), tz=ZoneInfo("Europe/Bucharest"))
     assistant.load_matches(make_matches_df(10))
+    yield assistant
+    with contextlib.suppress(Exception):
+        assistant.close()
+
+
+@pytest.fixture
+def ba_utc(tmp_path):
+    """BetAssistant with UTC timezone for non-Bucharest config tests."""
+    assistant = BetAssistant(str(tmp_path / "slips_utc.db"), tz=ZoneInfo("UTC"))
+    yield assistant
+    with contextlib.suppress(Exception):
+        assistant.close()
+
+
+@pytest.fixture
+def ba_bangkok(tmp_path):
+    """BetAssistant with Asia/Bangkok timezone for non-Bucharest config tests."""
+    assistant = BetAssistant(str(tmp_path / "slips_bangkok.db"), tz=ZoneInfo("Asia/Bangkok"))
     yield assistant
     with contextlib.suppress(Exception):
         assistant.close()
@@ -592,7 +617,7 @@ class TestLoadMatches:
         assert ba._df.iloc[0]["cons_home"] == pytest.approx(66.6, abs=0.2)
 
         # With exclusion of src_bad: only 2 home wins = 100% home
-        ba2 = BetAssistant(str(ba.db_path).replace(".db", "_2.db"))
+        ba2 = BetAssistant(str(ba.db_path).replace(".db", "_2.db"), tz=ZoneInfo("UTC"))
         ba2.load_matches(df, excluded_sources=["src_bad"])
         assert ba2._df.iloc[0]["cons_home"] == 100.0
         assert ba2._df.iloc[0]["sources"] == 2
@@ -602,7 +627,7 @@ class TestLoadMatches:
         """Test that empty excluded_sources list behaves like None."""
         df = make_matches_df(1, sources_per_match=3)
         ba.load_matches(df, excluded_sources=[])
-        ba2 = BetAssistant(str(ba.db_path).replace(".db", "_3.db"))
+        ba2 = BetAssistant(str(ba.db_path).replace(".db", "_3.db"), tz=ZoneInfo("UTC"))
         ba2.load_matches(df, excluded_sources=None)
         # Should have same consensus
         assert ba._df.iloc[0]["cons_home"] == ba2._df.iloc[0]["cons_home"]
@@ -1121,13 +1146,13 @@ class TestRowsToSlips:
 
 class TestContextManager:
     def test_normal_with_statement(self, tmp_path) -> None:
-        with BetAssistant(str(tmp_path / "ctx.db")) as ba:
+        with BetAssistant(str(tmp_path / "ctx.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(2))
             assert len(ba._df) == 2
 
     def test_normal_close_called_on_exit(self, tmp_path) -> None:
         path = str(tmp_path / "ctx2.db")
-        with BetAssistant(path) as ba:
+        with BetAssistant(path, tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(1))
         # After exit, connection should be closed
         assert os.path.exists(path)
@@ -1139,7 +1164,7 @@ class TestContextManager:
 class TestBetAssistantScenarios:
     def test_scenario_full_workflow(self, tmp_path) -> None:
         """load → build → save → retrieve → verify."""
-        with BetAssistant(str(tmp_path / "workflow.db")) as ba:
+        with BetAssistant(str(tmp_path / "workflow.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(10))
             legs = ba.build_slip("medium_risk")
             if legs:
@@ -1151,7 +1176,7 @@ class TestBetAssistantScenarios:
 
     def test_scenario_auto_exclude_prevents_duplicates(self, tmp_path) -> None:
         """build_slip_auto_exclude must not reuse URLs from existing slips."""
-        with BetAssistant(str(tmp_path / "auto_excl.db")) as ba:
+        with BetAssistant(str(tmp_path / "auto_excl.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(20, sources_per_match=5))
 
             # Build and save first slip
@@ -1168,7 +1193,7 @@ class TestBetAssistantScenarios:
 
     def test_scenario_multiple_profiles(self, tmp_path) -> None:
         """Save slips from different profiles; filter retrieval by profile."""
-        with BetAssistant(str(tmp_path / "profiles.db")) as ba:
+        with BetAssistant(str(tmp_path / "profiles.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(20, sources_per_match=5))
 
             for profile in ["low_risk", "medium_risk", "high_risk"]:
@@ -1185,7 +1210,7 @@ class TestBetAssistantScenarios:
 
     def test_scenario_settle_legs_manually(self, tmp_path) -> None:
         """Save a slip, manually settle all legs, verify slip status transitions."""
-        with BetAssistant(str(tmp_path / "settle.db")) as ba:
+        with BetAssistant(str(tmp_path / "settle.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(5))
             legs = ba.build_slip(BetSlipConfig(target_odds=2.0, target_legs=2, consensus_floor=0.0))
             if legs:
@@ -1206,7 +1231,7 @@ class TestBetAssistantScenarios:
 
     def test_scenario_delete_and_regenrate(self, tmp_path) -> None:
         """Save, delete, verify gone, regenerate fresh slip."""
-        with BetAssistant(str(tmp_path / "del_regen.db")) as ba:
+        with BetAssistant(str(tmp_path / "del_regen.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(10))
             legs = ba.build_slip("medium_risk")
             if legs:
@@ -1224,7 +1249,7 @@ class TestBetAssistantScenarios:
         """Manual slips (from BettingTips/SmartBuilder) must preserve market_type for BTTS."""
         from bet_framework.core.Slip import CandidateLeg
 
-        with BetAssistant(str(tmp_path / "btts_market_type.db")) as ba:
+        with BetAssistant(str(tmp_path / "btts_market_type.db"), tz=ZoneInfo("UTC")) as ba:
             ba.load_matches(make_matches_df(1))
 
             # Create a BTTS Yes leg

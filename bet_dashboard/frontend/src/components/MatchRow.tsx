@@ -2,6 +2,8 @@ import type { Match, CandidateLeg, OddsMovementSummary, OddsMovementDirection } 
 import { BaseDataRow } from './ui/BaseDataRow';
 import { MARKET_COLUMNS, strippedKey } from '../config/marketConfig';
 import { OddsMovementIndicator } from './OddsMovementIndicator';
+import { useConfigTimezone } from '../hooks/useConfigTimezone';
+import { formatMatchTime } from '../utils/betUtils';
 
 /**
  * MarketRow Component
@@ -89,9 +91,10 @@ interface Props {
 }
 
 export default function MatchRow({ match, index, onCellClick, activeMarkets = new Set(), inSlipMarkets = new Set(), movement, visibleColumns, pulsingKey }: Props) {
+    const { timezone } = useConfigTimezone();
     const dt = match.datetime
-        ? new Date(match.datetime).toLocaleString('en-GB', {
-            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+        ? formatMatchTime(match.datetime, timezone, 'en-GB', {
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
         }).replace(',', '')
         : '—';
 

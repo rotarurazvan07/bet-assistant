@@ -146,7 +146,7 @@ class AppLogic:
         ensure_default_profiles(config_path + "/profiles", self._settings)
 
         # Initialize core assistants
-        self._assistant = BetAssistant(slips_db_path)
+        self._assistant = BetAssistant(slips_db_path, self._local_tz())
         self._matches_manager = MatchesManager(matches_db_path)
         self._manual_excluded: set[str] = set()
 
@@ -322,7 +322,10 @@ class AppLogic:
 
     def _local_tz(self) -> ZoneInfo:
         """Configured crawler timezone (``scraper_config.local_timezone``)."""
-        tz_name = (self._settings.get("scraper_config") or {}).get("local_timezone", "Europe/Bucharest")
+        scraper_cfg = self._settings.get("scraper_config") or {}
+        tz_name = scraper_cfg.get("local_timezone")
+        if not tz_name:
+            raise RuntimeError("scraper_config.local_timezone not configured")
         return ZoneInfo(tz_name)
 
     def _local_now(self) -> datetime:
@@ -717,7 +720,9 @@ class AppLogic:
         # Get config values for history preservation
         scraper_cfg = self._settings.get("scraper_config") or {}
         max_history = int(scraper_cfg.get("num_days_ahead", 3))
-        local_tz = scraper_cfg.get("local_timezone", "Europe/Bucharest")
+        local_tz = scraper_cfg.get("local_timezone")
+        if not local_tz:
+            raise RuntimeError("scraper_config.local_timezone not configured")
 
         # Merge with history preservation
         try:

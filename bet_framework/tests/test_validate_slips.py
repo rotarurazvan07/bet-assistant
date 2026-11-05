@@ -1,5 +1,6 @@
 from datetime import datetime
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -17,7 +18,7 @@ PARENT_DIV = '<div><div class="text-base font-bold min-sm:text-xl text-center">1
 
 @pytest.fixture
 def ba(tmp_path):
-    assistant = BetAssistant(str(tmp_path / "validate.db"))
+    assistant = BetAssistant(str(tmp_path / "validate.db"), tz=ZoneInfo("UTC"))
     yield assistant
     assistant.close()
 

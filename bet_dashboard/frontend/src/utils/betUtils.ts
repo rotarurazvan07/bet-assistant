@@ -2,6 +2,118 @@
  * Utility functions for bet-related operations
  */
 
+const _tzFormatCache = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Build (and cache) an Intl formatter that renders an instant's wall-clock parts in a timezone.
+ */
+function _wallClockFormatter(timezone: string): Intl.DateTimeFormat {
+    let formatter = _tzFormatCache.get(timezone);
+    if (!formatter) {
+        formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            hourCycle: 'h23',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
+        _tzFormatCache.set(timezone, formatter);
+    }
+    return formatter;
+}
+
+/**
+ * Read the wall-clock time a timezone shows for an instant, expressed as UTC milliseconds.
+ */
+function _wallClockAsUtc(timezone: string, instantMs: number): number {
+    const parts = _wallClockFormatter(timezone).formatToParts(new Date(instantMs));
+    const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    return Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+}
+
+/**
+ * Convert a naive wall-clock string (as stored by the backend) into an epoch instant
+ * for the given IANA timezone.
+ *
+ * Backend match datetimes carry no offset: they are the wall clock of the configured
+ * match-data timezone. This applies that timezone's offset to get the true instant,
+ * independent of the browser's own timezone, and refines once so DST boundaries resolve.
+ *
+ * @param iso - Naive datetime, e.g. '2026-01-15T20:30:00'
+ * @param timezone - IANA timezone identifier the naive value is expressed in
+ * @returns Milliseconds since epoch, or NaN when the input is missing/unparseable
+ */
+export function naiveToInstant(iso?: string | null, timezone = 'UTC'): number {
+    if (!iso) return NaN;
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(iso);
+    if (!match) return NaN;
+
+    const wallAsUtc = Date.UTC(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        Number(match[4] ?? 0),
+        Number(match[5] ?? 0),
+        Number(match[6] ?? 0),
+    );
+
+    let instant = wallAsUtc;
+    for (let i = 0; i < 2; i += 1) {
+        instant = wallAsUtc - (_wallClockAsUtc(timezone, instant) - instant);
+    }
+    return instant;
+}
+
+/**
+ * Format a naive backend datetime for display in a specific timezone.
+ *
+ * Backend match datetimes are naive wall-clock strings expressed in the
+ * configured match-data timezone, so rendering must pin that timezone instead
+ * of inheriting the browser's. Passing no timezone (or null) falls back to the
+ * browser-local rendering used before the timezone contract existed.
+ *
+ * @param dateStr - Naive ISO datetime from the backend
+ * @param timezone - IANA timezone identifier, or null while it is still loading
+ * @param locale - BCP-47 locale (defaults to en-GB)
+ * @param options - Extra Intl.DateTimeFormatOptions merged over the defaults
+ * @returns Formatted date string, or '' when there is no date
+ */
+export function formatMatchTime(
+    dateStr?: string | null,
+    timezone?: string | null,
+    locale = 'en-GB',
+    options: Intl.DateTimeFormatOptions = {}
+): string {
+    if (!dateStr) return '';
+
+    // Detect if the string carries its own offset (Z or ±HH:MM).
+    // Such strings are true instants; parse them directly and render in the
+    // configured timezone (or browser-local if no timezone configured).
+    const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(dateStr.trim());
+
+    // Without a configured timezone (still loading, or request failed) fall back
+    // to the browser-local rendering the app used before the timezone contract.
+    const formatOptions: Intl.DateTimeFormatOptions = {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        ...options,
+        ...(timezone ? { timeZone: timezone } : {}),
+    };
+
+    const date = hasOffset
+        ? new Date(dateStr)
+        : timezone
+            ? new Date(naiveToInstant(dateStr, timezone))
+            : new Date(dateStr as string);
+    return date.toLocaleString(locale, formatOptions);
+}
+
 /**
  * Format date for display in bet components
  * @param dateStr - Date string to format
@@ -10,23 +122,16 @@
  */
 export function formatBetDate(
     dateStr?: string | null,
-    options: { includeWeekday?: boolean; includeYear?: boolean } = {}
+    options: { includeWeekday?: boolean; includeYear?: boolean; timezone?: string | null } = {}
 ): string {
-    if (!dateStr) return '';
-
-    const date = new Date(dateStr);
-    const { includeWeekday = false, includeYear = false } = options;
+    const { includeWeekday = false, includeYear = false, timezone = null } = options;
 
     const formatOptions: Intl.DateTimeFormatOptions = {
-        day: '2-digit',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
         ...(includeWeekday && { weekday: 'short' }),
         ...(includeYear && { year: 'numeric' })
     };
 
-    return date.toLocaleString('en-GB', formatOptions);
+    return formatMatchTime(dateStr, timezone, 'en-GB', formatOptions);
 }
 
 /**

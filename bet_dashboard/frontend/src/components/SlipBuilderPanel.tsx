@@ -3,6 +3,7 @@ import { marketLabel } from '../config/marketConfig';
 import type { CandidateLeg } from '../types';
 import { BaseCard } from './ui/BaseCard';
 import { BaseBadge } from './ui/BaseBadge';
+import { useConfigTimezone, formatMatchTime } from '../hooks/useConfigTimezone';
 
 interface Props {
     legs: CandidateLeg[];
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggleMinimize, isMobileSheet = false }: Props) {
+    const { timezone } = useConfigTimezone();
     const [units, setUnits] = useState(1);
 
     // Calculate total odds (multiply all valid odds)
@@ -146,13 +148,7 @@ export default function SlipBuilderPanel({ legs, onRemoveLeg, onSubmit, onToggle
                                         {leg.match_name}
                                     </p>
                                     <p className="text-[10px] font-mono mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-                                        {leg.datetime ? new Date(leg.datetime).toLocaleString('en-GB', {
-                                            weekday: 'short',
-                                            day: '2-digit',
-                                            month: 'short',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        }) : 'TBD'}
+                                        {leg.datetime ? formatMatchTime(leg.datetime, timezone, 'en-GB', { weekday: 'short' }) : 'TBD'}
                                     </p>
                                 </div>
                                 <button

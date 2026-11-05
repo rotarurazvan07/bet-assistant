@@ -56,6 +56,13 @@ export async function installDemoApi(page: Page, opts: DemoApiOpts = {}): Promis
             body: JSON.stringify({ sources: ['forebet', 'predictz', 'scorepredictor'] }),
         });
     });
+    await page.route((url) => apiPath(url.pathname, '/api/config/timezone'), async (route) => {
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ timezone: 'UTC' }),
+        });
+    });
     await page.route((url) => apiPath(url.pathname, '/api/status'), async (route) => {
         await route.fulfill({
             status: 200,

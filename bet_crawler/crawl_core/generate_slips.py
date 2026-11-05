@@ -2,6 +2,8 @@
 generate_slips module for handling the generate-slips mode logic
 """
 
+from zoneinfo import ZoneInfo
+
 from bet_crawler.crawler_logging import get_logger, log_event, reset_event_totals
 from bet_framework.BetAssistant import BetAssistant, BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
@@ -9,9 +11,22 @@ from bet_framework.MatchesManager import MatchesManager
 logger = get_logger(__name__)
 
 
-def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, profile_data: dict) -> None:
+def generate_slips(
+    matches_db_path: str,
+    slips_db_path: str,
+    profile_name: str,
+    profile_data: dict,
+    local_timezone: str,
+) -> None:
     """
     Generate slips for an already loaded profile.
+
+    Args:
+        matches_db_path: Path to the matches SQLite database.
+        slips_db_path: Path to the slips SQLite database.
+        profile_name: Name of the profile to generate slips for.
+        profile_data: Profile configuration dictionary.
+        local_timezone: IANA timezone identifier (e.g., "Europe/Bucharest").
     """
     if not profile_data:
         log_event(
@@ -33,7 +48,7 @@ def generate_slips(matches_db_path: str, slips_db_path: str, profile_name: str, 
         finally:
             matches_manager.close()
 
-        assistant = BetAssistant(slips_db_path)
+        assistant = BetAssistant(slips_db_path, ZoneInfo(local_timezone))
         assistant.load_matches(raw_df)
 
         units = float(profile_data.get("units", 1.0))

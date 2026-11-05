@@ -9,6 +9,7 @@ import json
 import os
 from datetime import datetime
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 import yaml
@@ -32,7 +33,7 @@ from .conftest import (
     make_result_html_pending,
 )
 
-DT = datetime(2026, 9, 25, 15, 0, 0)
+DT = datetime(2030, 1, 1, 20, 0, 0)
 
 
 def _sim_config():
@@ -67,7 +68,7 @@ def _consensus_match(home, away, url, source_prefix):
 
 
 def _leg_statuses(slips_db):
-    ba = BetAssistant(slips_db)
+    ba = BetAssistant(slips_db, tz=ZoneInfo("UTC"))
     try:
         rows = ba.fetch_rows("SELECT status, result_url FROM legs ORDER BY leg_id")
         return [(r["status"], r["result_url"]) for r in rows]
@@ -103,8 +104,8 @@ class TestFullPipelineP0:
 
         # 4. generate slip
         slips_db = str(tmp_cwd / "slips.db")
-        generate_slips(final_db, slips_db, "daily", dict(PROFILE))
-        ba = BetAssistant(slips_db)
+        generate_slips(final_db, slips_db, "daily", dict(PROFILE), "UTC")
+        ba = BetAssistant(slips_db, tz=ZoneInfo("UTC"))
         slips = ba.get_slips()
         ba.close()
         assert len(slips) == 1
@@ -117,7 +118,7 @@ class TestFullPipelineP0:
                 callback(url, make_result_html_ft("3:1"))
 
         with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):
-            validate_slips(slips_db)
+            validate_slips(slips_db, "UTC")
         statuses = _leg_statuses(slips_db)
         assert statuses == [("Won", statuses[0][1])]
         assert statuses[0][1] in ("https://alpha.com/m/1", "https://beta.com/m/2")
@@ -157,7 +158,7 @@ class TestFullPipelineP0:
                 sources=3,
             ),
         ]
-        ba = BetAssistant(slips_db)
+        ba = BetAssistant(slips_db, tz=ZoneInfo("UTC"))
         ba.save_slip("mixed", legs)
         ba.close()
 
@@ -172,7 +173,7 @@ class TestFullPipelineP0:
                 callback(url, pages[url])
 
         with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):
-            validate_slips(slips_db)
+            validate_slips(slips_db, "UTC")
         statuses = {url: status for status, url in _leg_statuses(slips_db)}
         assert statuses["https://r.com/ft"] == "Won"
         assert statuses["https://r.com/live"] == "Live"
@@ -268,8 +269,8 @@ class TestPipelineResilienceP1:
         final_db = str(tmp_cwd / "final.db")
         merge(final_db, str(tmp_cwd), SIM, {}, {"actions": ["alpha"]})
         slips_db = str(tmp_cwd / "slips.db")
-        generate_slips(final_db, slips_db, "daily", dict(PROFILE))
-        ba = BetAssistant(slips_db)
+        generate_slips(final_db, slips_db, "daily", dict(PROFILE), "UTC")
+        ba = BetAssistant(slips_db, tz=ZoneInfo("UTC"))
         assert ba.get_slips() == []
         ba.close()
 
@@ -277,5 +278,5 @@ class TestPipelineResilienceP1:
             assert urls == []
 
         with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):
-            validate_slips(slips_db)
+            validate_slips(slips_db, "UTC")
         assert _leg_statuses(slips_db) == []

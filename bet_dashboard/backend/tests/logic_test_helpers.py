@@ -151,6 +151,14 @@ def write_config(config_dir, services=None, runtime_state=None, profiles=None) -
     config_dir = Path(config_dir)
     default_services = {"generate_hour": 8, "generate_minute": 0, "toggles": {}}
     _write_yaml(config_dir / "services.yaml", services if services is not None else default_services)
+    # Add scraper_config with local_timezone for timezone-aware filtering
+    scraper_cfg = {
+        "local_timezone": "UTC",
+        "RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]},
+        "num_days_ahead": 3,
+        "SKIP_PATTERNS": [],
+    }
+    _write_yaml(config_dir / "scraper_config.yaml", scraper_cfg)
     if runtime_state is not None:
         _write_yaml(config_dir / "runtime_state.yaml", runtime_state)
     if profiles:
