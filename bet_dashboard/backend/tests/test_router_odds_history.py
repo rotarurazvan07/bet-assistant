@@ -88,9 +88,7 @@ class TestAllMovements:
             home="Past",
             away="Gone",
         )
-        future = make_match_row(
-            match_id="new", datetime=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=2)
-        )
+        future = make_match_row(match_id="new", datetime=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=2))
         logic = FakeDashboardLogic(df=make_matches_df([past, future]))
         client, _ = client_factory(logic=logic)
         data = client.get(f"{BASE}/movements/all").json()
@@ -116,9 +114,7 @@ class TestSignificantMovements:
 
     def test_no_significant_movement_excluded(self, client_factory) -> None:
         logic = FakeDashboardLogic()
-        logic._movement_strength = {
-            "home": {"direction": "up", "change_pct": 1.0, "significant": False}
-        }
+        logic._movement_strength = {"home": {"direction": "up", "change_pct": 1.0, "significant": False}}
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/movements/significant").json() == {}
 
@@ -133,9 +129,7 @@ class TestSignificantMovements:
 
     def test_past_match_excluded(self, client_factory) -> None:
 
-        past = make_match_row(
-            match_id="old", datetime=datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=2)
-        )
+        past = make_match_row(match_id="old", datetime=datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=2))
         logic = FakeDashboardLogic(df=make_matches_df([past]))
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/movements/significant").json() == {}
@@ -162,7 +156,7 @@ class TestRegression:
             make_match_row(match_id="m5", datetime=base + timedelta(days=5), home="I", away="J"),
         ]
         df = make_matches_df(rows)
-        
+
         # Sort by datetime descending (creates new index order)
         df = df.sort_values("datetime", ascending=False).reset_index(drop=False)
         # Now index is [4, 3, 2, 1, 0] but position 0 = m5, position 1 = m4, etc.
@@ -171,7 +165,7 @@ class TestRegression:
         # Filter to keep m4, m3, m2 (positions 1, 2, 3 in sorted df)
         filtered_df = df.iloc[1:4].copy()  # positions 1,2,3 -> original indices 3,2,1
         # filtered_df index is now [3, 2, 1] (non-RangeIndex)
-        
+
         logic = FakeDashboardLogic(df=filtered_df)
         client, _ = client_factory(logic=logic)
 
@@ -197,6 +191,7 @@ class TestRegression:
           * UTC: 04:00 > 06:00 = DROPPED (BUG)
         This test would FAIL with the old utcnow implementation.
         """
+
         # Create a FakeDashboardLogic with a non-UTC timezone
         class FakeLogicWithTZ(FakeDashboardLogic):
             def _local_tz(self) -> ZoneInfo:

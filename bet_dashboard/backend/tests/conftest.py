@@ -232,17 +232,15 @@ class FakeDashboardLogic:
 
         return _S()
 
-    def filter_matches(
-        self, search_text=None, date_from=None, date_to=None, excluded_sources=None
-    ):
+    def filter_matches(self, search_text=None, date_from=None, date_to=None, excluded_sources=None):
         self.calls.append("filter_matches")
         df = self.df
         if df.empty:
             return df.copy()
         if search_text:
-            mask = df["home"].str.contains(search_text, case=False, na=False) | df[
-                "away"
-            ].str.contains(search_text, case=False, na=False)
+            mask = df["home"].str.contains(search_text, case=False, na=False) | df["away"].str.contains(
+                search_text, case=False, na=False
+            )
             df = df[mask]
         return df.copy()
 
@@ -348,7 +346,5 @@ def broadcast_capture(monkeypatch):
     captured: list[dict] = []
     import core.ws as ws_module
 
-    monkeypatch.setattr(
-        ws_module.ws_manager, "broadcast_sync", lambda payload: captured.append(payload)
-    )
+    monkeypatch.setattr(ws_module.ws_manager, "broadcast_sync", lambda payload: captured.append(payload))
     return captured

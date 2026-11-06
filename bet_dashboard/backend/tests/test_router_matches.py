@@ -195,7 +195,6 @@ class TestGetMatchesFilters:
 
     def test_only_significant_movement_uses_real_one_history_threshold(self, client_factory, tmp_path) -> None:
         """A single prior odds snapshot (>=5% move) keeps the match when only_significant_movement filters."""
-        import json
         import os
 
         from bet_framework.MatchesManager import MatchesManager
@@ -223,10 +222,7 @@ class TestGetMatchesFilters:
 
             logic.get_odds_movement_with_strength = real_strength
             client, _ = client_factory(logic=logic)
-            homes = [
-                m["home"]
-                for m in client.get(BASE, params={"only_significant_movement": True}).json()["matches"]
-            ]
+            homes = [m["home"] for m in client.get(BASE, params={"only_significant_movement": True}).json()["matches"]]
             assert homes == ["SigOne"]
         finally:
             mgr.close()

@@ -1,7 +1,7 @@
 """Odds history API: snapshots and movements per match."""
 
-from datetime import datetime
 import logging
+from datetime import datetime
 
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
 from fastapi import APIRouter, HTTPException, Request
@@ -42,15 +42,10 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
             movement = logic.get_odds_movement(pos)
             match_id = getattr(row, "match_id", None)
             if not match_id:
-                logger.warning(
-                    f"Skipping row at position {pos}: missing match_id"
-                )
+                logger.warning(f"Skipping row at position {pos}: missing match_id")
                 continue
             if movement:
-                summary_kwargs = {
-                    stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key))
-                    for md in MARKET_CATALOG
-                }
+                summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
 
     return result
@@ -74,18 +69,12 @@ def get_significant_movements(request: Request) -> dict:
             strength = logic.get_odds_movement_with_strength(pos)
             if not strength:
                 continue
-            sig_count = sum(
-                1
-                for v in strength.values()
-                if isinstance(v, dict) and v.get("significant")
-            )
+            sig_count = sum(1 for v in strength.values() if isinstance(v, dict) and v.get("significant"))
             if sig_count == 0:
                 continue
             match_id = getattr(row, "match_id", None)
             if not match_id:
-                logger.warning(
-                    f"Skipping row at position {pos}: missing match_id"
-                )
+                logger.warning(f"Skipping row at position {pos}: missing match_id")
                 continue
             result[match_id] = strength
     return result
@@ -119,9 +108,7 @@ def get_match_odds_history(request: Request, match_id: int):
     history = logic.get_odds_history(match_id)
     movement = logic.get_odds_movement(match_id)
 
-    snapshots = [
-        OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history
-    ]
+    snapshots = [OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history]
 
     return OddsHistoryOut(
         match_id=match_id,
@@ -139,8 +126,5 @@ def get_match_movement(request: Request, match_id: int):
     movement = logic.get_odds_movement(match_id)
 
     # Build OddsMovementSummary dynamically from MARKET_CATALOG
-    summary_kwargs = {
-        stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key))
-        for md in MARKET_CATALOG
-    }
+    summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
     return OddsMovementSummary(**summary_kwargs)
