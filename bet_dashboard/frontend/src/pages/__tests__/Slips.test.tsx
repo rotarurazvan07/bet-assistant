@@ -140,6 +140,27 @@ describe('Slips page', () => {
         expect(screen.queryByText(/Live 1/)).not.toBeInTheDocument();
     });
 
+    it('validates results when crypto.randomUUID is unavailable', async () => {
+        const user = userEvent.setup();
+        let jobId = '';
+        server.use(
+            http.post('/api/slips/validate', async ({ request }) => {
+                const body = await request.json() as { job_id: string };
+                jobId = body.job_id;
+                return HttpResponse.json({ checked: 1, settled: 0, live: 0, live_data: [] });
+            }),
+        );
+        vi.stubGlobal('crypto', { randomUUID: undefined });
+        try {
+            renderPage();
+            await screen.findByText('Arsenal vs Chelsea');
+            await user.click(screen.getByRole('button', { name: 'Validate Results' }));
+            await waitFor(() => expect(jobId).not.toBe(''));
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it('shows live validation progress beside the action and can cancel', async () => {
         const user = userEvent.setup();
         let jobId = '';

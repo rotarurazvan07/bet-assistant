@@ -15,6 +15,13 @@ import { Box, Button, Drawer, SwipeableDrawer, Typography, useMediaQuery } from 
 const FILTERS_STORAGE_KEY = 'slips_filters_state';
 const PAGE_SIZE = 20;
 
+function createValidationJobId(): string {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+        return globalThis.crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 interface Props {
     refreshKey: number;
     liveData?: LiveData;
@@ -244,7 +251,7 @@ export default function Slips({
             return;
         }
 
-        const jobId = crypto.randomUUID();
+        const jobId = createValidationJobId();
         setValidationJobId(jobId);
         setCancelRequested(false);
         try {
