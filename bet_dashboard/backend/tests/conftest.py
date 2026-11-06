@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
@@ -27,7 +28,7 @@ for _p in (str(BACKEND_DIR), str(PROJECT_ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from core.logic import AppLogic  # noqa: E402
+from core.logic import AppLogic
 
 # ── Factories (data-factories pattern: overrides → complete object) ──────────
 
@@ -177,7 +178,14 @@ class FakeDashboardLogic:
             {"timestamp": "2030-01-01T10:00:00", "odds": {"home": 1.8, "draw": 3.5}},
             {"timestamp": "2030-01-01T16:00:00", "odds": {"home": 1.9, "draw": 3.4}},
         ]
-        self._movement = {"home": "up", "draw": "down", "away": None, "btts_yes": "up", "btts_no": "down", "over_25": "stable"}
+        self._movement = {
+            "home": "up",
+            "draw": "down",
+            "away": None,
+            "btts_yes": "up",
+            "btts_no": "down",
+            "over_25": "stable",
+        }
         self._movement_strength = {
             "home": {"direction": "up", "change_pct": 5.5, "significant": True},
             "draw": {"direction": "down", "change_pct": -2.9, "significant": False},
@@ -187,10 +195,19 @@ class FakeDashboardLogic:
         self._settings = {
             "services": {"generate_hour": 8, "generate_minute": 30, "toggles": {}},
             "runtime_state": {
-                "profile_last_run": {"low_risk": {"at": "2030-01-01T08:30:00+00:00", "status": "ok", "error": None}}
+                "profile_last_run": {
+                    "low_risk": {
+                        "at": "2030-01-01T08:30:00+00:00",
+                        "status": "ok",
+                        "error": None,
+                    }
+                }
             },
             "scraper_config": {
-                "RUNNER_SETS": {"local": ["forebet", "xgscore"], "actions": ["forebet", "predictz"]},
+                "RUNNER_SETS": {
+                    "local": ["forebet", "xgscore"],
+                    "actions": ["forebet", "predictz"],
+                },
                 "local_timezone": "UTC",
             },
         }
@@ -251,6 +268,10 @@ class FakeDashboardLogic:
         self.calls.append("get_pending_urls")
         return set(self._pending_urls)
 
+    def _local_tz(self) -> ZoneInfo:
+        """Return the configured local timezone for tests (UTC)."""
+        return ZoneInfo("UTC")
+
 
 # ── App/client builders ──────────────────────────────────────────────────────
 
@@ -259,7 +280,16 @@ def make_test_client(logic=None, app_mock=None):
     """Build a TestClient with all 8 routers and a spec-mocked AppLogic."""
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-    from routers import analytics, builder, matches, odds_history, profiles, services, slips, system
+    from routers import (
+        analytics,
+        builder,
+        matches,
+        odds_history,
+        profiles,
+        services,
+        slips,
+        system,
+    )
 
     mock = app_mock if app_mock is not None else MagicMock(spec=AppLogic)
     if logic is not None:

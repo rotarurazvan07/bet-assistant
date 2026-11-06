@@ -169,6 +169,28 @@ class TestCalculateMovementFromOdds:
         assert result["home"] == "stable"
         assert result["draw"] == "stable"
 
+    def test_single_history_entry_significant(self, manager) -> None:
+        """One prior snapshot is enough to flag a >=5% move as significant."""
+        odds = {
+            "home": 1.8,
+            "draw": 3.0,
+            "history": [{"ts": "2026-05-17T10:00:00", "home": 1.5, "draw": 3.0}],
+        }
+        result = manager.calculate_movement_with_strength(odds)
+        assert result["home"]["direction"] == "up"
+        assert result["home"]["significant"] is True
+
+    def test_single_history_entry_stable_not_significant(self, manager) -> None:
+        """Unchanged odds are never significant, regardless of history length."""
+        odds = {
+            "home": 1.5,
+            "draw": 3.0,
+            "history": [{"ts": "2026-05-17T10:00:00", "home": 1.5, "draw": 3.0}],
+        }
+        result = manager.calculate_movement_with_strength(odds)
+        assert result["home"]["direction"] == "stable"
+        assert result["home"]["significant"] is False
+
     def test_movement_missing_market_in_history(self, manager) -> None:
         odds = {
             "home": 1.5,

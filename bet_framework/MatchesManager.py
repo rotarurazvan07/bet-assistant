@@ -654,7 +654,7 @@ class MatchesManager(BufferedStorageManager):
         Returns dict mapping market -> {direction, change_pct, significant}.
         A movement is significant if |change_pct| >= 5% relative change
         OR |absolute_change| >= 0.10 for low odds (< 2.0).
-        Requires at least 2 history snapshots to be considered significant.
+        Requires at least 1 history snapshot to be considered significant.
         """
         if not odds_dict:
             return {}
@@ -664,7 +664,7 @@ class MatchesManager(BufferedStorageManager):
             return {}
         first_odds = history[0]
         markets = [spec.key for spec in MARKET_CATALOG]
-        has_enough_history = len(history) >= 2
+        has_enough_history = len(history) >= 1
         result: dict = {}
         for market in markets:
             # U1: canonical key IS the persisted Odds-dataclass field spelling;

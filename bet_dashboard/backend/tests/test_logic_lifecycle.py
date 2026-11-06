@@ -274,7 +274,14 @@ class TestAppLogicLifecycle:
         """[P0] Before the profile's own window the predicate never fires."""
         app = app_env.app
         app.settings.write(
-            "late", {"auto_generate": True, "generate_hour": 12, "generate_minute": 0, "units": 1.0}, subpath="profiles"
+            "late",
+            {
+                "auto_generate": True,
+                "generate_hour": 12,
+                "generate_minute": 0,
+                "units": 1.0,
+            },
+            subpath="profiles",
         )
         self._freeze_now(monkeypatch)
         assert app._is_generator_hour_met() is False
@@ -340,7 +347,15 @@ class TestAppLogicLifecycle:
                 },
             },
             # Same local day (2026-09-24 09:00 EEST = 06:00Z) → blocks today's run
-            runtime_state={"profile_last_run": {"due": {"at": "2026-09-24T06:00:00+00:00", "status": "ok", "error": None}}},
+            runtime_state={
+                "profile_last_run": {
+                    "due": {
+                        "at": "2026-09-24T06:00:00+00:00",
+                        "status": "ok",
+                        "error": None,
+                    }
+                }
+            },
         )
         app = env.app
         try:
@@ -364,7 +379,15 @@ class TestAppLogicLifecycle:
                 },
             },
             # Yesterday local (2026-09-23 09:00 EEST = 06:00Z) → allows today
-            runtime_state={"profile_last_run": {"due": {"at": "2026-09-23T06:00:00+00:00", "status": "ok", "error": None}}},
+            runtime_state={
+                "profile_last_run": {
+                    "due": {
+                        "at": "2026-09-23T06:00:00+00:00",
+                        "status": "ok",
+                        "error": None,
+                    }
+                }
+            },
         )
         app = env.app
         try:
@@ -486,7 +509,7 @@ class TestAppLogicLifecycle:
         movement = app_env.app.get_odds_movement_with_strength(0)
         assert movement["home"]["direction"] == "up"
         assert movement["home"]["change_pct"] == 5.56
-        assert movement["home"]["significant"] is False  # needs 2+ history entries
+        assert movement["home"]["significant"] is True  # 1+ history entries with >=5% change
 
     def test_get_odds_history_formats_snapshots_without_ts_key(self, app_env) -> None:
         """[P0] History snapshots expose timestamp + odds without the raw 'ts' key."""

@@ -193,6 +193,40 @@ class TestGetMatchesFilters:
         homes = [m["home"] for m in client.get(BASE, params={"only_significant_movement": True}).json()["matches"]]
         assert homes == ["Sig"]
 
+    def test_only_significant_movement_uses_real_one_history_threshold(self, client_factory, tmp_path) -> None:
+        """A single prior odds snapshot (>=5% move) keeps the match when only_significant_movement filters."""
+        import os
+
+        from bet_framework.MatchesManager import MatchesManager
+
+        mgr = MatchesManager(os.path.join(tmp_path, "m.db"))
+        try:
+            sig_row = make_match_row(
+                home="SigOne",
+                result_url="https://x.com/sig",
+                odds={"home": 1.6, "draw": 3.0, "history": [{"ts": "2030-01-01T10:00:00", "home": 1.5}]},
+            )
+            # 0.66% move on 1.51 -> below both the 5% and 0.10 absolute rules
+            flat_row = make_match_row(
+                home="FlatOne",
+                result_url="https://x.com/flat",
+                odds={"home": 1.52, "draw": 3.0, "history": [{"ts": "2030-01-01T10:00:00", "home": 1.51}]},
+            )
+            logic = FakeDashboardLogic(df=make_matches_df([sig_row, flat_row]))
+
+            def real_strength(idx):
+                odds = logic.match_df.iloc[idx].get("odds")
+                if not isinstance(odds, dict):
+                    return {}
+                return mgr.calculate_movement_with_strength(odds)
+
+            logic.get_odds_movement_with_strength = real_strength
+            client, _ = client_factory(logic=logic)
+            homes = [m["home"] for m in client.get(BASE, params={"only_significant_movement": True}).json()["matches"]]
+            assert homes == ["SigOne"]
+        finally:
+            mgr.close()
+
     def test_combined_consensus_and_odds_filter(self, client_factory) -> None:
         both = self._only(cons_home=80.0, odds_home=2.5, home="Both")
         other_market = self._only(home="OtherMarket")
