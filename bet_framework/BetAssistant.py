@@ -41,13 +41,17 @@ picks, preventing the slip from drifting far from the target total odds.
 import hashlib
 import math
 import re
+from collections.abc import Callable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime
+from threading import Event, Lock
 from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 from bs4 import BeautifulSoup
-from scrape_kit import BaseStorageManager, get_logger, scrape
+from scrape_kit import BaseStorageManager, get_logger
+from scrape_kit.fetcher import fetch, is_blocked
 
 from bet_framework.core.consensus import calc_consensus
 from bet_framework.core.outcomes import determine_outcome, parse_score
@@ -561,6 +565,172 @@ class BetAssistant(BaseStorageManager):
         rows = self.fetch_rows(query, params)
         return self._rows_to_slips(rows)
 
+    def get_slips_page(
+        self,
+        profile: str | list[str] | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        hide_settled: bool = False,
+        live_only: bool = False,
+        page: int = 1,
+        page_size: int = 20,
+        sort_by: str = "date_desc",
+    ) -> tuple[list[BetSlip], int, list[str]]:
+        """Return one filtered, sorted page of slips, its total, and available profiles."""
+        if page < 1 or page_size < 1:
+            raise ValueError("page and page_size must be positive")
+        if page_size > 100:
+            raise ValueError("page_size must not exceed 100")
+
+        sort_expressions = {
+            "date_desc": "s.date_generated DESC",
+            "date_asc": "s.date_generated ASC",
+            "odds_desc": "s.total_odds DESC",
+            "odds_asc": "s.total_odds ASC",
+            "stake_desc": "COALESCE(s.units, 0) DESC",
+            "stake_asc": "COALESCE(s.units, 0) ASC",
+            "net_profit_desc": """CASE
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -COALESCE(s.units, 0)
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live') THEN 0
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending') THEN -1e100
+                ELSE s.total_odds * COALESCE(s.units, 0) - COALESCE(s.units, 0)
+            END DESC""",
+            "net_profit_asc": """CASE
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost') THEN -COALESCE(s.units, 0)
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live') THEN 0
+                WHEN EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending') THEN 1e100
+                ELSE s.total_odds * COALESCE(s.units, 0) - COALESCE(s.units, 0)
+            END ASC""",
+        }
+        if sort_by not in sort_expressions:
+            raise ValueError(f"Unsupported slip sort order: {sort_by}")
+
+        conditions = []
+        params: list[Any] = []
+        if profile:
+            if isinstance(profile, list):
+                placeholders = ", ".join("?" for _ in profile)
+                conditions.append(f"s.profile IN ({placeholders})")
+                params.extend(profile)
+            elif profile != "all":
+                conditions.append("s.profile = ?")
+                params.append(profile)
+        if date_from:
+            conditions.append("substr(s.date_generated, 1, 10) >= ?")
+            params.append(date_from)
+        if date_to:
+            conditions.append("substr(s.date_generated, 1, 10) <= ?")
+            params.append(date_to)
+        if hide_settled:
+            conditions.extend(
+                [
+                    "NOT EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Lost')",
+                    """(
+                        EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Pending')
+                        OR EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live')
+                    )""",
+                ]
+            )
+        if live_only:
+            conditions.append("EXISTS (SELECT 1 FROM legs l WHERE l.slip_id = s.slip_id AND l.status = 'Live')")
+
+        where_sql = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        count_rows = self.fetch_rows(f"SELECT COUNT(*) FROM slips s{where_sql}", params)
+        total = int(count_rows[0][0]) if count_rows else 0
+
+        profile_conditions = []
+        profile_params: list[Any] = []
+        if date_from:
+            profile_conditions.append("substr(date_generated, 1, 10) >= ?")
+            profile_params.append(date_from)
+        if date_to:
+            profile_conditions.append("substr(date_generated, 1, 10) <= ?")
+            profile_params.append(date_to)
+        profiles_where = f" WHERE {' AND '.join(profile_conditions)}" if profile_conditions else ""
+        profile_rows = self.fetch_rows(
+            f"SELECT DISTINCT profile FROM slips{profiles_where} ORDER BY profile",
+            profile_params,
+        )
+        profiles = [row[0] for row in profile_rows]
+
+        offset = (page - 1) * page_size
+        rows = self.fetch_rows(
+            f"""
+            SELECT
+                s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
+                l.match_name, l.match_datetime, l.market, l.market_type, l.odds,
+                l.status, l.result_url, l.league, l.predictions, l.final_score
+            FROM (
+                SELECT s.*
+                FROM slips s{where_sql}
+                ORDER BY {sort_expressions[sort_by]}, s.date_generated DESC, s.slip_id DESC
+                LIMIT ? OFFSET ?
+            ) s
+            LEFT JOIN legs l ON s.slip_id = l.slip_id
+            ORDER BY {sort_expressions[sort_by]}, s.date_generated DESC, s.slip_id DESC
+            """,
+            [*params, page_size, offset],
+        )
+        return self._rows_to_slips(rows), total, profiles
+
+    def get_daily_slip_pnl(
+        self,
+        date_from: str,
+        date_to: str,
+        profile: str | list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return per-day slip counts and realized P&L for a date range."""
+        conditions = ["substr(s.date_generated, 1, 10) >= ?", "substr(s.date_generated, 1, 10) <= ?"]
+        params: list[Any] = [date_from, date_to]
+        if profile:
+            if isinstance(profile, list):
+                placeholders = ", ".join("?" for _ in profile)
+                conditions.append(f"s.profile IN ({placeholders})")
+                params.extend(profile)
+            elif profile != "all":
+                conditions.append("s.profile = ?")
+                params.append(profile)
+
+        status_sql = """CASE
+            WHEN EXISTS (SELECT 1 FROM legs lost WHERE lost.slip_id = s.slip_id AND lost.status = 'Lost') THEN 'Lost'
+            WHEN EXISTS (SELECT 1 FROM legs live WHERE live.slip_id = s.slip_id AND live.status = 'Live') THEN 'Live'
+            WHEN EXISTS (SELECT 1 FROM legs pending WHERE pending.slip_id = s.slip_id AND pending.status = 'Pending') THEN 'Pending'
+            ELSE 'Won'
+        END"""
+        rows = self.fetch_rows(
+            f"""
+            WITH filtered_slips AS (
+                SELECT s.*, {status_sql} AS slip_status
+                FROM slips s
+                WHERE {" AND ".join(conditions)}
+            )
+            SELECT
+                substr(date_generated, 1, 10) AS slip_date,
+                COUNT(*) AS slips,
+                SUM(CASE WHEN slip_status = 'Won' THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN slip_status = 'Lost' THEN 1 ELSE 0 END) AS losses,
+                SUM(CASE
+                    WHEN slip_status = 'Won' THEN (total_odds * units) - units
+                    WHEN slip_status = 'Lost' THEN -units
+                    ELSE 0
+                END) AS net_profit
+            FROM filtered_slips
+            GROUP BY substr(date_generated, 1, 10)
+            ORDER BY slip_date
+            """,
+            params,
+        )
+        return [
+            {
+                "date": row["slip_date"],
+                "slips": int(row["slips"]),
+                "wins": int(row["wins"]),
+                "losses": int(row["losses"]),
+                "net_profit": float(row["net_profit"] or 0),
+            }
+            for row in rows
+        ]
+
     def delete_slip(self, slip_id: int) -> None:
         """Delete a slip and its legs by id."""
         with self.db_lock:
@@ -753,15 +923,28 @@ class BetAssistant(BaseStorageManager):
 
         return None
 
-    def validate_slips(self) -> ValidationReport:
-        """Scrape result pages, settle legs, and update slip statuses."""
+    def validate_slips(
+        self,
+        progress_callback: Callable[[int, int, str], None] | None = None,
+        cancel_event: Event | None = None,
+    ) -> ValidationReport:
+        """Scrape result pages, settle legs, and optionally report progress."""
         self.reopen_if_changed()
 
         pending = self.fetch_rows(
-            "SELECT leg_id, result_url, market, market_type, match_name FROM legs WHERE status IN ('Pending', 'Live')"
+            """
+            SELECT l.leg_id, l.result_url, l.market, l.market_type, l.match_name
+            FROM legs l
+            WHERE l.status IN ('Pending', 'Live')
+              AND COALESCE(TRIM(l.result_url), '') != ''
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM legs settled
+                  WHERE settled.slip_id = l.slip_id AND settled.status = 'Lost'
+              )
+            """
         )
 
-        checked = len(pending)
         errors = [0]
         live_matches: list[LegOutcomeInfo] = []
         settled_matches: list[LegOutcomeInfo] = []
@@ -774,10 +957,99 @@ class BetAssistant(BaseStorageManager):
             url_to_legs[url].append((leg_id, market, market_type, match_name))
 
         urls = list(url_to_legs.keys())
+        checked = len(urls)
         if not urls:
+            if progress_callback:
+                progress_callback(0, 0, "")
             return ValidationReport(checked=0, settled=[], live=[], errors=0)
 
-        def _handle_url(url: str, html: str) -> None:
+        def _fetch_url(url: str) -> tuple[str, str | None]:
+            """Fetch URL and return (url, html or None). Called from worker thread."""
+            if cancel_event and cancel_event.is_set():
+                return url, None
+            last_error: Exception | None = None
+            try:
+                for stealthy_headers in (False, True):
+                    if cancel_event and cancel_event.is_set():
+                        return url, None
+                    try:
+                        html = fetch(url, stealthy_headers=stealthy_headers)
+                        if not is_blocked(html):
+                            return url, html
+                    except Exception as exc:
+                        last_error = exc
+                if last_error:
+                    raise last_error
+                raise RuntimeError(f"Fast scrape remained blocked for {url}")
+            except Exception as exc:
+                logger.error(f"[BetAssistant] scrape failure on {url}: {exc}")
+                return url, None
+
+        max_concurrency = 10
+        completed = 0
+        progress_lock = Lock()
+        active_urls: list[str] = []
+
+        def _report_progress(current_url: str = "") -> None:
+            if not progress_callback:
+                return
+            with progress_lock:
+                active_url = active_urls[0] if active_urls else current_url
+                leg_rows = url_to_legs.get(active_url)
+                current_match = leg_rows[0][3] if leg_rows else ""
+                checked_so_far = completed
+            progress_callback(checked_so_far, checked, current_match)
+
+        executor = ThreadPoolExecutor(max_workers=max_concurrency)
+        futures: dict[Future[tuple[str, str | None]], str] = {}
+        next_url = 0
+        cancelled = False
+        # Collect results from worker threads to apply in main thread
+        pending_results: list[tuple[str, str]] = []  # (url, html)
+        try:
+            _report_progress()
+            while next_url < len(urls) and len(futures) < max_concurrency:
+                if cancel_event and cancel_event.is_set():
+                    cancelled = True
+                    break
+                url = urls[next_url]
+                futures[executor.submit(_fetch_url, url)] = url
+                next_url += 1
+
+            while futures and not cancelled:
+                if cancel_event and cancel_event.is_set():
+                    cancelled = True
+                    break
+                done, _ = wait(futures, timeout=0.2, return_when=FIRST_COMPLETED)
+                for future in done:
+                    url = futures.pop(future)
+                    if cancel_event and cancel_event.is_set():
+                        cancelled = True
+                        break
+                    try:
+                        url, html = future.result()
+                        if html:
+                            pending_results.append((url, html))
+                    except Exception as exc:
+                        errors[0] += 1
+                        logger.error(f"[BetAssistant] scrape failure on {url}: {exc}")
+
+                    with progress_lock:
+                        completed += 1
+                    _report_progress(url)
+                    if next_url < len(urls) and not (cancel_event and cancel_event.is_set()):
+                        next_url_url = urls[next_url]
+                        futures[executor.submit(_fetch_url, next_url_url)] = next_url_url
+                        next_url += 1
+                cancelled = bool(cancel_event and cancel_event.is_set())
+        finally:
+            if cancelled:
+                for future in futures:
+                    future.cancel()
+            executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
+
+        # Process all results in main thread (thread-safe DB access)
+        for url, html in pending_results:
             try:
                 base_info = _parse_match_result_html(html, url)
 
@@ -799,22 +1071,12 @@ class BetAssistant(BaseStorageManager):
                 errors[0] += 1
                 logger.error(f"[BetAssistant] parse error on {url}: {e}")
 
-        try:
-            scrape(
-                urls,
-                _handle_url,
-                mode="fast",
-                max_concurrency=10,
-            )
-        except Exception as e:
-            logger.error(f"[BetAssistant] Scrape failure: {e}")
-            errors[0] += 1
-
         return ValidationReport(
             checked=checked,
             settled=settled_matches,
             live=live_matches,
             errors=errors[0],
+            cancelled=cancelled,
         )
 
     def update_leg(self, leg_id: int, status: str, final_score: str | None = None) -> None:

@@ -81,8 +81,7 @@ test('Discover empty CTAs: Pull posts /api/pull and Adjust Filters opens drawer'
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', timestamp: '2026-09-24T12:00:00' }) });
     });
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Discover' })).toBeVisible();
-    await expect(page.locator('[data-empty-state]')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'No matches yet' })).toBeVisible();
     await page.getByRole('button', { name: 'Pull Update Now' }).click();
     await expect.poll(() => pulled).toBe(1);
     await page.getByRole('button', { name: 'Adjust Filters' }).click();
@@ -111,8 +110,7 @@ test('Track empty CTAs: Generate posts and Go to Build navigates', async ({ page
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ generated: 0, by_profile: {} }) });
     });
     await page.goto('/slips');
-    await expect(page.getByRole('heading', { name: 'Track' })).toBeVisible();
-    await expect(page.getByText('No slips yet')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'No slips yet' })).toBeVisible();
     await page.getByRole('region', { name: 'No slips yet' }).getByRole('button', { name: 'Generate Slips', exact: true }).click();
     await expect.poll(() => generated).toBe(1);
     await page.getByRole('button', { name: 'Go to Build' }).click();

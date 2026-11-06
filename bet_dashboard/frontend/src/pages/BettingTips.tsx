@@ -1,15 +1,16 @@
 import {useCallback,  useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
-import { getAllMovements } from '../api/oddsHistory';
-import { addSlip, fetchSlips, fetchSourcesConfig, pullDb } from '../api/data';
+import { getAllMovementDetails } from '../api/oddsHistory';
+import { addSlip, fetchAllSlips, fetchSourcesConfig, pullDb } from '../api/data';
 import EmptyState, { DiscoverEmptyIcon } from '../components/EmptyState';
-import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} from '../types';
+import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementDetails, BetSlip} from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
 import { FirstSlipToast } from '../components/OnboardingTour';
 import { markFirstSlip } from '../components/tourStorage';
-import type { GlobalFilters } from '../components/Layout';
+import DateRangeFields from '../components/DateRangeFields';
+import { usePageDateRange } from '../hooks/usePageDateRange';
 import type { MatchesPage } from '../types';
 import { TooltipIcon } from '../components/ui';
 import { getTableColumns, MARKET_COLUMNS, ALL_MARKETS, marketLabel } from '../config/marketConfig';
@@ -23,9 +24,10 @@ const PAGE_SIZE = 40;
 // and are dropped instead of failing validation after the legacy shim removal.
 const STORAGE_KEY = 'betting_tips_state_v2';
 
-interface Props { filters: GlobalFilters; refreshKey: number }
+interface Props { refreshKey: number }
 
-export default function BettingTips({ filters, refreshKey }: Props) {
+export default function BettingTips({ refreshKey }: Props) {
+    const { dateFrom, setDateFrom, dateTo, setDateTo } = usePageDateRange('discover');
     const [data, setData] = useState<MatchesPage | null>(null);
     const [loading, setLoading] = useState(false);
     const topRef = useRef<HTMLDivElement>(null);
@@ -42,15 +44,15 @@ export default function BettingTips({ filters, refreshKey }: Props) {
 
     // Fetch slips from backend to highlight cells already in slips
     const [slipSelections, setSlipSelections] = useState<Set<string>>(new Set());
-    const [movements, setMovements] = useState<Record<string, OddsMovementSummary>>({});
+    const [movements, setMovements] = useState<Record<string, OddsMovementDetails>>({});
 
     useEffect(() => {
         let cancelled = false;
         const loadSlips = async () => {
             try {
-                const slipsData = await fetchSlips({ hide_settled: true });
+                const slipsData = await fetchAllSlips({ hide_settled: true });
                 const selections = new Set<string>();
-                slipsData.slips.forEach((slip: BetSlip) => {
+                slipsData.forEach((slip: BetSlip) => {
                     // Only consider pending or live slips
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
                         slip.legs.forEach((leg: BetLeg) => {
@@ -188,7 +190,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     // Reset to page 1 when any filter changes — render-time adjustment
     // (React-documented "adjust state when a prop changes" pattern;
     // replaces setState-in-effect flagged by react-hooks/set-state-in-effect).
-    const resetKey = `${filters.dateFrom}|${filters.dateTo}|${refreshKey}|${search}|${minConsensus}|${minOdds}|${onlySignificantMovement}|${Array.from(excludedSources).join(',')}`;
+    const resetKey = `${dateFrom}|${dateTo}|${refreshKey}|${search}|${minConsensus}|${minOdds}|${onlySignificantMovement}|${Array.from(excludedSources).join(',')}`;
     const [prevResetKey, setPrevResetKey] = useState(resetKey);
     if (resetKey !== prevResetKey) {
         setPrevResetKey(resetKey);
@@ -198,7 +200,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     // Fetch odds movements
     useEffect(() => {
         let cancelled = false;
-        getAllMovements()
+        getAllMovementDetails()
             .then(d => { if (!cancelled) setMovements(d); })
             .catch(() => {});
         return () => { cancelled = true; };
@@ -211,8 +213,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         fetchMatches({
             page, page_size: PAGE_SIZE,
             search: search || undefined,
-            date_from: filters.dateFrom || undefined,
-            date_to: filters.dateTo || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
             sort_by: sortBy,
             sort_dir: sortDir,
             min_consensus: minConsensus,
@@ -225,7 +227,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                 setData({ total: 0, page: 1, page_size: PAGE_SIZE, total_pages: 1, matches: [] });
                 setLoading(false);
             });
-    }, [page, filters.dateFrom, filters.dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey, excludedSources]);
+    }, [page, dateFrom, dateTo, search, minConsensus, minOdds, onlySignificantMovement, sortBy, sortDir, refreshKey, excludedSources]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -239,6 +241,8 @@ export default function BettingTips({ filters, refreshKey }: Props) {
         setMinConsensus(null);
         setMinOdds(null);
         setOnlySignificantMovement(false);
+        setDateFrom('');
+        setDateTo('');
         setSortBy('datetime');
         setSortDir('asc');
         setExcludedSources(new Set());
@@ -383,9 +387,9 @@ export default function BettingTips({ filters, refreshKey }: Props) {
             setPendingLegs([]);
             // Refresh slip selections after adding
             try {
-                const slipsData = await fetchSlips({ hide_settled: true });
+                const slipsData = await fetchAllSlips({ hide_settled: true });
                 const selections = new Set<string>();
-                slipsData.slips.forEach((slip: BetSlip) => {
+                slipsData.forEach((slip: BetSlip) => {
                     if (slip.slip_status === 'Pending' || slip.slip_status === 'Live') {
                         slip.legs.forEach((leg: BetLeg) => {
                             if (leg.result_url && leg.market) {
@@ -408,7 +412,7 @@ export default function BettingTips({ filters, refreshKey }: Props) {
     return (
         <>
         <div ref={topRef} style={{
-            height: 'calc(100vh - 178px)',
+            height: '93.9vh',
             boxSizing: 'border-box',
             display: 'flex',
             flexDirection: 'column',
@@ -419,18 +423,12 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '0px'
+                        marginBottom: '5px'
                     }}>
                         <div style={{
                             display: 'flex',
                             flexDirection: 'column'
                         }}>
-                            <h2 style={{
-                                margin: 0,
-                                color: 'var(--text-bright)',
-                                fontSize: '1.75rem',
-                                fontWeight: 'bold'
-                            }}>Discover</h2>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                                 {data && data.total != null && (
                                     <span style={{
@@ -453,6 +451,13 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                             aria-controls="discover-filters-drawer"
                         >
                             Filters
+                            {(dateFrom || dateTo) && (
+                                <span
+                                    aria-label="Date range active"
+                                    className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
+                                    style={{ background: 'var(--accent)' }}
+                                />
+                            )}
                         </Button>
                     </div>
 
@@ -467,6 +472,12 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                                     Filters
                                 </Typography>
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    <DateRangeFields
+                                        dateFrom={dateFrom}
+                                        dateTo={dateTo}
+                                        onDateFromChange={setDateFrom}
+                                        onDateToChange={setDateTo}
+                                    />
                                     <input
                                         type="text"
                                         placeholder="Filter by team..."
@@ -756,24 +767,23 @@ export default function BettingTips({ filters, refreshKey }: Props) {
                         )}
                     </div>
 
-                    {/* Pagination - outside table */}
-                    {data && data.total > 0 && (
-                        <div style={{ flexShrink: 0 }}>
+                    {/* Keep the minimized builder aligned with pagination controls. */}
+                    <div className="relative flex min-h-[76px] shrink-0 items-center justify-center" data-testid="pagination-controls">
+                        {data && data.total > 0 && (
                             <Pagination page={page} totalPages={data.total_pages} onPageChange={handlePageChange} />
-                        </div>
-                    )}
+                        )}
+                        <FloatingSlipBuilder
+                            legs={pendingLegs}
+                            onRemoveLeg={handleRemoveLeg}
+                            onSubmit={handleAddSlip}
+                            isMinimized={isSlipMinimized}
+                            onToggleMinimize={handleToggleSlip}
+                            pulseToken={legAddNonce}
+                        />
+                    </div>
 
         </div>
 
-        {/* Floating Slip Builder - outside overflow container so fixed positioning works */}
-        <FloatingSlipBuilder
-                legs={pendingLegs}
-                onRemoveLeg={handleRemoveLeg}
-                onSubmit={handleAddSlip}
-                isMinimized={isSlipMinimized}
-                onToggleMinimize={handleToggleSlip}
-                pulseToken={legAddNonce}
-            />
         <Snackbar
             open={toast != null}
             autoHideDuration={2000}

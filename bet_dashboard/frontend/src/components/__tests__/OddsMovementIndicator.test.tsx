@@ -28,6 +28,11 @@ describe('OddsMovementIndicator', () => {
         expect(screen.getByTitle('Odds falling (market agrees)')).toBeInTheDocument();
     });
 
+    it('includes the absolute percentage change rounded to two decimals', () => {
+        render(<OddsMovementIndicator direction="down" changePct={-2.9} />);
+        expect(screen.getByTitle('Odds falling by 2.90% (market agrees)')).toBeInTheDocument();
+    });
+
     it('applies sm size class by default and md when requested', () => {
         // SVG className is SVGAnimatedString in jsdom — assert via getAttribute
         const { container: smC } = render(<OddsMovementIndicator direction="up" />);

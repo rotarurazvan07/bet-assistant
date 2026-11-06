@@ -14,7 +14,6 @@ import json
 import os
 import urllib.error
 from datetime import datetime
-from types import SimpleNamespace
 
 import pytest
 from tests.logic_test_helpers import (
@@ -586,7 +585,7 @@ class TestAppLogicLifecycle:
             assert "profile_last_generated" not in runtime
             assert "profile_last_generated_at" not in runtime
             assert "profile_run_status" not in runtime
-            assert broadcast_capture[-1]["event"] == "slips_updated"
+            assert [event["event"] for event in broadcast_capture[-2:]] == ["slips_updated", "generation_updated"]
         finally:
             app._assistant.conn.close()
             app._matches_manager.close()
@@ -615,15 +614,12 @@ class TestAppLogicLifecycle:
         assert not broadcast_capture
 
     def test_do_verify_broadcasts_live_leg_data(self, app_env, monkeypatch, broadcast_capture) -> None:
-        """[P0] _do_verify maps live legs to {match: score/minute} and broadcasts."""
-        from bet_framework.core.Slip import LegOutcomeInfo
-
-        report = SimpleNamespace(live=[LegOutcomeInfo(leg_id=1, match_name="M 1", market="1", score="1:0", minute="23")])
-        monkeypatch.setattr(app_env.app, "validate_slips", lambda: report)
+        """_do_verify runs validation through the progress-broadcasting workflow."""
+        called = []
+        monkeypatch.setattr(app_env.app, "validate_and_broadcast", lambda: called.append(True))
         app_env.app._do_verify()
-        payload = broadcast_capture[-1]
-        assert payload["event"] == "slips_updated"
-        assert payload["live_data"] == {"M 1": {"score": "1:0", "minute": "23"}}
+        assert called == [True]
+        assert not broadcast_capture
 
     def test_do_verify_swallows_errors_without_broadcast(self, app_env, monkeypatch, broadcast_capture) -> None:
         """[P1] A failing verify is logged, swallowed, and never broadcast."""
@@ -631,7 +627,7 @@ class TestAppLogicLifecycle:
         def boom():
             raise RuntimeError("nope")
 
-        monkeypatch.setattr(app_env.app, "validate_slips", boom)
+        monkeypatch.setattr(app_env.app, "validate_and_broadcast", boom)
         app_env.app._do_verify()
         assert not broadcast_capture
 

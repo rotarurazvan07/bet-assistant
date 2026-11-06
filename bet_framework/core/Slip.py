@@ -111,6 +111,7 @@ class ValidationReport:
     settled: list[LegOutcomeInfo]
     live: list[LegOutcomeInfo]
     errors: int
+    cancelled: bool = False
 
 
 @dataclass
@@ -169,7 +170,9 @@ class BetSlip:
 
         if isinstance(self.total_odds, float) and (math.isnan(self.total_odds) or math.isinf(self.total_odds)):
             self.total_odds = 1.00
-        if isinstance(self.units, float) and (math.isnan(self.units) or math.isinf(self.units)):
+        if self.units is None:
+            self.units = 0.0
+        elif isinstance(self.units, float) and (math.isnan(self.units) or math.isinf(self.units)):
             self.units = 1.0
 
 

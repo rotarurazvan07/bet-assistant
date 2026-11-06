@@ -1,6 +1,6 @@
 """[P0] API tests for the slips router.
 
-Covers: POST /api/slips validation + 400/422, GET filters
+Covers: POST /api/slips validation + 400/422, paginated GET filters
 (profiles, profiles[] alias, dates, hide_settled, live_only),
 POST /validate_manual, DELETE /{id}, POST /validate, POST /generate.
 """
@@ -96,7 +96,11 @@ class TestGetSlips:
 
     def test_get_slips_envelope_shape(self, client) -> None:
         data = client.get(BASE).json()
-        assert set(data) == {"slips", "stats", "profiles"}
+        assert set(data) == {"slips", "profiles", "page", "page_size", "total", "total_pages"}
+        assert data["page"] == 1
+        assert data["page_size"] == 20
+        assert data["total"] == 1
+        assert data["total_pages"] == 1
         assert data["profiles"] == ["manual"]
         slip = data["slips"][0]
         for key in ("slip_id", "date_generated", "profile", "total_odds", "units", "slip_status", "legs"):
@@ -114,6 +118,12 @@ class TestGetSlips:
         )
         for key in leg_keys:
             assert key in slip["legs"][0]
+
+    def test_slips_endpoint_does_not_calculate_stats(self, client, fake_logic) -> None:
+        response = client.get(BASE).json()
+
+        assert "stats" not in response
+        assert "stats" not in fake_logic.calls
 
     def test_get_slips_enum_status_serialized_to_string(self, client_factory) -> None:
         from bet_framework.markets.enums import Outcome
@@ -160,29 +170,66 @@ class TestGetSlips:
 
     def test_profiles_query_param_forwarded(self, client, fake_logic) -> None:
         client.get(BASE, params={"profiles": "safe"})
-        assert "get_slips" in fake_logic.calls
+        assert fake_logic.last_slips_page_params["profile"] == ["safe"]
 
     def test_profiles_bracket_alias_handled(self, client, fake_logic) -> None:
         client.get(BASE, params={"profiles[]": "safe"})
-        assert "get_slips" in fake_logic.calls
+        assert fake_logic.last_slips_page_params["profile"] == ["safe"]
 
     def test_date_filters_forwarded(self, client, fake_logic) -> None:
         client.get(BASE, params={"date_from": "2030-01-01", "date_to": "2030-01-31"})
-        assert "get_slips" in fake_logic.calls
+        assert fake_logic.last_slips_page_params["date_from"] == "2030-01-01"
+        assert fake_logic.last_slips_page_params["date_to"] == "2030-01-31"
 
     def test_nan_floats_sanitized_to_none(self, client_factory) -> None:
         slip = make_slip(total_odds=float("nan"))
         client, _ = client_factory(logic=FakeDashboardLogic(slips=[slip]))
         assert client.get(BASE).json()["slips"][0]["total_odds"] is None
 
-    def test_stats_included_in_response(self, client) -> None:
-        data = client.get(BASE).json()
-        assert data["stats"]["win_rate"] == 100.0
+    def test_pagination_and_sort_params_are_forwarded(self, client_factory) -> None:
+        logic = FakeDashboardLogic(slips=[make_slip(slip_id=i, units=5 - i) for i in range(1, 5)])
+        client, _ = client_factory(logic=logic)
+        data = client.get(BASE, params={"page": 2, "page_size": 2, "sort_by": "stake_asc"}).json()
+        assert [slip["slip_id"] for slip in data["slips"]] == [2, 1]
+        assert data["total"] == 4
+        assert data["page"] == 2
+        assert data["page_size"] == 2
+        assert data["total_pages"] == 2
+        assert logic.last_slips_page_params["sort_by"] == "stake_asc"
+
+    def test_invalid_page_size_is_rejected(self, client) -> None:
+        assert client.get(BASE, params={"page_size": 0}).status_code == 422
+
+    def test_invalid_sort_is_rejected(self, client) -> None:
+        assert client.get(BASE, params={"sort_by": "random"}).status_code == 422
 
     def test_profiles_with_slips_union_sorted(self, client_factory) -> None:
         logic = FakeDashboardLogic(slips=[make_slip(profile="zeta"), make_slip(profile="alpha", slip_id=2)])
         client, _ = client_factory(logic=logic)
         assert client.get(BASE).json()["profiles"] == ["alpha", "zeta"]
+
+
+class TestSlipCalendar:
+    def test_calendar_returns_daily_pnl_for_requested_range(self, client, fake_logic) -> None:
+        response = client.get(
+            f"{BASE}/calendar",
+            params={"date_from": "2030-01-01", "date_to": "2030-01-31", "profiles": "manual"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"days": [{"date": "2030-01-01", "slips": 1, "wins": 1, "losses": 0, "net_profit": 2.0}]}
+        assert "get_daily_slip_pnl" in fake_logic.calls
+
+    def test_calendar_rejects_reversed_date_range(self, client) -> None:
+        response = client.get(
+            f"{BASE}/calendar",
+            params={"date_from": "2030-01-31", "date_to": "2030-01-01"},
+        )
+
+        assert response.status_code == 422
+
+    def test_calendar_requires_valid_date_parameters(self, client) -> None:
+        assert client.get(f"{BASE}/calendar", params={"date_from": "bad", "date_to": "2030-01-01"}).status_code == 422
 
 
 class TestValidateManual:
@@ -244,10 +291,34 @@ class TestValidateSlips:
             "live_data": [{"match_name": "A - B", "score": "1:0", "minute": 33}],
         }
 
+    def test_validate_accepts_job_id_and_returns_cancelled_state(self, client, fake_app) -> None:
+        fake_app.validate_and_broadcast.return_value = SimpleNamespace(
+            checked=5,
+            settled=[],
+            live=[],
+            errors=0,
+            cancelled=True,
+        )
+        response = client.post(f"{BASE}/validate", json={"job_id": "job-1"})
+        assert response.status_code == 200
+        assert response.json()["cancelled"] is True
+        fake_app.validate_and_broadcast.assert_called_once_with("job-1")
+
     def test_validate_empty_live(self, client, fake_app) -> None:
         fake_app.validate_and_broadcast.return_value = SimpleNamespace(checked=0, settled=[], live=[], errors=[])
         data = client.post(f"{BASE}/validate").json()
         assert data == {"checked": 0, "settled": 0, "live": 0, "errors": [], "live_data": []}
+
+    def test_cancel_validation_sets_abort_flag(self, client, fake_app) -> None:
+        response = client.post(f"{BASE}/validate/job-1/cancel")
+        assert response.status_code == 200
+        assert response.json() == {"cancelled": True}
+        fake_app.cancel_validation.assert_called_once_with("job-1")
+
+    def test_cancel_validation_rejects_unknown_job(self, client, fake_app) -> None:
+        fake_app.cancel_validation.return_value = False
+        response = client.post(f"{BASE}/validate/missing/cancel")
+        assert response.status_code == 409
 
 
 class TestGenerateSlips:

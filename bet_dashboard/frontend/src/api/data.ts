@@ -2,7 +2,7 @@ import client from './client';
 import type {
     BuilderConfig, PreviewResult,
     ProfilesMap, Profile,
-    SlipsPage, ManualLegIn,
+    SlipsPage, SlipCalendarData, BetSlip, ManualLegIn,
     AnalyticsData,
     ServicesData,
 } from '../types';
@@ -70,9 +70,33 @@ export async function deleteProfile(name: string): Promise<void> {
 export async function fetchSlips(params: {
     profiles?: string[]; date_from?: string; date_to?: string;
     hide_settled?: boolean; live_only?: boolean;
+    page?: number; page_size?: number;
+    sort_by?: 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc' | 'odds_desc' | 'odds_asc' | 'stake_desc' | 'stake_asc';
 }): Promise<SlipsPage> {
     const res = await client.get<SlipsPage>('/slips', { params });
     return res.data;
+}
+
+export async function fetchSlipCalendar(params: {
+    date_from: string; date_to: string; profiles?: string[];
+}): Promise<SlipCalendarData> {
+    const res = await client.get<SlipCalendarData>('/slips/calendar', { params });
+    return res.data;
+}
+
+export async function fetchAllSlips(
+    params: Omit<Parameters<typeof fetchSlips>[0], 'page' | 'page_size'>,
+): Promise<BetSlip[]> {
+    const slips: BetSlip[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+        const result = await fetchSlips({ ...params, page, page_size: 100 });
+        slips.push(...result.slips);
+        totalPages = result.total_pages;
+        page += 1;
+    } while (page <= totalPages);
+    return slips;
 }
 
 export async function addSlip(profile: string, legs: ManualLegIn[], units: number): Promise<number> {
@@ -84,12 +108,17 @@ export async function deleteSlip(id: number): Promise<void> {
     await client.delete(`/slips/${id}`);
 }
 
-export async function validateSlips(): Promise<{
+export async function validateSlips(jobId: string): Promise<{
     checked: number; settled: number; live: number; errors: number;
     live_data: Array<{ match_name: string; score: string; minute: string }>;
+    cancelled?: boolean;
 }> {
-    const res = await client.post('/slips/validate');
+    const res = await client.post('/slips/validate', { job_id: jobId });
     return res.data;
+}
+
+export async function cancelValidation(jobId: string): Promise<void> {
+    await client.post(`/slips/validate/${encodeURIComponent(jobId)}/cancel`);
 }
 
 export async function generateSlips(): Promise<{ generated: number; by_profile: Record<string, number> }> {
@@ -142,4 +171,3 @@ export async function fetchSourcesConfig(): Promise<SourcesConfig> {
     const res = await client.get<SourcesConfig>('/config/sources');
     return res.data;
 }
-

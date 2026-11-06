@@ -1,8 +1,8 @@
 // Canonical demo rows for BOTH tracks: installDemoApi (local) and
 // setup/seed_e2e.py (CI e2e DB). Expand here first, then teach both tracks.
 // Reuses Vitest factories — no second Match type.
-import { makeCandidateLeg, makeMatch, makeMatchesPage, makePreviewResult, makeProfile, makeSlip, makeSlipsPage, makeSourcePrediction } from '../../src/test/factories';
-import type { ProfileSchedule } from '../../src/types';
+import { makeBetLeg, makeCandidateLeg, makeMatch, makeMatchesPage, makePreviewResult, makeProfile, makeSlip, makeSlipsPage, makeSourcePrediction } from '../../src/test/factories';
+import type { ProfileSchedule, SlipDailyPnl } from '../../src/types';
 
 export const DEMO_MATCHES = [
     makeMatch({
@@ -57,13 +57,42 @@ export const DEMO_SLIPS = [
         slip_id: 1,
         profile: 'low',
         date_generated: '2026-10-07',
+        total_odds: 1.9,
+        units: 1,
+        slip_status: 'Won',
+        legs: [makeBetLeg({ status: 'Won', final_score: '2:1' })],
+    }),
+    makeSlip({
+        slip_id: 2,
+        profile: 'low',
+        date_generated: '2026-10-08',
+        total_odds: 2.0,
+        units: 1,
+        slip_status: 'Lost',
+        legs: [makeBetLeg({ match_name: 'Liverpool vs Man City', status: 'Lost', final_score: '1:2' })],
+    }),
+    makeSlip({
+        slip_id: 3,
+        profile: 'low',
+        date_generated: '2026-10-10',
+        total_odds: 2.0,
+        units: 1,
+        slip_status: 'Pending',
+        legs: [makeBetLeg({ match_name: 'Barcelona vs Real Madrid', status: 'Pending', final_score: null })],
     }),
 ];
 
 export const DEMO_SLIPS_PAGE = makeSlipsPage({
     slips: DEMO_SLIPS,
     profiles: ['low'],
+    total: DEMO_SLIPS.length,
 });
+
+export const DEMO_SLIP_CALENDAR: SlipDailyPnl[] = [
+    { date: '2026-10-07', slips: 1, wins: 1, losses: 0, net_profit: 0.9 },
+    { date: '2026-10-08', slips: 1, wins: 0, losses: 1, net_profit: -1.0 },
+    { date: '2026-10-10', slips: 1, wins: 0, losses: 0, net_profit: 0.0 },
+];
 
 export const DEMO_PROFILES = {
     low: makeProfile(),

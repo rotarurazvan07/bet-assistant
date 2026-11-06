@@ -1,4 +1,4 @@
-// data.ts tests. Covers ALL 22 exported functions (the issue
+// data.ts tests. Covers all exported functions (the issue
 // lists only 13 — divergence: spec missed the 7 excluded-URL functions,
 // deleteProfile/deleteSlip, and matches/oddsHistory
 // modules entirely). Response shapes ground-truthed against src/types +
@@ -9,14 +9,14 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../test/handlers';
 import {
     makePreviewResult, makeProfilesMap, makeProfile,
-    makeSlipsPage, makeAnalyticsData, makeServicesData,
+    makeSlipsPage, makeSlipCalendarData, makeAnalyticsData, makeServicesData,
 } from '../../test/factories';
 import type { ManualLegIn } from '../../types';
 import {
     fetchPreview, fetchLeagues, fetchExcluded, fetchExcludedDetails,
     addExcluded, removeExcluded, clearExcluded,
     fetchProfiles, saveProfile, deleteProfile,
-    fetchSlips, addSlip, deleteSlip, validateSlips, generateSlips,
+    fetchSlips, fetchSlipCalendar, fetchAllSlips, addSlip, deleteSlip, validateSlips, cancelValidation, generateSlips,
     fetchAnalytics, fetchServices, toggleService,
     pullDb, fetchStatus, fetchSourcesConfig,
 } from '../data';
@@ -157,19 +157,66 @@ describe('profiles endpoints', () => {
 });
 
 describe('slips endpoints', () => {
-    it('fetchSlips sends all filter params and unwraps SlipsPage', async () => {
+    it('fetchSlips sends filters and pagination params and unwraps SlipsPage', async () => {
         let query = '';
         server.use(http.get('/api/slips', ({ request }) => {
             query = new URL(request.url).search;
             return HttpResponse.json(makeSlipsPage());
         }));
-        const page = await fetchSlips({ profiles: ['low'], date_from: '2026-09-01', date_to: '2026-09-30', hide_settled: true, live_only: false });
+        const page = await fetchSlips({
+            profiles: ['low'], date_from: '2026-09-01', date_to: '2026-09-30',
+            hide_settled: true, live_only: false, page: 2, page_size: 20, sort_by: 'odds_desc',
+        });
         expect(query).toContain('profiles%5B%5D=low');
         expect(query).toContain('date_from=2026-09-01');
         expect(query).toContain('hide_settled=true');
         expect(query).toContain('live_only=false'); // axios serializes false booleans (only nulls/empty arrays omitted)
+        expect(query).toContain('page=2');
+        expect(query).toContain('page_size=20');
+        expect(query).toContain('sort_by=odds_desc');
         expect(page.slips[0].slip_id).toBe(1);
-        expect(page.stats.win_rate).toBe(66.67);
+        expect(page.total_pages).toBe(1);
+    });
+
+    it('fetchAllSlips retrieves every page for non-paginated consumers', async () => {
+        const requestedPages: string[] = [];
+        server.use(http.get('/api/slips', ({ request }) => {
+            const params = new URL(request.url).searchParams;
+            const page = params.get('page') ?? '1';
+            requestedPages.push(page);
+            const response = makeSlipsPage({
+                slips: [{ ...makeSlipsPage().slips[0], slip_id: Number(page) }],
+                page: Number(page),
+                page_size: 100,
+                total: 101,
+                total_pages: 2,
+            });
+            return HttpResponse.json(response);
+        }));
+
+        const slips = await fetchAllSlips({ hide_settled: true });
+
+        expect(requestedPages).toEqual(['1', '2']);
+        expect(slips.map(slip => slip.slip_id)).toEqual([1, 2]);
+    });
+
+    it('fetchSlipCalendar sends date and profile filters', async () => {
+        let query = '';
+        server.use(http.get('/api/slips/calendar', ({ request }) => {
+            query = new URL(request.url).search;
+            return HttpResponse.json(makeSlipCalendarData({
+                days: [{ date: '2030-10-07', slips: 3, wins: 2, losses: 1, net_profit: 1.4 }],
+            }));
+        }));
+
+        const calendar = await fetchSlipCalendar({
+            date_from: '2030-10-01', date_to: '2030-10-31', profiles: ['low'],
+        });
+
+        expect(query).toContain('date_from=2030-10-01');
+        expect(query).toContain('date_to=2030-10-31');
+        expect(query).toContain('profiles%5B%5D=low');
+        expect(calendar.days[0].net_profit).toBe(1.4);
     });
 
     it('addSlip POSTs profile/legs/units and returns slip_id', async () => {
@@ -196,13 +243,28 @@ describe('slips endpoints', () => {
     });
 
     it('validateSlips returns counts and live_data', async () => {
-        server.use(http.post('/api/slips/validate', () => HttpResponse.json({
-            checked: 5, settled: 3, live: 1, errors: 1,
-            live_data: [{ match_name: 'X vs Y', score: '2:0', minute: "71'" }],
-        })));
-        const result = await validateSlips();
+        let body: unknown;
+        server.use(http.post('/api/slips/validate', async ({ request }) => {
+            body = await request.json();
+            return HttpResponse.json({
+                checked: 5, settled: 3, live: 1, errors: 1,
+                live_data: [{ match_name: 'X vs Y', score: '2:0', minute: "71'" }],
+            });
+        }));
+        const result = await validateSlips('job-1');
         expect(result.checked).toBe(5);
         expect(result.live_data[0].minute).toBe("71'");
+        expect(body).toEqual({ job_id: 'job-1' });
+    });
+
+    it('cancelValidation posts to the job cancellation endpoint', async () => {
+        let cancelledJob = '';
+        server.use(http.post('/api/slips/validate/:jobId/cancel', ({ params }) => {
+            cancelledJob = String(params.jobId);
+            return HttpResponse.json({ cancelled: true });
+        }));
+        await cancelValidation('job-1');
+        expect(cancelledJob).toBe('job-1');
     });
 
     it('generateSlips returns generated + by_profile', async () => {

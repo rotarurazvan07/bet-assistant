@@ -777,6 +777,82 @@ class TestSaveAndGetSlips:
         slips = ba.get_slips()
         assert slips[0].slip_status == Outcome.PENDING
 
+    def test_slip_page_limits_and_orders_results(self, ba) -> None:
+        for units in range(1, 6):
+            ba.save_slip("p", self._make_legs(1), units=units)
+
+        slips, total, profiles = ba.get_slips_page(page=2, page_size=2, sort_by="stake_asc")
+
+        assert [slip.units for slip in slips] == [3, 4]
+        assert total == 5
+        assert profiles == ["p"]
+
+    def test_slip_page_sorts_net_profit_before_pagination(self, ba) -> None:
+        won_id = ba.save_slip("p", self._make_legs(1), units=1)
+        lost_id = ba.save_slip("p", self._make_legs(1), units=1)
+        pending_id = ba.save_slip("p", self._make_legs(1), units=1)
+        won_leg_id, lost_leg_id = ba.fetch_rows(
+            "SELECT leg_id FROM legs WHERE slip_id IN (?, ?) ORDER BY slip_id",
+            (won_id, lost_id),
+        )
+        ba.update_leg(won_leg_id["leg_id"], Outcome.WON)
+        ba.update_leg(lost_leg_id["leg_id"], Outcome.LOST)
+
+        descending, _, _ = ba.get_slips_page(sort_by="net_profit_desc")
+        ascending, _, _ = ba.get_slips_page(sort_by="net_profit_asc")
+
+        assert [slip.slip_id for slip in descending] == [won_id, lost_id, pending_id]
+        assert [slip.slip_id for slip in ascending] == [lost_id, won_id, pending_id]
+
+    def test_slip_page_applies_status_and_profile_filters_before_pagination(self, ba) -> None:
+        pending_id = ba.save_slip("pending", self._make_legs(1))
+        live_id = ba.save_slip("live", self._make_legs(1))
+        lost_id = ba.save_slip("lost", self._make_legs(1))
+        live_leg_id = ba.fetch_rows("SELECT leg_id FROM legs WHERE slip_id = ?", (live_id,))[0]["leg_id"]
+        lost_leg_id = ba.fetch_rows("SELECT leg_id FROM legs WHERE slip_id = ?", (lost_id,))[0]["leg_id"]
+        ba.update_leg(live_leg_id, Outcome.LIVE)
+        ba.update_leg(lost_leg_id, Outcome.LOST)
+
+        slips, total, profiles = ba.get_slips_page(
+            profile=["pending", "live", "lost"],
+            hide_settled=True,
+            page=1,
+            page_size=1,
+            sort_by="date_asc",
+        )
+        assert [slip.slip_id for slip in slips] == [live_id]
+        assert total == 2
+        assert profiles == ["live", "lost", "pending"]
+
+        live_slips, live_total, _ = ba.get_slips_page(live_only=True)
+        assert [slip.slip_id for slip in live_slips] == [live_id]
+        assert live_total == 1
+        assert pending_id != live_id
+
+    def test_daily_slip_pnl_groups_realized_results_and_applies_filters(self, ba) -> None:
+        won_id = ba.save_slip("p", self._make_legs(1), units=2)
+        lost_id = ba.save_slip("p", self._make_legs(1), units=0.5)
+        pending_id = ba.save_slip("p", self._make_legs(1), units=3)
+        other_id = ba.save_slip("other", self._make_legs(1), units=1)
+        ids = [won_id, lost_id, pending_id, other_id]
+        dates = ["2030-10-07T08:00:00", "2030-10-07T12:00:00", "2030-10-08T08:00:00", "2030-10-07T09:00:00"]
+        for slip_id, generated in zip(ids, dates, strict=True):
+            ba.conn.execute("UPDATE slips SET date_generated = ? WHERE slip_id = ?", (generated, slip_id))
+        ba.conn.commit()
+        won_leg_id, lost_leg_id = ba.fetch_rows(
+            "SELECT leg_id FROM legs WHERE slip_id IN (?, ?) ORDER BY slip_id",
+            (won_id, lost_id),
+        )
+        ba.update_leg(won_leg_id["leg_id"], Outcome.WON)
+        ba.update_leg(lost_leg_id["leg_id"], Outcome.LOST)
+
+        days = ba.get_daily_slip_pnl("2030-10-07", "2030-10-08", profile="p")
+
+        assert days == [
+            {"date": "2030-10-07", "slips": 2, "wins": 1, "losses": 1, "net_profit": 0.5},
+            {"date": "2030-10-08", "slips": 1, "wins": 0, "losses": 0, "net_profit": 0.0},
+        ]
+
 
 # ── delete_slip ───────────────────────────────────────────────────────────────
 
@@ -933,6 +1009,32 @@ class TestGetExcludedUrls:
 
 
 class TestRowsToSlips:
+    def test_missing_units_are_treated_as_paper_trading(self) -> None:
+        rows = [
+            (
+                1,
+                "2026-04-01",
+                "profile",
+                3.0,
+                None,
+                "A vs B",
+                "2026-04-01T15:00:00",
+                MarketKey.HOME,
+                MarketType.RESULT,
+                1.5,
+                Outcome.WON,
+                "http://x",
+                None,
+                None,
+                None,
+            ),
+        ]
+
+        slips = BetAssistant._rows_to_slips(rows)
+
+        assert slips[0].units == 0.0
+        assert slips[0].slip_status == Outcome.WON
+
     def test_normal_groups_legs_under_slip(self) -> None:
         rows = [
             (

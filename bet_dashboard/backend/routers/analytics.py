@@ -2,7 +2,7 @@
 
 # Import analytics utilities
 from core.analytics_utils import (
-    _get_status_value,
+    _get_units,
     calculate_correlation_data,
     calculate_daily_summary,
     calculate_market_accuracy,
@@ -67,7 +67,7 @@ def _market_breakdown(slips) -> list[dict]:
         if s_status not in ("Won", "Lost"):
             continue
         n_legs = max(len(slip.legs), 1)
-        per_leg_stake = slip.units / n_legs
+        per_leg_stake = _get_units(slip) / n_legs
 
         for leg in slip.legs:
             l_status = _get_status_value(leg.status)
@@ -138,7 +138,7 @@ def _league_breakdown(slips) -> list[dict]:
         if s_status not in ("Won", "Lost"):
             continue
         n_legs = max(len(slip.legs), 1)
-        per_leg_stake = slip.units / n_legs
+        per_leg_stake = _get_units(slip) / n_legs
 
         for leg in slip.legs:
             l_status = _get_status_value(leg.status)
@@ -456,7 +456,7 @@ def _pnl_by_market(slips) -> list[dict]:
         if status_str not in ("Won", "Lost"):
             continue
         n_legs = max(len(slip.legs), 1)
-        per_leg_stake = slip.units / n_legs
+        per_leg_stake = _get_units(slip) / n_legs
 
         for leg in slip.legs:
             leg_status_str = _get_status_value(leg.status)
@@ -507,11 +507,12 @@ def _profile_scatter(slips) -> list[dict]:
             }
         profiles[p]["total"] += 1
         profiles[p]["sum_odds"] += slip.total_odds
+        units = _get_units(slip)
         if status_str == "Won":
             profiles[p]["won"] += 1
-            profiles[p]["sum_profit"] += (slip.total_odds - 1) * slip.units
+            profiles[p]["sum_profit"] += (slip.total_odds - 1) * units
         else:
-            profiles[p]["sum_profit"] -= slip.units
+            profiles[p]["sum_profit"] -= units
     return [
         {
             "profile": p,

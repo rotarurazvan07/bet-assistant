@@ -261,7 +261,7 @@ class TestDoGeneratePerProfile:
         assert "later" not in runs
         for legacy in ("profile_last_generated", "profile_last_generated_at", "profile_run_status", "last_time_generated"):
             assert legacy not in runtime
-        assert broadcast_capture[-1]["event"] == "slips_updated"
+        assert [event["event"] for event in broadcast_capture[-2:]] == ["slips_updated", "generation_updated"]
 
     def test_nothing_due_generates_nothing(self, env, monkeypatch, broadcast_capture) -> None:
         """[P0] When no profile is due nothing generates and no timestamps persist."""

@@ -34,6 +34,8 @@ jobs:
         with:
           context: .
           file: setup/Dockerfile
+          build-args: |
+            VITE_COMMIT_SHA=${{ github.sha }}
           push: true
           platforms: linux/amd64
           tags: ${{ env.REGISTRY }}/${{ env.OWNER }}/bet-assistant:latest

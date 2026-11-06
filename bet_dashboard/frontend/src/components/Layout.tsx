@@ -1,11 +1,9 @@
-import { useState, useEffect, Fragment } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useState, Fragment } from 'react';
+import { NavLink } from 'react-router-dom';
 import { pullDb } from '../api/data';
 import OnboardingTour from './OnboardingTour';
-import { TOUR_DONE_KEY } from './tourStorage';
 
-// /workflow-grouped nav — Core → Insights → System;
-// routes unchanged, labels renamed to action verbs.
+// Navigation groups retain visual separators; routes and labels stay unchanged.
 const NAV_GROUPS = [
     {
         id: 'core',
@@ -31,59 +29,15 @@ const NAV_GROUPS = [
     },
 ];
 
-export interface GlobalFilters {
-    dateFrom: string;
-    dateTo: string;
-}
-
 interface Props {
-    children: (filters: GlobalFilters) => React.ReactNode;
+    children: React.ReactNode;
     lastPull: string;
-    onRefresh: () => void;
     onMatchesUpdated: () => void;
 }
 
-const STORAGE_KEY = 'bet-assistant-time-horizon';
-
-function getInitialDate(key: string): string {
-    if (typeof window === 'undefined') return '';
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            const parsed = JSON.parse(stored);
-            return parsed[key] || '';
-        }
-    } catch {
-        // Ignore parse errors
-    }
-    return '';
-}
-
-function saveDates(dateFrom: string, dateTo: string) {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ dateFrom, dateTo }));
-    } catch {
-        // Ignore storage errors
-    }
-}
-
-export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated }: Props) {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const [tourEpoch, setTourEpoch] = useState(0);
-    const [dateFrom, setDateFrom] = useState(() => getInitialDate('dateFrom'));
-    const [dateTo, setDateTo] = useState(() => getInitialDate('dateTo'));
+export default function Layout({ children, lastPull, onMatchesUpdated }: Props) {
     const [pulling, setPulling] = useState(false);
-
-    useEffect(() => {
-        saveDates(dateFrom, dateTo);
-    }, [dateFrom, dateTo]);
-
-    const showFilters = location.pathname === '/' ||
-        location.pathname === '/builder' ||
-        location.pathname === '/slips' ||
-        location.pathname === '/analytics';
+    const commitSha = import.meta.env.VITE_COMMIT_SHA || 'unknown';
 
     async function handlePull() {
         setPulling(true);
@@ -96,14 +50,6 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             // Ignore pull errors
         } finally {
             setPulling(false);
-        }
-    }
-
-    async function handleRefresh() {
-        try {
-            onRefresh();
-        } catch {
-            // Ignore refresh errors
         }
     }
 
@@ -124,35 +70,24 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                         </span>
                     </div>
 
-                    {/* Nav — workflow groups: Core → Insights → System.
-                        Anchors stay flat in DOM order inside each group so keyboard
-                        Tab order equals visual order. */}
+                    {/* Anchors stay flat in DOM order so keyboard Tab order follows the navigation. */}
                     <nav className="flex items-center gap-5 flex-1" aria-label="Primary">
                         {NAV_GROUPS.map((group, groupIndex) => (
                             <Fragment key={group.id}>
                                 {groupIndex > 0 && (
                                     <span className="nav-separator" aria-hidden="true" />
                                 )}
-                                <div className="flex flex-col justify-center" role="group" aria-label={group.caption}>
-                                    {/*micro-caption above group (SM-approved) */}
-                                    <span
-                                        className="nav-caption"
-                                        aria-hidden="true"
-                                    >
-                                        {group.caption}
-                                    </span>
-                                    <div className="flex items-center gap-6">
-                                        {group.links.map(({ to, label }) => (
-                                            <NavLink
-                                                key={to} to={to} end={to === '/'}
-                                                className={({ isActive }) =>
-                                                    `nav-link relative py-2.5 ${isActive ? 'active' : ''}`
-                                                }
-                                            >
-                                                {label}
-                                            </NavLink>
-                                        ))}
-                                    </div>
+                                <div className="flex items-center gap-6" role="group" aria-label={group.caption}>
+                                    {group.links.map(({ to, label }) => (
+                                        <NavLink
+                                            key={to} to={to} end={to === '/'}
+                                            className={({ isActive }) =>
+                                                `nav-link relative py-2.5 ${isActive ? 'active' : ''}`
+                                            }
+                                        >
+                                            {label}
+                                        </NavLink>
+                                    ))}
                                 </div>
                             </Fragment>
                         ))}
@@ -166,56 +101,27 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                 {lastPull}
                             </span>
                         )}
-                        <button className="btn-ghost" onClick={handleRefresh}>
-                            Refresh
-                        </button>
-                        {/*Restart Tour lives in the header — there is no Settings page. */}
-                        <button
-                            type="button"
-                            className="btn-ghost"
-                            onClick={() => {
-                                try { localStorage.removeItem(TOUR_DONE_KEY); } catch { /* ignore */ }
-                                navigate('/');
-                                setTourEpoch((n) => n + 1);
-                            }}
-                        >
-                            Restart Tour
-                        </button>
                         <button className="btn-primary" onClick={handlePull} disabled={pulling}>
-                            {pulling ? 'Pulling…' : '↓ Pull Update'}
+                            {pulling ? 'Pulling matches…' : '↓ Pull Matches'}
                         </button>
+                        <span
+                            className="border-l pl-3 text-[10px] font-mono whitespace-nowrap"
+                            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                            title={`Commit ${commitSha}`}
+                            aria-label={`Build ${commitSha.slice(0, 7)}`}
+                        >
+                            Build {commitSha.slice(0, 7)}
+                        </span>
                     </div>
                 </div>
             </header>
 
-            {/* ── Global filters ────────────────────────────────────────────────── */}
-            {showFilters && (
-                <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)' }}>
-                    <div className="w-full px-2 py-3 flex flex-col items-center gap-2">
-
-                        {/* Label centered on top */}
-                        <span className="text-[10px] font-mono tracking-widest uppercase"
-                            style={{ color: 'var(--text-secondary)' }}>Time Horizon</span>
-
-                        {/* Date pickers row */}
-                        <div className="flex items-center gap-3">
-                            <input className="field w-44" type="date"
-                                value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                            <span style={{ color: 'var(--text-secondary)' }} className="text-xs font-mono">→</span>
-                            <input className="field w-44" type="date"
-                                value={dateTo} onChange={e => setDateTo(e.target.value)} />
-                        </div>
-
-                    </div>
-                </div>
-            )}
-
             {/* ── Page content — Fills available width ──────────────────────────── */}
             <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
-                {children({ dateFrom, dateTo })}
+                {children}
             </main>
-            {/*mount tour here (Router + Restart). Do not edit App.tsx. */}
-            <OnboardingTour key={tourEpoch} />
+            {/* Mount the first-visit tour at the router level. */}
+            <OnboardingTour />
         </div>
     );
 }

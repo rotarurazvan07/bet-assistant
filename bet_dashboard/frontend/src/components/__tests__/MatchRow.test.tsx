@@ -102,7 +102,7 @@ describe('MatchRow', () => {
     });
 
     it('movement prop maps to OddsMovementIndicator via oddsKey derivation', () => {
-        renderRow({ movement: { home: 'up' } });
-        expect(screen.getByTitle('Odds rising (market disagrees)')).toBeInTheDocument();
+        renderRow({ movement: { home: { direction: 'up', change_pct: 5.236, significant: true } } });
+        expect(screen.getByTitle('Odds rising by 5.24% (market disagrees)')).toBeInTheDocument();
     });
 });

@@ -152,6 +152,11 @@ def _get_status_value(status) -> str:
     return str(status)
 
 
+def _get_units(slip) -> float:
+    """Treat a missing stake as paper trading without monetary impact."""
+    return 0.0 if slip.units is None else slip.units
+
+
 def calculate_daily_summary(
     slips, profile: str | list[str] | None = None, date_from: str | None = None, date_to: str | None = None
 ) -> list[dict[str, Any]]:
@@ -175,9 +180,10 @@ def calculate_daily_summary(
 
         stats = daily_stats[day]
         stats["slips_count"] += 1
-        stats["units_bet"] += s.units
+        units = _get_units(s)
+        stats["units_bet"] += units
         if s.slip_status == Outcome.WON:
-            stats["units_won"] += s.total_odds * s.units
+            stats["units_won"] += s.total_odds * units
             stats["won_count"] += 1
 
     summary = []
@@ -265,10 +271,10 @@ def calculate_correlation_data(slips) -> list[dict[str, Any]]:
                 {
                     "legs_count": len(s.legs),
                     "total_odds": round(s.total_odds, 2),
-                    "units": s.units,
+                    "units": _get_units(s),
                     "status": slip_status,
                     "profit": round(
-                        (s.total_odds * s.units - s.units) if slip_status == "Won" else -s.units,
+                        (s.total_odds * _get_units(s) - _get_units(s)) if slip_status == "Won" else -_get_units(s),
                         2,
                     ),
                 }
@@ -282,9 +288,12 @@ def _daily_pnl_by_date(slips) -> dict:
     for slip in slips:
         if _get_status_value(slip.slip_status) not in ("Won", "Lost"):
             continue
+        units = _get_units(slip)
+        if units <= 0:
+            continue
         date_str = slip.date_generated.split("T")[0] if "T" in slip.date_generated else slip.date_generated
         date = datetime.strptime(date_str, "%Y-%m-%d")
-        profit = (slip.total_odds - 1) * slip.units if _get_status_value(slip.slip_status) == "Won" else -slip.units
+        profit = (slip.total_odds - 1) * units if _get_status_value(slip.slip_status) == "Won" else -units
         daily_pnl[date] = daily_pnl.get(date, 0) + profit
     return daily_pnl
 
@@ -371,13 +380,16 @@ def calculate_profit_factor(settled_slips) -> float:
         status = _get_status_value(slip.slip_status)
         if status not in ("Won", "Lost"):
             continue
+        units = _get_units(slip)
+        if units <= 0:
+            continue
 
         # Calculate slip profit
         if status == "Won":
-            profit = (slip.total_odds * slip.units) - slip.units
+            profit = (slip.total_odds * units) - units
             total_wins += profit
         else:  # Lost
-            loss = slip.units
+            loss = units
             total_losses += loss
 
     if total_losses == 0:
@@ -407,14 +419,17 @@ def calculate_biggest_win_loss(settled_slips) -> dict:
         status = _get_status_value(slip.slip_status)
         if status not in ("Won", "Lost"):
             continue
+        units = _get_units(slip)
+        if units <= 0:
+            continue
 
         # Calculate slip net profit
         if status == "Won":
-            profit = (slip.total_odds * slip.units) - slip.units
+            profit = (slip.total_odds * units) - units
             if biggest_win is None or profit > biggest_win:
                 biggest_win = profit
         else:  # Lost
-            loss = -slip.units  # Negative value
+            loss = -units
             if biggest_loss is None or loss < biggest_loss:
                 biggest_loss = loss
 

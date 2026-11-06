@@ -56,6 +56,7 @@ from bet_framework.core.Slip import BetSlipConfig
 from bet_framework.MatchesManager import MatchesManager
 
 MATCHES_DB = os.environ.get("MATCHES_DB_PATH", "/app/workspace/data/matches.db")
+SLIPS_DB = os.environ.get("SLIPS_DB_PATH", "/app/workspace/data/slips.db")
 CONFIG_DIR = Path(os.environ.get("CONFIG_PATH", "/app/workspace/config"))
 _SRC_CONFIG = (
     Path(_APP_ROOT, "config")
@@ -139,6 +140,13 @@ DEMO_MATCHES = [
     ),
 ]
 
+# (slip_id, date_generated, profile, total_odds, units, match_name, leg_status, result_url, final_score)
+DEMO_SLIPS = [
+    (1, "2026-10-07T08:30:00", "low", 1.9, 1.0, "Arsenal vs Chelsea", "Won", "https://example.com/match/1", "2:1"),
+    (2, "2026-10-08T08:30:00", "low", 2.0, 1.0, "Liverpool vs Man City", "Lost", "https://example.com/match/2", "1:2"),
+    (3, "2026-10-10T08:30:00", "low", 2.0, 1.0, "Barcelona vs Real Madrid", "Pending", "https://example.com/match/3", None),
+]
+
 # All three daemons parked: puller would merge the upstream DB (evicting the
 # past-dated Arsenal row), generator/verifier would touch slips mid-run.
 # Two-track: per-profile schedule rows IDENTICAL to DEMO_PROFILE_SCHEDULES in
@@ -179,11 +187,10 @@ _PROFILE_SCHEDULES = [
 ]
 
 _SERVICES_YAML = (
-    "services:\n"
-    "  toggles:\n"
-    "    puller: false\n"
-    "    generator: false\n"
-    "    verifier: false\n"
+    "toggles:\n"
+    "  puller: false\n"
+    "  generator: false\n"
+    "  verifier: false\n"
 )
 
 _INSERT = (
@@ -194,7 +201,7 @@ _INSERT = (
 
 
 def main() -> None:
-    """Seed matches.db + park daemons, then self-check the exact spec values."""
+    """Seed demo match/slip history and park daemons in the throwaway volume."""
     Path(MATCHES_DB).parent.mkdir(parents=True, exist_ok=True)
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     # First boot of a fresh volume: lay down the pristine config the main
@@ -203,6 +210,13 @@ def main() -> None:
     if not any(CONFIG_DIR.iterdir()):
         shutil.copytree(_SRC_CONFIG, CONFIG_DIR, dirs_exist_ok=True)
     (CONFIG_DIR / "services.yaml").write_text(_SERVICES_YAML, encoding="utf-8")
+    from scrape_kit import SettingsManager
+
+    service_config = SettingsManager(str(CONFIG_DIR)).get("services")
+    expected_toggles = {"puller": False, "generator": False, "verifier": False}
+    assert service_config and service_config.get("toggles") == expected_toggles, (
+        f"expected all e2e daemons to be disabled, got {service_config}"
+    )
 
     # Per-profile schedules: the CI delivery of the same rows as demo-data.ts
     # (SettingsManager nests profiles/<name>.yaml). The YAML carries the FULL
@@ -238,6 +252,57 @@ def main() -> None:
             )
             conn.execute(
                 _INSERT, (home, away, dt, scores, json.dumps(odds), url, league)
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    Path(SLIPS_DB).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(SLIPS_DB)
+    try:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS slips (
+                slip_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date_generated TEXT,
+                profile TEXT,
+                total_odds REAL,
+                units REAL DEFAULT 1.0
+            );
+            CREATE TABLE IF NOT EXISTS legs (
+                leg_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                slip_id INTEGER,
+                match_name TEXT,
+                match_datetime TEXT,
+                market TEXT,
+                market_type TEXT,
+                odds REAL,
+                result_url TEXT,
+                status TEXT DEFAULT 'Pending',
+                league TEXT,
+                predictions TEXT,
+                final_score TEXT,
+                FOREIGN KEY(slip_id) REFERENCES slips(slip_id)
+            );
+        """)
+        conn.execute("DELETE FROM legs")
+        conn.execute("DELETE FROM slips")
+        conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('slips', 'legs')")
+        for slip_id, generated, profile, total_odds, units, *_ in DEMO_SLIPS:
+            conn.execute(
+                "INSERT INTO slips (slip_id, date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?, ?)",
+                (slip_id, generated, profile, total_odds, units),
+            )
+        for row in DEMO_SLIPS:
+            slip_id, generated, profile, total_odds, units, match_name, status, url, final_score = row
+            conn.execute(
+                """INSERT INTO legs
+                    (slip_id, match_name, match_datetime, market, market_type, odds, result_url, status,
+                     league, predictions, final_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    slip_id, match_name, generated, "home", "result", total_odds, url, status,
+                    "England", "[]", final_score,
+                ),
             )
         conn.commit()
     finally:
@@ -279,7 +344,7 @@ def main() -> None:
             )
 
     print(
-        f"e2e seed OK: 3 demo matches + {len(_PROFILE_SCHEDULES)} profile schedules "
+        f"e2e seed OK: 3 demo matches + {len(DEMO_SLIPS)} demo slips + {len(_PROFILE_SCHEDULES)} profile schedules "
         f"in {MATCHES_DB}; daemons parked in {CONFIG_DIR / 'services.yaml'}"
     )
 

@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 
 test('landing page renders the app root', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle('frontend');
+    await expect(page).toHaveTitle('Bet Assistant');
     await expect(page.locator('#root')).not.toBeEmpty();
 });
 
@@ -28,11 +28,12 @@ test('nav renders renamed labels in grouped order', async ({ page }) => {
 });
 
 test('nav renders group micro-captions and separators', async ({ page }) => {
+    const nav = page.getByRole('navigation', { name: 'Primary' });
     await page.goto('/');
     for (const caption of ['Core', 'Insights', 'System']) {
-        await expect(page.locator('nav .nav-caption', { hasText: caption })).toBeVisible();
+        await expect(nav.getByRole('group', { name: caption })).toBeVisible();
     }
-    await expect(page.locator('nav .nav-separator')).toHaveCount(2);
+    await expect(nav.locator('.nav-separator')).toHaveCount(2);
 });
 
 test('click-through navigates to all 6 routes without error', async ({ page }) => {

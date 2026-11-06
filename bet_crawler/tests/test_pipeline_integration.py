@@ -113,11 +113,13 @@ class TestFullPipelineP0:
         assert abs(slips[0].total_odds - 1.9) < 1e-9
 
         # 5. validate with mocked result pages (FT for every URL)
-        def fake_scrape(urls, callback, **kwargs) -> None:
-            for url in urls:
-                callback(url, make_result_html_ft("3:1"))
+        def fake_fetch(url, **kwargs) -> str:
+            return make_result_html_ft("3:1")
 
-        with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):
+        with (
+            patch("bet_framework.BetAssistant.fetch", side_effect=fake_fetch),
+            patch("bet_framework.BetAssistant.is_blocked", return_value=False),
+        ):
             validate_slips(slips_db, "UTC")
         statuses = _leg_statuses(slips_db)
         assert statuses == [("Won", statuses[0][1])]
@@ -168,11 +170,13 @@ class TestFullPipelineP0:
             "https://r.com/pend": make_result_html_pending(),
         }
 
-        def fake_scrape(urls, callback, **kwargs) -> None:
-            for url in urls:
-                callback(url, pages[url])
+        def fake_fetch(url, **kwargs) -> str:
+            return pages[url]
 
-        with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):
+        with (
+            patch("bet_framework.BetAssistant.fetch", side_effect=fake_fetch),
+            patch("bet_framework.BetAssistant.is_blocked", return_value=False),
+        ):
             validate_slips(slips_db, "UTC")
         statuses = {url: status for status, url in _leg_statuses(slips_db)}
         assert statuses["https://r.com/ft"] == "Won"
@@ -274,9 +278,7 @@ class TestPipelineResilienceP1:
         assert ba.get_slips() == []
         ba.close()
 
-        def fake_scrape(urls, callback, **kwargs) -> None:
-            assert urls == []
-
-        with patch("bet_framework.BetAssistant.scrape", side_effect=fake_scrape):
+        with patch("bet_framework.BetAssistant.fetch") as mock_fetch:
             validate_slips(slips_db, "UTC")
+        mock_fetch.assert_not_called()
         assert _leg_statuses(slips_db) == []

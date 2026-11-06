@@ -2,14 +2,20 @@ import type { OddsMovementDirection } from '../types';
 
 interface OddsMovementIndicatorProps {
     direction: OddsMovementDirection | undefined;
+    changePct?: number;
     size?: 'sm' | 'md';
 }
 
-export function OddsMovementIndicator({ direction, size = 'sm' }: OddsMovementIndicatorProps) {
+export function OddsMovementIndicator({ direction, changePct, size = 'sm' }: OddsMovementIndicatorProps) {
     if (!direction || direction === 'stable') return null;
 
     const isUp = direction === 'up';
     const sz = size === 'sm' ? 'w-3.5 h-3.5' : 'w-5 h-5';
+    const movementText = isUp ? 'Odds rising' : 'Odds falling';
+    const marketNote = isUp ? 'market disagrees' : 'market agrees';
+    const title = changePct === undefined
+        ? `${movementText} (${marketNote})`
+        : `${movementText} by ${Math.abs(changePct).toFixed(2)}% (${marketNote})`;
 
     return (
         <span
@@ -18,7 +24,7 @@ export function OddsMovementIndicator({ direction, size = 'sm' }: OddsMovementIn
                     ? 'text-red-400 bg-red-400/15'
                     : 'text-emerald-400 bg-emerald-400/15'
             } ${size === 'sm' ? 'p-0.5' : 'p-1'}`}
-            title={isUp ? 'Odds rising (market disagrees)' : 'Odds falling (market agrees)'}
+            title={title}
         >
             <svg className={sz} viewBox="0 0 20 20" fill="currentColor">
                 {isUp ? (

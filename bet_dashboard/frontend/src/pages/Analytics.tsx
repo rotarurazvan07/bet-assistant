@@ -6,12 +6,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { fetchAnalytics } from '../api/data';
 import EmptyState, { AnalyticsEmptyIcon } from '../components/EmptyState';
+import DateRangeFields from '../components/DateRangeFields';
 import { SectionHeader, TooltipIcon } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
-import type { GlobalFilters } from '../components/Layout';
 import type { AnalyticsData, MarketBreakdown, LeagueBreakdown, SlipStats, SourceBreakdown, SourceMarketCorrelation } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
+import { usePageDateRange } from '../hooks/usePageDateRange';
 import { marketLabel } from '../config/marketConfig';
+import { Box, Button, Drawer, SwipeableDrawer, Typography, useMediaQuery } from '@mui/material';
 
 // ── Shared tooltip style ───────────────────────────────────────────────────────
 
@@ -1037,9 +1039,10 @@ function WeekendTick({ x = 0, y = 0, payload, fontSize = 10 }: {
 
 // ── Main Analytics page ────────────────────────────────────────────────────────
 
-interface Props { filters: GlobalFilters; refreshKey: number }
+interface Props { refreshKey: number }
 
-export default function Analytics({ filters, refreshKey }: Props) {
+export default function Analytics({ refreshKey }: Props) {
+    const { dateFrom, setDateFrom, dateTo, setDateTo } = usePageDateRange('analytics');
     const navigate = useNavigate();
     const [data, setData] = useState<AnalyticsData | null>(null);
     const { selectedProfiles, setSelectedProfiles } = useProfileSelection({
@@ -1047,6 +1050,9 @@ export default function Analytics({ filters, refreshKey }: Props) {
         allProfiles: data?.profiles ?? [],
     });
     const [loading, setLoading] = useState(false);
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const filtersBtnRef = useRef<HTMLButtonElement>(null);
+    const isMobile = useMediaQuery('(max-width:767.95px)');
 
     // Refs for height synchronization
     const marketTableRef = useRef<HTMLDivElement>(null);
@@ -1074,8 +1080,8 @@ export default function Analytics({ filters, refreshKey }: Props) {
         setLoading(true);
         try {
             const params: Parameters<typeof fetchAnalytics>[0] = {
-                date_from: filters.dateFrom || undefined,
-                date_to: filters.dateTo || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
             };
             if (selectedProfiles.length > 0) params.profiles = selectedProfiles;
             const d = await fetchAnalytics(params);
@@ -1107,9 +1113,98 @@ export default function Analytics({ filters, refreshKey }: Props) {
                 drawdown: [], return_distribution: null, time_patterns: null,
             });
         } finally { setLoading(false); }
-    }, [selectedProfiles, filters, refreshKey]);
+    }, [selectedProfiles, dateFrom, dateTo, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
+
+    function closeFilters() {
+        setFiltersOpen(false);
+        queueMicrotask(() => filtersBtnRef.current?.focus());
+    }
+
+    const profilesShowing = (selectedProfiles.length > 0 ? selectedProfiles : data?.profiles ?? [])
+        .filter(profile => data?.profiles.includes(profile));
+    const dateSummary = dateFrom && dateTo
+        ? `${dateFrom} – ${dateTo}`
+        : dateFrom
+            ? `From ${dateFrom}`
+            : dateTo
+                ? `Until ${dateTo}`
+                : null;
+
+    const filterControls = (
+        <>
+            <div className="flex items-center justify-between gap-3 mb-5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {dateSummary && <span>{dateSummary}</span>}
+                    {profilesShowing.length > 0 && (
+                        <span className="font-medium" style={{ color: 'var(--accent)' }}>
+                            {profilesShowing.length} profile{profilesShowing.length === 1 ? '' : 's'} showing: {profilesShowing.join(', ')}
+                        </span>
+                    )}
+                </div>
+                <Button
+                    ref={filtersBtnRef}
+                    variant="outlined"
+                    size="small"
+                    onClick={() => setFiltersOpen(true)}
+                    aria-expanded={filtersOpen}
+                    aria-controls="analytics-filters-drawer"
+                >
+                    Filters
+                </Button>
+            </div>
+            {(() => {
+                const drawerBody = (
+                    <Box
+                        id="analytics-filters-drawer"
+                        role="document"
+                        sx={{ p: 2, width: isMobile ? '100%' : 360, maxHeight: isMobile ? '85vh' : '100%', overflow: 'auto' }}
+                    >
+                        <Typography id="analytics-filters-title" variant="h6" sx={{ color: 'var(--text-bright)', mb: 2 }}>
+                            Filters
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <ProfileSelector
+                                profiles={data?.profiles ?? []}
+                                selectedProfiles={selectedProfiles}
+                                onChange={setSelectedProfiles}
+                            />
+                            <DateRangeFields
+                                dateFrom={dateFrom}
+                                dateTo={dateTo}
+                                onDateFromChange={setDateFrom}
+                                onDateToChange={setDateTo}
+                            />
+                        </Box>
+                    </Box>
+                );
+                const paperSx = { background: 'var(--bg-card)', borderColor: 'var(--border)', color: 'var(--text-primary)' };
+                return isMobile ? (
+                    <SwipeableDrawer
+                        anchor="bottom"
+                        open={filtersOpen}
+                        onOpen={() => setFiltersOpen(true)}
+                        onClose={closeFilters}
+                        aria-labelledby="analytics-filters-title"
+                        slotProps={{ paper: { sx: paperSx } }}
+                    >
+                        {drawerBody}
+                    </SwipeableDrawer>
+                ) : (
+                    <Drawer
+                        anchor="right"
+                        open={filtersOpen}
+                        onClose={closeFilters}
+                        aria-labelledby="analytics-filters-title"
+                        slotProps={{ paper: { sx: paperSx } }}
+                    >
+                        {drawerBody}
+                    </Drawer>
+                );
+            })()}
+        </>
+    );
 
     const rollingEdgeData = useMemo(() =>
         (data?.rolling_edge ?? []).map(d => ({
@@ -1161,8 +1256,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
         <div>
             <h1 className="font-display font-bold text-xl mb-5"
                 style={{ color: 'var(--text-bright)' }}>Analytics</h1>
-            <ProfileSelector profiles={[]} selectedProfiles={selectedProfiles}
-                onChange={setSelectedProfiles} />
+            {filterControls}
             <div className="mt-5">
                 <EmptyState
                     icon={<AnalyticsEmptyIcon />}
@@ -1179,19 +1273,7 @@ export default function Analytics({ filters, refreshKey }: Props) {
 
     return (
         <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
-
-            {/* Header + Profile Selector */}
-            <div className="flex items-center justify-between mb-4">
-                <h1 className="font-display font-bold text-xl"
-                    style={{ color: 'var(--text-bright)' }}>Analytics</h1>
-            </div>
-            <div className="mb-5">
-                <ProfileSelector
-                    profiles={data.profiles}
-                    selectedProfiles={selectedProfiles}
-                    onChange={setSelectedProfiles}
-                />
-            </div>
+            {filterControls}
 
             {/* ── Hero KPI Row ─────────────────────────────────────────────────── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">

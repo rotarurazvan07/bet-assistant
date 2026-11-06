@@ -15,6 +15,8 @@ const PING_INTERVAL_MS = 25_000;
  * Events emitted by the backend:
  *   matches_updated  → refetch matches only
  *   slips_updated    → refetch slips + analytics
+ *   validation_progress → update the active validation indicator
+ *   validation_completed → show the short completion notice
  *   service_toggled  → refetch services
  */
 export function useSocket(handlers: Handlers) {

@@ -1,7 +1,13 @@
 """Slips API: add, list, delete, validate and generate."""
 
+import math
+import uuid
+from datetime import date
+from typing import Literal
+
+from core.logic import ValidationInProgressError
 from core.schemas import ManualLegIn, SlipIn
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
@@ -252,8 +258,20 @@ def get_slips(
     date_to: str | None = None,
     hide_settled: str | None = None,
     live_only: str | None = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sort_by: Literal[
+        "net_profit_desc",
+        "net_profit_asc",
+        "date_desc",
+        "date_asc",
+        "odds_desc",
+        "odds_asc",
+        "stake_desc",
+        "stake_asc",
+    ] = "date_desc",
 ):
-    """Return filtered slips with stats and profiles."""
+    """Return one page of filtered slips and pagination metadata."""
     app = _get(request)
     logic = app.logic
 
@@ -277,34 +295,50 @@ def get_slips(
     hide_settled_bool = to_bool(hide_settled)
     live_only_bool = to_bool(live_only)
 
-    slips = logic.get_slips(prof, date_from or None, date_to or None)
-
-    # Helper to get status string from enum or string
-    def status_str(val):
-        if hasattr(val, "value"):
-            return val.value
-        return str(val)
-
-    if hide_settled_bool:
-        slips = [s for s in slips if status_str(s.slip_status) not in ("Won", "Lost")]
-    if live_only_bool:
-        slips = [s for s in slips if any(status_str(leg.status) == "Live" for leg in s.legs)]
-
-    stats = logic.stats(prof, date_from or None, date_to or None)
-
-    # Get only profiles that have slips in the database (including 'manual')
-    all_slips_for_profiles = logic.get_slips(None, date_from or None, date_to or None)
-    profiles_with_slips = sorted({slip.profile for slip in all_slips_for_profiles})
-
-    # Ensure 'manual' is always included if there are any manual slips
-    # (get_slips already includes it, but this ensures consistency)
+    slips, total, profiles_with_slips = logic.get_slips_page(
+        profile=prof,
+        date_from=date_from or None,
+        date_to=date_to or None,
+        hide_settled=hide_settled_bool,
+        live_only=live_only_bool,
+        page=page,
+        page_size=page_size,
+        sort_by=sort_by,
+    )
 
     response_data = {
         "slips": [_slip_to_dict(s) for s in slips],
-        "stats": stats,
         "profiles": profiles_with_slips,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "total_pages": math.ceil(total / page_size) if total else 0,
     }
     return sanitize_floats(response_data)
+
+
+@router.get("/calendar")
+def get_slip_calendar(
+    request: Request,
+    date_from: date,
+    date_to: date,
+    profiles: list[str] | None = None,
+):
+    """Return daily slip counts and realized P&L for a calendar date range."""
+    if date_from > date_to:
+        raise HTTPException(status_code=422, detail="date_from must not be after date_to")
+    if (date_to - date_from).days > 366:
+        raise HTTPException(status_code=422, detail="date range must not exceed 366 days")
+
+    if profiles is None:
+        profiles = get_profile_params(request)
+    profile_filter = profiles if profiles else None
+    days = _get(request).logic.get_daily_slip_pnl(
+        date_from=date_from.isoformat(),
+        date_to=date_to.isoformat(),
+        profile=profile_filter,
+    )
+    return sanitize_floats({"days": days})
 
 
 @router.post("/validate_manual")
@@ -332,9 +366,16 @@ def delete_slip(request: Request, slip_id: int):
 
 
 @router.post("/validate")
-def validate_slips(request: Request):
+def validate_slips(request: Request, body: dict[str, str] | None = Body(default=None)):
     """Validate pending slips; return checked/settled/live counts."""
-    result = _get(request).validate_and_broadcast()
+    job_id = body.get("job_id") if body else None
+    if job_id is not None and not job_id.strip():
+        raise HTTPException(status_code=422, detail="job_id must not be empty")
+    job_id = job_id or str(uuid.uuid4())
+    try:
+        result = _get(request).validate_and_broadcast(job_id)
+    except ValidationInProgressError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     live = [
         {
             "match_name": item.match_name,
@@ -343,13 +384,24 @@ def validate_slips(request: Request):
         }
         for item in result.live
     ]
-    return {
+    response = {
         "checked": result.checked,
         "settled": len(result.settled),
         "live": len(result.live),
         "errors": result.errors,
         "live_data": live,
     }
+    if getattr(result, "cancelled", False):
+        response["cancelled"] = True
+    return response
+
+
+@router.post("/validate/{job_id}/cancel")
+def cancel_validation(request: Request, job_id: str):
+    """Request cancellation of an active slip validation."""
+    if not _get(request).cancel_validation(job_id):
+        raise HTTPException(status_code=409, detail="Validation is not running")
+    return {"cancelled": True}
 
 
 @router.post("/generate")

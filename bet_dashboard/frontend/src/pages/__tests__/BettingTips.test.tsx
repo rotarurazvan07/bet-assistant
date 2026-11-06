@@ -4,7 +4,7 @@
 // filters persist across 4 localStorage keys; handleAddSlip uses alert().
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -27,7 +27,7 @@ beforeEach(() => {
             lastUrl = request.url;
             return HttpResponse.json(PAGE_ONE);
         }),
-        http.get('/api/odds-history/movements/all', () => HttpResponse.json({})),
+        http.get('/api/odds-history/movements/details', () => HttpResponse.json({})),
         http.get('/api/slips', () => HttpResponse.json({ slips: [], stats: null, profiles: [] })),
         http.get('/api/config/sources', () => HttpResponse.json({ sources: ['forebet', 'predictz'] })),
         http.post('/api/slips', () => HttpResponse.json({ slip_id: 42, slip_status: 'Pending' })),
@@ -35,19 +35,19 @@ beforeEach(() => {
 });
 
 
-function renderPage(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+function renderPage(refreshKey = 0) {
     return render(
         <MemoryRouter>
-            <BettingTips filters={filters} refreshKey={refreshKey} />
+            <BettingTips refreshKey={refreshKey} />
         </MemoryRouter>,
     );
 }
 
 
 describe('BettingTips page', () => {
-    it('renders title + match count + the match row', async () => {
+    it('renders filters + match count + the match row', async () => {
         renderPage();
-        expect(screen.getByText('Discover')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
         await screen.findByText('Arsenal');
         expect(screen.getByText(/120 matches/)).toBeInTheDocument();
         expect(screen.getByText(/page 1 of 3/)).toBeInTheDocument();
@@ -60,6 +60,17 @@ describe('BettingTips page', () => {
         expect(lastUrl).toContain('page_size=40');
         expect(lastUrl).toContain('sort_by=datetime');
         expect(lastUrl).toContain('sort_dir=asc');
+    });
+
+    it('date range in Discover filters is sent to matches API and saved locally', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
+        await user.type(screen.getByLabelText('Date from'), '2026-09-01');
+
+        await waitFor(() => expect(lastUrl).toContain('date_from=2026-09-01'));
+        expect(localStorage.getItem('bet-assistant-discover-date-range')).toContain('2026-09-01');
     });
 
     it('empty state when total is 0', async () => {
@@ -290,6 +301,18 @@ describe('BettingTips page', () => {
         await waitFor(() => expect(cell).toHaveFocus());
     });
 
+    it('aligns the minimized slip builder with pagination controls', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal');
+
+        await user.click(screen.getByTitle('Minimize'));
+
+        const paginationControls = screen.getByTestId('pagination-controls');
+        expect(within(paginationControls).getByRole('button', { name: /Open slip builder/ })).toBeInTheDocument();
+        expect(within(paginationControls).getByRole('button', { name: '1' })).toBeInTheDocument();
+    });
+
     it('refreshKey change refetches matches + slip selections', async () => {
         let matchFetches = 0;
         server.use(
@@ -298,12 +321,12 @@ describe('BettingTips page', () => {
                 return HttpResponse.json(PAGE_ONE);
             }),
         );
-        const { rerender } = renderPage({ dateFrom: '', dateTo: '' }, 0);
+        const { rerender } = renderPage(0);
         await screen.findByText('Arsenal');
         const before = matchFetches;
         rerender(
             <MemoryRouter>
-                <BettingTips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />
+                <BettingTips refreshKey={1} />
             </MemoryRouter>,
         );
         await waitFor(() => expect(matchFetches).toBeGreaterThan(before));

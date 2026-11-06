@@ -50,6 +50,8 @@ export interface MarketMovementDetail {
     significant: boolean;
 }
 
+export type OddsMovementDetails = Partial<Record<string, MarketMovementDetail | null>>;
+
 // ── Builder ───────────────────────────────────────────────────────────────────
 
 // ALL_MARKETS is now exported from config/marketConfig.ts
@@ -181,8 +183,23 @@ export interface BetSlip {
 
 export interface SlipsPage {
     slips: BetSlip[];
-    stats: SlipStats;
     profiles: string[];
+    page: number;
+    page_size: number;
+    total: number;
+    total_pages: number;
+}
+
+export interface SlipDailyPnl {
+    date: string;
+    slips: number;
+    wins: number;
+    losses: number;
+    net_profit: number;
+}
+
+export interface SlipCalendarData {
+    days: SlipDailyPnl[];
 }
 
 export interface SlipStats {
@@ -370,6 +387,9 @@ export interface ServicesData {
 export type WsEventName =
     | 'matches_updated'
     | 'slips_updated'
+    | 'validation_progress'
+    | 'validation_completed'
+    | 'generation_updated'
     | 'service_toggled'
     | 'pong';
 
@@ -379,6 +399,32 @@ export interface WsEvent {
     name?: string;
     enabled?: boolean;
     live_data?: Record<string, { score: string; minute: string }>;
+    job_id?: string;
+    checked?: number;
+    total?: number;
+    current_match?: string;
+    settled?: number;
+    live?: number;
+    errors?: number;
+    cancelled?: boolean;
+    failed?: boolean;
+}
+
+export interface ValidationProgress {
+    job_id: string;
+    checked: number;
+    total: number;
+    current_match: string;
+}
+
+export interface ValidationCompletion {
+    job_id: string;
+    checked?: number;
+    settled?: number;
+    live?: number;
+    errors?: number;
+    cancelled?: boolean;
+    failed?: boolean;
 }
 
 // ── Odds History ──────────────────────────────────────────────────────────────

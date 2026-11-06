@@ -104,6 +104,21 @@ class TestAllMovements:
         assert client.get(f"{BASE}/movements/all").json() == {}
 
 
+class TestAllMovementDetails:
+    """GET /api/odds-history/movements/details"""
+
+    def test_future_match_details_returned(self, client) -> None:
+        data = client.get(f"{BASE}/movements/details").json()
+        assert data["m1"]["home"]["direction"] == "up"
+        assert data["m1"]["home"]["change_pct"] == 5.5
+        assert data["m1"]["draw"]["direction"] == "down"
+        assert data["m1"]["draw"]["change_pct"] == -2.9
+        assert data["m1"]["draw"]["significant"] is False
+
+    def test_empty_df_returns_empty_dict(self, empty_client) -> None:
+        assert empty_client.get(f"{BASE}/movements/details").json() == {}
+
+
 class TestSignificantMovements:
     """[P1] GET /api/odds-history/movements/significant"""
 

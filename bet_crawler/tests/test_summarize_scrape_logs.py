@@ -223,9 +223,17 @@ def test_legacy_crawler_logs_are_kept_when_that_job_has_no_jsonl_sidecar(
 
 
 def _write_near_miss_legacy_log(artifact: Path) -> None:
-    """Write a job_log.txt containing a realistic NEAR-MISS REPORT block."""
+    """Write realistic merge summary and NEAR-MISS REPORT blocks."""
     (artifact / "job_log.txt").write_text(
         "=== Job: merge started at 2026-10-29 10:00:00 ===\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -   ==========================\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -         MERGE SUMMARY       \n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -   ==========================\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -   Unique Matches: 780\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -   Chunks scanned: 59\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -     - footballbettingtips: 728 matches\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -  WARNING -     - betexplorer: 0 matches (MISSING)\n"
+        "2026-10-29 10:00:00 - bet_crawler.crawl_core.merge -     INFO -   ==========================\n"
         "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING - === NEAR-MISS REPORT: 2 pairs (score 40-65) ===\n"
         "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING -   [62] Arsenal vs Chelsea <-> Arsenal FC vs Chelsea FC\n"
         "2026-10-29 10:00:01 - bet_framework.MatchesManager - WARNING -   [45] Real Madrid vs Barcelona <-> Real Madrid CF vs FC Barcelona\n"
@@ -250,9 +258,17 @@ def test_near_misses_extracted_from_legacy_merge_log(tmp_path) -> None:
     assert first["away_a"] == "Chelsea"
     assert first["home_b"] == "Arsenal FC"
     assert first["away_b"] == "Chelsea FC"
-    # Near-miss lines must not inflate issue/severity counts
-    assert summary["issue_count"] == 1  # only the scrape_kit.fetcher warning remains
-    assert summary["severity_counts"] == {"WARNING": 1}
+    assert summary["merge_summary"] == {
+        "unique_matches": 780,
+        "chunks_scanned": 59,
+        "sources": [
+            {"name": "footballbettingtips", "matches": 728, "missing": False},
+            {"name": "betexplorer", "matches": 0, "missing": True},
+        ],
+    }
+    # Near-miss lines are excluded; the missing crawler and fetch warning remain.
+    assert summary["issue_count"] == 2
+    assert summary["severity_counts"] == {"WARNING": 2}
 
 
 def test_near_misses_extracted_from_jsonl_events_when_present(tmp_path) -> None:
@@ -310,11 +326,18 @@ def test_render_markdown_includes_near_miss_section(tmp_path) -> None:
     assert "62" in markdown
     assert "Arsenal vs Chelsea" in markdown
     assert "Arsenal FC vs Chelsea FC" in markdown
-    # Section must come after the problems table area (or before pipeline health)
+    assert "| Unique matches | 780 | — |" in markdown
+    assert "| Chunks scanned | 59 | — |" in markdown
+    assert "| `footballbettingtips` | 728 | Present |" in markdown
+    assert "| `betexplorer` | 0 | Missing |" in markdown
+    # Merge details appear immediately before the near-miss section.
+    merge_idx = markdown.find("## Merge summary")
     problems_idx = markdown.find("## Problems by source and reason")
     near_idx = markdown.find("## Near-miss reports")
     health_idx = markdown.find("## Pipeline health")
     assert near_idx > -1
+    assert merge_idx < near_idx
+    assert markdown[merge_idx:near_idx].rstrip().endswith("| `betexplorer` | 0 | Missing |")
     if problems_idx > -1:
         assert near_idx > problems_idx
     if health_idx > -1:
