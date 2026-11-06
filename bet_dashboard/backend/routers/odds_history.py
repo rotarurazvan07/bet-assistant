@@ -1,5 +1,8 @@
 """Odds history API: snapshots and movements per match."""
 
+from datetime import datetime
+import logging
+
 from core.schemas import OddsHistoryOut, OddsMovementSummary, OddsSnapshotOut
 from fastapi import APIRouter, HTTPException, Request
 
@@ -7,6 +10,7 @@ from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.keys import stripped_key
 
 router = APIRouter(prefix="/api/odds-history", tags=["odds-history"])
+logger = logging.getLogger(__name__)
 
 
 def _get(request: Request):
@@ -26,19 +30,27 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
     if df.empty:
         return {}
 
-    from datetime import datetime
+    # Compute 'now' in the configured local timezone as naive datetime
+    # to match DB storage (naive wall-clock in config local_timezone)
+    tz = logic._local_tz()
+    now = datetime.now(tz).replace(tzinfo=None)
 
-    now = datetime.utcnow()
     result = {}
-
-    for idx, row in df.iterrows():
-        match_dt = row.get("datetime")
+    for pos, row in enumerate(df.itertuples(index=False)):
+        match_dt = getattr(row, "datetime", None)
         if match_dt and match_dt > now:
-            movement = logic.get_odds_movement(idx)
-            match_id = row.get("match_id", str(idx))
+            movement = logic.get_odds_movement(pos)
+            match_id = getattr(row, "match_id", None)
+            if not match_id:
+                logger.warning(
+                    f"Skipping row at position {pos}: missing match_id"
+                )
+                continue
             if movement:
-                # Build OddsMovementSummary dynamically from MARKET_CATALOG
-                summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
+                summary_kwargs = {
+                    stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key))
+                    for md in MARKET_CATALOG
+                }
                 result[match_id] = OddsMovementSummary(**summary_kwargs)
 
     return result
@@ -51,20 +63,30 @@ def get_significant_movements(request: Request) -> dict:
     df = logic.match_df
     if df.empty:
         return {}
-    from datetime import datetime
 
-    now = datetime.utcnow()
+    tz = logic._local_tz()
+    now = datetime.now(tz).replace(tzinfo=None)
+
     result = {}
-    for idx, row in df.iterrows():
-        match_dt = row.get("datetime")
+    for pos, row in enumerate(df.itertuples(index=False)):
+        match_dt = getattr(row, "datetime", None)
         if match_dt and match_dt > now:
-            strength = logic.get_odds_movement_with_strength(idx)
+            strength = logic.get_odds_movement_with_strength(pos)
             if not strength:
                 continue
-            sig_count = sum(1 for v in strength.values() if isinstance(v, dict) and v.get("significant"))
+            sig_count = sum(
+                1
+                for v in strength.values()
+                if isinstance(v, dict) and v.get("significant")
+            )
             if sig_count == 0:
                 continue
-            match_id = row.get("match_id", str(idx))
+            match_id = getattr(row, "match_id", None)
+            if not match_id:
+                logger.warning(
+                    f"Skipping row at position {pos}: missing match_id"
+                )
+                continue
             result[match_id] = strength
     return result
 
@@ -97,7 +119,9 @@ def get_match_odds_history(request: Request, match_id: int):
     history = logic.get_odds_history(match_id)
     movement = logic.get_odds_movement(match_id)
 
-    snapshots = [OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history]
+    snapshots = [
+        OddsSnapshotOut(timestamp=h["timestamp"], odds=h["odds"] or {}) for h in history
+    ]
 
     return OddsHistoryOut(
         match_id=match_id,
@@ -115,5 +139,8 @@ def get_match_movement(request: Request, match_id: int):
     movement = logic.get_odds_movement(match_id)
 
     # Build OddsMovementSummary dynamically from MARKET_CATALOG
-    summary_kwargs = {stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
+    summary_kwargs = {
+        stripped_key(md.odds_key): movement.get(stripped_key(md.odds_key))
+        for md in MARKET_CATALOG
+    }
     return OddsMovementSummary(**summary_kwargs)
