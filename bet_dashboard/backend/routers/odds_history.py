@@ -51,6 +51,36 @@ def get_all_movements(request: Request) -> dict[str, OddsMovementSummary]:
     return result
 
 
+@router.get("/movements/details")
+def get_all_movement_details(request: Request) -> dict:
+    """Get direction and percentage details for all future match movements."""
+    logic = _get(request).logic
+    df = logic.match_df
+    if df.empty:
+        return {}
+
+    tz = logic._local_tz()
+    now = datetime.now(tz).replace(tzinfo=None)
+    result = {}
+
+    for pos, row in enumerate(df.itertuples(index=False)):
+        match_dt = getattr(row, "datetime", None)
+        if match_dt and match_dt > now:
+            details = logic.get_odds_movement_with_strength(pos)
+            if not details:
+                continue
+            match_id = getattr(row, "match_id", None)
+            if not match_id:
+                logger.warning(f"Skipping row at position {pos}: missing match_id")
+                continue
+            result[match_id] = {
+                stripped_key(md.odds_key): details.get(stripped_key(md.odds_key))
+                for md in MARKET_CATALOG
+            }
+
+    return result
+
+
 @router.get("/movements/significant")
 def get_significant_movements(request: Request) -> dict:
     """Movement data with strength metrics, filtered to significant only."""

@@ -1,8 +1,7 @@
 import { useState, Fragment } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { pullDb } from '../api/data';
 import OnboardingTour from './OnboardingTour';
-import { TOUR_DONE_KEY } from './tourStorage';
 
 // Navigation groups retain visual separators; routes and labels stay unchanged.
 const NAV_GROUPS = [
@@ -33,14 +32,12 @@ const NAV_GROUPS = [
 interface Props {
     children: React.ReactNode;
     lastPull: string;
-    onRefresh: () => void;
     onMatchesUpdated: () => void;
 }
 
-export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated }: Props) {
-    const navigate = useNavigate();
-    const [tourEpoch, setTourEpoch] = useState(0);
+export default function Layout({ children, lastPull, onMatchesUpdated }: Props) {
     const [pulling, setPulling] = useState(false);
+    const commitSha = import.meta.env.VITE_COMMIT_SHA || 'unknown';
 
     async function handlePull() {
         setPulling(true);
@@ -53,14 +50,6 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             // Ignore pull errors
         } finally {
             setPulling(false);
-        }
-    }
-
-    async function handleRefresh() {
-        try {
-            onRefresh();
-        } catch {
-            // Ignore refresh errors
         }
     }
 
@@ -112,24 +101,17 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
                                 {lastPull}
                             </span>
                         )}
-                        <button className="btn-ghost" onClick={handleRefresh}>
-                            Refresh
-                        </button>
-                        {/*Restart Tour lives in the header — there is no Settings page. */}
-                        <button
-                            type="button"
-                            className="btn-ghost"
-                            onClick={() => {
-                                try { localStorage.removeItem(TOUR_DONE_KEY); } catch { /* ignore */ }
-                                navigate('/');
-                                setTourEpoch((n) => n + 1);
-                            }}
-                        >
-                            Restart Tour
-                        </button>
                         <button className="btn-primary" onClick={handlePull} disabled={pulling}>
-                            {pulling ? 'Pulling…' : '↓ Pull Update'}
+                            {pulling ? 'Pulling matches…' : '↓ Pull Matches'}
                         </button>
+                        <span
+                            className="border-l pl-3 text-[10px] font-mono whitespace-nowrap"
+                            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                            title={`Commit ${commitSha}`}
+                            aria-label={`Build ${commitSha.slice(0, 7)}`}
+                        >
+                            Build {commitSha.slice(0, 7)}
+                        </span>
                     </div>
                 </div>
             </header>
@@ -138,8 +120,8 @@ export default function Layout({ children, lastPull, onRefresh, onMatchesUpdated
             <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 py-6 max-w-[2400px] mx-auto transition-all duration-300">
                 {children}
             </main>
-            {/*mount tour here (Router + Restart). Do not edit App.tsx. */}
-            <OnboardingTour key={tourEpoch} />
+            {/* Mount the first-visit tour at the router level. */}
+            <OnboardingTour />
         </div>
     );
 }

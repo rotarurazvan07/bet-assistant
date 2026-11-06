@@ -18,6 +18,10 @@ _BARE_LEVEL_LINE = re.compile(
 )
 _ISSUE_LEVELS = {"WARNING", "ERROR", "CRITICAL"}
 _OUTCOME_PRIORITY = {"success": 0, "skipped": 0, "partial": 1, "error": 2, "failure": 2}
+_MERGE_UNIQUE_MATCHES = re.compile(r"^\s*Unique Matches:\s*(\d+)\s*$")
+_MERGE_CHUNKS_SCANNED = re.compile(r"^\s*Chunks scanned:\s*(\d+)\s*$")
+_MERGE_SOURCE = re.compile(r"^\s*-\s*(.+?):\s*(\d+)\s+matches(?:\s+\(MISSING\))?\s*$")
+_MERGE_MISSING = re.compile(r"\(MISSING\)\s*$")
 
 
 def _read_events(logs_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
@@ -220,6 +224,65 @@ def _extract_near_misses(
     return near_misses
 
 
+def _extract_merge_summary(
+    logs_dir: Path,
+    legacy_lines_by_artifact: dict[str, list[tuple[int, str]]],
+) -> dict[str, Any] | None:
+    """Extract the merge job's totals and per-crawler counts from its log block."""
+    for artifact, lines in legacy_lines_by_artifact.items():
+        if not (artifact.replace("\\", "/").startswith("logs-merge/") or logs_dir.name == "logs-merge"):
+            continue
+
+        in_summary = False
+        content_seen = False
+        merge_summary: dict[str, Any] = {
+            "unique_matches": None,
+            "chunks_scanned": None,
+            "sources": [],
+        }
+        for _line_number, raw_line in lines:
+            line = _ANSI_ESCAPE.sub("", raw_line).strip()
+            message = _extract_message_from_legacy_line(line) or line
+            if "MERGE SUMMARY" in message:
+                in_summary = True
+                continue
+            if not in_summary:
+                continue
+
+            if re.fullmatch(r"\s*=+\s*", message):
+                if content_seen:
+                    break
+                continue
+
+            unique_match = _MERGE_UNIQUE_MATCHES.match(message)
+            if unique_match:
+                merge_summary["unique_matches"] = int(unique_match.group(1))
+                content_seen = True
+                continue
+
+            chunks_match = _MERGE_CHUNKS_SCANNED.match(message)
+            if chunks_match:
+                merge_summary["chunks_scanned"] = int(chunks_match.group(1))
+                content_seen = True
+                continue
+
+            source_match = _MERGE_SOURCE.match(message)
+            if source_match:
+                source_line = message.strip()
+                merge_summary["sources"].append(
+                    {
+                        "name": source_match.group(1).strip(),
+                        "matches": int(source_match.group(2)),
+                        "missing": bool(_MERGE_MISSING.search(source_line)),
+                    }
+                )
+                content_seen = True
+
+        if content_seen:
+            return merge_summary
+    return None
+
+
 def _parse_legacy_line(
     raw_line: str,
     *,
@@ -292,6 +355,7 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
     # problems table or the issue/severity counters.
     issues = [issue for issue in issues if not _is_near_miss_issue(issue)]
     near_misses = _extract_near_misses(events, legacy_lines_by_artifact)
+    merge_summary = _extract_merge_summary(logs_dir, legacy_lines_by_artifact)
 
     outcomes = {name: str(result).lower() for name, result in sorted((job_outcomes or {}).items())}
     failed_jobs = {name: result for name, result in outcomes.items() if result not in {"success", "skipped"}}
@@ -334,6 +398,7 @@ def summarize(logs_dir: Path, job_outcomes: dict[str, str] | None = None) -> dic
             for (source, event_name, reason), records in sorted(groups.items())
         ],
         "stage_events": [event for event in events if str(event.get("event", "")) in {"stage.completed", "stage.failed"}],
+        "merge_summary": merge_summary,
         "near_misses": near_misses,
     }
 
@@ -478,6 +543,24 @@ def render_markdown(summary: dict[str, Any]) -> str:
         lines.append("")
     else:
         lines.extend(["## Problems", "", "No warning/error log events were found.", ""])
+
+    merge_summary = summary.get("merge_summary")
+    if merge_summary:
+        lines.extend(
+            [
+                "## Merge summary",
+                "",
+                "| Item | Count | Status |",
+                "|---|---:|---|",
+                f"| Unique matches | {merge_summary['unique_matches'] if merge_summary['unique_matches'] is not None else '—'} | — |",
+                f"| Chunks scanned | {merge_summary['chunks_scanned'] if merge_summary['chunks_scanned'] is not None else '—'} | — |",
+            ]
+        )
+        lines.extend(
+            f"| `{source['name']}` | {source['matches']} | {'Missing' if source['missing'] else 'Present'} |"
+            for source in merge_summary["sources"]
+        )
+        lines.append("")
 
     # Dedicated near-miss section, omitted when empty.
     near_misses = summary.get("near_misses") or []

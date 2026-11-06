@@ -6,6 +6,8 @@ COPY bet_dashboard/frontend/package.json bet_dashboard/frontend/package-lock.jso
 RUN npm ci
 
 COPY bet_dashboard/frontend/ ./
+ARG VITE_COMMIT_SHA=unknown
+ENV VITE_COMMIT_SHA=${VITE_COMMIT_SHA}
 RUN npm run build
 
 FROM python:3.14-slim AS python-deps

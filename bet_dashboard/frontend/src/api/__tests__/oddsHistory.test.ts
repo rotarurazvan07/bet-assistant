@@ -6,7 +6,7 @@ import { http, HttpResponse } from 'msw';
 import { server } from '../../test/handlers';
 import { makeOddsHistory, makeOddsMovementSummary } from '../../test/factories';
 import {
-    getMatchOddsHistory, getMatchMovement, getAllMovements, getSignificantMovements,
+    getMatchOddsHistory, getMatchMovement, getAllMovements, getAllMovementDetails, getSignificantMovements,
 } from '../oddsHistory';
 
 
@@ -39,6 +39,14 @@ describe('oddsHistory', () => {
         server.use(http.get('/api/odds-history/movements/all', () => HttpResponse.json({ '12': makeOddsMovementSummary() })));
         const all = await getAllMovements();
         expect(all['12'].home).toBe('up');
+    });
+
+    it('getAllMovementDetails returns keyed movement details', async () => {
+        server.use(http.get('/api/odds-history/movements/details', () => HttpResponse.json({
+            '12': { home: { direction: 'up', change_pct: 5.23, significant: true } },
+        })));
+        const all = await getAllMovementDetails();
+        expect(all['12'].home?.change_pct).toBe(5.23);
     });
 
     it('getSignificantMovements returns detail map', async () => {

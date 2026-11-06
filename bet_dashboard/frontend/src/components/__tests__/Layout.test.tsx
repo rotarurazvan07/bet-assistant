@@ -11,14 +11,12 @@ import Layout from '../Layout';
 
 interface LayoutOverrides {
     lastPull?: string;
-    onRefresh?: () => void;
     onMatchesUpdated?: () => void;
 }
 
 function renderLayout(route: string = '/', overrides: LayoutOverrides = {}) {
     const defaults = {
-        lastPull: 'Updated: 12:00',
-        onRefresh: () => {},
+        lastPull: 'Last Pull: 12:00',
         onMatchesUpdated: () => {},
         ...overrides,
     };
@@ -113,35 +111,36 @@ describe('Layout', () => {
         }
     });
 
-    it('Refresh button fires onRefresh', async () => {
-        const user = userEvent.setup();
-        const onRefresh = vi.fn();
-        renderLayout('/', { onRefresh });
-        await user.click(screen.getByText('Refresh'));
-        expect(onRefresh).toHaveBeenCalledTimes(1);
+    it('does not render a refresh button', () => {
+        renderLayout();
+        expect(screen.queryByRole('button', { name: 'Refresh' })).not.toBeInTheDocument();
     });
 
-    it('Pull Update resolves via MSW /api/pull and fires onMatchesUpdated on ok', async () => {
+    it('Pull Matches resolves via MSW /api/pull and fires onMatchesUpdated on ok', async () => {
         const user = userEvent.setup();
         const onMatchesUpdated = vi.fn();
         renderLayout('/', { onMatchesUpdated });
-        await user.click(screen.getByText('↓ Pull Update'));
+        await user.click(screen.getByText('↓ Pull Matches'));
         // wait for the pulling state to clear (handler returns {status:'ok'})
-        await screen.findByText('↓ Pull Update');
+        await screen.findByText('↓ Pull Matches');
         expect(onMatchesUpdated).toHaveBeenCalledTimes(1);
     });
 
     it('shows lastPull text when provided', () => {
-        renderLayout('/', { lastPull: 'Updated: 12:34' });
-        expect(screen.getByText('Updated: 12:34')).toBeInTheDocument();
+        renderLayout('/', { lastPull: 'Last Pull: 12:34' });
+        expect(screen.getByText('Last Pull: 12:34')).toBeInTheDocument();
     });
 
-    it('Restart Tour clears the done key and shows step 0', async () => {
-        const user = userEvent.setup();
+    it('shows the running build commit at the far right of the header', () => {
         renderLayout();
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-        await user.click(screen.getByRole('button', { name: 'Restart Tour' }));
-        expect(localStorage.getItem('bet-assistant-tour-done')).toBeNull();
-        expect(screen.getByRole('dialog', { name: 'Find value bets' })).toBeInTheDocument();
+        const buildLabel = screen.getByLabelText(/^Build /);
+        expect(buildLabel).toHaveTextContent(/^Build (?:[a-f0-9]{7}|unknown)$/);
+        expect(buildLabel).toHaveAttribute('title', expect.stringMatching(/^Commit /));
+        expect(buildLabel.parentElement?.lastElementChild).toBe(buildLabel);
+    });
+
+    it('does not render a Restart Tour button', () => {
+        renderLayout();
+        expect(screen.queryByRole('button', { name: 'Restart Tour' })).not.toBeInTheDocument();
     });
 });

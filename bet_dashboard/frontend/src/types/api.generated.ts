@@ -189,6 +189,13 @@ export interface paths {
      */
     get: operations["get_all_movements_api_odds_history_movements_all_get"];
   };
+  "/api/odds-history/movements/details": {
+    /**
+     * Get All Movement Details
+     * @description Get direction and percentage details for all future match movements.
+     */
+    get: operations["get_all_movement_details_api_odds_history_movements_details_get"];
+  };
   "/api/odds-history/movements/significant": {
     /**
      * Get Significant Movements
@@ -1198,6 +1205,22 @@ export interface operations {
         content: {
           "application/json": {
             [key: string]: components["schemas"]["OddsMovementSummary"];
+          };
+        };
+      };
+    };
+  };
+  /**
+   * Get All Movement Details
+   * @description Get direction and percentage details for all future match movements.
+   */
+  get_all_movement_details_api_odds_history_movements_details_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
           };
         };
       };

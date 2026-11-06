@@ -1,4 +1,4 @@
-import type { Match, CandidateLeg, OddsMovementSummary, OddsMovementDirection } from '../types';
+import type { Match, CandidateLeg, OddsMovementDetails, MarketMovementDetail } from '../types';
 import { BaseDataRow } from './ui/BaseDataRow';
 import { MARKET_COLUMNS, strippedKey } from '../config/marketConfig';
 import { OddsMovementIndicator } from './OddsMovementIndicator';
@@ -38,7 +38,7 @@ interface CellProps {
     onClick?: (event: React.MouseEvent<HTMLElement>) => void;
     isActive?: boolean;
     isInSlip?: boolean;
-    movement?: OddsMovementDirection;
+    movement?: MarketMovementDetail | null;
     pulsing?: boolean; //
 }
 
@@ -71,7 +71,7 @@ function Cell({ pct, odds, onClick, isActive = false, isInSlip = false, movement
                 {c.odds != null && c.odds > 1 && (
                     <span className="font-mono text-sm inline-flex items-center gap-0.5" style={{ color: textColor, opacity: isInSlip || isActive ? 1 : 0.8 }}>
                         @{oddsDisplay}
-                        <OddsMovementIndicator direction={movement} size="sm" />
+                        <OddsMovementIndicator direction={movement?.direction} changePct={movement?.change_pct} size="sm" />
                     </span>
                 )}
             </div>
@@ -85,7 +85,7 @@ interface Props {
     onCellClick?: (leg: CandidateLeg, element?: HTMLElement) => void;
     activeMarkets?: Set<string>;
     inSlipMarkets?: Set<string>;
-    movement?: OddsMovementSummary;
+    movement?: OddsMovementDetails;
     visibleColumns?: Set<string>;
     pulsingKey?: string | null;
 }
@@ -182,11 +182,11 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
      * 3. Automatic inclusion of new markets when MARKET_COLUMNS is updated
      *
      * Transformation: oddsKey (e.g., 'odds_over_25') -> strip 'odds_' -> 'over_25'
-     * This matches the key names in OddsMovementSummary interface.
+     * This matches the key names in OddsMovementDetails.
      */
-    const marketToMovementKey: Record<string, keyof OddsMovementSummary> = {};
+    const marketToMovementKey: Record<string, keyof OddsMovementDetails> = {};
     MARKET_COLUMNS.forEach(col => {
-      const movementKey = strippedKey(col.oddsKey) as keyof OddsMovementSummary;
+      const movementKey = strippedKey(col.oddsKey) as keyof OddsMovementDetails;
       marketToMovementKey[col.market] = movementKey;
     });
 

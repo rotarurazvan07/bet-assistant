@@ -1,9 +1,9 @@
 import {useCallback,  useEffect, useRef, useState } from 'react';
 import { fetchMatches } from '../api/matches';
-import { getAllMovements } from '../api/oddsHistory';
+import { getAllMovementDetails } from '../api/oddsHistory';
 import { addSlip, fetchAllSlips, fetchSourcesConfig, pullDb } from '../api/data';
 import EmptyState, { DiscoverEmptyIcon } from '../components/EmptyState';
-import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementSummary, BetSlip} from '../types';
+import type { CandidateLeg, ManualLegIn, BetLeg, OddsMovementDetails, BetSlip} from '../types';
 import MatchRow from '../components/MatchRow';
 import Pagination from '../components/Pagination';
 import FloatingSlipBuilder from '../components/FloatingSlipBuilder';
@@ -44,7 +44,7 @@ export default function BettingTips({ refreshKey }: Props) {
 
     // Fetch slips from backend to highlight cells already in slips
     const [slipSelections, setSlipSelections] = useState<Set<string>>(new Set());
-    const [movements, setMovements] = useState<Record<string, OddsMovementSummary>>({});
+    const [movements, setMovements] = useState<Record<string, OddsMovementDetails>>({});
 
     useEffect(() => {
         let cancelled = false;
@@ -200,7 +200,7 @@ export default function BettingTips({ refreshKey }: Props) {
     // Fetch odds movements
     useEffect(() => {
         let cancelled = false;
-        getAllMovements()
+        getAllMovementDetails()
             .then(d => { if (!cancelled) setMovements(d); })
             .catch(() => {});
         return () => { cancelled = true; };

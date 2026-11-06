@@ -74,11 +74,6 @@ export default function App() {
         }, []),
     });
 
-    function handleRefresh() {
-        setMatchesRefresh(n => n + 1);
-        setSlipsRefresh(n => n + 1);
-    }
-
     function handleMatchesUpdated() {
         setMatchesRefresh(n => n + 1);
     }
@@ -86,8 +81,7 @@ export default function App() {
     return (
         <BrowserRouter>
             <Layout
-                lastPull={lastPull ? `Updated: ${lastPull}` : ''}
-                onRefresh={handleRefresh}
+                lastPull={lastPull ? `Last Pull: ${lastPull}` : ''}
                 onMatchesUpdated={handleMatchesUpdated}
             >
                 <>

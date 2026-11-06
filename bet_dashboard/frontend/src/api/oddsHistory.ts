@@ -1,5 +1,5 @@
 import client from './client';
-import type { OddsHistory, OddsMovementSummary, MarketMovementDetail } from '../types';
+import type { OddsHistory, OddsMovementSummary, MarketMovementDetail, OddsMovementDetails } from '../types';
 
 /**
  * Get full odds history for a specific match
@@ -26,6 +26,11 @@ export async function getAllMovements(): Promise<Record<string, OddsMovementSumm
 }
 
 export type SignificantMovements = Record<string, Record<string, MarketMovementDetail>>;
+
+export async function getAllMovementDetails(): Promise<Record<string, OddsMovementDetails>> {
+    const response = await client.get<Record<string, OddsMovementDetails>>('/odds-history/movements/details');
+    return response.data;
+}
 
 export async function getSignificantMovements(): Promise<SignificantMovements> {
     const { data } = await client.get<SignificantMovements>('/odds-history/movements/significant');

@@ -27,7 +27,7 @@ beforeEach(() => {
             lastUrl = request.url;
             return HttpResponse.json(PAGE_ONE);
         }),
-        http.get('/api/odds-history/movements/all', () => HttpResponse.json({})),
+        http.get('/api/odds-history/movements/details', () => HttpResponse.json({})),
         http.get('/api/slips', () => HttpResponse.json({ slips: [], stats: null, profiles: [] })),
         http.get('/api/config/sources', () => HttpResponse.json({ sources: ['forebet', 'predictz'] })),
         http.post('/api/slips', () => HttpResponse.json({ slip_id: 42, slip_status: 'Pending' })),

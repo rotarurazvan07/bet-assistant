@@ -50,6 +50,8 @@ export interface MarketMovementDetail {
     significant: boolean;
 }
 
+export type OddsMovementDetails = Partial<Record<string, MarketMovementDetail | null>>;
+
 // ── Builder ───────────────────────────────────────────────────────────────────
 
 // ALL_MARKETS is now exported from config/marketConfig.ts

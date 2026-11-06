@@ -1161,6 +1161,30 @@
         }
       }
     },
+    "/api/odds-history/movements/details": {
+      "get": {
+        "tags": [
+          "odds-history"
+        ],
+        "summary": "Get All Movement Details",
+        "description": "Get direction and percentage details for all future match movements.",
+        "operationId": "get_all_movement_details_api_odds_history_movements_details_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get All Movement Details Api Odds History Movements Details Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/odds-history/movements/significant": {
       "get": {
         "tags": [

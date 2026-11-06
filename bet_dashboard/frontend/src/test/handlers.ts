@@ -67,6 +67,9 @@ export const handlers = [
     http.get('/api/odds-history/movements/all', () => HttpResponse.json({
         '1': makeOddsMovementSummary(),
     })),
+    http.get('/api/odds-history/movements/details', () => HttpResponse.json({
+        '1': { home: { direction: 'up', change_pct: 12.5, significant: true } },
+    })),
     http.get('/api/odds-history/movements/significant', () => HttpResponse.json({
         '1': { home: { direction: 'up', change_pct: 12.5, significant: true } },
     })),
