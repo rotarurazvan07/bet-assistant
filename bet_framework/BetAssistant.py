@@ -41,10 +41,11 @@ picks, preventing the slip from drifting far from the target total odds.
 import hashlib
 import math
 import re
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from datetime import datetime
 from threading import Event, Lock
-from typing import Any, Callable
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd

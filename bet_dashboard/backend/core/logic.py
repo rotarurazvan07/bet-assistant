@@ -4,10 +4,11 @@ import math
 import os
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Event, Lock, RLock
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 from zoneinfo import ZoneInfo

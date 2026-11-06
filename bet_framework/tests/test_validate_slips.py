@@ -236,7 +236,7 @@ def test_validate_slips_returns_promptly_when_cancelled_during_fetch(ba) -> None
     cancel_event = Event()
     reports = []
 
-    def slow_fetch(*args, **kwargs):
+    def slow_fetch(*args, **kwargs) -> str:
         fetch_started.set()
         try:
             release_fetch.wait(timeout=3)

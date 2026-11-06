@@ -73,10 +73,7 @@ def get_all_movement_details(request: Request) -> dict:
             if not match_id:
                 logger.warning(f"Skipping row at position {pos}: missing match_id")
                 continue
-            result[match_id] = {
-                stripped_key(md.odds_key): details.get(stripped_key(md.odds_key))
-                for md in MARKET_CATALOG
-            }
+            result[match_id] = {stripped_key(md.odds_key): details.get(stripped_key(md.odds_key)) for md in MARKET_CATALOG}
 
     return result
 

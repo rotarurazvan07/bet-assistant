@@ -14,7 +14,6 @@ import json
 import os
 import urllib.error
 from datetime import datetime
-from types import SimpleNamespace
 
 import pytest
 from tests.logic_test_helpers import (

@@ -274,9 +274,7 @@ def calculate_correlation_data(slips) -> list[dict[str, Any]]:
                     "units": _get_units(s),
                     "status": slip_status,
                     "profit": round(
-                        (s.total_odds * _get_units(s) - _get_units(s))
-                        if slip_status == "Won"
-                        else -_get_units(s),
+                        (s.total_odds * _get_units(s) - _get_units(s)) if slip_status == "Won" else -_get_units(s),
                         2,
                     ),
                 }

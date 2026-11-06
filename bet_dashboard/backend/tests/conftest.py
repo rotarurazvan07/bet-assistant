@@ -254,8 +254,8 @@ class FakeDashboardLogic:
         profile=None,
         date_from=None,
         date_to=None,
-        hide_settled=False,
-        live_only=False,
+        hide_settled: bool = False,
+        live_only: bool = False,
         page=1,
         page_size=20,
         sort_by="date_desc",
@@ -288,11 +288,14 @@ class FakeDashboardLogic:
         if live_only:
             slips = [slip for slip in slips if any(value(leg.status) == "Live" for leg in slip.legs)]
 
-        profiles = sorted({
-            slip.profile for slip in self._slips
-            if (not date_from or slip.date_generated[:10] >= date_from)
-            and (not date_to or slip.date_generated[:10] <= date_to)
-        })
+        profiles = sorted(
+            {
+                slip.profile
+                for slip in self._slips
+                if (not date_from or slip.date_generated[:10] >= date_from)
+                and (not date_to or slip.date_generated[:10] <= date_to)
+            }
+        )
         total = len(slips)
         sort_key = {
             "date_desc": lambda slip: slip.date_generated,
@@ -302,21 +305,33 @@ class FakeDashboardLogic:
             "stake_desc": lambda slip: slip.units,
             "stake_asc": lambda slip: slip.units,
             "net_profit_desc": lambda slip: (
-                -float("inf") if value(slip.slip_status) == "Pending"
-                else (slip.total_odds * slip.units - slip.units if value(slip.slip_status) == "Won"
-                      else -slip.units if value(slip.slip_status) == "Lost" else 0)
+                -float("inf")
+                if value(slip.slip_status) == "Pending"
+                else (
+                    slip.total_odds * slip.units - slip.units
+                    if value(slip.slip_status) == "Won"
+                    else -slip.units
+                    if value(slip.slip_status) == "Lost"
+                    else 0
+                )
             ),
             "net_profit_asc": lambda slip: (
-                float("inf") if value(slip.slip_status) == "Pending"
-                else (slip.total_odds * slip.units - slip.units if value(slip.slip_status) == "Won"
-                      else -slip.units if value(slip.slip_status) == "Lost" else 0)
+                float("inf")
+                if value(slip.slip_status) == "Pending"
+                else (
+                    slip.total_odds * slip.units - slip.units
+                    if value(slip.slip_status) == "Won"
+                    else -slip.units
+                    if value(slip.slip_status) == "Lost"
+                    else 0
+                )
             ),
         }[sort_by]
         slips.sort(key=lambda slip: (slip.date_generated, slip.slip_id), reverse=True)
         descending = sort_by.endswith("_desc")
         slips.sort(key=sort_key, reverse=descending)
         start = (page - 1) * page_size
-        return slips[start:start + page_size], total, profiles
+        return slips[start : start + page_size], total, profiles
 
     def get_daily_slip_pnl(self, date_from, date_to, profile=None):
         self.calls.append("get_daily_slip_pnl")

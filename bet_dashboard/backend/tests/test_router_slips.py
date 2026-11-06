@@ -217,9 +217,7 @@ class TestSlipCalendar:
         )
 
         assert response.status_code == 200
-        assert response.json() == {
-            "days": [{"date": "2030-01-01", "slips": 1, "wins": 1, "losses": 0, "net_profit": 2.0}]
-        }
+        assert response.json() == {"days": [{"date": "2030-01-01", "slips": 1, "wins": 1, "losses": 0, "net_profit": 2.0}]}
         assert "get_daily_slip_pnl" in fake_logic.calls
 
     def test_calendar_rejects_reversed_date_range(self, client) -> None:

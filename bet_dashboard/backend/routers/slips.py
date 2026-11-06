@@ -5,8 +5,8 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from core.schemas import ManualLegIn, SlipIn
 from core.logic import ValidationInProgressError
+from core.schemas import ManualLegIn, SlipIn
 from fastapi import APIRouter, Body, HTTPException, Query, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params

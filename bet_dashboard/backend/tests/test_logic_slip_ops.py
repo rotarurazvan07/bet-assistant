@@ -279,8 +279,7 @@ class TestAppLogicSlipOperations:
         self._seed_three_slips(app_env.app)
         with app_env.app._assistant.db_lock:
             app_env.app._assistant.conn.execute(
-                "UPDATE legs SET status = 'Won' WHERE slip_id = "
-                "(SELECT slip_id FROM slips WHERE profile = 'b' LIMIT 1)"
+                "UPDATE legs SET status = 'Won' WHERE slip_id = (SELECT slip_id FROM slips WHERE profile = 'b' LIMIT 1)"
             )
             app_env.app._assistant.conn.commit()
 
