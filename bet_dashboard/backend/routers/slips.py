@@ -312,7 +312,7 @@ def get_slips(
         "page": page,
         "page_size": page_size,
         "total": total,
-        "total_pages": max(1, math.ceil(total / page_size)),
+        "total_pages": math.ceil(total / page_size) if total else 0,
     }
     return sanitize_floats(response_data)
 
@@ -327,6 +327,8 @@ def get_slip_calendar(
     """Return daily slip counts and realized P&L for a calendar date range."""
     if date_from > date_to:
         raise HTTPException(status_code=422, detail="date_from must not be after date_to")
+    if (date_to - date_from).days > 366:
+        raise HTTPException(status_code=422, detail="date range must not exceed 366 days")
 
     if profiles is None:
         profiles = get_profile_params(request)

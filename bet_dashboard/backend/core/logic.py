@@ -1074,12 +1074,11 @@ class AppLogic:
     def validate_and_broadcast(self, job_id: str | None = None) -> Any:
         """Validate pending slips and broadcast live updates over WS."""
         job_id = job_id or str(uuid4())
-        if not self._validation_run_lock.acquire(blocking=False):
-            raise ValidationInProgressError("Slip validation is already running")
         cancel_event = Event()
         with self._validation_lock:
             if self._validation_job_id is not None:
-                self._validation_run_lock.release()
+                raise ValidationInProgressError("Slip validation is already running")
+            if not self._validation_run_lock.acquire(blocking=False):
                 raise ValidationInProgressError("Slip validation is already running")
             self._validation_job_id = job_id
             self._validation_cancel_event = cancel_event

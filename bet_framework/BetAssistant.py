@@ -579,6 +579,8 @@ class BetAssistant(BaseStorageManager):
         """Return one filtered, sorted page of slips, its total, and available profiles."""
         if page < 1 or page_size < 1:
             raise ValueError("page and page_size must be positive")
+        if page_size > 100:
+            raise ValueError("page_size must not exceed 100")
 
         sort_expressions = {
             "date_desc": "s.date_generated DESC",
@@ -634,7 +636,7 @@ class BetAssistant(BaseStorageManager):
 
         where_sql = f" WHERE {' AND '.join(conditions)}" if conditions else ""
         count_rows = self.fetch_rows(f"SELECT COUNT(*) FROM slips s{where_sql}", params)
-        total = int(count_rows[0][0])
+        total = int(count_rows[0][0]) if count_rows else 0
 
         profile_conditions = []
         profile_params: list[Any] = []
@@ -961,27 +963,27 @@ class BetAssistant(BaseStorageManager):
                 progress_callback(0, 0, "")
             return ValidationReport(checked=0, settled=[], live=[], errors=0)
 
-        def _handle_url(url: str, html: str) -> None:
+        def _fetch_url(url: str) -> tuple[str, str | None]:
+            """Fetch URL and return (url, html or None). Called from worker thread."""
+            if cancel_event and cancel_event.is_set():
+                return url, None
+            last_error: Exception | None = None
             try:
-                base_info = _parse_match_result_html(html, url)
-
-                for leg_id, market, market_type, match_name in url_to_legs[url]:
-                    outcome_info = self.process_leg_result(leg_id, base_info, market, market_type, match_name)
-                    if not outcome_info:
-                        continue
-
-                    if base_info.status == MatchStatus.FT and outcome_info.outcome in (
-                        Outcome.WON,
-                        Outcome.LOST,
-                    ):
-                        settled_matches.append(outcome_info)
-
-                    elif base_info.status == MatchStatus.LIVE:
-                        live_matches.append(outcome_info)
-
-            except Exception as e:
-                errors[0] += 1
-                logger.error(f"[BetAssistant] parse error on {url}: {e}")
+                for stealthy_headers in (False, True):
+                    if cancel_event and cancel_event.is_set():
+                        return url, None
+                    try:
+                        html = fetch(url, stealthy_headers=stealthy_headers)
+                        if not is_blocked(html):
+                            return url, html
+                    except Exception as exc:
+                        last_error = exc
+                if last_error:
+                    raise last_error
+                raise RuntimeError(f"Fast scrape remained blocked for {url}")
+            except Exception as exc:
+                logger.error(f"[BetAssistant] scrape failure on {url}: {exc}")
+                return url, None
 
         max_concurrency = 10
         completed = 0
@@ -998,34 +1000,12 @@ class BetAssistant(BaseStorageManager):
                 checked_so_far = completed
             progress_callback(checked_so_far, checked, current_match)
 
-        def _fetch_url(url: str) -> str:
-            if cancel_event and cancel_event.is_set():
-                return ""
-            with progress_lock:
-                active_urls.append(url)
-            _report_progress(url)
-            last_error: Exception | None = None
-            try:
-                for stealthy_headers in (False, True):
-                    if cancel_event and cancel_event.is_set():
-                        return ""
-                    try:
-                        html = fetch(url, stealthy_headers=stealthy_headers)
-                        if not is_blocked(html):
-                            return html
-                    except Exception as exc:
-                        last_error = exc
-                if last_error:
-                    raise last_error
-                raise RuntimeError(f"Fast scrape remained blocked for {url}")
-            finally:
-                with progress_lock:
-                    active_urls.remove(url)
-
         executor = ThreadPoolExecutor(max_workers=max_concurrency)
-        futures: dict[Future[str], str] = {}
+        futures: dict[Future[tuple[str, str | None]], str] = {}
         next_url = 0
         cancelled = False
+        # Collect results from worker threads to apply in main thread
+        pending_results: list[tuple[str, str]] = []  # (url, html)
         try:
             _report_progress()
             while next_url < len(urls) and len(futures) < max_concurrency:
@@ -1047,9 +1027,9 @@ class BetAssistant(BaseStorageManager):
                         cancelled = True
                         break
                     try:
-                        html = future.result()
+                        url, html = future.result()
                         if html:
-                            _handle_url(url, html)
+                            pending_results.append((url, html))
                     except Exception as exc:
                         errors[0] += 1
                         logger.error(f"[BetAssistant] scrape failure on {url}: {exc}")
@@ -1067,6 +1047,29 @@ class BetAssistant(BaseStorageManager):
                 for future in futures:
                     future.cancel()
             executor.shutdown(wait=not cancelled, cancel_futures=cancelled)
+
+        # Process all results in main thread (thread-safe DB access)
+        for url, html in pending_results:
+            try:
+                base_info = _parse_match_result_html(html, url)
+
+                for leg_id, market, market_type, match_name in url_to_legs[url]:
+                    outcome_info = self.process_leg_result(leg_id, base_info, market, market_type, match_name)
+                    if not outcome_info:
+                        continue
+
+                    if base_info.status == MatchStatus.FT and outcome_info.outcome in (
+                        Outcome.WON,
+                        Outcome.LOST,
+                    ):
+                        settled_matches.append(outcome_info)
+
+                    elif base_info.status == MatchStatus.LIVE:
+                        live_matches.append(outcome_info)
+
+            except Exception as e:
+                errors[0] += 1
+                logger.error(f"[BetAssistant] parse error on {url}: {e}")
 
         return ValidationReport(
             checked=checked,
