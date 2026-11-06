@@ -71,10 +71,10 @@ beforeEach(() => {
     );
 });
 
-function renderBuilder(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+function renderBuilder(refreshKey = 0) {
     return render(
         <MemoryRouter>
-            <SmartBuilder filters={filters} refreshKey={refreshKey} />
+            <SmartBuilder refreshKey={refreshKey} />
         </MemoryRouter>,
     );
 }
@@ -440,17 +440,21 @@ describe('SmartBuilder page', () => {
         await waitFor(() => expect(removes).toBe(1), { timeout: 3000 });
     });
 
-    it('refreshKey increment triggers a fresh preview', async () => {
+    it('local date range filters previews and refreshKey triggers a fresh preview', async () => {
+        const user = userEvent.setup();
         const initial = renderBuilder();
         await waitFor(() => expect(previewCalls).toBeGreaterThan(0), { timeout: 4000 });
         const before = previewCalls;
         initial.rerender(
             <MemoryRouter>
-                <SmartBuilder filters={{ dateFrom: '2026-09-25', dateTo: '' }} refreshKey={1} />
+                <SmartBuilder refreshKey={1} />
             </MemoryRouter>,
         );
         await waitFor(() => expect(previewCalls).toBeGreaterThan(before), { timeout: 4000 });
+
+        await user.type(screen.getByLabelText('Date from'), '2026-09-25');
         await waitFor(() => expect(lastPreviewBody).toContain('2026-09-25'), { timeout: 3000 });
+        expect(localStorage.getItem('bet-assistant-builder-date-range')).toContain('2026-09-25');
     });
 
     it('localStorage payload carries no removed keys (runDaily gone)', async () => {

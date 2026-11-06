@@ -4,18 +4,18 @@ import { fetchSlips, deleteSlip, validateSlips, cancelValidation, generateSlips 
 import EmptyState, { TrackEmptyIcon } from '../components/EmptyState';
 import { SlipCard, SlipDetailModal } from '../components/BetComponents';
 import SlipCalendar from '../components/SlipCalendar';
+import DateRangeFields from '../components/DateRangeFields';
 import { Toggle } from '../components/ui';
 import { ProfileSelector } from '../components/ui/ProfileSelector';
-import type { GlobalFilters } from '../components/Layout';
 import type { SlipsPage, LiveData, BetSlip, ValidationCompletion, ValidationProgress } from '../types';
 import { useProfileSelection } from '../hooks/useProfileSelection';
+import { usePageDateRange } from '../hooks/usePageDateRange';
 import { Box, Button, Drawer, SwipeableDrawer, Typography, useMediaQuery } from '@mui/material';
 
 const FILTERS_STORAGE_KEY = 'slips_filters_state';
 const PAGE_SIZE = 20;
 
 interface Props {
-    filters: GlobalFilters;
     refreshKey: number;
     liveData?: LiveData;
     validationProgress?: ValidationProgress;
@@ -25,14 +25,13 @@ interface Props {
 type SortOption = 'net_profit_desc' | 'net_profit_asc' | 'date_desc' | 'date_asc' | 'odds_desc' | 'odds_asc' | 'stake_desc' | 'stake_asc';
 
 export default function Slips({
-    filters,
     refreshKey,
     liveData: externalLiveData,
     validationProgress,
     validationCompletion,
 }: Props) {
     const navigate = useNavigate();
-    const { dateFrom, dateTo } = filters;
+    const { dateFrom, setDateFrom, dateTo, setDateTo } = usePageDateRange('track');
     const [data, setData] = useState<SlipsPage | null>(null);
 
     // Initialize selectedProfiles from shared storage (persists across Slips/Analytics)
@@ -140,12 +139,12 @@ export default function Slips({
 
     useEffect(() => {
         if (selectedDate && (
-            (filters.dateFrom && selectedDate < filters.dateFrom)
-            || (filters.dateTo && selectedDate > filters.dateTo)
+            (dateFrom && selectedDate < dateFrom)
+            || (dateTo && selectedDate > dateTo)
         )) {
             setSelectedDate(null);
         }
-    }, [filters.dateFrom, filters.dateTo, selectedDate]);
+    }, [dateFrom, dateTo, selectedDate]);
 
     const load = useCallback(async (page = 1, append = false) => {
         void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
@@ -437,6 +436,13 @@ export default function Slips({
                         aria-controls="slips-filters-drawer"
                     >
                         Filters
+                        {(dateFrom || dateTo) && (
+                            <span
+                                aria-label="Date range active"
+                                className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-middle"
+                                style={{ background: 'var(--accent)' }}
+                            />
+                        )}
                     </Button>
                 </div>
             </div>
@@ -452,6 +458,14 @@ export default function Slips({
                             Filters
                         </Typography>
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {view === 'grid' && (
+                                <DateRangeFields
+                                    dateFrom={dateFrom}
+                                    dateTo={dateTo}
+                                    onDateFromChange={setDateFrom}
+                                    onDateToChange={setDateTo}
+                                />
+                            )}
                             <ProfileSelector
                                 profiles={data?.profiles ?? []}
                                 selectedProfiles={selectedProfiles}
@@ -509,8 +523,8 @@ export default function Slips({
             {view === 'calendar' && (
                 <SlipCalendar
                     profiles={selectedProfiles}
-                    dateFrom={filters.dateFrom}
-                    dateTo={filters.dateTo}
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
                     selectedDate={selectedDate}
                     onSelectDate={day => {
                         setSelectedDate(day);

@@ -6,15 +6,16 @@ import EmptyState, { BuildEmptyIcon } from '../components/EmptyState';
 import { FirstSlipToast } from '../components/OnboardingTour';
 import { markFirstSlip } from '../components/tourStorage';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
+import DateRangeFields from '../components/DateRangeFields';
 import {
     fetchPreview, fetchProfiles, saveProfile, deleteProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
     fetchLeagues, fetchSourcesConfig,
     type ExcludedMatch
 } from '../api/data';
-import type { GlobalFilters } from '../components/Layout';
 import type { BuilderConfig, Profile, ProfilesMap, PreviewResult, ManualLegIn } from '../types';
 import { useConfigTimezone, formatMatchTime } from '../hooks/useConfigTimezone';
+import { usePageDateRange } from '../hooks/usePageDateRange';
 
 const DEFAULT_CFG: BuilderConfig = {
     target_odds: 3.0, target_legs: 3, max_legs_overflow: null,
@@ -42,7 +43,7 @@ function orderedProfileNames(profiles: ProfilesMap): string[] {
     });
 }
 
-interface Props { filters: GlobalFilters; refreshKey: number }
+interface Props { refreshKey: number }
 
 // Units and Target Payout are mutually exclusive: the filled one drives the
 // slip stake, the other shows a live calculated preview while disabled.
@@ -180,8 +181,9 @@ function readStoredState(): Record<string, unknown> {
     }
 }
 
-export default function SmartBuilder({ filters, refreshKey }: Props) {
+export default function SmartBuilder({ refreshKey }: Props) {
     const { timezone } = useConfigTimezone();
+    const { dateFrom, setDateFrom, dateTo, setDateTo } = usePageDateRange('builder');
     // Load persisted state from localStorage
     const [cfg, setCfg] = useState<BuilderConfig>(() => ({
         ...DEFAULT_CFG,
@@ -267,8 +269,8 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         // preview triggered by the effect below via mergedCfg dependency chain
     }, [profiles]); // eslint-disable-line react-hooks/exhaustive-deps -- one-shot default selection when profiles load
 
-    // Compute merged config with global date filters (for preview only)
-    const mergedCfg = { ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null };
+    // Date range affects preview results only and is never saved to the profile.
+    const mergedCfg = { ...cfg, date_from: dateFrom || null, date_to: dateTo || null };
 
     // Debounced preview — 350ms after any config change
     const triggerPreview = useCallback((config: BuilderConfig) => {
@@ -296,21 +298,21 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setCfg(next);
         dirtyRef.current = true;
         setStatus('');
-        triggerPreview({ ...next, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+        triggerPreview({ ...next, date_from: dateFrom || null, date_to: dateTo || null });
     }
 
-    // Trigger preview when refreshKey or global filters change. Deliberate
+    // Trigger preview when refreshKey or the local date range changes. Deliberate
     // dep omission: cfg is NOT a dep — config changes trigger the preview
     // directly in handleCfgChange (adding cfg here would double-fire).
-    useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, filters.dateFrom, filters.dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
+    useEffect(() => { triggerPreview(mergedCfg); }, [refreshKey, dateFrom, dateTo]); // eslint-disable-line react-hooks/exhaustive-deps -- deliberate: cfg handled in handleCfgChange
 
     // Force preview refresh when excluded_sources changes (bypass debounce for immediate feedback)
     const lastExcluded = useRef<string | null>(null);
     useEffect(() => {
         if (lastExcluded.current === JSON.stringify(cfg.excluded_sources ?? null)) return;
         lastExcluded.current = JSON.stringify(cfg.excluded_sources ?? null);
-        triggerPreview({ ...cfg, date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
-    }, [cfg.excluded_sources, filters.dateFrom, filters.dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- cfg is read, not tracked: exclusion-only trigger with a change guard
+        triggerPreview({ ...cfg, date_from: dateFrom || null, date_to: dateTo || null });
+    }, [cfg.excluded_sources, dateFrom, dateTo, triggerPreview]); // eslint-disable-line react-hooks/exhaustive-deps -- cfg is read, not tracked: exclusion-only trigger with a change guard
 
     // Auto-save to the ACTIVE profile (debounced). The manual Save button is
     // gone — every config change lands on the selected profile on disk.
@@ -404,7 +406,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         setUnits(data.units ?? 1);
         setTargetPayout(data.target_payout ?? 0);
         dirtyRef.current = false;
-        triggerPreview({ ...cfgFromProfile(data), date_from: filters.dateFrom || null, date_to: filters.dateTo || null });
+        triggerPreview({ ...cfgFromProfile(data), date_from: dateFrom || null, date_to: dateTo || null });
     }
 
     // Per-card delete. Deleting the ACTIVE profile re-selects the first
@@ -500,7 +502,7 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
         <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 min-h-screen">
             {/* ── Left Sidebar — Responsive width ─────────────────────────────── */}
             <div className="w-full xl:w-[350px] 2xl:w-[400px] shrink-0">
-                <div className="sticky top-4 space-y-4">
+                <div className="builder-sidebar-sticky space-y-4">
                     <div className="rounded-xl overflow-hidden">
                         <div>
                             <BuilderPanel
@@ -523,7 +525,16 @@ export default function SmartBuilder({ filters, refreshKey }: Props) {
                         border: '1px solid var(--border)',
                         backdropFilter: 'blur(10px)',
                     }}>
-                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Profiles</h1>
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>Profiles</h1>
+                        <DateRangeFields
+                            compact
+                            dateFrom={dateFrom}
+                            dateTo={dateTo}
+                            onDateFromChange={setDateFrom}
+                            onDateToChange={setDateTo}
+                        />
+                    </div>
                     <div className="flex items-start gap-3 flex-wrap mt-2">
                         {/* Profile cards: every saved profile renders as a card;
                             click selects+loads it; edits auto-save to it. */}

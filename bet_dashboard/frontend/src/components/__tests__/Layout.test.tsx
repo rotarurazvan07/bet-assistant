@@ -1,9 +1,7 @@
 // Layout. ACTUAL: NO sidebar — top
-// bar + NavLink×6; Time Horizon pickers on 4 routes only; persisted
-// localStorage 'bet-assistant-time-horizon'; Pull → pullDb() →
+// bar + NavLink×6; date filters belong to each page; Pull → pullDb() →
 // onMatchesUpdated only when status==='ok'. Needs MemoryRouter wrapper.
-// nav grouped Core/Insights/System — captions above groups,
-// separators between groups, flat DOM anchor order = keyboard order.
+// nav grouped by separators; flat DOM anchor order = keyboard order.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -26,9 +24,7 @@ function renderLayout(route: string = '/', overrides: LayoutOverrides = {}) {
     };
     return render(
         <MemoryRouter initialEntries={[route]}>
-            <Layout {...defaults}>
-                {(filters) => <div data-testid="child">{filters.dateFrom}|{filters.dateTo}</div>}
-            </Layout>
+            <Layout {...defaults}><div data-testid="child">Page content</div></Layout>
         </MemoryRouter>,
     );
 }
@@ -52,11 +48,10 @@ describe('Layout', () => {
         }
     });
 
-    it('renders group micro-captions Core, Insights, System', () => {
+    it('does not render group captions', () => {
         renderLayout();
-        // micro-captions above each group
         for (const caption of ['Core', 'Insights', 'System']) {
-            expect(screen.getByText(caption)).toBeInTheDocument();
+            expect(screen.queryByText(caption)).not.toBeInTheDocument();
         }
     });
 
@@ -74,7 +69,7 @@ describe('Layout', () => {
         expect(nav!.querySelectorAll('.nav-separator')).toHaveLength(2);
     });
 
-    it('labels each nav group for assistive tech', () => {
+    it('retains accessible nav group labels', () => {
         renderLayout();
         for (const caption of ['Core', 'Insights', 'System']) {
             expect(screen.getByRole('group', { name: caption })).toBeInTheDocument();
@@ -102,59 +97,20 @@ describe('Layout', () => {
         expect(seen).toEqual(['Discover', 'Build', 'Track', 'Analytics', 'Services', 'Odds Alert']);
     });
 
-    it('renders children via render prop with empty filters initially', () => {
+    it('renders page content directly', () => {
         renderLayout();
         const child = screen.getByTestId('child');
         expect(child).toBeInTheDocument();
-        expect(child.textContent).toBe('|');
+        expect(child.textContent).toBe('Page content');
     });
 
-    it('shows Time Horizon on the root route', () => {
-        renderLayout('/');
-        expect(screen.getByText('Time Horizon')).toBeInTheDocument();
-    });
-
-    it('shows Time Horizon on builder, slips and analytics routes', () => {
-        for (const route of ['/builder', '/slips', '/analytics']) {
+    it('does not render a global date range on page routes', () => {
+        for (const route of ['/', '/builder', '/slips', '/analytics', '/services', '/odds-alert']) {
             const { unmount } = renderLayout(route);
-            expect(screen.getByText('Time Horizon')).toBeInTheDocument();
+            expect(screen.queryByText('Time Horizon')).not.toBeInTheDocument();
+            expect(document.querySelector('input[type="date"]')).toBeNull();
             unmount();
         }
-    });
-
-    it('hides Time Horizon on services and odds-alert routes', () => {
-        const { unmount } = renderLayout('/services');
-        expect(screen.queryByText('Time Horizon')).not.toBeInTheDocument();
-        unmount();
-        renderLayout('/odds-alert');
-        expect(screen.queryByText('Time Horizon')).not.toBeInTheDocument();
-    });
-
-    it('date inputs update filters passed to children', async () => {
-        const user = userEvent.setup();
-        renderLayout('/');
-        // input[type=date] has no textbox role in jsdom - query DOM directly
-        const inputs = document.querySelectorAll('input[type="date"]') as NodeListOf<HTMLInputElement>;
-        const dateFrom = inputs[0];
-        // typing date digits into input[type=date] via user-event: assign value
-        await user.type(dateFrom, '2026-09-01');
-        expect(screen.getByTestId('child').textContent).toContain('2026-09');
-    });
-
-    it('persists date range to localStorage after change', async () => {
-        const user = userEvent.setup();
-        renderLayout('/');
-        const inputs = document.querySelectorAll('input[type="date"]') as NodeListOf<HTMLInputElement>;
-        await user.type(inputs[0], '2026-09-01');
-        const saved = localStorage.getItem('bet-assistant-time-horizon');
-        expect(saved).not.toBeNull();
-        expect(JSON.parse(saved as string).dateFrom).toBe('2026-09-01');
-    });
-
-    it('restores dates from localStorage on mount', () => {
-        localStorage.setItem('bet-assistant-time-horizon', JSON.stringify({ dateFrom: '2026-08-01', dateTo: '2026-08-15' }));
-        renderLayout('/');
-        expect(screen.getByTestId('child').textContent).toBe('2026-08-01|2026-08-15');
     });
 
     it('Refresh button fires onRefresh', async () => {

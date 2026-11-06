@@ -42,10 +42,10 @@ beforeEach(() => {
 });
 
 
-function renderPage(filters = { dateFrom: '', dateTo: '' }, refreshKey = 0) {
+function renderPage(refreshKey = 0) {
     return render(
         <MemoryRouter>
-            <Analytics filters={filters} refreshKey={refreshKey} />
+            <Analytics refreshKey={refreshKey} />
         </MemoryRouter>,
     );
 }
@@ -55,6 +55,10 @@ describe('Analytics page', () => {
     it('renders the title and profile selector', async () => {
         renderPage();
         expect(screen.getByText('Analytics')).toBeInTheDocument();
+        await screen.findByText('+2.8U');
+        const filtersButton = screen.getByRole('button', { name: 'Filters' });
+        await userEvent.setup().click(filtersButton);
+        await waitFor(() => expect(filtersButton).toHaveAttribute('aria-expanded', 'true'));
         // accept either loaded-view ProfileSelector or the empty-state card —
         // both prove fetch→render wiring; charts can shift which mounts first
         await waitFor(() => {
@@ -62,6 +66,37 @@ describe('Analytics page', () => {
             const empty = screen.queryByText(/No analytics yet/);
             expect(sel || empty).toBeTruthy();
         }, { timeout: 8000 });
+    });
+
+    it('shows only profiles with data in the selected date range', async () => {
+        localStorage.setItem('analytics_profile_selector_state', JSON.stringify({ profiles: ['low', 'medium'] }));
+        localStorage.setItem('bet-assistant-analytics-date-range', JSON.stringify({
+            dateFrom: '2026-09-01',
+            dateTo: '2026-09-20',
+        }));
+        server.use(
+            http.get('/api/analytics', () => HttpResponse.json({ ...DATA, profiles: ['low'] })),
+        );
+
+        renderPage();
+
+        await screen.findByText('+2.8U');
+        expect(await screen.findByText('1 profile showing: low')).toBeInTheDocument();
+        expect(screen.queryByText('2 profiles showing: low, medium')).not.toBeInTheDocument();
+        expect(screen.getByText('2026-09-01 – 2026-09-20')).toBeInTheDocument();
+    });
+
+    it.each([
+        [{ dateFrom: '2026-09-01', dateTo: '' }, 'From 2026-09-01'],
+        [{ dateFrom: '', dateTo: '2026-09-20' }, 'Until 2026-09-20'],
+    ])('labels a one-sided date filter clearly', async (dateRange, expectedSummary) => {
+        localStorage.setItem('bet-assistant-analytics-date-range', JSON.stringify(dateRange));
+
+        renderPage();
+
+        await screen.findByText('+2.8U');
+        expect(await screen.findByText(expectedSummary)).toBeInTheDocument();
+        expect(screen.queryByText(/Any date/)).not.toBeInTheDocument();
     });
 
     it('fetches /api/analytics and renders stats sections', async () => {
@@ -90,6 +125,8 @@ describe('Analytics page', () => {
 
     it('profile chips render from data.profiles', async () => {
         renderPage();
+        await screen.findByText('+2.8U');
+        await userEvent.setup().click(screen.getByRole('button', { name: 'Filters' }));
         await screen.findByText('SELECT PROFILES');
         const profiles = (DATA as { profiles: string[] }).profiles ?? [];
         for (const p of profiles) {
@@ -106,40 +143,46 @@ describe('Analytics page', () => {
             }),
         );
         const { rerender } = renderPage();
+        await screen.findByText('+2.8U');
+        await userEvent.setup().click(screen.getByRole('button', { name: 'Filters' }));
         await screen.findByText('SELECT PROFILES');
         const before = calls;
         rerender(
             <MemoryRouter>
-                <Analytics filters={{ dateFrom: '', dateTo: '' }} refreshKey={2} />
+                <Analytics refreshKey={2} />
             </MemoryRouter>,
         );
         await waitFor(() => expect(calls).toBeGreaterThan(before));
     });
 
-    it('does not refetch when filter object identity changes but dates stay the same', async () => {
-        let calls = 0;
-        server.use(
-            http.get('/api/analytics', () => {
-                calls += 1;
-                return HttpResponse.json(DATA);
-            }),
-        );
-        const { rerender } = renderPage();
-        await screen.findByText('SELECT PROFILES');
-        const initialCalls = calls;
+    it('Analytics date filters are sent to API and saved locally', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('+2.8U');
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
+        await user.type(screen.getByLabelText('Date from'), '2026-09-01');
+        await waitFor(() => expect(lastUrl).toContain('date_from=2026-09-01'));
+        expect(localStorage.getItem('bet-assistant-analytics-date-range')).toContain('2026-09-01');
+    });
 
-        rerender(
-            <MemoryRouter>
-                <Analytics filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} />
-            </MemoryRouter>,
-        );
-
-        expect(calls).toBe(initialCalls);
+    it('does not migrate the former global date range', async () => {
+        localStorage.setItem('bet-assistant-time-horizon', JSON.stringify({
+            dateFrom: '2026-09-01',
+            dateTo: '2026-09-20',
+        }));
+        renderPage();
+        await screen.findByText('+2.8U');
+        expect(lastUrl).not.toContain('date_from=');
+        expect(lastUrl).not.toContain('date_to=');
+        expect(localStorage.getItem('bet-assistant-analytics-date-range')).toContain('"dateFrom":""');
     });
 
     it('date filters are sent when provided', async () => {
-        renderPage({ dateFrom: '2026-09-01', dateTo: '2026-09-20' });
-        await screen.findByText('SELECT PROFILES');
+        localStorage.setItem('bet-assistant-analytics-date-range', JSON.stringify({
+            dateFrom: '2026-09-01',
+            dateTo: '2026-09-20',
+        }));
+        renderPage();
         await waitFor(() => {
             expect(lastUrl).toContain('date_from=2026-09-01');
             expect(lastUrl).toContain('date_to=2026-09-20');
@@ -155,6 +198,8 @@ describe('Analytics page', () => {
             }),
         );
         renderPage();
+        await screen.findByText('+2.8U');
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
         const profiles = (DATA as { profiles: string[] }).profiles ?? [];
         if (profiles.length > 1) {
             await screen.findByText(profiles[0]);
@@ -180,6 +225,8 @@ describe('Analytics page', () => {
             )),
         );
         renderPage();
+        await screen.findByText('+2.8U');
+        await userEvent.setup().click(screen.getByRole('button', { name: 'Filters' }));
         // labels render: breakdown table row + Best card (bestKey), row + Avoid card (worstKey)
         expect(await screen.findAllByText(marketLabel(bestKey))).not.toHaveLength(0);
         expect(await screen.findAllByText(marketLabel(worstKey))).not.toHaveLength(0);

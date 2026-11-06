@@ -90,30 +90,29 @@ export default function App() {
                 onRefresh={handleRefresh}
                 onMatchesUpdated={handleMatchesUpdated}
             >
-                {(filters) => (
+                <>
                     <ErrorBoundary>
                         <Routes>
                             <Route path="/"
-                                element={<BettingTips filters={filters} refreshKey={matchesRefresh} />} />
+                                element={<BettingTips refreshKey={matchesRefresh} />} />
                             <Route path="/builder"
-                                element={<SmartBuilder filters={filters} refreshKey={matchesRefresh} />} />
+                                element={<SmartBuilder refreshKey={matchesRefresh} />} />
                             <Route path="/slips"
                                 element={<Slips
-                                    filters={filters}
                                     refreshKey={slipsRefresh}
                                     liveData={liveData}
                                     validationProgress={validationProgress ?? undefined}
                                     validationCompletion={validationCompletion ?? undefined}
                                 />} />
                             <Route path="/analytics"
-                                element={<Analytics filters={filters} refreshKey={slipsRefresh} />} />
+                                element={<Analytics refreshKey={slipsRefresh} />} />
                             <Route path="/services"
                                 element={<Services />} />
                             <Route path="/odds-alert"
                                 element={<OddsAlert />} />
                         </Routes>
                     </ErrorBoundary>
-                )}
+                </>
             </Layout>
         </BrowserRouter>
     );

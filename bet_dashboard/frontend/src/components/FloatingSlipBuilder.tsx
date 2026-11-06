@@ -57,10 +57,10 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
 
     // minimized pill is a real keyboard button (Enter/Space expand natively).
     if (isMinimized) {
-        return createPortal(
+        const pill = (
             <button
                 type="button"
-                className={`floating-slip-minimized${pulseClass}`}
+                className={`floating-slip-minimized${isMobile ? '' : ' floating-slip-minimized-inline'}${pulseClass}`}
                 onAnimationEnd={onPulseEnd}
                 onClick={onToggleMinimize}
                 aria-label={`Open slip builder, ${legs.length} leg${legs.length !== 1 ? 's' : ''}`}
@@ -76,9 +76,9 @@ export default function FloatingSlipBuilder({ legs, onRemoveLeg, onSubmit, isMin
                     )}
                     <span style={{ fontSize: 14, color: 'var(--text-muted-strong)', marginLeft: 4 }}>▲</span>
                 </span>
-            </button>,
-            document.body
+            </button>
         );
+        return isMobile ? createPortal(pill, document.body) : pill;
     }
 
     const panel = (

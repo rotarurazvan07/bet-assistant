@@ -348,6 +348,11 @@ input[type="number"].field:focus {
 }
 
 /* Floating Slip Builder */
+.builder-sidebar-sticky {
+  position: sticky;
+  top: calc(3.25rem + 1rem + 1px);
+}
+
 .floating-slip-panel {
   display: flex;
   flex-direction: column;
@@ -416,6 +421,16 @@ input[type="number"].field:focus {
   transition: opacity .15s;
 }
 .floating-slip-minimized:hover { opacity: .9; }
+
+@media (min-width: 768px) {
+  .floating-slip-minimized-inline {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+}
 
 /*//add-leg pulse + fly clone. 240ms, skip if reduced-motion. */
 @keyframes market-cell-pulse {

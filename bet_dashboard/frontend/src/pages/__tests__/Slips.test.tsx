@@ -41,7 +41,7 @@ function renderPage(overrides: {
 } = {}) {
     return render(
         <MemoryRouter>
-            <Slips filters={{ dateFrom: '', dateTo: '' }} refreshKey={0} {...overrides} />
+            <Slips refreshKey={0} {...overrides} />
         </MemoryRouter>,
     );
 }
@@ -53,6 +53,17 @@ describe('Slips page', () => {
         expect(screen.getByRole('button', { name: 'Validate Results' })).toHaveTextContent('Validate results');
         expect(screen.getByRole('button', { name: 'Generate Slips' })).toBeInTheDocument();
         await screen.findByText('Arsenal vs Chelsea');
+    });
+
+    it('date range in Track filters is sent to slips API and saved locally', async () => {
+        const user = userEvent.setup();
+        renderPage();
+        await screen.findByText('Arsenal vs Chelsea');
+        await user.click(screen.getByRole('button', { name: 'Filters' }));
+        await user.type(screen.getByLabelText('Date from'), '2026-09-01');
+
+        await waitFor(() => expect(lastSlipsUrl).toContain('date_from=2026-09-01'));
+        expect(localStorage.getItem('bet-assistant-track-date-range')).toContain('2026-09-01');
     });
 
     it('renders slip cards with status badges and legs', async () => {
@@ -86,6 +97,8 @@ describe('Slips page', () => {
         await user.click(screen.getByRole('button', { name: 'Filters' }));
 
         expect(screen.getByText('SELECT PROFILES')).toBeInTheDocument();
+        expect(screen.queryByLabelText('Date from')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Date to')).not.toBeInTheDocument();
         expect(screen.queryByText('Hide settled')).not.toBeInTheDocument();
         expect(screen.queryByText('Live only')).not.toBeInTheDocument();
         expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
@@ -154,7 +167,6 @@ describe('Slips page', () => {
         rerender(
             <MemoryRouter>
                 <Slips
-                    filters={{ dateFrom: '', dateTo: '' }}
                     refreshKey={0}
                     validationProgress={{
                         job_id: jobId,
@@ -213,7 +225,6 @@ describe('Slips page', () => {
             rerender(
                 <MemoryRouter>
                     <Slips
-                        filters={{ dateFrom: '', dateTo: '' }}
                         refreshKey={0}
                         validationCompletion={{
                             job_id: 'verifier-job',
@@ -277,7 +288,7 @@ describe('Slips page', () => {
         const before = fetches;
         rerender(
             <MemoryRouter>
-                <Slips filters={{ dateFrom: '', dateTo: '' }} refreshKey={1} />
+                <Slips refreshKey={1} />
             </MemoryRouter>,
         );
         await waitFor(() => expect(fetches).toBeGreaterThan(before));
@@ -298,7 +309,6 @@ describe('Slips page', () => {
         rerender(
             <MemoryRouter>
                 <Slips
-                    filters={{ dateFrom: '', dateTo: '' }}
                     refreshKey={0}
                     validationProgress={{
                         job_id: 'verifier-job',
