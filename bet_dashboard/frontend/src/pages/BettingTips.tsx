@@ -412,7 +412,7 @@ export default function BettingTips({ refreshKey }: Props) {
     return (
         <>
         <div ref={topRef} style={{
-            height: 'calc(100vh - 178px)',
+            height: 'calc(100dvh - 100px)',
             boxSizing: 'border-box',
             display: 'flex',
             flexDirection: 'column',
