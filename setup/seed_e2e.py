@@ -187,11 +187,10 @@ _PROFILE_SCHEDULES = [
 ]
 
 _SERVICES_YAML = (
-    "services:\n"
-    "  toggles:\n"
-    "    puller: false\n"
-    "    generator: false\n"
-    "    verifier: false\n"
+    "toggles:\n"
+    "  puller: false\n"
+    "  generator: false\n"
+    "  verifier: false\n"
 )
 
 _INSERT = (
@@ -211,6 +210,13 @@ def main() -> None:
     if not any(CONFIG_DIR.iterdir()):
         shutil.copytree(_SRC_CONFIG, CONFIG_DIR, dirs_exist_ok=True)
     (CONFIG_DIR / "services.yaml").write_text(_SERVICES_YAML, encoding="utf-8")
+    from scrape_kit import SettingsManager
+
+    service_config = SettingsManager(str(CONFIG_DIR)).get("services")
+    expected_toggles = {"puller": False, "generator": False, "verifier": False}
+    assert service_config and service_config.get("toggles") == expected_toggles, (
+        f"expected all e2e daemons to be disabled, got {service_config}"
+    )
 
     # Per-profile schedules: the CI delivery of the same rows as demo-data.ts
     # (SettingsManager nests profiles/<name>.yaml). The YAML carries the FULL

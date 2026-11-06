@@ -84,7 +84,7 @@ def _order_sort_key(value: Any) -> tuple[int, float]:
     """
     try:
         return (0, float(value))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return (1, 0.0)
 
 

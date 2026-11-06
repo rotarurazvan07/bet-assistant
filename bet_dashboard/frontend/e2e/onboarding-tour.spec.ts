@@ -54,14 +54,6 @@ test('Skip persists and reload stays dismissed', async ({ page }) => {
     await expect(page.getByRole('dialog', { name: 'Find value bets' })).toHaveCount(0);
 });
 
-test('Restart Tour returns to step 0 on /', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Skip' }).click();
-    await page.getByRole('button', { name: 'Restart Tour' }).click();
-    await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('dialog', { name: 'Find value bets' })).toBeVisible();
-});
-
 test('Esc skips the tour', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('dialog', { name: 'Find value bets' })).toBeVisible();

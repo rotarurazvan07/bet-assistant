@@ -16,6 +16,7 @@ const DATA = makeServicesData();
 class MockWebSocket {
     static CONNECTING = 0;
     static OPEN = 1;
+    static lastInstance: MockWebSocket | null = null;
     readyState = MockWebSocket.CONNECTING;
     onopen: (() => void) | null = null;
     onmessage: ((event: { data: string }) => void) | null = null;
@@ -23,7 +24,7 @@ class MockWebSocket {
     onerror: (() => void) | null = null;
 
     constructor() {
-        activeSocket = this;
+        MockWebSocket.lastInstance = this;
     }
 
     send() { /* noop */ }
@@ -33,10 +34,8 @@ class MockWebSocket {
     }
 }
 
-let activeSocket: MockWebSocket | null = null;
-
 beforeEach(() => {
-    activeSocket = null;
+    MockWebSocket.lastInstance = null;
     server.use(
         http.get('/api/services', () => HttpResponse.json(DATA)),
         http.post('/api/services/settings', () => HttpResponse.json({ status: 'ok' })),
@@ -75,10 +74,10 @@ describe('Services page', () => {
         try {
             await screen.findByText('Automation Services');
             const initialCalls = calls;
-            activeSocket?.onmessage?.({ data: JSON.stringify({ event: 'slips_updated' }) });
+            MockWebSocket.lastInstance?.onmessage?.({ data: JSON.stringify({ event: 'slips_updated' }) });
             expect(calls).toBe(initialCalls);
 
-            activeSocket?.onmessage?.({ data: JSON.stringify({ event: 'generation_updated' }) });
+            MockWebSocket.lastInstance?.onmessage?.({ data: JSON.stringify({ event: 'generation_updated' }) });
             await waitFor(() => expect(calls).toBe(initialCalls + 1));
         } finally {
             rendered.unmount();

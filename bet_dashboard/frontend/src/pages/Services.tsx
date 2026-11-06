@@ -193,7 +193,6 @@ export default function Services() {
         return () => {
             if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rows, stakeState]);
 
     // Cleanup the saved-indicator fade timer on unmount
@@ -307,16 +306,15 @@ export default function Services() {
                     />
                 ))}
 
-                {/* Per-profile auto-generation schedule: the only scheduling
-                    surface. Edits auto-save to disk (same debounce pattern as
-                    the builder tab). */}
-                <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
-                    Per-Profile Scheduling
-                    <TooltipIcon
-                        text="Each profile generates at its own time. Auto ON means the profile builds automatically at that time; Daily is how many slips it builds per day; Stake is the units or target payout per slip. Auto OFF keeps your settings but builds nothing (Manual only). Order decides which profile generates first when run times coincide. Changes save automatically."
-                        align="right"
-                    />
-                </h1>
+                {rows && rows.length > 0 && (
+                    <h1 className="font-display font-bold text-xl" style={{ color: 'var(--text-bright)' }}>
+                        Per-Profile Scheduling
+                        <TooltipIcon
+                            text="Each profile generates at its own time. Auto ON means the profile builds automatically at that time; Daily is how many slips it builds per day; Stake is the units or target payout per slip. Auto OFF keeps your settings but builds nothing (Manual only). Order decides which profile generates first when run times coincide. Changes save automatically."
+                            align="right"
+                        />
+                    </h1>
+                )}
                 {rows && rows.length > 0 && (
                     <div className="card p-4 lg:col-span-3">
                         <div className="flex items-center gap-1.5 mb-4">
