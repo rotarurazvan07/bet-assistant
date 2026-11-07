@@ -455,12 +455,12 @@ export const MARKET_COLUMNS: MarketColumn[] = [
 
 **npm overrides force a single resolved version for transitive dependencies** whose requiring parent cannot move within its own range. These entries exist because the vulnerable copy is nested and its parent is pinned: the contract generator keeps its own major line, the lint toolchain keeps its own line, and the glob/CSS parsers are consumed by several packages at once.
 
-- `undici` / `@fastify/busboy` — the generator's nested HTTP client copies; pinned so the generator major stays put.
-- `minimatch` / `brace-expansion` — a nested override pins the 1.x patched line for the ESLint glob consumer, whose matcher cannot run the 5.x line; the newer matcher in the lint toolchain subtree resolves the patched 5.x line through its own declared range.
+- `undici` / `@fastify/busboy` — the generator's nested HTTP client copies are cleared by pinning the patched release of the 8.x line at the root, which replaces the nested copies the generator would otherwise resolve from its own range; the generator major stays put.
+- `minimatch` / `brace-expansion` — the ESLint glob consumer runs an older matcher that cannot use the 5.x expansion line, so a nested override pins the patched 1.x line under that matcher; the newer matcher in the lint toolchain subtree (typescript-eslint → typescript-estree → minimatch 11) is pinned by its own nested override to the patched 11.x line, and it resolves the patched 5.x expansion line through its declared range. Two major lines of the expansion parser coexist on purpose, one per glob consumer.
 - `js-yaml`, `browserslist`, `baseline-browser-mapping`, `postcss-selector-parser`, `nanoid`, `source-map-js`, `@babel/core`, `@humanfs/node`, `zod` — transitive copies reached through several parents; pinned to the patched release of their current major line.
 - `follow-redirects` / `form-data` — the HTTP client's own transitive chain; pinned so the shipped bundle is deterministic.
 
-The lint toolchain pins `typescript-eslint` to a line whose own dependency resolution lands the patched `minimatch`, so no scoped minimatch override is needed. Removing any override without checking the audit re-opens the advisory it closed.
+The lint toolchain also pins its own newer matcher through a scoped override (typescript-estree → minimatch 11.0.5) because its parent's declared range admits a release the advisory covers. Removing any override without checking the audit re-opens the advisory it closed.
 
 ---
 
