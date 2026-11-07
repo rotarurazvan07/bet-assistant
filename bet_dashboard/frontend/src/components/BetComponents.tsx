@@ -224,10 +224,9 @@ interface BetLegRowProps {
     // row reads (datetime, status, market, odds, league, result_url).
     leg: BetLeg;
     liveData?: LiveData;
-    slipStatus: string;
 }
 
-export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
+export function BetLegRow({ leg, liveData = {} }: BetLegRowProps) {
     const dt = formatBetDate(leg.datetime, {
         includeWeekday: true,
         includeYear: false
@@ -235,9 +234,8 @@ export function BetLegRow({ leg, liveData = {}, slipStatus }: BetLegRowProps) {
     const legStatusColor = getStatusColor(leg.status);
     const live = liveData[leg.match_name];
 
-    // For live pending slips, compute potential outcome color for market@odds badge only
     let marketOddsColor: string;
-    if ((slipStatus === 'Pending' || slipStatus === 'Live') && leg.status === 'Live') {
+    if (leg.status === 'Live') {
         const potentialColor = getPotentialStatusColor(leg, live?.score);
         marketOddsColor = potentialColor || legStatusColor;
     } else {
@@ -332,6 +330,71 @@ interface SlipCardProps {
     onCardClick?: () => void;
 }
 
+function sortSlipLegs(legs: BetLeg[]): BetLeg[] {
+    return [...legs].sort((a, b) => {
+        const aIsLive = a.status === 'Live';
+        const bIsLive = b.status === 'Live';
+        if (aIsLive && !bIsLive) return -1;
+        if (!aIsLive && bIsLive) return 1;
+        const aTime = a.datetime ? new Date(a.datetime).getTime() : 0;
+        const bTime = b.datetime ? new Date(b.datetime).getTime() : 0;
+        return aTime - bTime;
+    });
+}
+
+function getSlipWinChance(legs: BetLeg[]): number | null {
+    if (legs.some(leg => leg.status === 'Lost')) return null;
+
+    const unsettledLegs = legs.filter(leg => leg.status === 'Pending' || leg.status === 'Live');
+    if (unsettledLegs.length === 0 || unsettledLegs.some(leg => !Number.isFinite(leg.odds) || leg.odds < 1)) {
+        return null;
+    }
+
+    const probability = unsettledLegs.reduce((chance, leg) => chance / leg.odds, 1);
+    return Math.min(probability * 100, 100);
+}
+
+function WinChanceGauge({ chance, compact = false }: { chance: number; compact?: boolean }) {
+    return (
+        <div
+            className={compact ? 'min-w-[72px] flex-1' : 'w-full'}
+            title="Estimated chance from the original odds on unsettled legs"
+        >
+            {!compact && (
+                <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="text-xs font-mono uppercase tracking-wide" style={{ color: 'var(--text-secondary)' }}>
+                        Estimated chance
+                    </span>
+                </div>
+            )}
+            <div
+                className={`relative overflow-hidden rounded-full ${compact ? 'h-5' : 'h-7'}`}
+                style={{ background: 'var(--bg-raised)' }}
+                role="progressbar"
+                aria-label="Estimated chance"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={chance}
+                aria-valuetext={`${chance.toFixed(1)}% estimated chance`}
+            >
+                <div
+                    className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-300"
+                    style={{
+                        width: `${chance}%`,
+                        background: 'linear-gradient(90deg, var(--loss), var(--pending), var(--win))',
+                    }}
+                />
+                <span
+                    className={`absolute inset-0 flex items-center justify-center font-mono font-bold text-white ${compact ? 'text-[10px]' : 'text-xs'}`}
+                    style={{ textShadow: '0 1px 3px rgba(0, 0, 0, .95)' }}
+                >
+                    {chance.toFixed(1)}%
+                </span>
+            </div>
+        </div>
+    );
+}
+
 export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCardProps) {
     const { timezone } = useConfigTimezone();
     const zone = timezone || 'UTC';
@@ -345,19 +408,7 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
     const hdrBg = slip.slip_status === 'Live' ? 'var(--live-bg)' : (slip.slip_status === 'Won' ? 'var(--win-bg)' : slip.slip_status === 'Lost' ? 'var(--loss-bg)' : 'var(--pending-bg)');
     const statusBorderColor = getStatusColor(slip.slip_status);
 
-    // Sort legs: live legs first, then others by datetime
-    const sortedLegs = useMemo(() => {
-        const legs = [...slip.legs];
-        return legs.sort((a, b) => {
-            const aIsLive = a.status === 'Live';
-            const bIsLive = b.status === 'Live';
-            if (aIsLive && !bIsLive) return -1;
-            if (!aIsLive && bIsLive) return 1;
-            const aTime = a.datetime ? new Date(a.datetime).getTime() : 0;
-            const bTime = b.datetime ? new Date(b.datetime).getTime() : 0;
-            return aTime - bTime;
-        });
-    }, [slip.legs]);
+    const sortedLegs = useMemo(() => sortSlipLegs(slip.legs), [slip.legs]);
 
     // Truncated display logic based on live matches count:
     // - If live >= 2: show only live matches
@@ -378,6 +429,13 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
     }, [sortedLegs]);
 
     const hiddenCount = slip.legs.length - displayedLegs.length;
+    const legStatusCounts = {
+        won: slip.legs.filter(leg => leg.status === 'Won').length,
+        lost: slip.legs.filter(leg => leg.status === 'Lost').length,
+        live: slip.legs.filter(leg => leg.status === 'Live').length,
+        pending: slip.legs.filter(leg => leg.status === 'Pending').length,
+    };
+    const winChance = getSlipWinChance(slip.legs);
 
     return (
         <div
@@ -413,6 +471,23 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                 </div>
             </div>
 
+            <div
+                className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 border-b text-xs font-mono"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
+                role="group"
+                aria-label="Leg status summary"
+            >
+                <span style={{ color: 'var(--win)' }}>{legStatusCounts.won} won</span>
+                <span style={{ color: 'var(--loss)' }}>{legStatusCounts.lost} lost</span>
+                {legStatusCounts.live > 0 && (
+                    <span style={{ color: 'var(--live)' }}>{legStatusCounts.live} live</span>
+                )}
+                {legStatusCounts.pending > 0 && (
+                    <span style={{ color: 'var(--pending)' }}>{legStatusCounts.pending} pending</span>
+                )}
+                {winChance !== null && <WinChanceGauge chance={winChance} compact />}
+            </div>
+
             {/* Legs - using the recycled BetLegRow component for each displayed leg */}
             <div className="flex-1 p-3 space-y-2">
                 {displayedLegs.map((leg, idx) => (
@@ -420,7 +495,6 @@ export function SlipCard({ slip, liveData = {}, onDelete, onCardClick }: SlipCar
                         key={idx}
                         leg={leg}
                         liveData={liveData}
-                        slipStatus={slip.slip_status}
                     />
                 ))}
                 {hiddenCount > 0 && onCardClick && (
@@ -515,6 +589,24 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
 
     if (!slip) return null;
 
+    const legStatusCounts = {
+        won: slip.legs.filter(leg => leg.status === 'Won').length,
+        lost: slip.legs.filter(leg => leg.status === 'Lost').length,
+        live: slip.legs.filter(leg => leg.status === 'Live').length,
+        pending: slip.legs.filter(leg => leg.status === 'Pending').length,
+    };
+    const legStatusSummary = [
+        { label: 'Won', count: legStatusCounts.won, color: 'var(--win)' },
+        { label: 'Lost', count: legStatusCounts.lost, color: 'var(--loss)' },
+        ...(legStatusCounts.live > 0
+            ? [{ label: 'Live', count: legStatusCounts.live, color: 'var(--live)' }]
+            : []),
+        ...(legStatusCounts.pending > 0
+            ? [{ label: 'Pending', count: legStatusCounts.pending, color: 'var(--pending)' }]
+            : []),
+    ];
+    const winChance = getSlipWinChance(slip.legs);
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
@@ -528,17 +620,17 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
 
                 {/* Header */}
-                <div className="px-6 py-4 border-b flex justify-between items-center"
+                <div className="px-6 py-4 border-b flex flex-wrap justify-between items-start gap-4"
                     style={{ borderColor: 'var(--border)', background: 'var(--bg-card)' }}>
                     <div>
                         <h2 className="text-xl font-bold" style={{ color: 'var(--text-bright)' }}>
-                            Betting Slip
+                            {slip.date_generated.split('T')[0]}
                         </h2>
                         <p className="text-sm font-mono mt-1" style={{ color: 'var(--text-secondary)' }}>
-                            {slip.date_generated.split('T')[0]} • {slip.profile.toUpperCase()}
+                            {slip.profile.toUpperCase()}
                         </p>
                     </div>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center gap-4">
                         <div>
                             <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Status</p>
                             <BaseBadge status={getStatusBadge(slip.slip_status)}>
@@ -552,9 +644,15 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                             </p>
                         </div>
                         <div>
-                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Total Odds</p>
+                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Legs</p>
+                            <p className="text-xl font-bold" style={{ color: 'white' }}>
+                                {slip.legs.length}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-xs font-mono uppercase" style={{ color: 'var(--text-secondary)' }}>Odds</p>
                             <p className="text-2xl font-bold" style={{ color: 'white' }}>
-                                @{slip.total_odds.toFixed(2)}
+                                {slip.total_odds.toFixed(2)}
                             </p>
                         </div>
                         {/* Show potential win or net profit in header */}
@@ -590,14 +688,41 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
                     </div>
                 </div>
 
+                <div
+                    className="grid gap-3 border-b px-6 py-4"
+                    style={{
+                        borderColor: 'var(--border)',
+                        background: 'var(--bg-raised)',
+                        gridTemplateColumns: `repeat(${legStatusSummary.length}, minmax(0, 1fr))`,
+                    }}
+                    role="group"
+                    aria-label="Leg status summary"
+                >
+                    {legStatusSummary.map(({ label, count, color }) => (
+                        <div
+                            key={label}
+                            className="rounded-lg border px-3 py-3 text-center"
+                            style={{ borderColor: `${color}55`, background: `${color}12` }}
+                        >
+                            <p className="font-mono text-2xl font-bold" style={{ color }}>{count}</p>
+                            <p className="text-xs font-mono uppercase tracking-wide" style={{ color }}>{label}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {winChance !== null && (
+                    <div className="border-b px-6 py-4" style={{ borderColor: 'var(--border)' }}>
+                        <WinChanceGauge chance={winChance} />
+                    </div>
+                )}
+
                 {/* Legs List - using the exact same BetLegRow component! */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-3">
-                    {slip.legs.map((leg, i) => (
+                    {sortSlipLegs(slip.legs).map((leg, i) => (
                         <BetLegRow
                             key={i}
                             leg={leg}
                             liveData={liveData}
-                            slipStatus={slip.slip_status}
                         />
                     ))}
                 </div>
@@ -606,4 +731,3 @@ export function SlipDetailModal({ slip, liveData = {}, onClose }: SlipDetailModa
         </div>
     );
 }
-

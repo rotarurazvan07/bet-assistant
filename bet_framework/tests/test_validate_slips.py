@@ -126,8 +126,8 @@ def test_validate_slips_skips_processed(ba) -> None:
     assert report.cancelled is False
 
 
-def test_validate_slips_checks_unique_urls_only_for_active_slips(ba) -> None:
-    """Check each active match URL once and skip pending legs in already-lost slips."""
+def test_validate_slips_checks_unique_urls_and_remaining_legs_in_lost_slips(ba) -> None:
+    """Check each match URL once and continue settling pending legs after a slip loses."""
     active_leg = CandidateLeg(
         match_name="A vs B",
         datetime=datetime.now(),
@@ -146,7 +146,7 @@ def test_validate_slips_checks_unique_urls_only_for_active_slips(ba) -> None:
         market=MarketKey.HOME,
         market_type=MarketType.RESULT,
         odds=1.5,
-        result_url="http://active-match",
+        result_url="http://remaining-match",
         consensus=80.0,
         sources=3,
     )
@@ -176,15 +176,18 @@ def test_validate_slips_checks_unique_urls_only_for_active_slips(ba) -> None:
             progress_callback=lambda checked, total, current: progress.append((checked, total, current)),
         )
 
-    assert report.checked == 1
-    assert len(report.settled) == 2
-    mock_fetch.assert_called_once_with("http://active-match", stealthy_headers=False)
-    assert progress[-1] == (1, 1, "A vs B")
+    assert report.checked == 2
+    assert len(report.settled) == 3
+    assert {call.args[0] for call in mock_fetch.call_args_list} == {
+        "http://active-match",
+        "http://remaining-match",
+    }
+    assert progress[-1][:2] == (2, 2)
 
     rows = ba.fetch_rows("SELECT match_name, status FROM legs ORDER BY match_name")
     statuses = {row["match_name"]: row["status"] for row in rows}
     assert statuses["A vs B"] == Outcome.WON
-    assert statuses["C vs D"] == Outcome.PENDING
+    assert statuses["C vs D"] == Outcome.WON
     assert statuses["E vs F"] == Outcome.LOST
 
 

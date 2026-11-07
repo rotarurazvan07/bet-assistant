@@ -937,11 +937,6 @@ class BetAssistant(BaseStorageManager):
             FROM legs l
             WHERE l.status IN ('Pending', 'Live')
               AND COALESCE(TRIM(l.result_url), '') != ''
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM legs settled
-                  WHERE settled.slip_id = l.slip_id AND settled.status = 'Lost'
-              )
             """
         )
 

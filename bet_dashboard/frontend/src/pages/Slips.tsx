@@ -88,7 +88,6 @@ export default function Slips({
     const [cancelRequested, setCancelRequested] = useState(false);
     const [selectedSlip, setSelectedSlip] = useState<BetSlip | null>(null);
     const [view, setView] = useState<'grid' | 'calendar'>('grid');
-    const [selectedDate, setSelectedDate] = useState<string | null>(null);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
@@ -144,15 +143,6 @@ export default function Slips({
         localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify({ hideSettled, liveOnly, sortBy }));
     }, [hideSettled, liveOnly, sortBy]);
 
-    useEffect(() => {
-        if (selectedDate && (
-            (dateFrom && selectedDate < dateFrom)
-            || (dateTo && selectedDate > dateTo)
-        )) {
-            setSelectedDate(null);
-        }
-    }, [dateFrom, dateTo, selectedDate]);
-
     const load = useCallback(async (page = 1, append = false) => {
         void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
         if (append && loadingMoreRef.current) return;
@@ -168,8 +158,8 @@ export default function Slips({
             // If no profiles selected, pass undefined to get all profiles
             // Otherwise pass the selected profiles array
             const params: Parameters<typeof fetchSlips>[0] = {
-                date_from: selectedDate || dateFrom || undefined,
-                date_to: selectedDate || dateTo || undefined,
+                date_from: dateFrom || undefined,
+                date_to: dateTo || undefined,
                 hide_settled: hideSettled,
                 live_only: liveOnly,
                 page,
@@ -209,7 +199,7 @@ export default function Slips({
             if (requestId === requestIdRef.current) setLoading(false);
             if (append) loadingMoreRef.current = false;
         }
-    }, [selectedProfiles, dateFrom, dateTo, hideSettled, liveOnly, selectedDate, sortBy, refreshKey, showStatus]);
+    }, [selectedProfiles, dateFrom, dateTo, hideSettled, liveOnly, sortBy, refreshKey, showStatus]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -532,9 +522,10 @@ export default function Slips({
                     profiles={selectedProfiles}
                     dateFrom={dateFrom}
                     dateTo={dateTo}
-                    selectedDate={selectedDate}
+                    selectedDate={dateFrom && dateFrom === dateTo ? dateFrom : null}
                     onSelectDate={day => {
-                        setSelectedDate(day);
+                        setDateFrom(day);
+                        setDateTo(day);
                         setView('grid');
                     }}
                 />
@@ -542,23 +533,6 @@ export default function Slips({
 
             {view === 'grid' && (
                 <>
-                    {selectedDate && (
-                        <div
-                            className="flex items-center justify-between gap-3 flex-wrap rounded-xl border px-4 py-3 mb-4 text-sm"
-                            style={{
-                                color: 'var(--text-secondary)',
-                                borderColor: 'var(--border)',
-                                background: 'var(--bg-card)',
-                            }}
-                        >
-                            <span>Showing slips for <strong style={{ color: 'var(--text-bright)' }}>{selectedDate}</strong></span>
-                            <div className="flex items-center gap-2">
-                                <button className="btn-ghost" onClick={() => setSelectedDate(null)}>Clear day filter</button>
-                                <button className="btn-ghost" onClick={() => setView('calendar')}>Back to calendar</button>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Empty state */}
                     {/*Track empty when no slips (incl. fetch-error fallback) */}
                     {!loading && data && (!data.slips || data.slips.length === 0) && (
