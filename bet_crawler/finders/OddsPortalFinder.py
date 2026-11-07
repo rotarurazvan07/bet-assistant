@@ -6,6 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 from bs4 import BeautifulSoup
 from scrape_kit import browser, fetch
@@ -608,6 +609,24 @@ class OddsPortalFinder(BaseMatchFinder):
         self._wait_for_selector(session, selector)
         return session.click(selector, text, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
 
+    def _first_row_odds(self, soup):
+        """Extract first bookmaker row odds for fingerprinting (tab switch detection).
+        This is separate from averaging - used only to detect stale 1X2 tables.
+        """
+        table = soup.select_one("table.w-full.table-fixed")
+        if table is None:
+            return []
+        row = table.select_one("tbody tr")
+        if row is None:
+            return []
+        out = []
+        for td in row.find_all("td", recursive=False)[1:]:
+            text = td.get_text(strip=True)
+            if text.endswith("%"):
+                continue
+            out.append(None if (not text or text == "-") else text)
+        return out
+
     def _table_fingerprint(self, soup):
         """Headers + first-row decimals so a tab swap is detectable."""
         table = soup.select_one("table.w-full.table-fixed")
@@ -615,7 +634,7 @@ class OddsPortalFinder(BaseMatchFinder):
             return ((), ())
         heads = tuple(th.get_text(strip=True) for th in table.select("thead th"))
         row = table.select_one("tbody tr")
-        cells = tuple(self._first_bookmaker_odds(soup)) if row is not None else ()
+        cells = tuple(self._first_row_odds(soup)) if row is not None else ()
         return (heads, cells)
 
     def _tab_ready(self, soup, expected_headers, before):
@@ -698,28 +717,99 @@ class OddsPortalFinder(BaseMatchFinder):
             "}"
         )
 
-    def _first_bookmaker_odds(self, soup):
-        """Decimal odds from the first bookmaker row of table.w-full.table-fixed."""
+    def _average_bookmaker_odds(self, soup, expected_cols: int):
+        """Average decimal odds across all bookmaker rows per market column.
+
+        Returns a list of length `expected_cols` with averaged values (2dp) or None.
+        Skips non-numeric cells (empty, "-", "%", payout). Single row returns unchanged.
+        Uses Decimal for precise rounding (half up).
+        """
         table = soup.select_one("table.w-full.table-fixed")
         if table is None:
-            return []
-        row = table.select_one("tbody tr")
-        if row is None:
-            return []
-        out = []
-        for td in row.find_all("td", recursive=False)[1:]:
-            text = td.get_text(strip=True)
-            if text.endswith("%"):
+            return [None] * expected_cols
+        rows = table.select("tbody tr")
+        if not rows:
+            return [None] * expected_cols
+
+        # Collect numeric values per column (skip bookmaker name column at index 0)
+        col_values: list[list[float]] = [[] for _ in range(expected_cols)]
+        for row in rows:
+            tds = row.find_all("td", recursive=False)
+            if len(tds) < expected_cols + 1:
                 continue
-            out.append(None if (not text or text == "-") else text)
-        return out
+            for i in range(expected_cols):
+                text = tds[i + 1].get_text(strip=True)
+                if not text or text == "-" or text.endswith("%"):
+                    continue
+                if _DECIMAL.match(text):
+                    col_values[i].append(float(text))
+
+        # Compute averages with precise rounding
+        result = []
+        for values in col_values:
+            if not values:
+                result.append(None)
+            elif len(values) == 1:
+                result.append(values[0])  # single row: return unchanged
+            else:
+                avg = sum(values) / len(values)
+                # Use Decimal for proper half-up rounding to 2dp
+                result.append(float(Decimal(str(avg)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)))
+        return result
+
+    def _average_ou_handicaps(self, soup):
+        """Average Over/Under odds across all bookmaker rows per handicap line.
+
+        Returns tuple of 10 values (over_05, under_05, ..., over_45, under_45).
+        """
+        out = [None] * 10
+        table = soup.select_one("table.w-full.table-fixed")
+        if table is None:
+            return tuple(out)
+
+        buckets = {
+            "+0.5": (0, 1),
+            "+1.5": (2, 3),
+            "+2.5": (4, 5),
+            "+3.5": (6, 7),
+            "+4.5": (8, 9),
+        }
+        # Collect all bookmaker rows for each handicap
+        handicap_rows: dict[str, list[tuple[float | None, float | None]]] = {k: [] for k in buckets}
+        for row in table.select("tbody tr"):
+            name = row.get_text(" ", strip=True)
+            for prefix in buckets:
+                if prefix in name:
+                    decimals = [
+                        td.get_text(strip=True)
+                        for td in row.find_all("td", recursive=False)
+                        if _DECIMAL.match(td.get_text(strip=True))
+                    ]
+                    if len(decimals) >= 2:
+                        handicap_rows[prefix].append((float(decimals[0]), float(decimals[1])))
+
+        # Average per handicap with precise rounding
+        for prefix, (oi, ui) in buckets.items():
+            rows_data = handicap_rows[prefix]
+            if not rows_data:
+                continue
+            if len(rows_data) == 1:
+                out[oi], out[ui] = rows_data[0]
+            else:
+                over_vals = [r[0] for r in rows_data]
+                under_vals = [r[1] for r in rows_data]
+                avg_over = sum(over_vals) / len(over_vals)
+                avg_under = sum(under_vals) / len(under_vals)
+                out[oi] = float(Decimal(str(avg_over)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                out[ui] = float(Decimal(str(avg_under)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return tuple(out)
 
     def _scrape_tab_1x2(self, session, thread_name: str):
-        """Scrape the 1X2 tab; returns (home, draw, away) odds (None on miss/failure)."""
+        """Scrape the 1X2 tab; returns (home, draw, away) odds averaged across bookmakers."""
         odds_1 = odds_X = odds_2 = None
         try:
             logger.info("[%s] Extracting 1X2 odds", thread_name)
-            cells = self._first_bookmaker_odds(self._click_tab(session, "1X2", ("1", "X", "2")))
+            cells = self._average_bookmaker_odds(self._click_tab(session, "1X2", ("1", "X", "2")), 3)
             if len(cells) >= 3:
                 odds_1, odds_X, odds_2 = cells[0], cells[1], cells[2]
         except Exception as e:
@@ -727,11 +817,11 @@ class OddsPortalFinder(BaseMatchFinder):
         return odds_1, odds_X, odds_2
 
     def _scrape_tab_btts(self, session, thread_name: str):
-        """Scrape the BTTS tab; returns (yes, no) odds (None on miss/failure)."""
+        """Scrape the BTTS tab; returns (yes, no) odds averaged across bookmakers."""
         odds_btts_yes = odds_btts_no = None
         try:
             logger.info("[%s] Extracting BTTS odds", thread_name)
-            cells = self._first_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")))
+            cells = self._average_bookmaker_odds(self._click_tab(session, "Both Teams to Score", ("Yes", "No")), 2)
             if len(cells) >= 2:
                 odds_btts_yes, odds_btts_no = cells[0], cells[1]
         except Exception as e:
@@ -739,11 +829,11 @@ class OddsPortalFinder(BaseMatchFinder):
         return odds_btts_yes, odds_btts_no
 
     def _scrape_tab_dc(self, session, thread_name: str):
-        """Scrape the Double Chance tab; returns (1x, 12, x2) odds (None on miss/failure)."""
+        """Scrape the Double Chance tab; returns (1x, 12, x2) odds averaged across bookmakers."""
         odds_dc_1x = odds_dc_12 = odds_dc_x2 = None
         try:
             logger.info("[%s] Extracting DC odds", thread_name)
-            cells = self._first_bookmaker_odds(self._click_tab(session, "Double Chance", ("1X", "12", "X2")))
+            cells = self._average_bookmaker_odds(self._click_tab(session, "Double Chance", ("1X", "12", "X2")), 3)
             if len(cells) >= 3:
                 odds_dc_1x, odds_dc_12, odds_dc_x2 = cells[0], cells[1], cells[2]
         except Exception as e:
@@ -751,34 +841,12 @@ class OddsPortalFinder(BaseMatchFinder):
         return odds_dc_1x, odds_dc_12, odds_dc_x2
 
     def _scrape_tab_ou(self, session, thread_name: str):
-        """Scrape the Over/Under tab; returns the 10 O/U odds (None on miss/failure)."""
+        """Scrape the Over/Under tab; returns the 10 O/U odds averaged across bookmakers per handicap."""
         out = [None] * 10
         try:
             logger.info("[%s] Extracting O/U odds", thread_name)
             soup = self._click_tab(session, "Over/Under", ("Over", "Under"))
-            buckets = {
-                "+0.5": (0, 1),
-                "+1.5": (2, 3),
-                "+2.5": (4, 5),
-                "+3.5": (6, 7),
-                "+4.5": (8, 9),
-            }
-            table = soup.select_one("table.w-full.table-fixed")
-            if table is None:
-                return tuple(out)
-            for row in table.select("tbody tr"):
-                name = row.get_text(" ", strip=True)
-                decimals = [
-                    td.get_text(strip=True)
-                    for td in row.find_all("td", recursive=False)
-                    if _DECIMAL.match(td.get_text(strip=True))
-                ]
-                if len(decimals) < 2:
-                    continue
-                for prefix, (oi, ui) in buckets.items():
-                    if prefix in name:
-                        out[oi] = decimals[0]
-                        out[ui] = decimals[1]
+            out = list(self._average_ou_handicaps(soup))
         except Exception as e:
             logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, e)
         return tuple(out)

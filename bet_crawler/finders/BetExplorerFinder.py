@@ -6,6 +6,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal as _Decimal, ROUND_HALF_UP
 
 from bs4 import BeautifulSoup
 from scrape_kit import browser, fetch
@@ -498,19 +499,57 @@ class BetExplorerFinder(BaseMatchFinder):
             return soup
         raise TimeoutError(f"{selector} averages did not settle")
 
-    def _ou_handicap_odds(self, soup):
-        """data-odd cells per half-line handicap (0.50..4.50); {} off the O/U view."""
-        return {
-            s.get("data-all-handicap"): [
-                d for d in s.find_all("div", class_="oddsComparisonAll__average_text") if d.get("data-odd")
-            ]
-            for s in soup.find_all("div", {"data-all-handicap": True})
-            if not s.get("data-all-handicap", "").startswith("handicap-")
+    def _average_ou_handicaps(self, soup):
+        """Average Over/Under odds across all bookmaker rows per half-line.
+
+        Returns tuple of 10 values (over_05, under_05, ..., over_45, under_45).
+        Averages `data-odd` cells per half-line across all bookmakers.
+        Skips non-numeric cells. Single row returns unchanged. Zero numeric rows -> None.
+        """
+        out = [None] * 10
+        keys = ("0.50", "1.50", "2.50", "3.50", "4.50")
+        buckets = {
+            "0.50": (0, 1),
+            "1.50": (2, 3),
+            "2.50": (4, 5),
+            "3.50": (6, 7),
+            "4.50": (8, 9),
         }
 
+        # Collect all bookmaker data-odd values per half-line
+        handicap_data: dict[str, list[tuple[float | None, float | None]]] = {k: [] for k in keys}
+        for key in keys:
+            row = soup.select_one(f'[data-all-handicap="{key}"]')
+            if not row:
+                continue
+            odd_vals = [
+                elem.get("data-odd")
+                for elem in row.find_all("div", class_="oddsComparisonAll__average_text", attrs={"data-odd": True})
+                if elem.get("data-odd") and self._DECIMAL.match(elem.get("data-odd"))
+            ]
+            # Group into (over, under) pairs
+            for i in range(0, len(odd_vals), 2):
+                if i + 1 < len(odd_vals):
+                    handicap_data[key].append((float(odd_vals[i]), float(odd_vals[i + 1])))
+
+        # Average per half-line with precise rounding
+        for key, (oi, ui) in buckets.items():
+            pairs = handicap_data[key]
+            if not pairs:
+                continue
+            if len(pairs) == 1:
+                out[oi], out[ui] = pairs[0]
+            else:
+                over_vals = [p[0] for p in pairs]
+                under_vals = [p[1] for p in pairs]
+                avg_over = sum(over_vals) / len(over_vals)
+                avg_under = sum(under_vals) / len(under_vals)
+                out[oi] = float(_Decimal(str(avg_over)).quantize(_Decimal("0.01"), rounding=ROUND_HALF_UP))
+                out[ui] = float(_Decimal(str(avg_under)).quantize(_Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return tuple(out)
+
     def _wait_ou_handicaps(self, session):
-        """Wait until all five half-line rows render (live 2026-10-12: ~1.5s after li#all)."""
-        keys = ("0.50", "1.50", "2.50", "3.50", "4.50")
+        """Wait until all five half-line rows render with at least one bookmaker's data-odd pair."""
         condition = (
             '() => ["0.50", "1.50", "2.50", "3.50", "4.50"].every(key => {'
             'const row = document.querySelector(`[data-all-handicap="${key}"]`);'
@@ -519,9 +558,11 @@ class BetExplorerFinder(BaseMatchFinder):
         )
         self._wait_for_function(session, condition)
         soup = BeautifulSoup(session.page.content(), "html.parser")
-        c = self._ou_handicap_odds(soup)
-        if all(len(c.get(k, [])) >= 2 for k in keys):
-            return c
+        # Verify at least one pair per half-line exists
+        c = self._average_ou_handicaps(soup)
+        # Check that we have at least some data (not all None)
+        if any(v is not None for v in c):
+            return soup
         raise TimeoutError("Over/Under handicaps did not settle")
 
     def _process_url_batch(self, urls: list) -> None:
@@ -656,27 +697,13 @@ class BetExplorerFinder(BaseMatchFinder):
                         all_selector = ".oddsComparison__ul.bestOddsComparison li#all"
                         assert self._click_selector(session, ou_selector), "Click failed"
                         assert self._click_selector(session, all_selector), "Click failed"
-                        c = self._wait_ou_handicaps(session)
-                        odds_over05, odds_under05 = (
-                            c["0.50"][0].get("data-odd"),
-                            c["0.50"][1].get("data-odd"),
-                        )
-                        odds_over15, odds_under15 = (
-                            c["1.50"][0].get("data-odd"),
-                            c["1.50"][1].get("data-odd"),
-                        )
-                        odds_over25, odds_under25 = (
-                            c["2.50"][0].get("data-odd"),
-                            c["2.50"][1].get("data-odd"),
-                        )
-                        odds_over35, odds_under35 = (
-                            c["3.50"][0].get("data-odd"),
-                            c["3.50"][1].get("data-odd"),
-                        )
-                        odds_over45, odds_under45 = (
-                            c["4.50"][0].get("data-odd"),
-                            c["4.50"][1].get("data-odd"),
-                        )
+                        soup = self._wait_ou_handicaps(session)
+                        ou_vals = self._average_ou_handicaps(soup)
+                        odds_over05, odds_under05 = ou_vals[0], ou_vals[1]
+                        odds_over15, odds_under15 = ou_vals[2], ou_vals[3]
+                        odds_over25, odds_under25 = ou_vals[4], ou_vals[5]
+                        odds_over35, odds_under35 = ou_vals[6], ou_vals[7]
+                        odds_over45, odds_under45 = ou_vals[8], ou_vals[9]
                     except Exception as e:
                         logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, e)
 

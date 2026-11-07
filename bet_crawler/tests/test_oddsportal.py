@@ -188,14 +188,15 @@ class TestProcessUrlBatch:
         assert m.datetime.year == 2035
         assert m.predictions == []  # Match ctor normalizes None to []
         odds = m.odds
-        assert odds.home == 2.10
-        assert odds.draw == 3.40
-        assert odds.away == 3.75
-        assert odds.btts_yes == 1.85
-        assert odds.btts_no == 1.95
-        assert odds.dc_1x == 1.25
-        assert odds.dc_12 == 1.30
-        assert odds.dc_x2 == 1.45
+        # Averaged values from multi-row fixtures
+        assert odds.home == 2.11   # (2.10+2.15+2.08+2.12)/4 = 2.11
+        assert odds.draw == 3.40   # (3.40+3.35+3.45+3.38+3.42)/5 = 3.40
+        assert odds.away == 3.75   # (3.75+3.80+3.70+3.78+3.72)/5 = 3.75
+        assert odds.btts_yes == 1.85   # (1.85+1.88+1.82)/3 = 1.85
+        assert odds.btts_no == 1.95    # (1.95+1.92+1.98+1.96)/4 = 1.95
+        assert odds.dc_1x == 1.26      # (1.25+1.28+1.23+1.26)/4 = 1.26
+        assert odds.dc_12 == 1.31      # (1.30+1.32+1.29+1.31+1.33)/5 = 1.31
+        assert odds.dc_x2 == 1.46      # (1.45+1.48+1.44+1.46+1.47)/5 = 1.46
         assert odds.over_05 == 1.10
         assert odds.under_05 == 8.00
         assert odds.over_25 == 1.70
@@ -232,7 +233,8 @@ class TestProcessUrlBatch:
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         assert len(collector) == 1
         odds = collector.first.odds
-        assert odds.home == 2.10
+        # 1X2 uses multi-row fixture -> averaged values
+        assert odds.home == 2.11
         assert odds.btts_yes is None
         assert odds.dc_1x is None
         assert odds.over_25 == 1.70
@@ -260,10 +262,11 @@ class TestProcessUrlBatch:
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
+        # Averaged values from multi-row fixtures
         assert (odds.home, odds.btts_yes, odds.dc_1x, odds.over_05) == (
-            2.10,
+            2.11,
             1.85,
-            1.25,
+            1.26,
             1.10,
         )
 
@@ -299,8 +302,9 @@ class TestProcessUrlBatch:
         finder, collector = _finder(contributes_odds=True)
         finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
         odds = collector.first.odds
-        assert (odds.home, odds.btts_yes, odds.btts_no) == (2.10, 1.85, 1.95)
-        assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.30, 1.45)
+        # Averaged values from multi-row fixtures (1X2 uses 5 rows, BTTS 4, DC 5, OU 3 per handicap)
+        assert (odds.home, odds.btts_yes, odds.btts_no) == (2.11, 1.85, 1.95)
+        assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.26, 1.31, 1.46)
         assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (
             1.10,
             8.00,
@@ -370,7 +374,8 @@ class TestProcessUrlBatch:
         assert len(collector) == 1
         m = collector.first
         assert m.home_team == "Arsenal"
-        assert m.odds.home == 2.10
+        # 1X2 uses multi-row fixture -> averaged value
+        assert m.odds.home == 2.11
         assert m.odds.btts_yes is None
         assert m.odds.dc_12 is None
         assert m.odds.over_25 is None
@@ -379,6 +384,88 @@ class TestProcessUrlBatch:
         """_add_match_lock exists and guards concurrent adds (wiring pin)."""
         finder, _ = _finder()
         assert hasattr(finder, "_add_match_lock")
+
+    def test_average_bookmaker_odds_multi_row(self, monkeypatch) -> None:
+        """Multi-row table: each market column averaged across bookmakers."""
+        self._session_map(monkeypatch)
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        odds = collector.first.odds
+        # 1X2: 4 rows with values -> home=2.11, draw=3.40, away=3.75
+        assert odds.home == 2.11
+        assert odds.draw == 3.40
+        assert odds.away == 3.75
+        # BTTS: 3 numeric rows for Yes, 4 for No -> yes=1.85, no=1.95
+        assert odds.btts_yes == 1.85
+        assert odds.btts_no == 1.95
+        # DC: 4 rows for 1X, 5 for 12, 5 for X2 -> 1x=1.26, 12=1.31, x2=1.46
+        assert odds.dc_1x == 1.26
+        assert odds.dc_12 == 1.31
+        assert odds.dc_x2 == 1.46
+        # O/U: 3 rows per handicap -> verify a few
+        assert odds.over_05 == 1.10   # (1.10+1.12+1.08)/3 = 1.10
+        assert odds.under_05 == 8.00  # (8.00+7.80+8.20)/3 = 8.00
+
+    def test_average_sparse_rows(self, monkeypatch) -> None:
+        """Rows with '-', '%', empty cells are skipped; average only numeric."""
+        # This is already covered by the multi-row fixtures which have sparse cells
+        self._session_map(monkeypatch)
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        odds = collector.first.odds
+        # Betfair row has '-' for home in 1X2 -> excluded from average
+        # Unibet row has '%' for BTTS Yes -> excluded
+        # Results should match the multi-row test
+        assert odds.home == 2.11
+        assert odds.btts_yes == 1.85
+        assert odds.dc_1x == 1.26  # Betfair row has '-' for 1X
+
+    def test_average_single_row_unchanged(self, monkeypatch) -> None:
+        """Single bookmaker row returns values unchanged (no averaging, no rounding)."""
+        # Create single-row versions of all fixtures
+        x2_single = """<html><body><script type=\"application/ld+json\">{\"@type\":[\"Event\",\"SportsEvent\"],\"homeTeam\":{\"name\":\"Arsenal\"},\"awayTeam\":{\"name\":\"Chelsea\"},\"startDate\":\"2035-06-15T15:00:00Z\",\"url\":\"/football/h2h/arsenal-xxx/chelsea-yyy/\"}</script><ul><li class=\"tab-item\"><button><span>1X2</span></button></li><li class=\"tab-item\"><button><span>Over/Under</span></button></li><li class=\"tab-item\"><button><span>Both Teams to Score</span></button></li><li class=\"tab-item\"><button><span>Double Chance</span></button></li></ul><table class=\"w-full table-fixed\"><thead><tr><th>Bookmakers</th><th>1</th><th>X</th><th>2</th><th>Payout</th></tr></thead><tbody><tr class=\"h-9\"><td>888sport</td><td>2.10</td><td>3.40</td><td>3.75</td><td>-</td></tr></tbody></table></body></html>"""
+        btts_single = """<html><body><script type=\"application/ld+json\">{\"@type\":[\"Event\",\"SportsEvent\"],\"homeTeam\":{\"name\":\"Arsenal\"},\"awayTeam\":{\"name\":\"Chelsea\"},\"startDate\":\"2035-06-15T15:00:00Z\",\"url\":\"/football/h2h/arsenal-xxx/chelsea-yyy/\"}</script><ul><li class=\"tab-item\"><button><span>1X2</span></button></li><li class=\"tab-item\"><button><span>Over/Under</span></button></li><li class=\"tab-item\"><button><span>Both Teams to Score</span></button></li><li class=\"tab-item\"><button><span>Double Chance</span></button></li></ul><table class=\"w-full table-fixed\"><thead><tr><th>Bookmakers</th><th>Yes</th><th>No</th><th>Payout</th></tr></thead><tbody><tr class=\"h-9\"><td>888sport</td><td>1.85</td><td>1.95</td><td>-</td></tr></tbody></table></body></html>"""
+        dc_single = """<html><body><script type=\"application/ld+json\">{\"@type\":[\"Event\",\"SportsEvent\"],\"homeTeam\":{\"name\":\"Arsenal\"},\"awayTeam\":{\"name\":\"Chelsea\"},\"startDate\":\"2035-06-15T15:00:00Z\",\"url\":\"/football/h2h/arsenal-xxx/chelsea-yyy/\"}</script><ul><li class=\"tab-item\"><button><span>1X2</span></button></li><li class=\"tab-item\"><button><span>Over/Under</span></button></li><li class=\"tab-item\"><button><span>Both Teams to Score</span></button></li><li class=\"tab-item\"><button><span>Double Chance</span></button></li></ul><table class=\"w-full table-fixed\"><thead><tr><th>Bookmakers</th><th>1X</th><th>12</th><th>X2</th><th>Payout</th></tr></thead><tbody><tr class=\"h-9\"><td>888sport</td><td>1.25</td><td>1.30</td><td>1.45</td><td>-</td></tr></tbody></table></body></html>"""
+        ou_single = """<html><body><script type=\"application/ld+json\">{\"@type\":[\"Event\",\"SportsEvent\"],\"homeTeam\":{\"name\":\"Arsenal\"},\"awayTeam\":{\"name\":\"Chelsea\"},\"startDate\":\"2035-06-15T15:00:00Z\",\"url\":\"/football/h2h/arsenal-xxx/chelsea-yyy/\"}</script><ul><li class=\"tab-item\"><button><span>1X2</span></button></li><li class=\"tab-item\"><button><span>Over/Under</span></button></li><li class=\"tab-item\"><button><span>Both Teams to Score</span></button></li><li class=\"tab-item\"><button><span>Double Chance</span></button></li></ul><table class=\"w-full table-fixed\"><thead><tr><th>Handicap</th><th>Over</th><th>Under</th><th>Payout</th></tr></thead><tbody><tr><td>Over/Under +0.5</td><td>1.10</td><td>8.00</td><td>95%</td></tr><tr><td>Over/Under +1.5</td><td>1.35</td><td>3.10</td><td>95%</td></tr><tr><td>Over/Under +2.5</td><td>1.70</td><td>2.10</td><td>95%</td></tr><tr><td>Over/Under +3.5</td><td>3.20</td><td>1.34</td><td>95%</td></tr><tr><td>Over/Under +4.5</td><td>6.50</td><td>1.09</td><td>95%</td></tr></tbody></table></body></html>"""
+
+        def content_for(clicks):
+            if not clicks:
+                return x2_single
+            label = clicks[-1]
+            if label == "1X2":
+                return x2_single
+            if label == "Both Teams to Score":
+                return btts_single
+            if label == "Double Chance":
+                return dc_single
+            if label == "Over/Under":
+                return ou_single
+            return x2_single
+
+        fake_browser(monkeypatch, op, {"https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/": content_for})
+        finder, collector = _finder(contributes_odds=True)
+        finder._process_url_batch(["https://www.oddsportal.com/football/h2h/arsenal-xxx/chelsea-yyy/"])
+        odds = collector.first.odds
+        # Single row -> unchanged values
+        assert odds.home == 2.10
+        assert odds.draw == 3.40
+        assert odds.away == 3.75
+        assert odds.btts_yes == 1.85
+        assert odds.btts_no == 1.95
+        assert odds.dc_1x == 1.25
+        assert odds.dc_12 == 1.30
+        assert odds.dc_x2 == 1.45
+        # O/U uses single row per handicap
+        assert odds.over_05 == 1.10
+        assert odds.under_05 == 8.00
+        assert odds.over_15 == 1.35
+        assert odds.under_15 == 3.10
+        assert odds.over_25 == 1.70
+        assert odds.under_25 == 2.10
+        assert odds.over_35 == 3.20
+        assert odds.under_35 == 1.34
+        assert odds.over_45 == 6.50
+        assert odds.under_45 == 1.09
 
 
 class TestSourceName:
