@@ -233,7 +233,6 @@ class TestProcessUrlBatch:
         finder._process_url_batch(["https://www.betexplorer.com/match/broken/"])
         assert len(collector) == 0
 
-
     def test_average_ou_handicaps_multi_row(self, monkeypatch) -> None:
         """Multi-row O/U: each half-line averaged across bookmakers."""
         self._session_map(monkeypatch)

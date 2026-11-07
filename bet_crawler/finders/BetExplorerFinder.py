@@ -563,7 +563,11 @@ class BetExplorerFinder(BaseMatchFinder):
         soup = BeautifulSoup(session.page.content(), "html.parser")
         ou_vals = self._average_ou_handicaps(soup)
         # Strict readiness gate: every half-line must have produced averages
-        missing_keys = [key for key, (oi, ui) in {"0.50": (0, 1), "1.50": (2, 3), "2.50": (4, 5), "3.50": (6, 7), "4.50": (8, 9)}.items() if ou_vals[oi] is None or ou_vals[ui] is None]
+        missing_keys = [
+            key
+            for key, (oi, ui) in {"0.50": (0, 1), "1.50": (2, 3), "2.50": (4, 5), "3.50": (6, 7), "4.50": (8, 9)}.items()
+            if ou_vals[oi] is None or ou_vals[ui] is None
+        ]
         if missing_keys:
             logger.warning("Over/Under half-lines missing averages: %s", missing_keys)
             raise TimeoutError("Over/Under handicaps did not settle")

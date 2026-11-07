@@ -189,14 +189,14 @@ class TestProcessUrlBatch:
         assert m.predictions == []  # Match ctor normalizes None to []
         odds = m.odds
         # Averaged values from multi-row fixtures (Python round = banker's rounding)
-        assert odds.home == 2.11   # (2.10+2.15+2.08+2.12)/4 = 2.1125 -> 2.11
-        assert odds.draw == 3.40   # (3.40+3.35+3.45+3.38+3.42)/5 = 3.40
-        assert odds.away == 3.75   # (3.75+3.80+3.70+3.78+3.72)/5 = 3.75
-        assert odds.btts_yes == 1.85   # (1.85+1.88+1.82)/3 = 1.85
-        assert odds.btts_no == 1.95    # (1.95+1.92+1.98+1.96)/4 = 1.9525 -> 1.95
-        assert odds.dc_1x == 1.25      # (1.25+1.28+1.23+1.26)/4 = 1.255 -> 1.25 (banker's)
-        assert odds.dc_12 == 1.31      # (1.30+1.32+1.29+1.31+1.33)/5 = 1.31
-        assert odds.dc_x2 == 1.46      # (1.45+1.48+1.44+1.46+1.47)/5 = 1.46
+        assert odds.home == 2.11  # (2.10+2.15+2.08+2.12)/4 = 2.1125 -> 2.11
+        assert odds.draw == 3.40  # (3.40+3.35+3.45+3.38+3.42)/5 = 3.40
+        assert odds.away == 3.75  # (3.75+3.80+3.70+3.78+3.72)/5 = 3.75
+        assert odds.btts_yes == 1.85  # (1.85+1.88+1.82)/3 = 1.85
+        assert odds.btts_no == 1.95  # (1.95+1.92+1.98+1.96)/4 = 1.9525 -> 1.95
+        assert odds.dc_1x == 1.25  # (1.25+1.28+1.23+1.26)/4 = 1.255 -> 1.25 (banker's)
+        assert odds.dc_12 == 1.31  # (1.30+1.32+1.29+1.31+1.33)/5 = 1.31
+        assert odds.dc_x2 == 1.46  # (1.45+1.48+1.44+1.46+1.47)/5 = 1.46
         assert odds.over_05 == 1.10
         assert odds.under_05 == 8.00
         assert odds.over_25 == 1.70
@@ -403,7 +403,7 @@ class TestProcessUrlBatch:
         assert odds.dc_12 == 1.31
         assert odds.dc_x2 == 1.46
         # O/U: 3 rows per handicap -> verify a few
-        assert odds.over_05 == 1.10   # (1.10+1.12+1.08)/3 = 1.10
+        assert odds.over_05 == 1.10  # (1.10+1.12+1.08)/3 = 1.10
         assert odds.under_05 == 8.00  # (8.00+7.80+8.20)/3 = 8.00
 
     def test_average_sparse_rows(self, monkeypatch) -> None:
