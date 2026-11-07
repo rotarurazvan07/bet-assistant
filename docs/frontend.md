@@ -451,6 +451,17 @@ export const MARKET_COLUMNS: MarketColumn[] = [
 - `FIXED_COLUMNS` - Non-market columns (datetime, home, away, sources, league)
 - `getTableColumns()` - Combined column list
 
+### Dependency `overrides` (`package.json`)
+
+**npm overrides force a single resolved version for transitive dependencies** whose requiring parent cannot move within its own range. These entries exist because the vulnerable copy is nested and its parent is pinned: the contract generator keeps its own major line, the lint toolchain keeps its own line, and the glob/CSS parsers are consumed by several packages at once.
+
+- `undici` / `@fastify/busboy` — the generator's nested HTTP client copies are cleared by pinning the patched release of the 8.x line at the root, which replaces the nested copies the generator would otherwise resolve from its own range; the generator major stays put.
+- `minimatch` / `brace-expansion` — the ESLint glob consumer runs an older matcher that cannot use the 5.x expansion line, so a nested override pins the patched 1.x line under that matcher; the newer matcher in the lint toolchain subtree (typescript-eslint → typescript-estree → minimatch 11) is pinned by its own nested override to the patched 11.x line, and it resolves the patched 5.x expansion line through its declared range. Two major lines of the expansion parser coexist on purpose, one per glob consumer.
+- `js-yaml`, `browserslist`, `baseline-browser-mapping`, `postcss-selector-parser`, `nanoid`, `source-map-js`, `@babel/core`, `@humanfs/node`, `zod` — transitive copies reached through several parents; pinned to the patched release of their current major line.
+- `follow-redirects` / `form-data` — the HTTP client's own transitive chain; pinned so the shipped bundle is deterministic.
+
+The lint toolchain also pins its own newer matcher through a scoped override (typescript-estree → minimatch 11.0.5) because its parent's declared range admits a release the advisory covers. Removing any override without checking the audit re-opens the advisory it closed.
+
 ---
 
 ## TypeScript Types (`types/index.ts`)
