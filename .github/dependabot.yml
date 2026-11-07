@@ -14,3 +14,17 @@ updates:
           - "minor"
           - "patch"
     open-pull-requests-limit: 10
+  - package-ecosystem: "npm"
+    directory: "/bet_dashboard/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    groups:
+      npm:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 10
