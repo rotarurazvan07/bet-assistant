@@ -175,15 +175,27 @@ class TestLoadRuntimeP1:
 class TestStatusRetriesP1:
     def test_repo_config_declares_status_retries(self) -> None:
         """scraper_config.yaml declares per-HTTP-status retry budgets (scrape-kit v0.3.0):
-        429/503 budgets of 10 parse without SettingsError, keep int keys, and merge over
-        the built-in 403 default instead of replacing it."""
+        transient timeout/server errors have a budget of 3, 429/503 have a budget of 10,
+        integer keys are preserved, and configured values merge over the built-in 403."""
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         fetcher = configure(os.path.join(root, "config"))
-        assert fetcher._configured_status_retries == {429: 10, 503: 10}
-        assert fetcher.status_retries == {403: None, 429: 10, 503: 10}
+        configured = {
+            408: 3,
+            429: 10,
+            500: 3,
+            502: 3,
+            503: 10,
+            504: 3,
+            520: 3,
+            521: 3,
+            522: 3,
+            524: 3,
+        }
+        assert fetcher._configured_status_retries == configured
+        assert fetcher.status_retries == {403: None, **configured}
         body = SettingsManager(os.path.join(root, "config")).get("scraper_config")
         assert body is not None
-        assert body["status_retries"] == {429: 10, 503: 10}
+        assert body["status_retries"] == configured
 
     def test_status_retries_value_lands_not_shadowed_by_defaults(self, tmp_path) -> None:
         """Configured values replace the built-in budgets for their status: a sentinel
@@ -201,7 +213,18 @@ class TestStatusRetriesP1:
         text = (tmp_path / "scraper_config.yaml").read_text(encoding="utf-8")
         (tmp_path / "scraper_config.yaml").write_text(text.replace("  429: 10", "  429: 7"), encoding="utf-8")
         fetcher = configure(str(tmp_path))
-        assert fetcher._configured_status_retries == {429: 7, 503: 10}
+        assert fetcher._configured_status_retries == {
+            408: 3,
+            429: 7,
+            500: 3,
+            502: 3,
+            503: 10,
+            504: 3,
+            520: 3,
+            521: 3,
+            522: 3,
+            524: 3,
+        }
         assert fetcher.status_retries[429] == 7
         assert fetcher.status_retries[403] is None
 

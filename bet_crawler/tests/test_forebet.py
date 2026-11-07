@@ -90,6 +90,11 @@ class TestForebet:
         finder._parse_page("u", load_fixture("forebet", "broken.html"))
         assert len(collector) == 0
 
+    def test_missing_body_container_skips_error_page(self) -> None:
+        finder, collector = _finder()
+        finder._parse_page("https://www.forebet.com/error", "<html><body>504 Gateway Timeout</body></html>")
+        assert len(collector) == 0
+
     def test_youth_team_skipped(self) -> None:
         html = load_fixture("forebet", "league.html").replace("Real Madrid", "Real U19")
         finder, collector = _finder()

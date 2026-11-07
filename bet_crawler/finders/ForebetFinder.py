@@ -1,8 +1,10 @@
 """Match finder for forebet.com predictions."""
 
+import logging
+
 from scrape_kit import ScrapeMode, scrape
 
-from bet_crawler.crawler_logging import exception_event, get_logger
+from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
 
@@ -252,7 +254,21 @@ class ForebetFinder(BaseMatchFinder):
         """Parse one forebet league page and emit matches via callback."""
         league = TOP_LEAGUES.get(url)
         soup = BeautifulSoup(html, "html.parser")
-        all_anchors = soup.find("div", id="body-main").find_all(class_="rcnt")
+        body_main = soup.find("div", id="body-main")
+        if body_main is None:
+            log_event(
+                logger,
+                event="source.page.skipped",
+                outcome="warning",
+                reason_code="body_container_missing",
+                level=logging.WARNING,
+                message=f"Skipping Forebet page {url}: body-main container missing",
+                source_key=FOREBET_NAME,
+                url=url,
+            )
+            return
+
+        all_anchors = body_main.find_all(class_="rcnt")
         logger.info(f"Found {len(all_anchors)} matches to scan")
 
         for anchor in all_anchors:
