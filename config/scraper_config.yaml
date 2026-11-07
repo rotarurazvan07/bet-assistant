@@ -1,8 +1,16 @@
 # Web Scraper settings
 # Per-HTTP-status retry budgets (scrape-kit v0.3.0 fetcher; merges over built-in 403/429/503)
 status_retries:
+  408: 3
   429: 10
+  500: 3
+  502: 3
   503: 10
+  504: 3
+  520: 3
+  521: 3
+  522: 3
+  524: 3
 
 retry_indicators:
   - "403 Forbidden"
