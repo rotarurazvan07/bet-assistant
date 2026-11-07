@@ -451,6 +451,17 @@ export const MARKET_COLUMNS: MarketColumn[] = [
 - `FIXED_COLUMNS` - Non-market columns (datetime, home, away, sources, league)
 - `getTableColumns()` - Combined column list
 
+### Dependency `overrides` (`package.json`)
+
+**npm overrides force a single resolved version for transitive dependencies** whose requiring parent cannot move within its own range. These entries exist because the vulnerable copy is nested and its parent is pinned: the contract generator keeps its own major line, the lint toolchain keeps its own line, and the glob/CSS parsers are consumed by several packages at once.
+
+- `undici` / `@fastify/busboy` — the generator's nested HTTP client copies; pinned so the generator major stays put.
+- `minimatch` / `brace-expansion` — a nested override pins the 1.x patched line for the ESLint glob consumer, whose matcher cannot run the 5.x line; the newer matcher in the lint toolchain subtree resolves the patched 5.x line through its own declared range.
+- `js-yaml`, `browserslist`, `baseline-browser-mapping`, `postcss-selector-parser`, `nanoid`, `source-map-js`, `@babel/core`, `@humanfs/node`, `zod` — transitive copies reached through several parents; pinned to the patched release of their current major line.
+- `follow-redirects` / `form-data` — the HTTP client's own transitive chain; pinned so the shipped bundle is deterministic.
+
+The lint toolchain pins `typescript-eslint` to a line whose own dependency resolution lands the patched `minimatch`, so no scoped minimatch override is needed. Removing any override without checking the audit re-opens the advisory it closed.
+
 ---
 
 ## TypeScript Types (`types/index.ts`)
