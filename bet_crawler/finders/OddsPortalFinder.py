@@ -6,7 +6,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, ROUND_HALF_UP
 
 from bs4 import BeautifulSoup
 from scrape_kit import browser, fetch
@@ -264,7 +263,7 @@ ALL_LINKS = [
     "https://www.oddsportal.com/football/zambia/super-league/",
 ]
 
-_DECIMAL = re.compile(r"^\d+\.\d+$")
+_DECIMAL = re.compile(r"^\d+(\.\d+)?$")
 
 
 class OddsPortalFinder(BaseMatchFinder):
@@ -736,6 +735,7 @@ class OddsPortalFinder(BaseMatchFinder):
         for row in rows:
             tds = row.find_all("td", recursive=False)
             if len(tds) < expected_cols + 1:
+                logger.warning("Skipping short bookmaker row: %d cells, need %d", len(tds), expected_cols + 1)
                 continue
             for i in range(expected_cols):
                 text = tds[i + 1].get_text(strip=True)
@@ -744,7 +744,7 @@ class OddsPortalFinder(BaseMatchFinder):
                 if _DECIMAL.match(text):
                     col_values[i].append(float(text))
 
-        # Compute averages with precise rounding
+        # Compute averages
         result = []
         for values in col_values:
             if not values:
@@ -753,8 +753,7 @@ class OddsPortalFinder(BaseMatchFinder):
                 result.append(values[0])  # single row: return unchanged
             else:
                 avg = sum(values) / len(values)
-                # Use Decimal for proper half-up rounding to 2dp
-                result.append(float(Decimal(str(avg)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)))
+                result.append(round(avg, 2))
         return result
 
     def _average_ou_handicaps(self, soup):
@@ -788,7 +787,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     if len(decimals) >= 2:
                         handicap_rows[prefix].append((float(decimals[0]), float(decimals[1])))
 
-        # Average per handicap with precise rounding
+        # Average per handicap
         for prefix, (oi, ui) in buckets.items():
             rows_data = handicap_rows[prefix]
             if not rows_data:
@@ -798,10 +797,8 @@ class OddsPortalFinder(BaseMatchFinder):
             else:
                 over_vals = [r[0] for r in rows_data]
                 under_vals = [r[1] for r in rows_data]
-                avg_over = sum(over_vals) / len(over_vals)
-                avg_under = sum(under_vals) / len(under_vals)
-                out[oi] = float(Decimal(str(avg_over)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-                out[ui] = float(Decimal(str(avg_under)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                out[oi] = round(sum(over_vals) / len(over_vals), 2)
+                out[ui] = round(sum(under_vals) / len(under_vals), 2)
         return tuple(out)
 
     def _scrape_tab_1x2(self, session, thread_name: str):
@@ -842,13 +839,13 @@ class OddsPortalFinder(BaseMatchFinder):
 
     def _scrape_tab_ou(self, session, thread_name: str):
         """Scrape the Over/Under tab; returns the 10 O/U odds averaged across bookmakers per handicap."""
-        out = [None] * 10
         try:
             logger.info("[%s] Extracting O/U odds", thread_name)
             soup = self._click_tab(session, "Over/Under", ("Over", "Under"))
             out = list(self._average_ou_handicaps(soup))
         except Exception as e:
             logger.warning("[%s] Failed to scrape O/U odds: %s", thread_name, e)
+            out = [None] * 10
         return tuple(out)
 
     def get_matches(self, urls) -> None:

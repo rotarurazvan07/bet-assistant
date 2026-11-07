@@ -188,13 +188,13 @@ class TestProcessUrlBatch:
         assert m.datetime.year == 2035
         assert m.predictions == []  # Match ctor normalizes None to []
         odds = m.odds
-        # Averaged values from multi-row fixtures
-        assert odds.home == 2.11   # (2.10+2.15+2.08+2.12)/4 = 2.11
+        # Averaged values from multi-row fixtures (Python round = banker's rounding)
+        assert odds.home == 2.11   # (2.10+2.15+2.08+2.12)/4 = 2.1125 -> 2.11
         assert odds.draw == 3.40   # (3.40+3.35+3.45+3.38+3.42)/5 = 3.40
         assert odds.away == 3.75   # (3.75+3.80+3.70+3.78+3.72)/5 = 3.75
         assert odds.btts_yes == 1.85   # (1.85+1.88+1.82)/3 = 1.85
-        assert odds.btts_no == 1.95    # (1.95+1.92+1.98+1.96)/4 = 1.95
-        assert odds.dc_1x == 1.26      # (1.25+1.28+1.23+1.26)/4 = 1.26
+        assert odds.btts_no == 1.95    # (1.95+1.92+1.98+1.96)/4 = 1.9525 -> 1.95
+        assert odds.dc_1x == 1.25      # (1.25+1.28+1.23+1.26)/4 = 1.255 -> 1.25 (banker's)
         assert odds.dc_12 == 1.31      # (1.30+1.32+1.29+1.31+1.33)/5 = 1.31
         assert odds.dc_x2 == 1.46      # (1.45+1.48+1.44+1.46+1.47)/5 = 1.46
         assert odds.over_05 == 1.10
@@ -266,7 +266,7 @@ class TestProcessUrlBatch:
         assert (odds.home, odds.btts_yes, odds.dc_1x, odds.over_05) == (
             2.11,
             1.85,
-            1.26,
+            1.25,
             1.10,
         )
 
@@ -304,7 +304,7 @@ class TestProcessUrlBatch:
         odds = collector.first.odds
         # Averaged values from multi-row fixtures (1X2 uses 5 rows, BTTS 4, DC 5, OU 3 per handicap)
         assert (odds.home, odds.btts_yes, odds.btts_no) == (2.11, 1.85, 1.95)
-        assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.26, 1.31, 1.46)
+        assert (odds.dc_1x, odds.dc_12, odds.dc_x2) == (1.25, 1.31, 1.46)
         assert (odds.over_05, odds.under_05, odds.over_15, odds.under_15) == (
             1.10,
             8.00,
@@ -398,8 +398,8 @@ class TestProcessUrlBatch:
         # BTTS: 3 numeric rows for Yes, 4 for No -> yes=1.85, no=1.95
         assert odds.btts_yes == 1.85
         assert odds.btts_no == 1.95
-        # DC: 4 rows for 1X, 5 for 12, 5 for X2 -> 1x=1.26, 12=1.31, x2=1.46
-        assert odds.dc_1x == 1.26
+        # DC: 4 rows for 1X, 5 for 12, 5 for X2 -> 1x=1.25 (banker's), 12=1.31, x2=1.46
+        assert odds.dc_1x == 1.25
         assert odds.dc_12 == 1.31
         assert odds.dc_x2 == 1.46
         # O/U: 3 rows per handicap -> verify a few
@@ -418,7 +418,7 @@ class TestProcessUrlBatch:
         # Results should match the multi-row test
         assert odds.home == 2.11
         assert odds.btts_yes == 1.85
-        assert odds.dc_1x == 1.26  # Betfair row has '-' for 1X
+        assert odds.dc_1x == 1.25  # Betfair row has '-' for 1X (banker's rounding)
 
     def test_average_single_row_unchanged(self, monkeypatch) -> None:
         """Single bookmaker row returns values unchanged (no averaging, no rounding)."""

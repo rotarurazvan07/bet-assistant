@@ -6,7 +6,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextvars import copy_context
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal as _Decimal, ROUND_HALF_UP
 
 from bs4 import BeautifulSoup
 from scrape_kit import browser, fetch
@@ -436,7 +435,7 @@ class BetExplorerFinder(BaseMatchFinder):
         return list(set(urls))
 
     _BROWSER_TIMEOUT_MS = 60_000
-    _DECIMAL = re.compile(r"^\d+\.\d+$")
+    _DECIMAL = re.compile(r"^\d+(\.\d+)?$")
 
     def _configure_page_timeouts(self, session) -> None:
         """Make browser navigation and action defaults match the 60-second policy."""
@@ -531,8 +530,10 @@ class BetExplorerFinder(BaseMatchFinder):
             for i in range(0, len(odd_vals), 2):
                 if i + 1 < len(odd_vals):
                     handicap_data[key].append((float(odd_vals[i]), float(odd_vals[i + 1])))
+                else:
+                    logger.warning("Dropped unpaired Over odd for handicap %s: %s", key, odd_vals[i])
 
-        # Average per half-line with precise rounding
+        # Average per half-line
         for key, (oi, ui) in buckets.items():
             pairs = handicap_data[key]
             if not pairs:
@@ -542,14 +543,16 @@ class BetExplorerFinder(BaseMatchFinder):
             else:
                 over_vals = [p[0] for p in pairs]
                 under_vals = [p[1] for p in pairs]
-                avg_over = sum(over_vals) / len(over_vals)
-                avg_under = sum(under_vals) / len(under_vals)
-                out[oi] = float(_Decimal(str(avg_over)).quantize(_Decimal("0.01"), rounding=ROUND_HALF_UP))
-                out[ui] = float(_Decimal(str(avg_under)).quantize(_Decimal("0.01"), rounding=ROUND_HALF_UP))
+                out[oi] = round(sum(over_vals) / len(over_vals), 2)
+                out[ui] = round(sum(under_vals) / len(under_vals), 2)
         return tuple(out)
 
     def _wait_ou_handicaps(self, session):
-        """Wait until all five half-line rows render with at least one bookmaker's data-odd pair."""
+        """Wait for all five half-line rows, then return averaged O/U tuple.
+
+        Strict gate: every half-line must yield at least one bookmaker pair.
+        Returns the computed 10-tuple so the caller does not average twice.
+        """
         condition = (
             '() => ["0.50", "1.50", "2.50", "3.50", "4.50"].every(key => {'
             'const row = document.querySelector(`[data-all-handicap="${key}"]`);'
@@ -558,12 +561,13 @@ class BetExplorerFinder(BaseMatchFinder):
         )
         self._wait_for_function(session, condition)
         soup = BeautifulSoup(session.page.content(), "html.parser")
-        # Verify at least one pair per half-line exists
-        c = self._average_ou_handicaps(soup)
-        # Check that we have at least some data (not all None)
-        if any(v is not None for v in c):
-            return soup
-        raise TimeoutError("Over/Under handicaps did not settle")
+        ou_vals = self._average_ou_handicaps(soup)
+        # Strict readiness gate: every half-line must have produced averages
+        missing_keys = [key for key, (oi, ui) in {"0.50": (0, 1), "1.50": (2, 3), "2.50": (4, 5), "3.50": (6, 7), "4.50": (8, 9)}.items() if ou_vals[oi] is None or ou_vals[ui] is None]
+        if missing_keys:
+            logger.warning("Over/Under half-lines missing averages: %s", missing_keys)
+            raise TimeoutError("Over/Under handicaps did not settle")
+        return ou_vals
 
     def _process_url_batch(self, urls: list) -> None:
         """Process a batch of URLs in a single browser session (runs in its own thread)."""
@@ -697,8 +701,7 @@ class BetExplorerFinder(BaseMatchFinder):
                         all_selector = ".oddsComparison__ul.bestOddsComparison li#all"
                         assert self._click_selector(session, ou_selector), "Click failed"
                         assert self._click_selector(session, all_selector), "Click failed"
-                        soup = self._wait_ou_handicaps(session)
-                        ou_vals = self._average_ou_handicaps(soup)
+                        ou_vals = self._wait_ou_handicaps(session)
                         odds_over05, odds_under05 = ou_vals[0], ou_vals[1]
                         odds_over15, odds_under15 = ou_vals[2], ou_vals[3]
                         odds_over25, odds_under25 = ou_vals[4], ou_vals[5]
