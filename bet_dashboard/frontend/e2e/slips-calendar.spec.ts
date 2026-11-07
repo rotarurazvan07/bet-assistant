@@ -46,15 +46,15 @@ test('calendar navigates months and clicking a day filters slips', async ({ page
 
     await navigateToOctober2026(page);
     await page.getByRole('button', { name: '2026-10-07: 1 slip, +0.9U, 1W/0L' }).click();
-    await expect(page.getByText('Showing slips for 2026-10-07')).toBeVisible();
     await expect(page.getByText('Arsenal vs Chelsea')).toBeVisible();
     await expect.poll(() => requests.some(url => {
         const query = new URL(url).searchParams;
         return query.get('date_from') === '2026-10-07' && query.get('date_to') === '2026-10-07';
     })).toBe(true);
 
-    await page.getByRole('button', { name: 'Back to calendar' }).click();
-    await expect(page.getByRole('button', { name: 'Calendar view' })).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Filters' }).click();
+    await expect(page.getByLabel('Date from')).toHaveValue('2026-10-07');
+    await expect(page.getByLabel('Date to')).toHaveValue('2026-10-07');
 });
 
 test('calendar stays usable on a narrow viewport', async ({ page }) => {

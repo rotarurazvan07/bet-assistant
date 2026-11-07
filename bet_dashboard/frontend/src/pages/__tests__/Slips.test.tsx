@@ -89,6 +89,27 @@ describe('Slips page', () => {
         expect(screen.queryByRole('region', { name: 'Daily profit calendar' })).not.toBeInTheDocument();
     });
 
+    it('uses the selected calendar day as the date-range filter', async () => {
+        const user = userEvent.setup();
+        const today = new Date();
+        const selectedDay = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        renderPage();
+        await screen.findByText('Arsenal vs Chelsea');
+
+        await user.click(screen.getByRole('button', { name: 'Calendar view' }));
+        await user.click(screen.getByRole('button', { name: new RegExp(`^${selectedDay}:`) }));
+
+        await waitFor(() => {
+            expect(lastSlipsUrl).toContain(`date_from=${selectedDay}`);
+            expect(lastSlipsUrl).toContain(`date_to=${selectedDay}`);
+        });
+        expect(screen.queryByText(/Showing slips for/)).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /Filters/ }));
+        expect(screen.getByLabelText('Date from')).toHaveValue(selectedDay);
+        expect(screen.getByLabelText('Date to')).toHaveValue(selectedDay);
+    });
+
     it('only shows slip-specific filters in grid mode', async () => {
         const user = userEvent.setup();
         renderPage();
@@ -202,7 +223,7 @@ describe('Slips page', () => {
         expect(progressButton).toHaveTextContent('Stop checking');
         expect(screen.getByText('Checking Arsenal vs Chelsea')).toBeInTheDocument();
         expect(screen.getByText('2/5')).toBeInTheDocument();
-        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
+        expect(screen.getByRole('progressbar', { name: 'Validation progress' })).toHaveAttribute('aria-valuenow', '2');
 
         await user.click(progressButton);
         await waitFor(() => expect(cancelRequested).toBe(true));
@@ -350,11 +371,11 @@ describe('Slips page', () => {
         await screen.findByText('Arsenal vs Chelsea');
         // open modal via neutral footer area
         await user.click(screen.getByText('1u'));
-        expect(await screen.findByText('Betting Slip')).toBeInTheDocument();
+        expect(await screen.findByRole('heading', { name: '2026-09-24' })).toBeInTheDocument();
         // close via backdrop
         const backdrop = document.querySelector('[class*="backdrop-blur-sm"]') as HTMLElement;
         await user.click(backdrop);
-        await waitFor(() => expect(screen.queryByText('Betting Slip')).not.toBeInTheDocument());
+        await waitFor(() => expect(screen.queryByRole('heading', { name: '2026-09-24' })).not.toBeInTheDocument());
     });
 
     it('profile chips come from data.profiles and toggle refetch with param', async () => {
