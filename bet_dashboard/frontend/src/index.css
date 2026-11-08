@@ -1,9 +1,7 @@
+@config "../tailwind.config.js";
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@500;600;700;800&display=swap');
 @import './theme/tokens.css';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
 
 @layer base {
 
@@ -36,7 +34,14 @@
 
   /* Nav */
   .nav-link {
-    @apply text-[11px] font-sans font-medium tracking-widest uppercase px-1.5 transition-colors duration-150;
+    font-size: 11px;
+    font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding-left: 6px;
+    padding-right: 6px;
+    transition: color .15s;
     /* Issue #36muted fails 4.5:1 on --bg-surface; muted-strong passes */
     color: var(--text-muted-strong);
   }
@@ -51,19 +56,32 @@
 
   .nav-link.active::after {
     content: '';
-    @apply absolute -bottom-px left-0 right-0 h-px;
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 1px;
     background: var(--accent);
   }
 
   /* Nav group separator: subtle vertical divider between groups */
   .nav-separator {
-    @apply w-px self-stretch my-2;
+    width: 1px;
+    align-self: stretch;
+    margin-top: 8px;
+    margin-bottom: 8px;
     background: var(--border);
   }
 
   /* Nav group micro-caption: tiny label above group */
   .nav-caption {
-    @apply text-[8px] leading-none font-mono tracking-widest uppercase py-0.5;
+    font-size: 8px;
+    line-height: 1;
+    font-family: var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding-top: 2px;
+    padding-bottom: 2px;
     color: var(--text-muted-strong);
   }
 
@@ -151,12 +169,35 @@ input[type="number"].field:focus {
 
   /* Buttons */
   .btn {
-    @apply inline-flex items-center gap-1.5 font-sans font-semibold text-[11px] tracking-widest uppercase rounded transition-all duration-150 cursor-pointer select-none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    transition: all .15s;
+    cursor: pointer;
+    user-select: none;
     padding: 7px 14px;
   }
 
   .btn-primary {
-    @apply btn;
+    /* Tailwind v4 drops @apply of custom @layer-components classes — base inlined. */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    transition: all .15s;
+    cursor: pointer;
+    user-select: none;
     /*#fff on --accent is 3.84:1 (fails AA); on --accent-dark it is 5.17:1 */
     background: var(--accent-dark);
     color: #fff;
@@ -177,7 +218,20 @@ input[type="number"].field:focus {
   }
 
   .btn-ghost {
-    @apply btn;
+    /* Tailwind v4 drops @apply of custom @layer-components classes — base inlined. */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    padding: 7px 14px;
+    transition: all .15s;
+    cursor: pointer;
+    user-select: none;
     background: transparent;
     border: 1px solid var(--border-strong);
     color: var(--text-secondary);
@@ -194,7 +248,20 @@ input[type="number"].field:focus {
   }
 
   .btn-danger {
-    @apply btn;
+    /* Tailwind v4 drops @apply of custom @layer-components classes — base inlined. */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    padding: 7px 14px;
+    transition: all .15s;
+    cursor: pointer;
+    user-select: none;
     background: transparent;
     border: 1px solid var(--loss);
     color: var(--loss);
@@ -205,7 +272,20 @@ input[type="number"].field:focus {
   }
 
   .btn-success {
-    @apply btn;
+    /* Tailwind v4 drops @apply of custom @layer-components classes — base inlined. */
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 6px;
+    padding: 7px 14px;
+    transition: all .15s;
+    cursor: pointer;
+    user-select: none;
     background: var(--win);
     color: #fff;
   }
@@ -215,7 +295,11 @@ input[type="number"].field:focus {
   }
 
   .btn-icon {
-    @apply flex items-center justify-center rounded transition-colors duration-150;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: color .15s, background-color .15s;
     width: 28px;
     height: 28px;
     color: var(--text-muted);
@@ -229,7 +313,19 @@ input[type="number"].field:focus {
 
   /* Status badge */
   .badge {
-    @apply inline-flex items-center gap-1 text-[10px] font-mono font-medium tracking-wide uppercase rounded-sm px-1.5 py-0.5;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    border-radius: 2px;
+    padding-left: 6px;
+    padding-right: 6px;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
 
   .badge-won {

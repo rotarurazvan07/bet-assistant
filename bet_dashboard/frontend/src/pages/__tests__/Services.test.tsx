@@ -89,6 +89,8 @@ describe('Services page', () => {
         render(<Services />);
         await screen.findByText('Automation Services');
         const services = Object.values(DATA.services);
+        // Loading branch shares the same h1 — wait for data-committed cards (msw v3 async boundary).
+        await waitFor(() => expect(screen.getByText(services[0].name)).toBeInTheDocument());
         for (const svc of services) {
             expect(screen.getByText(svc.name)).toBeInTheDocument();
         }
@@ -107,6 +109,8 @@ describe('Services page', () => {
         );
         render(<Services />);
         await screen.findByText('Automation Services');
+        // Loading branch shares the same h1 — wait for card buttons (msw v3 async boundary).
+        await waitFor(() => expect(screen.getAllByText(/Stop Service|Start Service/).length).toBeGreaterThan(0));
         const before = calls;
         const firstToggle = screen.getAllByText(/Stop Service|Start Service/)[0];
         await user.click(firstToggle);
@@ -131,8 +135,8 @@ describe('Services page', () => {
     it('does not show EmptyState when generator is enabled', async () => {
         render(<Services />);
         await screen.findByText('Automation Services');
+        await waitFor(() => expect(screen.queryByText('Loading services…')).not.toBeInTheDocument());
         expect(screen.queryByText('Generate Slips is off')).not.toBeInTheDocument();
-        expect(screen.queryByText('Loading services…')).not.toBeInTheDocument();
     });
 
     it('shows EmptyState above the grid when generator is off', async () => {
@@ -161,6 +165,8 @@ describe('Services page', () => {
     it('cards show per-service descriptions', async () => {
         render(<Services />);
         await screen.findByText('Automation Services');
+        // Loading branch shares the same h1 — wait for data-committed cards (msw v3 async boundary).
+        await waitFor(() => expect(document.body.textContent).toContain('DB pull service'));
         for (const svc of Object.values(DATA.services)) {
             if (svc.description) {
                 expect(screen.getAllByText(svc.description).length).toBeGreaterThan(0);

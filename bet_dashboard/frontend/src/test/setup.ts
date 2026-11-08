@@ -91,7 +91,7 @@ Element.prototype.scrollIntoView = vi.fn();
 
 // Establish MSW before all tests; reset request-capture state between tests
 // (keeps handlers); restore pristine interceptors after the whole run.
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+beforeAll(() => server.listen()); // msw v3 default onUnhandledRequest: 'warn'
 afterEach(() => {
     server.resetHandlers();
     cleanup(); // RTL unmount — MUI renders outside React trees (portals)
