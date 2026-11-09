@@ -194,6 +194,7 @@ synonyms:
   "betis": "real betis"
   "sociedad": "real sociedad"
   "vallecano": "rayo vallecano"
+  "athletic club mg": "athletic bilbao"
 
   # ── German clubs ───────────────────────────────────────────────────────────
   "bvb": "borussia dortmund"
@@ -203,6 +204,18 @@ synonyms:
   "rb leipzig": "rasenballsport leipzig"
   "rbl": "rasenballsport leipzig"
   "hertha": "hertha berlin"
+  "hamburger sv": "hamburg"
+  "fc koln": "cologne"
+  "monchengladbach": "borussia monchengladbach"
+
+  # ── German character normalization ─────────────────────────────────────────
+  "ö": "o"
+  "ü": "u"
+  "ä": "a"
+  "Ö": "o"
+  "Ü": "u"
+  "Ä": "a"
+  "ß": "ss"
 
   # ── Italian clubs ──────────────────────────────────────────────────────────
   "inter": "inter milan"
@@ -245,6 +258,7 @@ synonyms:
   "utrecht": "fc utrecht"
   "jong utrecht": "fc utrecht reserves"
   "jong ajax": "ajax reserves"
+  "nec": "nijmegen"
 
   # ── Belgian clubs ─────────────────────────────────────────────────────────
   "anderlecht": "rsc anderlecht"
@@ -284,6 +298,10 @@ synonyms:
   "kasimpasa": "kasimpasa sk"
   "amed sk": "amedspor"
   "amed sportif": "amedspor"
+  "igdir fk": "76 igdir belediyespor"
+
+  # ── Romanian clubs ────────────────────────────────────────────────────────
+  "rapid": "rapid bucuresti"
 
   # ── Austrian clubs ────────────────────────────────────────────────────────
   "rb salzburg": "red bull salzburg"
@@ -309,6 +327,7 @@ synonyms:
   # ── Croatian clubs ────────────────────────────────────────────────────────
   "dinamo zagreb": "gnk dinamo zagreb"
   "hajduk": "hajduk split"
+  "varteks": "varazdin"
 
   # ── Greek clubs ───────────────────────────────────────────────────────────
   "olympiakos": "olympiacos"
@@ -316,6 +335,10 @@ synonyms:
   "panathinaikos fc": "panathinaikos"
   "paok fc": "paok thessaloniki"
   "paok": "paok thessaloniki"
+
+  # ── Israeli clubs ─────────────────────────────────────────────────────────
+  "hapoel ra'anana": "hapoel raanana"
+  "hapoel katamon": "hapoel jerusalem"
 
   # ── American clubs ─────────────────────────────────────────────────────────
   "nycfc": "new york city"
@@ -329,6 +352,8 @@ synonyms:
   "o'higgins": "ohiggins"
   "guadalajara chivas": "chivas guadalajara"
   "a. italiano": "audax italiano"
+  "gualberto villarroel sj": "gv san jose"
+  "adt": "ad tarma"
 
 weak_tokens:
   # Geographic articles / connectives (also handled partly via acronyms)
