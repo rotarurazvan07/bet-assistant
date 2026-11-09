@@ -120,7 +120,8 @@ describe('Analytics page', () => {
         renderPage();
         // catch still sets zeroed stats — heading must stay; do not crash
         await screen.findByText('Analytics');
-        expect(screen.queryByText('No analytics yet')).not.toBeInTheDocument();
+        // Loading branch shares the same h1 — wait for the error branch to settle (msw v3 async boundary).
+        await waitFor(() => expect(screen.queryByText('No analytics yet')).not.toBeInTheDocument());
     });
 
     it('profile chips render from data.profiles', async () => {

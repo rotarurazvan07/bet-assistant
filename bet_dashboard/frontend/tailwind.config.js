@@ -1,5 +1,8 @@
 /** @type {import('tailwindcss').Config} */
-export default {
+// Tailwind v4 loads @config files in a CJS context — ESM `export default` is
+// silently ignored and the theme falls back to defaults, which breaks @apply
+// resolution for theme-extended utilities (e.g. font-medium).
+module.exports = {
     content: ['./index.html', './src/**/*.{ts,tsx}'],
     theme: {
         extend: {
