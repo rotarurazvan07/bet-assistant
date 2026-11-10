@@ -88,6 +88,12 @@ test('tour dialog passes axe-core', async ({ page }) => {
     await page.goto('/');
     const dialog = page.getByRole('dialog', { name: 'Find value bets' });
     await expect(dialog).toBeVisible();
-    const results = await new AxeBuilder({ page }).include('[role="dialog"][aria-labelledby="tour-title"]').analyze();
+    // Scope to the dialog and let the page settle before analysis: axe runs
+    // against live DOM, so scanning a frame that is still streaming fetch
+    // responses can crash the renderer on some engines.
+    await page.waitForLoadState('networkidle');
+    const results = await new AxeBuilder({ page })
+        .include('[role="dialog"][aria-labelledby="tour-title"]')
+        .analyze();
     expect(results.violations).toEqual([]);
 });
