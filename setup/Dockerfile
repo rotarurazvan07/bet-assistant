@@ -46,8 +46,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 COPY --from=python-deps /install /usr/local
-RUN scrapling install \
-    && rm -rf /root/.cache /tmp/* /var/lib/apt/lists/* /var/cache/apt/*
+# Browser bootstrap for finders lives in the runner image; the dashboard image
+# never runs finders, so it must not invoke the scraping CLI here (that command
+# needs the playwright module of this image's interpreter, which is not
+# installed, and fails the whole build).
+RUN rm -rf /root/.cache /tmp/* /var/lib/apt/lists/* /var/cache/apt/*
 
 COPY bet_framework/ ./bet_framework/
 COPY bet_dashboard/backend/ .
