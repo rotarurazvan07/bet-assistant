@@ -9,7 +9,7 @@ The Bet Assistant frontend is a **React 19 + TypeScript** single-page applicatio
 - TypeScript 6.0.2
 - Vite 8.0.4
 - MUI v9 (Material UI) + @mui/x-date-pickers
-- TailwindCSS 3.4.19
+- TailwindCSS v4 (CSS-first theme in `src/index.css`)
 - Recharts 3.8.1 (charting)
 - Axios 1.14.0 (API client)
 - React Router 7.14.0 (routing)
@@ -591,26 +591,24 @@ export interface CandidateLeg {
 
 ### Tailwind Integration
 
-```javascript
-// tailwind.config.js
-export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  theme: {
-    extend: {
-      colors: {
-        'bg-base': 'var(--bg-base)',
-        'bg-raised': 'var(--bg-raised)',
-        // ...
-      },
-      fontFamily: {
-        display: ['JetBrains Mono', 'monospace'],
-        sans: ['Inter', 'sans-serif'],
-      },
-    },
-  },
-  plugins: [],
+Tailwind v4, CSS-first. There is no `tailwind.config.js`; the theme lives in an
+`@theme` block at the top of `src/index.css` and `postcss.config.js` registers
+the `@tailwindcss/postcss` plugin only.
+
+```css
+/* src/index.css */
+@import "tailwindcss";
+
+@theme {
+  --color-accent: #3D7BFF;
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .04);
 }
 ```
+
+Utility classes used by components are asserted to survive the build by
+`src/test/tailwind-css.test.ts` (it compiles the stylesheet and fails when
+utilities or theme variables go missing).
 
 ### MUI Theme
 
