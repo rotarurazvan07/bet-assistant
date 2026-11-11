@@ -224,3 +224,38 @@ class TestScrapeP2:
         scrape(str(db), "https://www.a.com/1,https://a.com/2", factory)
         assert seen == ["https://www.a.com/1", "https://a.com/2"]
         assert len(factory.created) == 1
+
+
+def test_log_chunk_id_records_db_basename(tmp_path):
+    """Each crawler records the chunk id derived from the db path."""
+
+    from bet_framework.MatchesManager import MatchesManager
+
+    urls_file = tmp_path / "chunk-7-urls.txt"
+    urls_file.write_text("https://a.com/1")
+    crawler = StubCrawler([], matches=[make_match(url="https://a.com/1")])
+    factory = StubFactory({}, url_to_crawler={"a": crawler})
+    db = tmp_path / "chunk-7.db"
+    scrape(str(db), str(urls_file), factory)
+    assert crawler._log_chunk_id == "chunk-7.db"
+
+
+def _fetch(db_path):
+    mm = MatchesManager(db_path, similarity_config=None)
+    try:
+        return mm.fetch_matches()
+    finally:
+        mm.close()
+
+
+def test_match_counts_aggregate_across_groups(tmp_path):
+    """Per-group match counts accumulate into the aggregate report."""
+    crawler = StubCrawler(
+        [],
+        matches=[make_match(url="https://a.com/1"), make_match(url="https://b.com/1", home="Zed")],
+    )
+    factory = StubFactory({}, url_to_crawler={"a": crawler})
+    db = tmp_path / "chunk-8.db"
+    scrape(str(db), "https://a.com/1,https://b.com/1", factory)
+    df = _fetch(str(db))
+    assert len(df) == 2
