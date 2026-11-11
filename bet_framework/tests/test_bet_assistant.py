@@ -52,6 +52,17 @@ from bet_framework.markets.catalog import MARKET_CATALOG
 from bet_framework.markets.enums import MarketKey, MarketType, Outcome
 
 
+def _seed_slip(ba, slip_id: int, profile: str, total_odds: float, units: float) -> None:
+    """Insert one prediction row through the assistant's own schema."""
+    with ba.db_lock:
+        ba.conn.execute(
+            "INSERT INTO slips (slip_id, date_generated, profile, total_odds, units)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (slip_id, "2026-01-01", profile, total_odds, units),
+        )
+        ba.conn.commit()
+
+
 def test_candidate_market_map_matches_canonical_catalog() -> None:
     configured = {
         (cons_key, odds_key, market.value)
@@ -1741,3 +1752,32 @@ class TestSourceReliabilityTracking:
         assert source_stats["src_good"]["total"] == 2
         assert source_stats["src_bad"]["correct"] == 0
         assert source_stats["src_bad"]["total"] == 2
+
+
+class TestListProfileFiltering:
+    """get_slips_page converts a list profile into an IN condition."""
+
+    def test_matches_any_list_member(self, ba) -> None:
+        _seed_slip(ba, 1, "balanced", 2.5, 2.0)
+        _seed_slip(ba, 2, "value", 3.0, 1.0)
+        _slips, total, _profiles = ba.get_slips_page(profile=["balanced", "value"], page=1, page_size=10)
+        assert total == 2
+
+    def test_single_member_still_filters(self, ba) -> None:
+        _seed_slip(ba, 3, "balanced", 2.0, 1.0)
+        _seed_slip(ba, 4, "value", 2.0, 1.0)
+        _slips, total, _profiles = ba.get_slips_page(profile=["value"], page=1, page_size=10)
+        assert total == 1
+
+    def test_unknown_list_member_matches_nothing(self, ba) -> None:
+        _slips, total, _profiles = ba.get_slips_page(profile=["nope"], page=1, page_size=10)
+        assert total == 0
+
+
+class TestDailyPnlListProfile:
+    """get_daily_slip_pnl accepts a list of profiles."""
+
+    def test_list_profile_is_accepted(self, ba) -> None:
+        _seed_slip(ba, 5, "balanced", 2.0, 1.0)
+        rows = ba.get_daily_slip_pnl("2026-01-01", "2026-01-02", profile=["balanced"])
+        assert isinstance(rows, list)
