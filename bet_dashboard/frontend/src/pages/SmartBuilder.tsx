@@ -664,16 +664,6 @@ export default function SmartBuilder({ refreshKey }: Props) {
                                 icon={<BuildEmptyIcon />}
                                 title="No preview yet"
                                 steps={['Select a profile', 'Tweak the config', 'Add to Slips']}
-                                primary={{
-                                    label: 'Select a Profile',
-                                    onClick: () => {
-                                        // Focus the first profile card button so
-                                        // keyboard users land on the control.
-                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] button');
-                                        target?.focus();
-                                        target?.scrollIntoView({ block: 'center' });
-                                    },
-                                }}
                             />
                         ) : (
                             <BetPreview
