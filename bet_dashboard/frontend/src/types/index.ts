@@ -207,6 +207,7 @@ export interface SlipStats {
     win_rate: number; implied_win_rate: number; edge: number;
     total_units_bet: number; gross_return: number;
     net_profit: number; roi_percentage: number;
+    initial_bankroll?: number | null; bankroll?: number | null;
     avg_odds: number; avg_units: number; units_std: number;
     pending_count: number; sharpe_ratio: number | null;
     kelly_suggested_units: number;
@@ -221,6 +222,7 @@ export interface SlipStats {
     longest_win_streak: number;
     longest_loss_streak: number;
     profit_factor: number;
+    open_exposure?: number;
 }
 
 export type LiveData = Record<string, { score: string; minute: string }>;
@@ -231,6 +233,7 @@ export interface HistoryRecord {
     date: string; slips_count: number; units_bet: number;
     net_profit: number; cumulative_profit: number; cumulative_bet: number;
     roi_percentage: number; win_rate: number;
+    bankroll?: number | null;
 }
 
 export interface MarketAccuracy {
@@ -281,6 +284,8 @@ export interface SourceBreakdown {
     correct_predictions: number;
     accuracy: number;
     score_mae: number;
+    implied_win_rate?: number;
+    edge?: number;
     markets: SourceBreakdownMarket[];
 }
 

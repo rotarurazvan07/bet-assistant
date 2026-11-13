@@ -93,6 +93,7 @@ export function makeSlipStats(overrides: Partial<SlipStats> = {}): SlipStats {
         total_settled: 3, total_won_count: 2,
         win_rate: 66.67, implied_win_rate: 52.63, edge: 14.04,
         total_units_bet: 3.0, gross_return: 5.8, net_profit: 2.8,
+        initial_bankroll: 1.0, bankroll: 3.8,
         roi_percentage: 93.33, avg_odds: 1.9, avg_units: 1.0, units_std: 0.0,
         pending_count: 1, sharpe_ratio: 1.5, kelly_suggested_units: 2.0,
         edge_trend: 'stable', recent_edge_value: 14.0,

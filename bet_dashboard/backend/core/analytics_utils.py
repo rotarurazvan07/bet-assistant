@@ -157,6 +157,21 @@ def _get_units(slip) -> float:
     return 0.0 if slip.units is None else slip.units
 
 
+def calculate_initial_bankroll(slips) -> float | None:
+    """Infer the opening bankroll from the first settled slip with a stake."""
+    staked_slips = [
+        slip for slip in slips
+        if _get_status_value(slip.slip_status) in ("Won", "Lost") and _get_units(slip) > 0
+    ]
+    if not staked_slips:
+        return None
+    first_slip = min(
+        staked_slips,
+        key=lambda slip: (slip.date_generated, getattr(slip, "slip_id", 0)),
+    )
+    return round(_get_units(first_slip), 2)
+
+
 def calculate_daily_summary(
     slips, profile: str | list[str] | None = None, date_from: str | None = None, date_to: str | None = None
 ) -> list[dict[str, Any]]:
@@ -164,11 +179,12 @@ def calculate_daily_summary(
     from bet_framework.markets.enums import Outcome
 
     settled_slips = [s for s in slips if _get_status_value(s.slip_status) in ("Won", "Lost")]
-    settled_slips.sort(key=lambda x: x.date_generated)
+    settled_slips.sort(key=lambda x: (x.date_generated, getattr(x, "slip_id", 0)))
+    initial_bankroll = calculate_initial_bankroll(settled_slips)
 
     daily_stats = {}
     for s in settled_slips:
-        day = s.date_generated
+        day = s.date_generated[:10]
         if day not in daily_stats:
             daily_stats[day] = {
                 "date": day,
@@ -211,6 +227,7 @@ def calculate_daily_summary(
                 "net_profit": round(profit, 2),
                 "cumulative_profit": round(cum_profit, 2),
                 "cumulative_bet": round(cum_bet, 2),
+                "bankroll": round(initial_bankroll + cum_profit, 2) if initial_bankroll is not None else None,
                 "roi_percentage": round((cum_profit / cum_bet * 100) if cum_bet else 0, 2),
                 "win_rate": round(
                     (cum_won_count / cum_settled_count * 100) if cum_settled_count else 0,

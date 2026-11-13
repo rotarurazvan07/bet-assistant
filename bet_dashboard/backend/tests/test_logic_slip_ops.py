@@ -499,6 +499,8 @@ class TestAppLogicSlipOperations:
         assert st["total_units_bet"] == 4.0
         assert st["gross_return"] == 6.0
         assert st["net_profit"] == 2.0
+        assert st["initial_bankroll"] == 1.0
+        assert st["bankroll"] == 3.0
         assert st["roi_percentage"] == 50.0
         # Odds / staking: mean odds 3.0; units 1,2,1 → mean 1.33, std 0.58.
         assert st["avg_odds"] == 3.0
@@ -539,6 +541,28 @@ class TestAppLogicSlipOperations:
         assert st["worst_day_pnl"] is None
         assert st["profit_factor"] == 0.0
         assert st["current_streak"] == 0
+        assert st["initial_bankroll"] is None
+        assert st["bankroll"] is None
+
+    def test_stats_tracks_bankroll_from_first_stake(self, app_env) -> None:
+        seed_slip(
+            app_env.app,
+            date_generated="2030-01-01T10:00:00",
+            total_odds=2.0,
+            units=1.0,
+            legs=[make_leg_row(status="Won")],
+        )
+        seed_slip(
+            app_env.app,
+            date_generated="2030-01-02T10:00:00",
+            total_odds=2.0,
+            units=1.0,
+            legs=[make_leg_row(status="Lost")],
+        )
+
+        stats = app_env.app.stats()
+        assert stats["initial_bankroll"] == 1.0
+        assert stats["bankroll"] == 1.0
 
     def test_paper_slips_count_for_results_but_not_financial_stats(self, app_env) -> None:
         seed_slip(

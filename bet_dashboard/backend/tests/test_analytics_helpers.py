@@ -4,6 +4,7 @@ Branch-level coverage of every private helper in routers/analytics.py.
 """
 
 from conftest import make_leg, make_slip
+from core.analytics_utils import calculate_daily_summary
 from routers.analytics import (
     _correlation_matrix,
     _drawdown_data,
@@ -33,6 +34,30 @@ class TestDrawdownData:
         assert out[1]["drawdown"] == 0.0
         assert out[2]["drawdown"] == -6.0
         assert out[2]["peak"] == 8.0
+
+
+class TestBankrollHistory:
+    def test_history_adds_profit_to_first_settled_stake(self) -> None:
+        slips = [
+            make_slip(
+                slip_id=1,
+                date_generated="2030-01-01T10:00:00",
+                units=1.0,
+                total_odds=2.0,
+                slip_status="Won",
+            ),
+            make_slip(
+                slip_id=2,
+                date_generated="2030-01-02T10:00:00",
+                units=1.0,
+                total_odds=2.0,
+                slip_status="Lost",
+            ),
+        ]
+
+        history = calculate_daily_summary(slips)
+
+        assert [row["bankroll"] for row in history] == [2.0, 1.0]
 
 
 class TestPredictOutcomeFromScore:

@@ -19,6 +19,7 @@ import pandas as pd
 from core.analytics_utils import (
     _get_status_value,
     calculate_biggest_win_loss,
+    calculate_initial_bankroll,
     calculate_kelly_recommendation,
     calculate_overall_edge,
     calculate_profit_factor,
@@ -955,12 +956,16 @@ class AppLogic:
         settled, won, pending = _partition_slips(slips)
         staked_settled = [s for s in settled if s.units > 0]
         staked_won = [s for s in won if s.units > 0]
+        staked_pending = [s for s in pending if s.units > 0]
+        open_exposure = round(sum(s.units for s in staked_pending), 2)
 
         n_settled = len(settled)
         n_won = len(won)
         stakes = sum(s.units for s in staked_settled)
         gross_return = sum(s.total_odds * s.units for s in staked_won)
         net_profit = gross_return - stakes
+        initial_bankroll = calculate_initial_bankroll(staked_settled)
+        bankroll = round(initial_bankroll + net_profit, 2) if initial_bankroll is not None else None
         actual_win_rate = round((n_won / n_settled * 100) if n_settled else 0.0, 2)
 
         # ── New value metrics ────────────────────────────────────────────────
@@ -1006,11 +1011,14 @@ class AppLogic:
             "total_units_bet": round(stakes, 2),
             "gross_return": round(gross_return, 2),
             "net_profit": round(net_profit, 2),
+            "initial_bankroll": round(initial_bankroll, 2) if initial_bankroll is not None else None,
+            "bankroll": bankroll,
             "roi_percentage": round((net_profit / stakes * 100) if stakes else 0.0, 2),
             "avg_odds": avg_odds,
             "avg_units": avg_units,
             "units_std": units_std,
             "pending_count": len(pending),
+            "open_exposure": open_exposure,
             "sharpe_ratio": sharpe_ratio,
             "kelly_suggested_units": kelly_rec,
             "edge_trend": edge_analysis["trend"],

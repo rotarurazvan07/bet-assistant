@@ -151,12 +151,12 @@ export default function MatchRow({ match, index, onCellClick, activeMarkets = ne
         <td key="datetime" className="px-4 py-3 font-mono text-base" style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
             {dt}
         </td>,
-            <td key="home" className="px-4 py-3 sticky-col" style={{ left: 0, minWidth: 140, maxWidth: 180 }}>
+        <td key="team-home" className="px-4 py-3 sticky-col" style={{ left: 0, minWidth: 140, maxWidth: 180 }}>
             <span className="font-sans text-base" style={{ color: 'var(--text-primary)' }}>
                 {match.home}
             </span>
         </td>,
-            <td key="away" className="px-4 py-3 sticky-col" style={{ left: 140, minWidth: 140, maxWidth: 180 }}>
+        <td key="team-away" className="px-4 py-3 sticky-col" style={{ left: 140, minWidth: 140, maxWidth: 180 }}>
             <span className="font-sans text-base" style={{ color: 'var(--text-primary)' }}>
                 {match.away}
             </span>
