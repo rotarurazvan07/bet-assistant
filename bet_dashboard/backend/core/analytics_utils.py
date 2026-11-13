@@ -159,10 +159,7 @@ def _get_units(slip) -> float:
 
 def calculate_initial_bankroll(slips) -> float | None:
     """Infer the opening bankroll from the first settled slip with a stake."""
-    staked_slips = [
-        slip for slip in slips
-        if _get_status_value(slip.slip_status) in ("Won", "Lost") and _get_units(slip) > 0
-    ]
+    staked_slips = [slip for slip in slips if _get_status_value(slip.slip_status) in ("Won", "Lost") and _get_units(slip) > 0]
     if not staked_slips:
         return None
     first_slip = min(
