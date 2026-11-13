@@ -56,8 +56,7 @@ def _seed_slip(ba, slip_id: int, profile: str, total_odds: float, units: float) 
     """Insert one prediction row through the assistant's own schema."""
     with ba.db_lock:
         ba.conn.execute(
-            "INSERT INTO slips (slip_id, date_generated, profile, total_odds, units)"
-            " VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO slips (slip_id, date_generated, profile, total_odds, units) VALUES (?, ?, ?, ?, ?)",
             (slip_id, "2026-01-01", profile, total_odds, units),
         )
         ba.conn.commit()

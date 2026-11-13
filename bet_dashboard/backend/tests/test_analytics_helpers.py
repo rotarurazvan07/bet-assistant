@@ -1,4 +1,5 @@
 from core.analytics_utils import _get_units
+
 """[P1] Pure unit tests for analytics router helpers.
 
 Branch-level coverage of every private helper in routers/analytics.py.
@@ -9,9 +10,9 @@ from datetime import datetime, timedelta, timezone
 from conftest import make_leg, make_slip
 from core.analytics_utils import calculate_daily_summary
 from routers.analytics import (
-    _get_status_value,
     _correlation_matrix,
     _drawdown_data,
+    _get_status_value,
     _league_breakdown,
     _market_breakdown,
     _pnl_by_market,
@@ -551,40 +552,40 @@ class TestCorrelationMatrix:
 class TestGetStatusValue:
     """Status values pass through whether string or enum."""
 
-    def test_string_status_passes_through(self):
+    def test_string_status_passes_through(self) -> None:
         assert _get_status_value("Won") == "Won"
 
-    def test_enum_status_unwraps_value(self):
+    def test_enum_status_unwraps_value(self) -> None:
         class FakeStatus:
             value = "Lost"
 
         assert _get_status_value(FakeStatus()) == "Lost"
 
 
-def test_missing_units_defaults_to_zero():
+def test_missing_units_defaults_to_zero() -> None:
     """A slip without an explicit stake implies zero banking."""
     assert _get_units(make_slip(units=None)) == 0.0
 
 
-def test_pending_slips_contribute_nothing_to_market_breakdown():
+def test_pending_slips_contribute_nothing_to_market_breakdown() -> None:
     """Only settled slips aggregate into market-level totals."""
     slips = [make_slip(slip_id=1, slip_status="Pending")]
     assert _market_breakdown(slips) == []
 
 
-def test_pending_slips_contribute_nothing_to_league_breakdown():
+def test_pending_slips_contribute_nothing_to_league_breakdown() -> None:
     """League aggregation skips slips with no settled outcome."""
     slips = [make_slip(slip_id=2, slip_status="Pending")]
     assert _league_breakdown(slips) == []
 
 
-def test_source_breakdown_ignores_pending_slips():
+def test_source_breakdown_ignores_pending_slips() -> None:
     """Pending slips have no source-aware settlement rows."""
     slips = [make_slip(slip_id=3, slip_status="Pending")]
     assert _source_breakdown(slips) == []
 
 
-def test_source_correlation_skips_pending_legs():
+def test_source_correlation_skips_pending_legs() -> None:
     """A pending leg contributes no cell to the correlation matrix."""
     slips = [make_slip(slip_id=4, legs=[make_leg(status="Pending")])]
     out = _source_market_correlation(slips)
@@ -592,7 +593,7 @@ def test_source_correlation_skips_pending_legs():
     assert out.get("matrix") == {}
 
 
-def test_correlation_matrix_skips_voided_legs():
+def test_correlation_matrix_skips_voided_legs() -> None:
     """Voided legs do not count toward market totals."""
     slips = [make_slip(slip_id=5, legs=[make_leg(status="Voided")])]
     out = _correlation_matrix(slips)
@@ -600,13 +601,13 @@ def test_correlation_matrix_skips_voided_legs():
     assert out.get("matrix") == {}
 
 
-def test_pnl_by_market_skips_pending_slips():
+def test_pnl_by_market_skips_pending_slips() -> None:
     """Pending slips contribute no profitability row."""
     slips = [make_slip(slip_id=6, slip_status="Pending")]
     assert _pnl_by_market(slips) == []
 
 
-def test_pnl_by_market_reports_settled_rows():
+def test_pnl_by_market_reports_settled_rows() -> None:
     """Settled slips aggregate to market/won/lost/net_profit rows."""
     slips = [
         make_slip(

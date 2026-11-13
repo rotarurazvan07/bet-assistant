@@ -1,14 +1,14 @@
 """Tests for embedded odds history tracking functionality."""
 
-import math
 import json
+import math
 import os
 import tempfile
 from datetime import datetime, timedelta
 
 import pytest
-
 from core.Match import ensure_decimal_odds
+
 from bet_framework.MatchesManager import MatchesManager
 
 
