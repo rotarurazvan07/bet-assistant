@@ -81,7 +81,9 @@ class TestGetAnalytics:
         client, _ = client_factory(logic=FakeDashboardLogic(slips=slips))
         _assert_finite(client.get(BASE).json())
 
-    def test_paper_slips_keep_accuracy_without_financial_impact(self, client_factory) -> None:
+    def test_paper_slips_keep_accuracy_without_financial_impact(
+        self, client_factory
+    ) -> None:
         slips = [
             make_slip(
                 slip_id=1,
@@ -121,6 +123,32 @@ class TestGetAnalytics:
         assert data["source_breakdown"][0]["accuracy"] == 50.0
         assert data["profile_scatter"][0]["volume"] == 2
         assert data["profile_scatter"][0]["net_profit"] == 0.0
+
+    def test_source_breakdown_trust_fields_in_response(self, client_factory) -> None:
+        slips = [
+            make_slip(
+                slip_id=1,
+                slip_status="Won",
+                date_generated="2030-01-01T10:00:00",
+                legs=[
+                    make_leg(
+                        market="Over 2.5",
+                        market_type="over_under_25",
+                        final_score="2:1",
+                        predictions=[{"source": "forebet", "home": 2, "away": 1}],
+                    )
+                ],
+            ),
+        ]
+        client, _ = client_factory(logic=FakeDashboardLogic(slips=slips))
+        data = client.get(BASE).json()
+        src = data["source_breakdown"][0]
+        # trust fields present and JSON-serializable
+        assert isinstance(src["trust_score"], float)
+        assert 0.0 <= src["trust_score"] <= 1.0
+        assert src["recency_weight"] in (0.2, 0.5, 0.8, 1.0)
+        assert src["latest_prediction_date"] == "2030-01-01"
+        _assert_finite(data)
 
     def test_profiles_filter_forwarded(self, client, fake_logic) -> None:
         client.get(BASE, params={"profiles": "safe"})

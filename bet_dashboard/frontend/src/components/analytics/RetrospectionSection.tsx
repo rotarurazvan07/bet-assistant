@@ -6,14 +6,49 @@ import AnalyticsSection from './AnalyticsSection';
 import TopWorstCard from './TopWorstCard';
 import IntelligenceContainer, { type IntelligenceColumn } from './IntelligenceContainer';
 import CorrelationContainer, { type ViewOption } from './CorrelationContainer';
+import { Tooltip as HoverTooltip } from '../ui';
 import { marketLabel } from '../../config/marketConfig';
 import {
     filterEligibleItems, rankTopWorst, MIN_SAMPLE_SIZE, type RankableItem,
+    trustLevel, sortByTrust, type TrustLevel,
 } from '../../utils/analyticsRetrospection';
 import type {
     MarketBreakdown, LeagueBreakdown, SourceBreakdown,
     AnalyticsData, SourceMarketCorrelation,
 } from '../../types';
+
+const TRUST_BADGE_STYLE: Record<TrustLevel, { color: string; bg: string; label: string }> = {
+    high: { color: 'var(--win)', bg: 'var(--win-bg)', label: 'High' },
+    medium: { color: 'var(--pending)', bg: 'var(--pending-bg)', label: 'Medium' },
+    low: { color: 'var(--loss)', bg: 'var(--loss-bg)', label: 'Low' },
+};
+
+function TrustBadge({ score }: { score: number }) {
+    const lvl = trustLevel(score);
+    const s = TRUST_BADGE_STYLE[lvl];
+    return (
+        <span className="font-bold px-2 py-0.5 rounded" style={{ color: s.color, background: s.bg }}>
+            {s.label}
+        </span>
+    );
+}
+
+function trustTooltip(row: SourceBreakdown): string {
+    const score = row.trust_score ?? 0;
+    const acc = row.accuracy.toFixed(1);
+    const n = row.total_predictions;
+    const c = row.correct_predictions;
+    const rw = (row.recency_weight ?? 0).toFixed(1);
+    const datePart = row.latest_prediction_date
+        ? `Latest prediction: ${row.latest_prediction_date}`
+        : 'Latest prediction date unavailable';
+    return [
+        `Trust score: ${score.toFixed(3)} (Wilson lower bound × recency weight)`,
+        `Accuracy: ${acc}% (${c}/${n} correct)`,
+        `Recency weight: ${rw}`,
+        datePart,
+    ].join('\n');
+}
 
 const TT: React.CSSProperties = {
     background: 'var(--bg-card)',
@@ -142,10 +177,26 @@ export default function RetrospectionSection({
         { key: 'avg_odds', label: 'Avg Odds', tip: 'Average leg odds', render: row => `@${row.avg_odds}` },
     ];
 
-    // ── Source Columns (Exposing Accuracy & Score Error) ───────────────────────
+    // ── Source Columns (Accuracy, Score Error, Trust) ───────────────────────────
     const sourceColumns: IntelligenceColumn<SourceBreakdown>[] = [
         { key: 'total_predictions', label: 'Predictions', tip: 'Total predictions made', align: 'left' },
         { key: 'correct_predictions', label: 'Correct', tip: 'Correct predictions', render: row => <span style={{ color: 'var(--win)' }}>{row.correct_predictions}</span> },
+        {
+            key: 'trust_score',
+            label: 'Trust',
+            tip: 'Trust score: Wilson lower bound of accuracy × recency weight. High > 0.6, Medium 0.3–0.6, Low < 0.3',
+            sortAccessor: row => row.trust_score ?? 0,
+            render: row => (
+                <HoverTooltip text={trustTooltip(row)} align="center">
+                    <span>
+                        <TrustBadge score={row.trust_score ?? 0} />
+                        <span className="ml-2 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                            {(row.trust_score ?? 0).toFixed(2)}
+                        </span>
+                    </span>
+                </HoverTooltip>
+            ),
+        },
         {
             key: 'accuracy',
             label: 'Accuracy %',
@@ -414,12 +465,12 @@ export default function RetrospectionSection({
                         <div className="lg:col-span-2">
                             <IntelligenceContainer
                                 title="Source Breakdown"
-                                tip="Per-source prediction stats exposing accuracy, score error (MAE), and edge."
-                                data={sourceBreakdown}
+                                tip="Per-source prediction stats exposing accuracy, score error (MAE), edge, and trust score."
+                                data={sortByTrust(sourceBreakdown, 'desc')}
                                 columns={sourceColumns}
                                 dimensionKey="source"
                                 dimensionLabel="Source"
-                                defaultSortKey="accuracy"
+                                defaultSortKey="trust_score"
                                 legsKey="total_predictions"
                             />
                         </div>
