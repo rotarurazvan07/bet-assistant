@@ -26,14 +26,12 @@ export default function Analytics({ refreshKey }: Props) {
         page: 'analytics',
         allProfiles: data?.profiles ?? [],
     });
-    const [loading, setLoading] = useState(false);
     const [filtersOpen, setFiltersOpen] = useState(false);
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
 
     const load = useCallback(async () => {
         void refreshKey; // deliberate signal: WS event triggers refetch (test-pinned wiring)
-        setLoading(true);
         try {
             const params: Parameters<typeof fetchAnalytics>[0] = {
                 date_from: dateFrom || undefined,
@@ -87,13 +85,11 @@ export default function Analytics({ refreshKey }: Props) {
                 time_patterns: null,
                 source_breakdown: [],
             });
-        } finally {
-            setLoading(false);
         }
     }, [selectedProfiles, dateFrom, dateTo, refreshKey]);
 
     useEffect(() => {
-        load();
+        queueMicrotask(() => { void load(); });
     }, [load]);
 
     function closeFilters() {
@@ -209,7 +205,7 @@ export default function Analytics({ refreshKey }: Props) {
     }
 
     return (
-        <div style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
+        <div>
             {filterControls}
 
             {/* ── 1. Financials: WHAT HAPPENED ───────────────────────────── */}

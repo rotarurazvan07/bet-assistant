@@ -70,7 +70,6 @@ export default function Slips({
         }
         return 'net_profit_desc';
     });
-    // Use external liveData from WebSocket if provided, otherwise use local state
     const [localLiveData, setLocalLiveData] = useState<LiveData>({});
     const liveData = externalLiveData ?? localLiveData;
     const [loading, setLoading] = useState(false);
@@ -92,6 +91,7 @@ export default function Slips({
     const filtersBtnRef = useRef<HTMLButtonElement>(null);
     const isMobile = useMediaQuery('(max-width:767.95px)');
     const completedJobIdRef = useRef<string | null>(null);
+    const [completedJobId, setCompletedJobId] = useState<string | null>(null);
 
     const showStatus = useCallback((message: string) => {
         statusTimersRef.current.forEach(clearTimeout);
@@ -119,22 +119,22 @@ export default function Slips({
     useEffect(() => {
         if (!validationCompletion || completedJobIdRef.current === validationCompletion.job_id) return;
         completedJobIdRef.current = validationCompletion.job_id;
+        let notice: string;
         if (validationCompletion.failed) {
-            showValidationNotice('Could not validate results. Please try again.');
+            notice = 'Could not validate results. Please try again.';
         } else if (validationCompletion.cancelled) {
-            showValidationNotice('Validation stopped.');
+            notice = 'Validation stopped.';
         } else if (validationCompletion.errors) {
-            showValidationNotice(`Validation finished with ${validationCompletion.errors} page error(s).`);
+            notice = `Validation finished with ${validationCompletion.errors} page error(s).`;
         } else if (validationCompletion.checked === 0) {
-            showValidationNotice('No active matches to check.');
+            notice = 'No active matches to check.';
         } else {
             const settled = validationCompletion.settled ?? 0;
-            showValidationNotice(
-                settled > 0
-                    ? `Results checked · ${validationCompletion.checked} match(es) · ${settled} settled`
-                    : `Results checked · ${validationCompletion.checked} match(es)`,
-            );
+            notice = settled > 0
+                ? `Results checked · ${validationCompletion.checked} match(es) · ${settled} settled`
+                : `Results checked · ${validationCompletion.checked} match(es)`;
         }
+        showValidationNotice(notice);
     }, [validationCompletion, showValidationNotice]);
 
 
@@ -201,7 +201,9 @@ export default function Slips({
         }
     }, [selectedProfiles, dateFrom, dateTo, hideSettled, liveOnly, sortBy, refreshKey, showStatus]);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        queueMicrotask(() => { void load(); });
+    }, [load]);
 
     useEffect(() => {
         const target = loadMoreRef.current;
@@ -220,13 +222,6 @@ export default function Slips({
         setFiltersOpen(false);
         queueMicrotask(() => filtersBtnRef.current?.focus());
     }
-
-    // Update live data when WebSocket pushes new live_data
-    useEffect(() => {
-        if (externalLiveData && Object.keys(externalLiveData).length > 0) {
-            setLocalLiveData(externalLiveData);
-        }
-    }, [externalLiveData]);
 
     async function handleValidate() {
         if (validationJobId) {
@@ -247,6 +242,7 @@ export default function Slips({
         try {
             const result = await validateSlips(jobId);
             completedJobIdRef.current = jobId;
+            setCompletedJobId(jobId);
             const ld: LiveData = {};
             result.live_data.forEach(item => {
                 ld[item.match_name] = {
@@ -296,7 +292,8 @@ export default function Slips({
             <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
                 <div className="w-full max-w-[800px]">
                     {(() => {
-                        const progress = validationProgress?.job_id === completedJobIdRef.current
+                        const completedJobIdForDisplay = validationCompletion?.job_id ?? completedJobId;
+                        const progress = validationProgress?.job_id === completedJobIdForDisplay
                             || (validationJobId && validationProgress?.job_id !== validationJobId)
                             ? undefined
                             : validationProgress;

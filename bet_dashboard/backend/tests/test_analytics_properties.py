@@ -333,12 +333,17 @@ class TestRollingEdgeProperties:
 def _ref_daily_summary(seq):
     """Mirror of calculate_daily_summary accumulation order (exact FP equality)."""
     settled = [s for s in seq if _get_status_value(s.slip_status) in ("Won", "Lost")]
-    settled.sort(key=lambda x: x.date_generated)
+    settled.sort(key=lambda x: (x.date_generated, getattr(x, "slip_id", 0)))
+    staked = [s for s in settled if s.units > 0]
+    initial_bankroll = min(
+        staked,
+        key=lambda slip: (slip.date_generated, getattr(slip, "slip_id", 0)),
+    ).units if staked else None
     from bet_framework.markets.enums import Outcome
 
     daily = {}
     for s in settled:
-        day = s.date_generated
+        day = s.date_generated[:10]
         if day not in daily:
             daily[day] = {"slips_count": 0, "units_bet": 0.0, "units_won": 0.0, "won_count": 0}
         stats = daily[day]
@@ -368,6 +373,7 @@ def _ref_daily_summary(seq):
                 "net_profit": round(profit, 2),
                 "cumulative_profit": round(cum_profit, 2),
                 "cumulative_bet": round(cum_bet, 2),
+                "bankroll": round(initial_bankroll + cum_profit, 2) if initial_bankroll is not None else None,
                 "roi_percentage": round((cum_profit / cum_bet * 100) if cum_bet else 0, 2),
                 "win_rate": round((cum_won / cum_settled * 100) if cum_settled else 0, 2),
             }
@@ -401,7 +407,7 @@ class TestDailySummaryProperties:
         rows = calculate_daily_summary(seq)
         by_day = {}
         for s in seq:
-            day = s.date_generated
+            day = s.date_generated[:10]
             if s.slip_status == "Won":
                 by_day[day] = by_day.get(day, 0.0) + (s.total_odds - 1.0) * s.units
             else:

@@ -52,9 +52,9 @@ function renderPage(refreshKey = 0) {
 
 
 describe('Analytics page', () => {
-    it('renders the title and profile selector', async () => {
+    it('renders the analytics content and profile selector without a page heading', async () => {
         renderPage();
-        expect(screen.getByText('Analytics')).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Analytics' })).not.toBeInTheDocument();
         await screen.findByText('+2.8U');
         const filtersButton = screen.getByRole('button', { name: 'Filters' });
         await userEvent.setup().click(filtersButton);
@@ -115,12 +115,11 @@ describe('Analytics page', () => {
         expect(screen.getByRole('button', { name: 'Go to Build' })).toBeInTheDocument();
     });
 
-    it('fetch failure falls back to empty data (no crash, empty state)', async () => {
+    it('fetch failure falls back to empty data without rendering a page heading', async () => {
         server.use(http.get('/api/analytics', () => HttpResponse.error()));
         renderPage();
-        // catch still sets zeroed stats — heading must stay; do not crash
-        await screen.findByText('Analytics');
-        // Loading branch shares the same h1 — wait for the error branch to settle (msw v3 async boundary).
+        expect(screen.queryByRole('heading', { name: 'Analytics' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
         await waitFor(() => expect(screen.queryByText('No analytics yet')).not.toBeInTheDocument());
     });
 

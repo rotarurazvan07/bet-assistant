@@ -207,7 +207,7 @@ export default function RetrospectionSection({
         {
             key: 'edge',
             label: 'Edge',
-            getValue: cell => cell.edge,
+            getValue: cell => cell.edge ?? 0,
             formatValue: val => `${val > 0 ? '+' : ''}${val.toFixed(1)}%`,
             getColor: val => {
                 if (val > 5) return { color: 'var(--win)', bg: 'rgba(0, 200, 100, 0.15)' };
@@ -219,7 +219,7 @@ export default function RetrospectionSection({
         {
             key: 'win_rate',
             label: 'Win Rate',
-            getValue: cell => cell.win_rate,
+            getValue: cell => cell.win_rate ?? 0,
             formatValue: val => `${val.toFixed(0)}%`,
             getColor: val => {
                 if (val > 65) return { color: 'var(--win)', bg: 'rgba(0, 200, 100, 0.15)' };
@@ -233,7 +233,7 @@ export default function RetrospectionSection({
         {
             key: 'accuracy',
             label: 'Accuracy',
-            getValue: cell => cell.accuracy,
+            getValue: cell => cell.accuracy ?? 0,
             formatValue: val => `${val.toFixed(1)}%`,
             getColor: val => {
                 if (val >= 60) return { color: 'var(--win)', bg: 'rgba(0, 200, 100, 0.15)' };

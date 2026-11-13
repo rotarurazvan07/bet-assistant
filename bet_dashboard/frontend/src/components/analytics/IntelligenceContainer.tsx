@@ -3,7 +3,7 @@ import { TooltipIcon } from '../ui';
 import { MIN_SAMPLE_SIZE } from '../../utils/analyticsRetrospection';
 
 export interface IntelligenceColumn<T> {
-    key: keyof T | string;
+    key: keyof T;
     label: string;
     tip?: string;
     align?: 'left' | 'right' | 'center';
@@ -12,22 +12,22 @@ export interface IntelligenceColumn<T> {
     sortable?: boolean;
 }
 
-interface IntelligenceContainerProps<T extends Record<string, unknown>> {
+interface IntelligenceContainerProps<T extends object> {
     title: string;
     tip?: string;
     data: T[];
     columns: IntelligenceColumn<T>[];
-    dimensionKey: keyof T | string;
+    dimensionKey: keyof T;
     dimensionLabel: string;
     formatDimensionValue?: (value: unknown) => React.ReactNode;
     defaultSortKey?: string;
     defaultSortDir?: 'asc' | 'desc';
     minSampleSize?: number;
-    legsKey?: keyof T | string;
+    legsKey?: string;
     emptyText?: string;
 }
 
-export default function IntelligenceContainer<T extends Record<string, unknown>>({
+export default function IntelligenceContainer<T extends object>({
     title,
     tip,
     data,
@@ -58,14 +58,16 @@ export default function IntelligenceContainer<T extends Record<string, unknown>>
         if (!data || data.length === 0) return [];
 
         const col = columns.find(c => String(c.key) === sortKey);
-        const accessor = col?.sortAccessor ?? ((row: T) => row[sortKey]);
+        const accessor = col?.sortAccessor ?? (col
+            ? (row: T) => Reflect.get(row, String(col.key))
+            : (row: T) => Reflect.get(row, String(dimensionKey)));
 
         // Separate sufficient sample from low sample (sufficient first)
         const sufficient: T[] = [];
         const insufficient: T[] = [];
 
         for (const row of data) {
-            const legs = Number(row[legsKey] ?? 0);
+            const legs = Number(Reflect.get(row, legsKey) ?? 0);
             if (legs >= minSampleSize) {
                 sufficient.push(row);
             } else {
@@ -85,7 +87,7 @@ export default function IntelligenceContainer<T extends Record<string, unknown>>
         };
 
         return [...sufficient.sort(comparator), ...insufficient.sort(comparator)];
-    }, [data, sortKey, sortDir, columns, legsKey, minSampleSize]);
+    }, [data, sortKey, sortDir, columns, dimensionKey, legsKey, minSampleSize]);
 
     return (
         <div className="card p-4 h-full flex flex-col">
@@ -157,12 +159,12 @@ export default function IntelligenceContainer<T extends Record<string, unknown>>
                         </thead>
                         <tbody>
                             {sortedData.map((row, i) => {
-                                const legs = Number(row[legsKey] ?? 0);
+                                const legs = Number(Reflect.get(row, legsKey) ?? 0);
                                 const lowSample = legs < minSampleSize;
 
                                 return (
                                     <tr
-                                        key={row[dimensionKey] ?? i}
+                                        key={String(Reflect.get(row, String(dimensionKey)) ?? i)}
                                         style={{
                                             borderBottom: '1px solid var(--border)',
                                             background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
@@ -174,12 +176,12 @@ export default function IntelligenceContainer<T extends Record<string, unknown>>
                                     >
                                         <td className="px-4 py-3">
                                             <span className="font-mono font-bold text-sm" style={{ color: 'var(--text-bright)' }}>
-                                                {formatDimensionValue(row[dimensionKey])}
+                                                {formatDimensionValue(Reflect.get(row, String(dimensionKey)))}
                                             </span>
                                         </td>
                                         {columns.map(col => {
                                             const colKey = String(col.key);
-                                            const content = col.render ? col.render(row, i) : row[colKey];
+                                            const content = col.render ? col.render(row, i) : String(Reflect.get(row, String(col.key)) ?? '');
                                             return (
                                                 <td
                                                     key={colKey}

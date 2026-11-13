@@ -166,7 +166,7 @@ def calculate_initial_bankroll(slips) -> float | None:
         staked_slips,
         key=lambda slip: (slip.date_generated, getattr(slip, "slip_id", 0)),
     )
-    return round(_get_units(first_slip), 2)
+    return _get_units(first_slip)
 
 
 def calculate_daily_summary(

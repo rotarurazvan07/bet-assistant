@@ -4,6 +4,9 @@ import { INTERSECTION_MIN_SAMPLE_SIZE } from '../../utils/analyticsRetrospection
 
 export interface CorrelationCell {
     total?: number;
+    edge?: number;
+    win_rate?: number;
+    accuracy?: number;
     [key: string]: unknown;
 }
 
