@@ -36,6 +36,18 @@ describe('MatchRow', () => {
         expect(screen.getByText(/25\/09/)).toBeInTheDocument();
     });
 
+    it('does not reuse team cell keys for home and away markets', () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            renderRow();
+            expect(consoleError.mock.calls.flat().join(' ')).not.toContain(
+                'Encountered two children with the same key',
+            );
+        } finally {
+            consoleError.mockRestore();
+        }
+    });
+
     it('datetime placeholder — when null', () => {
         renderRow({ match: makeMatch({ datetime: null }) });
         expect(screen.getAllByText('—').length).toBeGreaterThan(0);

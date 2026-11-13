@@ -224,6 +224,9 @@ input[type="number"].field:focus {
     transition: all .15s;
     cursor: pointer;
     user-select: none;
+    padding: 7px 14px;
+    /* Labels wrap onto two lines in fixed-width columns; a button stays one line. */
+    white-space: nowrap;
     /*#fff on --accent is 3.84:1 (fails AA); on --accent-dark it is 5.17:1 */
     background: var(--accent-dark);
     color: #fff;
@@ -255,6 +258,7 @@ input[type="number"].field:focus {
     text-transform: uppercase;
     border-radius: 6px;
     padding: 7px 14px;
+    white-space: nowrap;
     transition: all .15s;
     cursor: pointer;
     user-select: none;
@@ -285,6 +289,7 @@ input[type="number"].field:focus {
     text-transform: uppercase;
     border-radius: 6px;
     padding: 7px 14px;
+    white-space: nowrap;
     transition: all .15s;
     cursor: pointer;
     user-select: none;
@@ -309,6 +314,7 @@ input[type="number"].field:focus {
     text-transform: uppercase;
     border-radius: 6px;
     padding: 7px 14px;
+    white-space: nowrap;
     transition: all .15s;
     cursor: pointer;
     user-select: none;

@@ -253,24 +253,31 @@ export default function SmartBuilder({ refreshKey }: Props) {
     // is cancelled.
     useEffect(() => {
         if (Object.keys(profiles).length === 0) return;
-        if (dirtyRef.current) return;
-        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
-        if (activeName && activeName in profiles) {
-            loadProfile(activeName, profiles[activeName]);
-            return;
-        }
-        const first = orderedProfileNames(profiles)[0];
-        setActiveName(first);
-        const data = profiles[first];
-        setCfg(cfgFromProfile(data));
-        setUnits(data.units ?? 1);
-        setTargetPayout(data.target_payout ?? 0);
-        dirtyRef.current = false;
-        // preview triggered by the effect below via mergedCfg dependency chain
+        let cancelled = false;
+        queueMicrotask(() => {
+            if (cancelled || dirtyRef.current) return;
+            if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+            if (activeName && activeName in profiles) {
+                loadProfile(activeName, profiles[activeName]);
+                return;
+            }
+            const first = orderedProfileNames(profiles)[0];
+            setActiveName(first);
+            const data = profiles[first];
+            setCfg(cfgFromProfile(data));
+            setUnits(data.units ?? 1);
+            setTargetPayout(data.target_payout ?? 0);
+            dirtyRef.current = false;
+            // preview triggered by the effect below via mergedCfg dependency chain
+        });
+        return () => { cancelled = true; };
     }, [profiles]); // eslint-disable-line react-hooks/exhaustive-deps -- one-shot default selection when profiles load
 
     // Date range affects preview results only and is never saved to the profile.
     const mergedCfg = { ...cfg, date_from: dateFrom || null, date_to: dateTo || null };
+    const effectiveUnits = targetPayout > 0
+        ? Math.round((targetPayout / ((preview?.legs?.length ? preview.total_odds : cfg.target_odds) || 1)) * 10) / 10 || 0.1
+        : units;
 
     // Debounced preview — 350ms after any config change
     const triggerPreview = useCallback((config: BuilderConfig) => {
@@ -338,26 +345,6 @@ export default function SmartBuilder({ refreshKey }: Props) {
             if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         };
     }, [cfg, activeName]); // eslint-disable-line react-hooks/exhaustive-deps -- profileFromConfig/filters read at call time; deps cover every payload input (stake fields excluded)
-
-    // Auto-calculate units if target payout is set — anchored to LIVE PREVIEW odds
-    useEffect(() => {
-        if (targetPayout > 0) {
-            // Priority 1: Actual odds from the builder preview
-            // Priority 2: Fallback to the requested target odds (if no legs found yet)
-            const currentOdds = (preview?.legs && preview.legs.length > 0)
-                ? (preview.total_odds || 1)
-                : (cfg.target_odds || 1);
-
-            const calculated = targetPayout / currentOdds;
-
-            // Round to 1 decimal place to match stepper system
-            const finalUnits = Math.round(calculated * 10) / 10 || 0.1;
-
-            if (finalUnits !== units) {
-                setUnits(finalUnits);
-            }
-        }
-    }, [targetPayout, preview?.total_odds, preview?.legs, preview?.legs.length, cfg.target_odds, units]);
 
     async function handleExclude(url: string) {
         await addExcluded(url);
@@ -488,7 +475,7 @@ export default function SmartBuilder({ refreshKey }: Props) {
             predictions: leg.predictions || [],
         }));
 
-        const id = await addSlip(activeName, manualLegs, units);
+        const id = await addSlip(activeName, manualLegs, effectiveUnits);
         setSlipModalOpen(false);
         // first successful addSlip (Build) counts as first slip.
         if (markFirstSlip()) setMilestoneOpen(true);
@@ -664,16 +651,6 @@ export default function SmartBuilder({ refreshKey }: Props) {
                                 icon={<BuildEmptyIcon />}
                                 title="No preview yet"
                                 steps={['Select a profile', 'Tweak the config', 'Add to Slips']}
-                                primary={{
-                                    label: 'Select a Profile',
-                                    onClick: () => {
-                                        // Focus the first profile card button so
-                                        // keyboard users land on the control.
-                                        const target = document.querySelector<HTMLElement>('[data-testid="profile-cards"] button');
-                                        target?.focus();
-                                        target?.scrollIntoView({ block: 'center' });
-                                    },
-                                }}
                             />
                         ) : (
                             <BetPreview
@@ -760,7 +737,7 @@ export default function SmartBuilder({ refreshKey }: Props) {
             <AddToSlipsModal
                 legsCount={preview?.legs?.length ?? 0}
                 totalOdds={preview?.total_odds ?? 1}
-                units={units}
+                units={effectiveUnits}
                 targetPayout={targetPayout}
                 onUnitsChange={(u) => { setUnits(u); setTargetPayout(0); }}
                 onTargetPayoutChange={(p) => { setTargetPayout(p); }}

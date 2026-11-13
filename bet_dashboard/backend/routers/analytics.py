@@ -382,9 +382,11 @@ def _source_breakdown(slips) -> list[dict]:
                         "correct_predictions": 0,
                         "markets": {},
                         "score_mae_sum": 0.0,  # Sum of |pred_home - actual_home| + |pred_away - actual_away|
+                        "sum_implied": 0.0,
                     }
 
                 source_data[source]["total_predictions"] += 1
+                source_data[source]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
 
                 # Compute predicted outcome for this market from source's predicted score
                 predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
@@ -413,6 +415,8 @@ def _source_breakdown(slips) -> list[dict]:
         total = data["total_predictions"]
         correct = data["correct_predictions"]
         accuracy = round(correct / total * 100, 1) if total else 0.0
+        implied_win_rate = round(data["sum_implied"] / total * 100, 1) if total else 0.0
+        edge = round(accuracy - implied_win_rate, 1)
         score_mae = round(data["score_mae_sum"] / (total * 2), 2) if total else 0.0  # Avg goals error per team
 
         # Per-market breakdown
@@ -435,6 +439,8 @@ def _source_breakdown(slips) -> list[dict]:
                 "total_predictions": total,
                 "correct_predictions": correct,
                 "accuracy": accuracy,
+                "implied_win_rate": implied_win_rate,
+                "edge": edge,
                 "score_mae": score_mae,
                 "markets": sorted(market_breakdown, key=lambda x: x["accuracy"], reverse=True),
             }

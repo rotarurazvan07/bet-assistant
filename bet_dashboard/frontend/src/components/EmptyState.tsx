@@ -6,7 +6,7 @@ type Props = {
     icon: ReactNode;
     title: string;
     steps: string[];
-    primary: EmptyCta;
+    primary?: EmptyCta;
     secondary?: EmptyCta;
 };
 
@@ -36,9 +36,11 @@ export default function EmptyState({ icon, title, steps, primary, secondary }: P
                 ))}
             </ol>
             <div className="flex justify-center gap-3 flex-wrap">
-                <button type="button" className="btn-primary" onClick={primary.onClick}>
-                    {primary.label}
-                </button>
+                {primary && (
+                    <button type="button" className="btn-primary" onClick={primary.onClick}>
+                        {primary.label}
+                    </button>
+                )}
                 {secondary && (
                     <button type="button" className="btn-ghost" onClick={secondary.onClick}>
                         {secondary.label}

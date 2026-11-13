@@ -334,6 +334,8 @@ Get paginated slip list with statistics.
     "total_units_bet": 150.0,
     "gross_return": 178.5,
     "net_profit": 28.5,
+    "initial_bankroll": 1.0,
+    "bankroll": 29.5,
     "roi_percentage": 19.0,
     "avg_odds": 2.34,
     "avg_units": 1.0,
@@ -454,6 +456,7 @@ Get comprehensive analytics data.
       "net_profit": 1.5,
       "cumulative_profit": 45.2,
       "cumulative_bet": 150.0,
+      "bankroll": 46.2,
       "roi_percentage": 30.1,
       "win_rate": 66.7
     }
@@ -496,6 +499,11 @@ Get comprehensive analytics data.
   }
 }
 ```
+
+`initial_bankroll` is inferred from the first settled slip with a positive stake
+in the selected profile/date range. `bankroll` is that opening stake plus net
+profit; it is a unit-based running balance, not an externally funded account
+balance. Each history row includes the end-of-day balance.
 
 ---
 
