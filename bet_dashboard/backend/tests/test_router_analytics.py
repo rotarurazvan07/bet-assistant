@@ -81,9 +81,7 @@ class TestGetAnalytics:
         client, _ = client_factory(logic=FakeDashboardLogic(slips=slips))
         _assert_finite(client.get(BASE).json())
 
-    def test_paper_slips_keep_accuracy_without_financial_impact(
-        self, client_factory
-    ) -> None:
+    def test_paper_slips_keep_accuracy_without_financial_impact(self, client_factory) -> None:
         slips = [
             make_slip(
                 slip_id=1,
