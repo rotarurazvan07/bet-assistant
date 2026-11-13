@@ -77,16 +77,41 @@ class TestPredictOutcomeFromScore:
         assert _predict_outcome_from_score(0, 2, "2", "result") == "AWAY"
 
     def test_over_under_markets(self) -> None:
-        assert _predict_outcome_from_score(2, 1, "Over 2.5", "over_under_25") == "OVER_25"
-        assert _predict_outcome_from_score(0, 2, "Under 2.5", "over_under_25") == "UNDER_25"
-        assert _predict_outcome_from_score(2, 0, "Over 1.5", "over_under_15") == "OVER_15"
-        assert _predict_outcome_from_score(1, 0, "Under 1.5", "over_under_15") == "UNDER_15"
-        assert _predict_outcome_from_score(1, 0, "Over 0.5", "over_under_05") == "OVER_05"
-        assert _predict_outcome_from_score(0, 0, "Under 0.5", "over_under_05") == "UNDER_05"
-        assert _predict_outcome_from_score(4, 0, "Over 3.5", "over_under_35") == "OVER_35"
-        assert _predict_outcome_from_score(1, 2, "Under 3.5", "over_under_35") == "UNDER_35"
-        assert _predict_outcome_from_score(3, 2, "Over 4.5", "over_under_45") == "OVER_45"
-        assert _predict_outcome_from_score(2, 2, "Under 4.5", "over_under_45") == "UNDER_45"
+        assert (
+            _predict_outcome_from_score(2, 1, "Over 2.5", "over_under_25") == "OVER_25"
+        )
+        assert (
+            _predict_outcome_from_score(0, 2, "Under 2.5", "over_under_25")
+            == "UNDER_25"
+        )
+        assert (
+            _predict_outcome_from_score(2, 0, "Over 1.5", "over_under_15") == "OVER_15"
+        )
+        assert (
+            _predict_outcome_from_score(1, 0, "Under 1.5", "over_under_15")
+            == "UNDER_15"
+        )
+        assert (
+            _predict_outcome_from_score(1, 0, "Over 0.5", "over_under_05") == "OVER_05"
+        )
+        assert (
+            _predict_outcome_from_score(0, 0, "Under 0.5", "over_under_05")
+            == "UNDER_05"
+        )
+        assert (
+            _predict_outcome_from_score(4, 0, "Over 3.5", "over_under_35") == "OVER_35"
+        )
+        assert (
+            _predict_outcome_from_score(1, 2, "Under 3.5", "over_under_35")
+            == "UNDER_35"
+        )
+        assert (
+            _predict_outcome_from_score(3, 2, "Over 4.5", "over_under_45") == "OVER_45"
+        )
+        assert (
+            _predict_outcome_from_score(2, 2, "Under 4.5", "over_under_45")
+            == "UNDER_45"
+        )
 
     def test_btts_market(self) -> None:
         assert _predict_outcome_from_score(1, 1, "BTTS Yes", "btts") == "BTTS_YES"
@@ -109,8 +134,12 @@ class TestMarketBreakdown:
         dup_url = "https://x.com/1"
         legs = [
             make_leg(market="1", odds=2.0, status="Won", result_url=dup_url),
-            make_leg(market="1", odds=2.0, status="Won", result_url=dup_url),  # duplicate prediction
-            make_leg(market="Over 2.5", odds=3.0, status="Lost", result_url="https://x.com/2"),
+            make_leg(
+                market="1", odds=2.0, status="Won", result_url=dup_url
+            ),  # duplicate prediction
+            make_leg(
+                market="Over 2.5", odds=3.0, status="Lost", result_url="https://x.com/2"
+            ),
         ]
         out = _market_breakdown([self._won_slip(legs, units=3.0)])
         by_market = {r["market"]: r for r in out}
@@ -132,14 +161,20 @@ class TestMarketBreakdown:
 
     def test_edge_sorting_desc(self) -> None:
         legs = [
-            make_leg(market="LowEdge", odds=1.1, status="Won", result_url="https://x.com/a"),
-            make_leg(market="HighEdge", odds=10.0, status="Won", result_url="https://x.com/b"),
+            make_leg(
+                market="LowEdge", odds=1.1, status="Won", result_url="https://x.com/a"
+            ),
+            make_leg(
+                market="HighEdge", odds=10.0, status="Won", result_url="https://x.com/b"
+            ),
         ]
         out = _market_breakdown([make_slip(legs=legs)])
         assert out[0]["market"] == "HighEdge"
 
     def test_implied_and_avg_odds_computed(self) -> None:
-        legs = [make_leg(market="1", odds=2.0, status="Won", result_url="https://x.com/a")]
+        legs = [
+            make_leg(market="1", odds=2.0, status="Won", result_url="https://x.com/a")
+        ]
         out = _market_breakdown([make_slip(legs=legs)])[0]
         assert out["implied_win_rate"] == 50.0
         assert out["win_rate"] == 100.0
@@ -161,8 +196,12 @@ class TestLeagueBreakdown:
     def test_dedup_and_profit(self) -> None:
         url = "https://x.com/1"
         legs = [
-            make_leg(market="1", odds=2.0, status="Won", result_url=url, league="La Liga"),
-            make_leg(market="1", odds=2.0, status="Won", result_url=url, league="La Liga"),
+            make_leg(
+                market="1", odds=2.0, status="Won", result_url=url, league="La Liga"
+            ),
+            make_leg(
+                market="1", odds=2.0, status="Won", result_url=url, league="La Liga"
+            ),
         ]
         out = _league_breakdown([make_slip(legs=legs, units=2.0)])
         assert out[0]["legs"] == 1
@@ -478,8 +517,12 @@ class TestPnlByMarket:
 
     def test_sorted_by_abs_net_profit(self) -> None:
         legs = [
-            make_leg(market="Small", odds=1.5, status="Won", result_url="https://x.com/a"),
-            make_leg(market="Big", odds=10.0, status="Lost", result_url="https://x.com/b"),
+            make_leg(
+                market="Small", odds=1.5, status="Won", result_url="https://x.com/a"
+            ),
+            make_leg(
+                market="Big", odds=10.0, status="Lost", result_url="https://x.com/b"
+            ),
         ]
         out = _pnl_by_market([make_slip(legs=legs, units=2.0)])
         assert out[0]["market"] == "Big"
@@ -489,7 +532,9 @@ class TestProfileScatter:
     def test_scatter_metrics(self) -> None:
         slips = [
             make_slip(profile="safe", slip_status="Won", total_odds=2.0, units=1.0),
-            make_slip(profile="safe", slip_status="Lost", total_odds=4.0, units=1.0, slip_id=2),
+            make_slip(
+                profile="safe", slip_status="Lost", total_odds=4.0, units=1.0, slip_id=2
+            ),
         ]
         out = _profile_scatter(slips)
         assert len(out) == 1
