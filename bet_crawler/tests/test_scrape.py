@@ -226,10 +226,8 @@ class TestScrapeP2:
         assert len(factory.created) == 1
 
 
-def test_log_chunk_id_records_db_basename(tmp_path):
+def test_log_chunk_id_records_db_basename(tmp_path) -> None:
     """Each crawler records the chunk id derived from the db path."""
-
-    from bet_framework.MatchesManager import MatchesManager
 
     urls_file = tmp_path / "chunk-7-urls.txt"
     urls_file.write_text("https://a.com/1")
@@ -248,7 +246,7 @@ def _fetch(db_path):
         mm.close()
 
 
-def test_match_counts_aggregate_across_groups(tmp_path):
+def test_match_counts_aggregate_across_groups(tmp_path) -> None:
     """Per-group match counts accumulate into the aggregate report."""
     crawler = StubCrawler(
         [],

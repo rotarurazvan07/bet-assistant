@@ -5,8 +5,6 @@ framework slip dataclasses so clamp regressions are caught next to their
 owners.
 """
 
-import math
-
 from core.Slip import BetLeg, BetSlip
 from markets.enums import MarketKey, MarketType, Outcome
 
@@ -35,6 +33,7 @@ def _slip(**overrides) -> BetSlip:
     }
     payload.update(overrides)
     return BetSlip(**payload)
+
 
 class TestBetLegPostInitClamps:
     """BetLeg/__post_init__ normalizes league labels and odds."""
