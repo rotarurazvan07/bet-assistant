@@ -3,6 +3,8 @@
 Branch-level coverage of every private helper in routers/analytics.py.
 """
 
+from datetime import datetime, timedelta, timezone
+
 from conftest import make_leg, make_slip
 from core.analytics_utils import calculate_daily_summary
 from routers.analytics import (
@@ -13,8 +15,11 @@ from routers.analytics import (
     _pnl_by_market,
     _predict_outcome_from_score,
     _profile_scatter,
+    _recency_weight,
     _source_breakdown,
     _source_market_correlation,
+    _trust_score,
+    _wilson_lower_bound,
 )
 
 
@@ -29,7 +34,12 @@ class TestDrawdownData:
             {"date": "d3", "cumulative_profit": 2.0},
         ]
         out = _drawdown_data(history)
-        assert out[0] == {"date": "d1", "drawdown": 0.0, "peak": 5.0, "cumulative_profit": 5.0}
+        assert out[0] == {
+            "date": "d1",
+            "drawdown": 0.0,
+            "peak": 5.0,
+            "cumulative_profit": 5.0,
+        }
         assert out[1]["peak"] == 8.0
         assert out[1]["drawdown"] == 0.0
         assert out[2]["drawdown"] == -6.0
@@ -171,7 +181,10 @@ class TestSourceMarketCorrelation:
             market="1",
             market_type="result",
             final_score="2:1",
-            predictions=[{"source": "forebet", "home": 2, "away": 1}, {"source": "xgscore", "home": 0, "away": 0}],
+            predictions=[
+                {"source": "forebet", "home": 2, "away": 1},
+                {"source": "xgscore", "home": 0, "away": 0},
+            ],
             **leg_over,
         )
         return make_slip(legs=[leg])
@@ -185,15 +198,27 @@ class TestSourceMarketCorrelation:
 
     def test_legs_without_predictions_skipped(self) -> None:
         slip = make_slip(legs=[make_leg(predictions=[], final_score="2:1")])
-        assert _source_market_correlation([slip]) == {"sources": [], "markets": [], "matrix": {}}
+        assert _source_market_correlation([slip]) == {
+            "sources": [],
+            "markets": [],
+            "matrix": {},
+        }
 
     def test_legs_without_final_score_skipped(self) -> None:
         slip = make_slip(legs=[make_leg(final_score=None)])
-        assert _source_market_correlation([slip]) == {"sources": [], "markets": [], "matrix": {}}
+        assert _source_market_correlation([slip]) == {
+            "sources": [],
+            "markets": [],
+            "matrix": {},
+        }
 
     def test_malformed_final_score_skipped(self) -> None:
         slip = make_slip(legs=[make_leg(final_score="not:numeric")])
-        assert _source_market_correlation([slip]) == {"sources": [], "markets": [], "matrix": {}}
+        assert _source_market_correlation([slip]) == {
+            "sources": [],
+            "markets": [],
+            "matrix": {},
+        }
 
 
 class TestSourceBreakdown:
@@ -242,6 +267,200 @@ class TestSourceBreakdown:
         bad = make_slip(legs=[bad_leg])
         out = _source_breakdown([good, bad])
         assert out[0]["source"] == "forebet"
+
+    def test_trust_fields_present(self) -> None:
+        out = _source_breakdown([self._slip(2, 1)])
+        src = out[0]
+        assert "trust_score" in src
+        assert "recency_weight" in src
+        assert "latest_prediction_date" in src
+        assert isinstance(src["trust_score"], float)
+        assert 0.0 <= src["trust_score"] <= 1.0
+        assert src["recency_weight"] in (0.2, 0.5, 0.8, 1.0)
+
+    def test_zero_predictions_no_source(self) -> None:
+        # A slip with no predictions yields no source rows at all
+        slip = make_slip(legs=[make_leg(predictions=[], final_score="2:1")])
+        assert _source_breakdown([slip]) == []
+
+    def test_single_prediction_trust(self) -> None:
+        recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        slip = make_slip(
+            date_generated=recent,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="2:1",
+                    predictions=[{"source": "s", "home": 2, "away": 1}],
+                )
+            ],
+        )
+        out = _source_breakdown([slip])
+        # n=1, c=1 → wilson lower bound ~0.344, recency 1.0
+        assert out[0]["total_predictions"] == 1
+        assert out[0]["correct_predictions"] == 1
+        assert out[0]["recency_weight"] == 1.0
+        assert out[0]["trust_score"] == round(_wilson_lower_bound(1, 1) * 1.0, 6)
+
+    def test_perfect_vs_poor_accuracy(self) -> None:
+        recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        perfect = make_slip(
+            date_generated=recent,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="2:1",
+                    predictions=[{"source": "good", "home": 2, "away": 1}],
+                )
+            ],
+        )
+        poor = make_slip(
+            slip_id=2,
+            date_generated=recent,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="0:0",
+                    predictions=[{"source": "bad", "home": 3, "away": 2}],
+                )
+            ],
+        )
+        out = {r["source"]: r for r in _source_breakdown([perfect, poor])}
+        assert out["good"]["trust_score"] > out["bad"]["trust_score"]
+        assert out["bad"]["correct_predictions"] == 0
+
+    def test_sample_size_shrinks_same_accuracy(self) -> None:
+        recent = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S")
+        # 1/1 vs 10/10 — same accuracy, smaller sample gets lower wilson bound
+        small = make_slip(
+            date_generated=recent,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="2:1",
+                    predictions=[{"source": "small", "home": 2, "away": 1}],
+                )
+            ],
+        )
+        big_legs = [
+            make_leg(
+                market="Over 2.5",
+                market_type="over_under_25",
+                final_score="2:1",
+                result_url=f"https://x/{i}",
+                predictions=[{"source": "big", "home": 2, "away": 1}],
+            )
+            for i in range(10)
+        ]
+        big = make_slip(slip_id=2, date_generated=recent, legs=big_legs)
+        out = {r["source"]: r for r in _source_breakdown([small, big])}
+        assert out["big"]["trust_score"] > out["small"]["trust_score"]
+
+    def test_missing_date_uses_oldest_bucket(self) -> None:
+        # slip without date_generated → latest_date None → recency 0.2
+        slip = make_slip(
+            date_generated=None,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="2:1",
+                    predictions=[{"source": "nodate", "home": 2, "away": 1}],
+                )
+            ],
+        )
+        out = _source_breakdown([slip])
+        assert out[0]["recency_weight"] == 0.2
+        assert out[0]["latest_prediction_date"] is None
+        assert out[0]["trust_score"] == round(_wilson_lower_bound(1, 1) * 0.2, 6)
+
+    def test_latest_prediction_date_tracked(self) -> None:
+        old = "2026-01-01T10:00:00"
+        new = "2026-11-01T10:00:00"
+        s1 = make_slip(
+            slip_id=1,
+            date_generated=old,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="2:1",
+                    result_url="https://x/1",
+                    predictions=[{"source": "src", "home": 2, "away": 1}],
+                )
+            ],
+        )
+        s2 = make_slip(
+            slip_id=2,
+            date_generated=new,
+            legs=[
+                make_leg(
+                    market="Over 2.5",
+                    market_type="over_under_25",
+                    final_score="2:1",
+                    result_url="https://x/2",
+                    predictions=[{"source": "src", "home": 2, "away": 1}],
+                )
+            ],
+        )
+        out = _source_breakdown([s1, s2])
+        assert out[0]["latest_prediction_date"] == "2026-11-01"
+        assert out[0]["total_predictions"] == 2
+
+
+class TestTrustScoreHelpers:
+    def test_wilson_zero_n(self) -> None:
+        assert _wilson_lower_bound(0, 0) == 0.0
+
+    def test_wilson_perfect(self) -> None:
+        # 10/10 lower bound < 1.0 (uncertainty), but > 0.7
+        lb = _wilson_lower_bound(10, 10)
+        assert 0.7 < lb < 1.0
+
+    def test_wilson_zero_correct(self) -> None:
+        assert _wilson_lower_bound(0, 10) == 0.0
+
+    def test_wilson_monotonic_in_n(self) -> None:
+        # same accuracy, more samples → higher lower bound
+        assert _wilson_lower_bound(5, 5) < _wilson_lower_bound(50, 50)
+
+    def test_wilson_bounded(self) -> None:
+        for c in range(0, 20):
+            for n in range(1, 30):
+                lb = _wilson_lower_bound(c, n)
+                assert 0.0 <= lb <= 1.0
+
+    def test_recency_boundaries(self) -> None:
+        now = datetime.now(timezone.utc)
+        d3 = (now - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%S")
+        d6 = (now - timedelta(days=6)).strftime("%Y-%m-%dT%H:%M:%S")
+        d7 = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%S")
+        d29 = (now - timedelta(days=29)).strftime("%Y-%m-%dT%H:%M:%S")
+        d30 = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
+        d89 = (now - timedelta(days=89)).strftime("%Y-%m-%dT%H:%M:%S")
+        d90 = (now - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%S")
+        d200 = (now - timedelta(days=200)).strftime("%Y-%m-%dT%H:%M:%S")
+        assert _recency_weight(d3) == 1.0
+        assert _recency_weight(d6) == 1.0
+        assert _recency_weight(d7) == 0.8
+        assert _recency_weight(d29) == 0.8
+        assert _recency_weight(d30) == 0.5
+        assert _recency_weight(d89) == 0.5
+        assert _recency_weight(d90) == 0.2
+        assert _recency_weight(d200) == 0.2
+        assert _recency_weight(None) == 0.2
+        assert _recency_weight("not-a-date") == 0.2
+
+    def test_trust_score_deterministic(self) -> None:
+        ts1, rw1 = _trust_score(7, 10, "2026-11-10T00:00:00")
+        ts2, rw2 = _trust_score(7, 10, "2026-11-10T00:00:00")
+        assert ts1 == ts2
+        assert rw1 == rw2
+        assert 0.0 <= ts1 <= 1.0
 
 
 class TestPnlByMarket:
@@ -301,7 +520,13 @@ class TestCorrelationMatrix:
         legs = [
             make_leg(market="1", odds=2.0, status="Won", league="La Liga", result_url=url),
             make_leg(market="1", odds=2.0, status="Won", league="La Liga", result_url=url),
-            make_leg(market="X", odds=3.0, status="Lost", league="Serie A", result_url="https://x.com/2"),
+            make_leg(
+                market="X",
+                odds=3.0,
+                status="Lost",
+                league="Serie A",
+                result_url="https://x.com/2",
+            ),
         ]
         out = _correlation_matrix([make_slip(legs=legs)])
         assert out["leagues"] == ["La Liga", "Serie A"]

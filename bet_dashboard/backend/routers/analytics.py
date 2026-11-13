@@ -1,5 +1,8 @@
 """Analytics API: aggregated stats and chart datasets."""
 
+import math
+from datetime import datetime, timezone
+
 # Import analytics utilities
 from core.analytics_utils import (
     _get_units,
@@ -11,6 +14,49 @@ from core.analytics_utils import (
 from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
+
+WILSON_Z_90 = 1.645  # two-sided 90% Wilson interval
+
+
+def _wilson_lower_bound(c: int, n: int) -> float:
+    """Lower bound of the two-sided 90% Wilson score interval for c/n."""
+    if n <= 0:
+        return 0.0
+    p = c / n
+    z = WILSON_Z_90
+    denom = 1 + z * z / n
+    center = p + z * z / (2 * n)
+    variance = max(0.0, p * (1 - p) / n + z * z / (4 * n * n))
+    margin = z * math.sqrt(variance)
+    return max(0.0, min(1.0, (center - margin) / denom))
+
+
+def _recency_weight(latest_date_str: str | None) -> float:
+    """Recency weight from the age in days of the latest qualifying prediction."""
+    if not latest_date_str:
+        return 0.2
+    try:
+        latest_dt = datetime.fromisoformat(latest_date_str.replace("Z", "+00:00"))
+        if latest_dt.tzinfo is None:
+            latest_dt = latest_dt.replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - latest_dt).days
+    except (ValueError, AttributeError):
+        return 0.2
+    if age_days < 7:
+        return 1.0
+    if age_days < 30:
+        return 0.8
+    if age_days < 90:
+        return 0.5
+    return 0.2
+
+
+def _trust_score(correct: int, total: int, latest_date_str: str | None) -> tuple[float, float]:
+    """Return (trust_score, recency_weight) for a source's settled predictions."""
+    base = _wilson_lower_bound(correct, total)
+    rw = _recency_weight(latest_date_str)
+    return round(base * rw, 6), rw
+
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
@@ -337,6 +383,7 @@ def _source_breakdown(slips) -> list[dict]:
     - Accuracy rate
     - Markets they predict well/poorly
     - Mean Absolute Error (MAE) for score predictions
+    - Trust score (Wilson lower bound x recency weight) with latest prediction date
     """
     source_data: dict[str, dict] = {}
 
@@ -383,7 +430,14 @@ def _source_breakdown(slips) -> list[dict]:
                         "markets": {},
                         "score_mae_sum": 0.0,  # Sum of |pred_home - actual_home| + |pred_away - actual_away|
                         "sum_implied": 0.0,
+                        "latest_date": None,
                     }
+
+                # Track latest qualifying prediction date (from the slip's date_generated)
+                slip_date = getattr(slip, "date_generated", None)
+                if slip_date:
+                    if source_data[source]["latest_date"] is None or slip_date > source_data[source]["latest_date"]:
+                        source_data[source]["latest_date"] = slip_date
 
                 source_data[source]["total_predictions"] += 1
                 source_data[source]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
@@ -433,6 +487,11 @@ def _source_breakdown(slips) -> list[dict]:
                 }
             )
 
+        trust_score, recency_weight = _trust_score(correct, total, data["latest_date"])
+        latest_date = data["latest_date"]
+        # Expose date part only when present
+        latest_prediction_date = latest_date[:10] if latest_date else None
+
         result.append(
             {
                 "source": source,
@@ -442,6 +501,9 @@ def _source_breakdown(slips) -> list[dict]:
                 "implied_win_rate": implied_win_rate,
                 "edge": edge,
                 "score_mae": score_mae,
+                "trust_score": trust_score,
+                "recency_weight": recency_weight,
+                "latest_prediction_date": latest_prediction_date,
                 "markets": sorted(market_breakdown, key=lambda x: x["accuracy"], reverse=True),
             }
         )

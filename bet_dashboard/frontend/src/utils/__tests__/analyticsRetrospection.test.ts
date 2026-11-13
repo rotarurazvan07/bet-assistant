@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { rankTopWorst, filterEligibleItems, MIN_SAMPLE_SIZE } from '../analyticsRetrospection';
+import {
+    rankTopWorst, filterEligibleItems, MIN_SAMPLE_SIZE,
+    trustLevel, sortByTrust,
+} from '../analyticsRetrospection';
 
 describe('rankTopWorst', () => {
     it('returns empty top and worst for an empty list', () => {
@@ -103,5 +106,41 @@ describe('filterEligibleItems', () => {
         ];
         const eligible = filterEligibleItems(items);
         expect(eligible.map(i => i.name)).toEqual(['Valid', 'Above']);
+    });
+});
+
+describe('trustLevel', () => {
+    it('classifies high above 0.6', () => {
+        expect(trustLevel(0.61)).toBe('high');
+        expect(trustLevel(1.0)).toBe('high');
+        expect(trustLevel(0.6)).toBe('medium'); // boundary: not > 0.6
+    });
+    it('classifies medium between 0.3 and 0.6 inclusive', () => {
+        expect(trustLevel(0.3)).toBe('medium');
+        expect(trustLevel(0.5)).toBe('medium');
+        expect(trustLevel(0.6)).toBe('medium');
+    });
+    it('classifies low below 0.3', () => {
+        expect(trustLevel(0.29)).toBe('low');
+        expect(trustLevel(0.0)).toBe('low');
+    });
+});
+
+describe('sortByTrust', () => {
+    const rows = [
+        { source: 'b', trust_score: 0.5 },
+        { source: 'a', trust_score: 0.9 },
+        { source: 'c', trust_score: 0.5 },
+    ];
+    it('sorts descending by default with source name tiebreaker', () => {
+        expect(sortByTrust(rows).map(r => r.source)).toEqual(['a', 'b', 'c']);
+    });
+    it('sorts ascending when requested', () => {
+        expect(sortByTrust(rows, 'asc').map(r => r.source)).toEqual(['b', 'c', 'a']);
+    });
+    it('does not mutate input', () => {
+        const copy = [...rows];
+        sortByTrust(rows);
+        expect(rows).toEqual(copy);
     });
 });

@@ -48,7 +48,7 @@ export default function FinancialsSection({
 
     // Cumulative equity series for sparkline
     const sparklineData = (history ?? [])
-        .map(h => h.bankroll ?? (metrics.initial_bankroll !== null ? metrics.initial_bankroll + h.cumulative_profit : null))
+        .map(h => h.cumulative_bet != null ? h.cumulative_bet + h.cumulative_profit : null)
         .filter((value): value is number => value !== null);
 
     // Tiles for Quickview
@@ -76,11 +76,11 @@ export default function FinancialsSection({
                 text: `${metrics.history_days}d${metrics.is_early_estimate ? ' • early' : ''}`,
                 color: metrics.is_early_estimate ? 'var(--pending)' : 'var(--text-secondary)',
             } : undefined,
-            sub: metrics.initial_bankroll !== null
-                ? `Opening stake: ${metrics.initial_bankroll.toFixed(1)}U`
+            sub: metrics.bankroll !== null
+                ? `Bankroll: ${metrics.bankroll.toFixed(1)}U`
                 : 'No settled stakes yet',
             color: typeof metrics.annualized_return === 'number' && metrics.annualized_return >= 0 ? 'var(--win)' : 'var(--text-bright)',
-            tip: 'Annualized compound return using the first settled stake as the inferred opening bankroll. This is an estimate, not an externally funded account balance.',
+            tip: 'Annualized compound return: period ROI over the covered days, compounded to a full year and based on the bankroll (total staked + net profit).',
         },
         // 3. ROI on turnover
         {
@@ -98,7 +98,7 @@ export default function FinancialsSection({
             value: typeof metrics.bankroll === 'number' ? `${metrics.bankroll.toFixed(1)}U` : 'n/a',
             sub: `Exposure: ${(metrics.open_exposure ?? 0).toFixed(1)}U`,
             color: typeof metrics.bankroll === 'number' && metrics.bankroll >= 0 ? 'var(--win)' : 'var(--loss)',
-            tip: 'Inferred opening balance (the first settled stake) plus cumulative net profit. Pending stakes are shown separately as exposure.',
+            tip: 'Total staked + net profit. Pending stakes are shown separately as exposure.',
         },
         // 5. Max Drawdown
         {
@@ -202,13 +202,8 @@ export default function FinancialsSection({
             {/* Full Equity Curve and Drawdown Charts */}
             <EquityDrawdownChart history={history} drawdown={drawdown} height={240} />
 
-            {/* Underwater and Concentration Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="card p-3 flex flex-col gap-1">
-                    <span className="text-[10px] font-mono tracking-widest uppercase text-[var(--text-secondary)]">Max Underwater</span>
-                    <span className="font-display font-bold text-xl leading-none text-[var(--loss)]">{metrics.underwater?.longest_days ?? 0} days</span>
-                    <span className="text-[10px] font-mono text-[var(--text-secondary)]">Current: {metrics.underwater?.current_days ?? 0} days</span>
-                </div>
+            {/* Streaks and Concentration Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="card p-3 flex flex-col gap-1">
                     <span className="text-[10px] font-mono tracking-widest uppercase text-[var(--text-secondary)]">Longest Win Streak</span>
                     <span className="font-display font-bold text-xl leading-none text-[var(--win)]">{metrics.longest_win_streak ?? 0} days</span>
@@ -356,7 +351,7 @@ export default function FinancialsSection({
                                     className="text-[11px] font-bold block mt-0.5"
                                     style={{ color: m.net_profit >= 0 ? 'var(--win)' : 'var(--loss)' }}
                                 >
-                                    {m.net_profit >= 0 ? '+' : ''}{(m.net_profit ?? 0).toFixed(0)}
+                                    {m.net_profit >= 0 ? '+' : ''}{(m.net_profit ?? 0).toFixed(1)}
                                 </span>
                             </div>
                         ))}

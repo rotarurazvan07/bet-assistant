@@ -1,6 +1,24 @@
 export const MIN_SAMPLE_SIZE = 10;
 export const INTERSECTION_MIN_SAMPLE_SIZE = 5;
 
+export type TrustLevel = 'high' | 'medium' | 'low';
+
+/** Classify a numeric trust score into a badge level (thresholds: high > 0.6, low < 0.3). */
+export function trustLevel(score: number): TrustLevel {
+    if (score > 0.6) return 'high';
+    if (score < 0.3) return 'low';
+    return 'medium';
+}
+
+/** Sort source rows by trust score (numeric), with source name as tiebreaker. */
+export function sortByTrust<T extends { trust_score?: number; source: string }>(rows: T[], dir: 'asc' | 'desc' = 'desc'): T[] {
+    return [...rows].sort((a, b) => {
+        const diff = (b.trust_score ?? 0) - (a.trust_score ?? 0);
+        if (diff !== 0) return dir === 'desc' ? diff : -diff;
+        return a.source.localeCompare(b.source);
+    });
+}
+
 export interface RankableItem {
     name: string;
     edge: number;

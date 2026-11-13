@@ -100,8 +100,8 @@ describe('computeFinancials', () => {
         const fin = computeFinancials(handComputedData);
 
         expect(fin.net_profit).toBe(15.0);
-        expect(fin.initial_bankroll).toBe(10.0);
-        expect(fin.bankroll).toBe(25.0);
+        // bankroll = total staked + net profit = 50 + 15 = 65
+        expect(fin.bankroll).toBe(65.0);
         expect(fin.turnover).toBe(50.0);
         expect(fin.roi_percentage).toBe(30.0);
         expect(fin.sample_size).toBe(5);
@@ -121,8 +121,11 @@ describe('computeFinancials', () => {
         expect(fin.is_early_estimate).toBe(true);
     });
 
-    it('computes annualized return from the inferred opening stake and current bankroll', () => {
+    it('computes annualized return from the bankroll (staked + profit) over the covered days', () => {
         const fin = computeFinancials(handComputedData);
+        // period return = 15 / 65, annualized over 5 days
+        const expected = Math.round((Math.pow(1 + 15 / 65, 365 / 5) - 1) * 1000) / 10;
+        expect(fin.annualized_return).toBe(expected);
         expect(fin.annualized_return).toBeGreaterThan(0);
     });
 
@@ -133,8 +136,6 @@ describe('computeFinancials', () => {
                 total_units_bet: 2,
                 gross_return: 2,
                 net_profit: 0,
-                initial_bankroll: 1,
-                bankroll: 1,
             },
             history: [
                 { date: '2026-09-01', slips_count: 1, units_bet: 1, net_profit: 1, cumulative_profit: 1, cumulative_bet: 1, roi_percentage: 100, win_rate: 100, bankroll: 2 },
@@ -142,15 +143,8 @@ describe('computeFinancials', () => {
             ],
         };
         const fin = computeFinancials(data);
-        expect(fin.initial_bankroll).toBe(1);
-        expect(fin.bankroll).toBe(1);
-    });
-
-    it('computes underwater periods correctly', () => {
-        const fin = computeFinancials(handComputedData);
-        // Drawdowns: 0, -10, -5, -7, 0 -> run of 3 consecutive underwater days
-        expect(fin.underwater.longest_days).toBe(3);
-        expect(fin.underwater.current_days).toBe(0);
+        // bankroll = 2 staked + 0 profit = 2
+        expect(fin.bankroll).toBe(2);
     });
 
     it('computes profit concentration correctly', () => {

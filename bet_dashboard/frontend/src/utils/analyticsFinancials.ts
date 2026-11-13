@@ -18,7 +18,6 @@ export interface FinancialsMetrics {
     roi_percentage: number;
 
     // Capital
-    initial_bankroll: number | null;
     bankroll: number | null;
     turnover: number;
     open_exposure: number;
@@ -48,10 +47,6 @@ export interface FinancialsMetrics {
     worst_day_pnl: number | null;
 
     // Detail
-    underwater: {
-        longest_days: number;
-        current_days: number;
-    };
     daily_periods: PeriodSummary[];
     weekly_periods: PeriodSummary[];
     monthly_periods: PeriodSummary[];
@@ -150,11 +145,14 @@ export function computeFinancials(data: Partial<AnalyticsData> | null | undefine
         netProfit30dChange = Math.round(netProfit30dChange * 100) / 100;
     }
 
-    const initialBankroll = stats?.initial_bankroll ?? null;
-    const bankroll = stats?.bankroll ?? null;
+    // Bankroll = total staked + net profit (turnover is the total staked)
+    const bankroll = turnover > 0 ? Math.round((turnover + netProfit) * 100) / 100 : null;
+    // Annualized return: compound the period ROI over the covered days onto a full year,
+    // using the bankroll as the capital base (not just the opening stake).
     let annualizedReturn: number | null = null;
-    if (initialBankroll !== null && initialBankroll > 0 && bankroll !== null && bankroll > 0 && daysCovered > 0) {
-        const annualizedFraction = Math.pow(bankroll / initialBankroll, 365 / daysCovered) - 1;
+    if (bankroll !== null && bankroll > 0 && turnover > 0 && daysCovered > 0) {
+        const periodReturn = netProfit / bankroll;
+        const annualizedFraction = Math.pow(1 + periodReturn, 365 / daysCovered) - 1;
         if (Number.isFinite(annualizedFraction)) {
             annualizedReturn = Math.round(annualizedFraction * 1000) / 10;
         }
@@ -164,20 +162,6 @@ export function computeFinancials(data: Partial<AnalyticsData> | null | undefine
     // Drawdowns
     const maxDrawdown = drawdown.length > 0 ? Math.min(...drawdown.map(d => d.drawdown)) : 0;
     const currentDrawdown = drawdown.length > 0 ? drawdown[drawdown.length - 1].drawdown : 0;
-
-    // Underwater analysis (days continuously below peak)
-    let longestUnderwaterDays = 0;
-    let currentUnderwaterDays = 0;
-    let tempUnderwaterDays = 0;
-    for (let i = 0; i < drawdown.length; i++) {
-        if (drawdown[i].drawdown < 0) {
-            tempUnderwaterDays++;
-            longestUnderwaterDays = Math.max(longestUnderwaterDays, tempUnderwaterDays);
-        } else {
-            tempUnderwaterDays = 0;
-        }
-    }
-    currentUnderwaterDays = tempUnderwaterDays;
 
     // Periods breakdown: Daily, Weekly, Monthly
     const dailyPeriods: PeriodSummary[] = history.map(h => ({
@@ -299,7 +283,7 @@ export function computeFinancials(data: Partial<AnalyticsData> | null | undefine
     }
     const pnlByMonth = calMonthMap.map(m => ({
         month: m.month,
-        net_profit: Math.round(m.net_profit * 100) / 100,
+        net_profit: Math.round(m.net_profit * 10) / 10,
         bets_count: m.bets_count,
     }));
 
@@ -325,7 +309,6 @@ export function computeFinancials(data: Partial<AnalyticsData> | null | undefine
         history_days: daysCovered,
         is_early_estimate: isEarlyEstimate,
         roi_percentage: roiPercentage,
-        initial_bankroll: initialBankroll,
         bankroll,
         turnover,
         open_exposure: openExposure,
@@ -347,10 +330,6 @@ export function computeFinancials(data: Partial<AnalyticsData> | null | undefine
         worst_month: worstMonth,
         best_day_pnl: stats?.best_day_pnl ?? null,
         worst_day_pnl: stats?.worst_day_pnl ?? null,
-        underwater: {
-            longest_days: longestUnderwaterDays,
-            current_days: currentUnderwaterDays,
-        },
         daily_periods: dailyPeriods,
         weekly_periods: weeklyPeriods,
         monthly_periods: monthlyPeriods,
