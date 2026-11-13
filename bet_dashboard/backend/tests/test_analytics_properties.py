@@ -335,10 +335,14 @@ def _ref_daily_summary(seq):
     settled = [s for s in seq if _get_status_value(s.slip_status) in ("Won", "Lost")]
     settled.sort(key=lambda x: (x.date_generated, getattr(x, "slip_id", 0)))
     staked = [s for s in settled if s.units > 0]
-    initial_bankroll = min(
-        staked,
-        key=lambda slip: (slip.date_generated, getattr(slip, "slip_id", 0)),
-    ).units if staked else None
+    initial_bankroll = (
+        min(
+            staked,
+            key=lambda slip: (slip.date_generated, getattr(slip, "slip_id", 0)),
+        ).units
+        if staked
+        else None
+    )
     from bet_framework.markets.enums import Outcome
 
     daily = {}
