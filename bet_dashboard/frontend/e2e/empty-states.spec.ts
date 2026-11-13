@@ -91,16 +91,14 @@ test('Discover empty CTAs: Pull posts /api/pull and Adjust Filters opens drawer'
 test('Build empty CTAs stay on /builder', async ({ page }) => {
     await page.goto('/builder');
     await expect(page.getByRole('heading', { name: 'Profiles' })).toBeVisible();
-    await expect(page.getByText('No preview yet')).toBeVisible();
-    await page.getByRole('button', { name: 'Select a Profile' }).click();
-    await expect(page).toHaveURL(/\/builder/);
-    // Smart Builder rework (07a1de0): the Add-to-Slips CTA is hidden while the
-    // preview is empty — the old empty-state button opened a dead-end modal.
-    // Select-a-Preset keeps the user on /builder; the CTA appears in the
-    // preview header only once legs exist.
+    await expect(page.getByRole('region', { name: 'No preview yet' })).toBeVisible();
+    // The empty state has no CTA buttons — profile chips above are the only
+    // select action, and the Add-to-Slips CTA appears in the preview header
+    // only once legs exist.
     await expect(
-        page.getByRole('region', { name: 'No preview yet' }).getByRole('button', { name: 'Add to Slips', exact: true }),
+        page.getByRole('region', { name: 'No preview yet' }).getByRole('button'),
     ).toHaveCount(0);
+    await expect(page).toHaveURL(/\/builder/);
 });
 
 test('Track empty CTAs: Generate posts and Go to Build navigates', async ({ page }) => {
@@ -124,7 +122,10 @@ test('Analytics empty CTAs navigate to Track and Build', async ({ page }) => {
     await page.getByRole('button', { name: 'Go to Track' }).click();
     await expect(page).toHaveURL(/\/slips/);
     await mockAnalyticsEmpty(page);
-    await page.goto('/analytics');
+    // Absolute URL: webkit mangles relative goto after client-side routing
+    // (produces "http: /host" without //), which breaks the /api/slips fetch.
+    await page.goto(new URL('/analytics', page.url()).toString());
+    await expect(page.getByText('No analytics yet')).toBeVisible();
     await page.getByRole('button', { name: 'Go to Build' }).click();
     await expect(page).toHaveURL(/\/builder/);
 });
