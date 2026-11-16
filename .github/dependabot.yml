@@ -5,15 +5,11 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-      time: "07:00"  # After our custom workflow (06:30 UTC)
+      time: "07:00"
     groups:
       github-actions:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
-    open-pull-requests-limit: 10
   - package-ecosystem: "npm"
     directory: "/bet_dashboard/frontend"
     schedule:
@@ -24,7 +20,3 @@ updates:
       npm:
         patterns:
           - "*"
-        update-types:
-          - "minor"
-          - "patch"
-    open-pull-requests-limit: 10
