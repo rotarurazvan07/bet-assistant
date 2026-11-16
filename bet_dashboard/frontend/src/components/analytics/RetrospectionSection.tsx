@@ -7,7 +7,7 @@ import TopWorstCard from './TopWorstCard';
 import IntelligenceContainer, { type IntelligenceColumn } from './IntelligenceContainer';
 import CorrelationContainer, { type ViewOption } from './CorrelationContainer';
 import { Tooltip as HoverTooltip } from '../ui';
-import { marketLabel } from '../../config/marketConfig';
+import { marketLabel, marketTypeLabel } from '../../config/marketConfig';
 import {
     filterEligibleItems, rankTopWorst, MIN_SAMPLE_SIZE, type RankableItem,
     trustLevel, sortByTrust, type TrustLevel,
@@ -537,6 +537,7 @@ export default function RetrospectionSection({
                     colLabel="Market Type"
                     rows={sourceMarketCorrelation.sources}
                     cols={sourceMarketCorrelation.markets}
+                    formatColumnLabel={marketTypeLabel}
                     matrix={sourceMarketCorrelation.matrix}
                     views={sourceMarketViews}
                 />

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import AnalyticsSection from './AnalyticsSection';
 import QuickviewContainer, { type QuickviewTile } from './QuickviewContainer';
-import MiniSparkline from './charts/MiniSparkline';
 import EquityDrawdownChart from './charts/EquityDrawdownChart';
 import RollingLineChart from './charts/RollingLineChart';
 import type { FinancialsMetrics } from '../../utils/analyticsFinancials';
@@ -45,11 +44,6 @@ export default function FinancialsSection({
         : sharpe > 1.5 ? 'var(--win)'
         : sharpe > 0.5 ? 'var(--pending)'
         : 'var(--loss)';
-
-    // Cumulative equity series for sparkline
-    const sparklineData = (history ?? [])
-        .map(h => h.cumulative_bet != null ? h.cumulative_bet + h.cumulative_profit : null)
-        .filter((value): value is number => value !== null);
 
     // Tiles for Quickview
     const tiles: QuickviewTile[] = [
@@ -368,7 +362,6 @@ export default function FinancialsSection({
             quickview={
                 <QuickviewContainer
                     tiles={tiles}
-                    sparkline={                    <MiniSparkline data={sparklineData} height={108} />}
                     footer={quickviewFooter}
                 />
             }
