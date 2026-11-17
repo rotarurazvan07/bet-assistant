@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { TooltipIcon } from '../ui';
 import { INTERSECTION_MIN_SAMPLE_SIZE } from '../../utils/analyticsRetrospection';
 
@@ -47,6 +47,42 @@ export default function CorrelationContainer({
 }: CorrelationContainerProps) {
     const defaultView = views && views.length > 0 ? views[0].key : '';
     const [activeViewKey, setActiveViewKey] = useState<string>(defaultView);
+    const [sortCol, setSortCol] = useState<string | null>(null);
+    const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+    const handleSort = (col: string) => {
+        if (col === sortCol) {
+            setSortDir(d => (d === 'desc' ? 'asc' : 'desc'));
+        } else {
+            setSortCol(col);
+            setSortDir('desc');
+        }
+    };
+
+    const activeView = views?.find(v => v.key === activeViewKey) ?? views?.[0];
+
+    // Sort rows by the value in the clicked column. Rows whose cell has a
+    // sufficient sample always rank ahead of low-sample (grayed-out) rows;
+    // each group is sorted by the percentage value, low-sample rows last.
+    // Columns always keep their original order.
+    const sortedRows = useMemo(() => {
+        if (!sortCol || !activeView) return rows;
+        const cellInfo = (r: string) => {
+            const cell = matrix[r]?.[sortCol];
+            if (!cell || (cell.total !== undefined && cell.total === 0)) return null;
+            return { value: activeView.getValue(cell), lowSample: (cell.total ?? 0) < minSampleSize };
+        };
+        const cmp = (a: string, b: string) => {
+            const va = cellInfo(a);
+            const vb = cellInfo(b);
+            if (!va && !vb) return a.localeCompare(b);
+            if (!va) return 1;
+            if (!vb) return -1;
+            if (va.lowSample !== vb.lowSample) return va.lowSample ? 1 : -1;
+            return sortDir === 'desc' ? vb.value - va.value : va.value - vb.value;
+        };
+        return [...rows].sort(cmp);
+    }, [rows, matrix, sortCol, sortDir, activeView, minSampleSize]);
 
     if (!rows.length || !cols.length) {
         return (
@@ -63,8 +99,6 @@ export default function CorrelationContainer({
             </div>
         );
     }
-
-    const activeView = views?.find(v => v.key === activeViewKey) ?? views?.[0];
 
     return (
         <div className="card p-4">
@@ -101,17 +135,33 @@ export default function CorrelationContainer({
                                     {rowLabel} \ {colLabel}
                                 </span>
                             </th>
-                            {cols.map(c => (
-                                <th key={c} className="p-3 text-center min-w-[80px]">
-                                    <span className="text-[9px] font-mono uppercase text-gray-400">
-                                    {formatColumnLabel?.(c) ?? c}
-                                    </span>
-                                </th>
-                            ))}
+                            {cols.map(c => {
+                                const isSorted = sortCol === c;
+                                return (
+                                    <th
+                                        key={c}
+                                        className="p-3 text-center min-w-[80px] cursor-pointer select-none hover:bg-white/5 transition-colors"
+                                        onClick={() => handleSort(c)}
+                                        title={`Sort by ${formatColumnLabel?.(c) ?? c}`}
+                                    >
+                                        <span
+                                            className="text-[9px] font-mono uppercase inline-flex items-center gap-1"
+                                            style={{ color: isSorted ? 'var(--accent)' : 'var(--text-secondary)' }}
+                                        >
+                                            {formatColumnLabel?.(c) ?? c}
+                                            {isSorted && (
+                                                <span style={{ color: 'var(--accent)', fontSize: 9 }}>
+                                                    {sortDir === 'desc' ? '↓' : '↑'}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </th>
+                                );
+                            })}
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.map(r => (
+                        {sortedRows.map(r => (
                             <tr key={r} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                                 <td className="p-3 bg-black/20 sticky left-0 z-10 border-r border-white/5">
                                     <span className="text-[11px] font-bold text-gray-300">

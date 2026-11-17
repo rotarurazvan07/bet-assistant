@@ -17,14 +17,12 @@ interface QuickviewContainerProps {
     tiles: QuickviewTile[];
     columnsClassName?: string;
     footer?: React.ReactNode;
-    sparkline?: React.ReactNode;
 }
 
 export default function QuickviewContainer({
     tiles,
     columnsClassName = 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6',
     footer,
-    sparkline,
 }: QuickviewContainerProps) {
     return (
         <div className="card p-4 flex flex-col gap-4">
@@ -88,12 +86,6 @@ export default function QuickviewContainer({
                     );
                 })}
             </div>
-
-            {sparkline && (
-                <div className="pt-2 border-t border-[var(--border)]">
-                    {sparkline}
-                </div>
-            )}
 
             {footer && (
                 <div className="pt-2 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-3 text-[11px] font-mono" style={{ color: 'var(--text-secondary)' }}>
