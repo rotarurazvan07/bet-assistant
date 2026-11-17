@@ -1,11 +1,13 @@
 """Tests for embedded odds history tracking functionality."""
 
 import json
+import math
 import os
 import tempfile
 from datetime import datetime, timedelta
 
 import pytest
+from core.Match import ensure_decimal_odds
 
 from bet_framework.MatchesManager import MatchesManager
 
@@ -404,3 +406,39 @@ class TestMergeWithHistoryPreservation:
         assert "history" not in odds or len(odds.get("history", [])) == 0
 
         current_manager.close()
+
+
+class TestEnsureDecimalOdds:
+    """ensure_decimal_odds parses decimal, American, and invalid odds."""
+
+    def test_none_input_returns_none(self) -> None:
+        assert ensure_decimal_odds(None) is None
+
+    def test_decimal_string_returns_decimal(self) -> None:
+        assert ensure_decimal_odds("1.91") == 1.91
+
+    def test_comma_decimal_is_normalized(self) -> None:
+        assert ensure_decimal_odds("2,20") == 2.20
+
+    def test_integer_decimal_returns_decimal(self) -> None:
+        assert ensure_decimal_odds(2) == 2.0
+
+    def test_positive_american_odds_convert_to_decimal(self) -> None:
+        assert ensure_decimal_odds(120) == 2.20
+        assert ensure_decimal_odds(110) == 2.10
+
+    def test_negative_american_odds_convert_to_decimal(self) -> None:
+        assert ensure_decimal_odds(-110) == 1.91
+        assert ensure_decimal_odds(-200) == 1.50
+
+    def test_non_convertible_string_values_return_none(self) -> None:
+        assert ensure_decimal_odds("abc") is None
+        assert ensure_decimal_odds("") is None
+        assert ensure_decimal_odds("nan") is None
+        assert ensure_decimal_odds("inf") is None
+
+    def test_nan_float_passthrough_documented_finding(self) -> None:
+        # FINDING: degenerate float values pass through unvalidated, unlike
+        # their string forms. This pins the current contract so any future
+        # hardening breaks this test deliberately.
+        assert math.isnan(ensure_decimal_odds(float("nan")))
