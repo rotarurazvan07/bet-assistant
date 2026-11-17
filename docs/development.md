@@ -618,3 +618,61 @@ docker compose -f setup/compose.yaml down -v
 rm -rf workspace/
 docker compose -f setup/compose.yaml up -d
 ```
+
+## Dependabot
+
+Dependency updates are split into three risk-based groups so that low-risk patches
+stop competing for attention with risky upgrades. Configuration lives in
+`.github/dependabot.yml` and covers three ecosystems: `github-actions` (repo root),
+`npm` (`/bet_dashboard/frontend`), and `pip` (`/bet_dashboard/backend` and `/setup`).
+
+### Groups
+
+| Group | Update types | Schedule | Open PR limit | Labels | Review expectation |
+|-------|--------------|----------|---------------|--------|--------------------|
+| `patches` | `version-update:semver-patch` | Weekly, Monday 07:00 (Europe/Bucharest) | 10 | _(none)_ | **Auto-merged** once CI is green |
+| `minors` | `version-update:semver-minor` | Weekly, Monday 07:00 (Europe/Bucharest) | 5 | `dependabot-minor` | **Human review required** — one approval before merge |
+| `majors` | `version-update:semver-major` | Weekly, Monday 07:00 (Europe/Bucharest) | 3 | `dependabot-major` | **Manual, deliberate merge only** — never auto-merged |
+
+### Auto-merge is patch-only
+
+Auto-merge is enforced by `.github/workflows/dependabot-auto-merge.yml`. It will only
+fire when **both** conditions hold:
+
+1. The Dependabot metadata reports `update-type: version-update:semver-patch` **and**
+   `dependency-group: patches`; and
+2. All required checks pass (`gh pr checks --watch --required`) and the head commit
+   has not moved since the event was received.
+
+If the update type or group cannot be determined, or if it is anything other than a
+patch, the workflow **exits without merging** (fail closed). Minor and major PRs never
+reach the merge step.
+
+### Labels
+
+- `dependabot-minor` — marks a minor update PR that needs a human reviewer.
+- `dependabot-major` — marks a major update PR that must be merged deliberately.
+- Patch PRs are intentionally unlabeled so they can be identified by group rather than
+  by label noise.
+
+## How to work with dependency PRs
+
+- **Patch PRs (`patches`)** — no action needed. They merge automatically once CI
+  passes. If one is failing CI, fix forward; do not disable the check.
+- **Minor PRs (`dependabot-minor`)** — review the changelog, verify no behavioural
+  regression in local tests, then approve.
+- **Major PRs (`dependabot-major`)** — breaking changes. Treat as a scoped task:
+  read the migration guide, run the relevant suite (framework / crawler / backend),
+  and hand-merge after validation. The PR limit of 3 keeps the queue small.
+
+### Triggering a major update manually
+
+Dependabot runs weekly and there is no "open now" button in the UI. To bring a major
+PR forward:
+
+1. Close the ecosystem's open majors if any are stale (`gh pr close <n>`), then use
+   `gh api` to no-op a security advisory review or simply wait for the next Monday run.
+2. If you need it immediately, bump the dependency locally and open the PR yourself —
+   that PR is a normal PR and follows the standard rules above.
+3. Re-run the whole flow on demand with a `workflow_dispatch` if you add one; the
+   current configuration has no manual trigger by design.
