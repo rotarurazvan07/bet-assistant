@@ -41,7 +41,7 @@ describe('CorrelationContainer', () => {
         };
         render(
             <CorrelationContainer
-                title="Source x Market Type Correlation"
+                title="Source x Market Correlation"
                 rowLabel="Source"
                 colLabel="Market Type"
                 rows={['forebet', 'xgscore']}

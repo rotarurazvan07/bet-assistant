@@ -78,7 +78,7 @@ export default function StrategySection({
 
     const quickviewFooter = (
         <div className="flex items-center justify-between w-full flex-wrap gap-2">
-            <span>Portfolio basis: <strong className="text-[var(--text-bright)]">{metrics.sample_size}</strong> bets evaluated</span>
+            <span>Sample: <strong className="text-[var(--text-bright)]">{metrics.sample_size}</strong> bets</span>
             <span>Expected wins: <strong className="text-[var(--text-bright)]">{metrics.expected_wins.toFixed(1)}</strong> | Actual wins: <strong style={{ color: metrics.actual_wins >= metrics.expected_wins ? 'var(--win)' : 'var(--loss)' }}>{metrics.actual_wins}</strong></span>
         </div>
     );

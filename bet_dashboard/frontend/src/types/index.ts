@@ -286,6 +286,7 @@ export interface SourceBreakdown {
     score_mae: number;
     implied_win_rate?: number;
     edge?: number;
+    avg_odds?: number;
     trust_score?: number;
     recency_weight?: number;
     latest_prediction_date?: string | null;
