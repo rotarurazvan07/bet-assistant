@@ -45,13 +45,14 @@ export default function TopWorstCard({
                         <div className="flex flex-col gap-1.5">
                             {top.map((item, idx) => {
                                 const displayName = formatName(item.name);
+                                const edgeColor = item.edge > 0 ? 'var(--win)' : 'var(--pending)';
                                 return (
                                     <div key={item.name || idx} className="flex items-center justify-between gap-2 text-xs font-mono">
                                         <span className="font-bold truncate" style={{ color: 'var(--text-bright)' }}>
-                                            {idx + 1}. {displayName}
+                                            {displayName}
                                         </span>
                                         <div className="flex items-center gap-1.5 shrink-0">
-                                            <span className="font-bold" style={{ color: 'var(--win)' }}>
+                                            <span className="font-bold" style={{ color: edgeColor }}>
                                                 {item.edge > 0 ? '+' : ''}{item.edge.toFixed(1)}%
                                             </span>
                                             <span className="text-[9px] text-gray-500">

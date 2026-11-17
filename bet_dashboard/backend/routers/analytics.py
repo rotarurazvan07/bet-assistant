@@ -430,6 +430,7 @@ def _source_breakdown(slips) -> list[dict]:
                         "markets": {},
                         "score_mae_sum": 0.0,  # Sum of |pred_home - actual_home| + |pred_away - actual_away|
                         "sum_implied": 0.0,
+                        "sum_odds": 0.0,
                         "latest_date": None,
                     }
 
@@ -441,6 +442,7 @@ def _source_breakdown(slips) -> list[dict]:
 
                 source_data[source]["total_predictions"] += 1
                 source_data[source]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
+                source_data[source]["sum_odds"] += leg.odds
 
                 # Compute predicted outcome for this market from source's predicted score
                 predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
@@ -471,6 +473,7 @@ def _source_breakdown(slips) -> list[dict]:
         accuracy = round(correct / total * 100, 1) if total else 0.0
         implied_win_rate = round(data["sum_implied"] / total * 100, 1) if total else 0.0
         edge = round(accuracy - implied_win_rate, 1)
+        avg_odds = round(data["sum_odds"] / total, 2) if total else 0.0
         score_mae = round(data["score_mae_sum"] / (total * 2), 2) if total else 0.0  # Avg goals error per team
 
         # Per-market breakdown
@@ -500,6 +503,7 @@ def _source_breakdown(slips) -> list[dict]:
                 "accuracy": accuracy,
                 "implied_win_rate": implied_win_rate,
                 "edge": edge,
+                "avg_odds": avg_odds,
                 "score_mae": score_mae,
                 "trust_score": trust_score,
                 "recency_weight": recency_weight,

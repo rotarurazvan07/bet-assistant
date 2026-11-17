@@ -177,10 +177,35 @@ export default function RetrospectionSection({
         { key: 'avg_odds', label: 'Avg Odds', tip: 'Average leg odds', render: row => `@${row.avg_odds}` },
     ];
 
-    // ── Source Columns (Accuracy, Score Error, Trust) ───────────────────────────
+    // ── Source Columns (Win %, Implied %, Edge, Avg Odds, Trust, Score MAE) ───────
     const sourceColumns: IntelligenceColumn<SourceBreakdown>[] = [
         { key: 'total_predictions', label: 'Predictions', tip: 'Total predictions made', align: 'left' },
-        { key: 'correct_predictions', label: 'Correct', tip: 'Correct predictions', render: row => <span style={{ color: 'var(--win)' }}>{row.correct_predictions}</span> },
+        {
+            key: 'accuracy',
+            label: 'Win %',
+            tip: 'Actual win rate (correct / predictions)',
+            render: row => (
+                <span style={{ color: row.accuracy >= 50 ? 'var(--win)' : 'var(--loss)' }}>
+                    {row.accuracy.toFixed(1)}%
+                </span>
+            ),
+        },
+        { key: 'implied_win_rate', label: 'Implied %', tip: 'Market-implied win rate', render: row => `${(row.implied_win_rate ?? 50.0).toFixed(1)}%` },
+        {
+            key: 'edge',
+            label: 'Edge %',
+            tip: 'Win % − Implied %',
+            render: row => {
+                const edgeVal = row.edge ?? (row.accuracy - (row.implied_win_rate ?? 50.0));
+                const color = edgeVal > 2 ? 'var(--win)' : edgeVal > 0 ? 'var(--pending)' : 'var(--loss)';
+                return (
+                    <span className="font-bold" style={{ color }}>
+                        {edgeVal > 0 ? '+' : ''}{edgeVal.toFixed(1)}%
+                    </span>
+                );
+            },
+        },
+        { key: 'avg_odds', label: 'Avg Odds', tip: 'Average leg odds', render: row => `@${(row.avg_odds ?? 0).toFixed(2)}` },
         {
             key: 'trust_score',
             label: 'Trust',
@@ -198,20 +223,6 @@ export default function RetrospectionSection({
             ),
         },
         {
-            key: 'accuracy',
-            label: 'Accuracy %',
-            tip: 'Prediction accuracy percentage',
-            render: row => {
-                const color = row.accuracy >= 60 ? 'var(--win)' : row.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)';
-                const bg = row.accuracy >= 60 ? 'var(--win-bg)' : row.accuracy >= 50 ? 'var(--pending-bg)' : 'var(--loss-bg)';
-                return (
-                    <span className="font-bold px-2 py-0.5 rounded" style={{ color, background: bg }}>
-                        {row.accuracy.toFixed(1)}%
-                    </span>
-                );
-            },
-        },
-        {
             key: 'score_mae',
             label: 'Score MAE',
             tip: 'Mean Absolute Error in predicted goals (lower is better)',
@@ -225,33 +236,7 @@ export default function RetrospectionSection({
                 );
             },
         },
-        {
-            key: 'edge',
-            label: 'Edge %',
-            tip: 'Source edge above market implied win rate',
-            render: row => {
-                const edgeVal = row.edge ?? (row.accuracy - (row.implied_win_rate ?? 50.0));
-                const color = edgeVal > 2 ? 'var(--win)' : edgeVal > 0 ? 'var(--pending)' : 'var(--loss)';
-                return (
-                    <span className="font-bold" style={{ color }}>
-                        {edgeVal > 0 ? '+' : ''}{edgeVal.toFixed(1)}%
-                    </span>
-                );
-            },
-        },
     ];
-
-    // Source signals (Best & Worst by accuracy and MAE)
-    const sourceSignals = useMemo(() => {
-        if (!sourceBreakdown || sourceBreakdown.length === 0) return null;
-        const eligible = sourceBreakdown.filter(s => s.total_predictions >= MIN_SAMPLE_SIZE);
-        const list = eligible.length > 0 ? eligible : sourceBreakdown;
-        const bestAccuracy = list.reduce((b, s) => s.accuracy > b.accuracy ? s : b, list[0]);
-        const worstAccuracy = list.reduce((w, s) => s.accuracy < w.accuracy ? s : w, list[0]);
-        const bestMAE = list.reduce((b, s) => s.score_mae < b.score_mae ? s : b, list[0]);
-        const worstMAE = list.reduce((w, s) => s.score_mae > w.score_mae ? s : w, list[0]);
-        return { bestAccuracy, worstAccuracy, bestMAE, worstMAE };
-    }, [sourceBreakdown]);
 
     // Correlation Views
     const leagueMarketViews: ViewOption[] = [
@@ -426,41 +411,6 @@ export default function RetrospectionSection({
             {/* 3. Source Intelligence (Table, Chart, Highlights) */}
             {sourceBreakdown.length > 0 && (
                 <div className="flex flex-col gap-4">
-                    {/* Source Highlights */}
-                    {sourceSignals && (
-                        <div className="card p-4">
-                            <span className="font-mono text-[11px] tracking-widest uppercase mb-4 block text-[var(--text-secondary)]">
-                                Source Signals & Model Reliability
-                            </span>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--win-bg)' }}>
-                                    <span className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--win)' }}>↑ Best Accuracy</span>
-                                    <span className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{sourceSignals.bestAccuracy.source}</span>
-                                    <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--win)' }}>+{sourceSignals.bestAccuracy.accuracy.toFixed(1)}%</span>
-                                    <span className="text-[9px] font-mono text-gray-500">{sourceSignals.bestAccuracy.correct_predictions}/{sourceSignals.bestAccuracy.total_predictions} correct</span>
-                                </div>
-                                <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--loss-bg)' }}>
-                                    <span className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--loss)' }}>↓ Worst Accuracy</span>
-                                    <span className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{sourceSignals.worstAccuracy.source}</span>
-                                    <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--loss)' }}>{sourceSignals.worstAccuracy.accuracy.toFixed(1)}%</span>
-                                    <span className="text-[9px] font-mono text-gray-500">{sourceSignals.worstAccuracy.correct_predictions}/{sourceSignals.worstAccuracy.total_predictions} correct</span>
-                                </div>
-                                <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--win-bg)' }}>
-                                    <span className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--win)' }}>↑ Best Score MAE</span>
-                                    <span className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{sourceSignals.bestMAE.source}</span>
-                                    <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--win)' }}>{sourceSignals.bestMAE.score_mae.toFixed(2)} MAE</span>
-                                    <span className="text-[9px] font-mono text-gray-500">{sourceSignals.bestMAE.total_predictions} predictions</span>
-                                </div>
-                                <div className="rounded-lg p-3 flex flex-col gap-1" style={{ background: 'var(--loss-bg)' }}>
-                                    <span className="text-[9px] font-mono tracking-widest uppercase font-bold" style={{ color: 'var(--loss)' }}>↓ Worst Score MAE</span>
-                                    <span className="font-display font-bold text-lg leading-none" style={{ color: 'var(--text-bright)' }}>{sourceSignals.worstMAE.source}</span>
-                                    <span className="text-[11px] font-mono font-bold" style={{ color: 'var(--loss)' }}>{sourceSignals.worstMAE.score_mae.toFixed(2)} MAE</span>
-                                    <span className="text-[9px] font-mono text-gray-500">{sourceSignals.worstMAE.total_predictions} predictions</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                         <div className="lg:col-span-2">
                             <IntelligenceContainer
@@ -476,12 +426,16 @@ export default function RetrospectionSection({
                         </div>
                         <div className="card p-4 flex flex-col h-full">
                             <span className="font-mono text-[11px] tracking-widest uppercase mb-4 text-[var(--text-secondary)]">
-                                Accuracy by Source
+                                Edge by Source
                             </span>
                             <div className="flex-1 min-h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
-                                        data={[...sourceBreakdown].sort((a, b) => b.accuracy - a.accuracy)}
+                                        data={[...sourceBreakdown].sort((a, b) => {
+                                            const edgeA = a.edge ?? (a.accuracy - (a.implied_win_rate ?? 50.0));
+                                            const edgeB = b.edge ?? (b.accuracy - (b.implied_win_rate ?? 50.0));
+                                            return edgeB - edgeA;
+                                        })}
                                         layout="vertical"
                                         margin={{ left: 0, right: 30, top: 5, bottom: 0 }}
                                     >
@@ -491,20 +445,27 @@ export default function RetrospectionSection({
                                         <Tooltip contentStyle={TT} content={({ active, payload }) => {
                                             if (!active || !payload?.length) return null;
                                             const d = payload[0]?.payload;
+                                            const edgeVal = d.edge ?? (d.accuracy - (d.implied_win_rate ?? 50.0));
                                             return (
                                                 <div style={TT}>
                                                     <p style={{ color: 'var(--text-bright)', fontWeight: 'bold', marginBottom: 4 }}>{d.source}</p>
-                                                    <p><span style={{ color: 'var(--text-secondary)' }}>Accuracy: </span><span style={{ color: d.accuracy >= 55 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>{d.accuracy.toFixed(1)}%</span></p>
-                                                    <p><span style={{ color: 'var(--text-secondary)' }}>MAE: </span><span style={{ color: 'var(--text-primary)' }}>{d.score_mae.toFixed(2)}</span></p>
+                                                    <p><span style={{ color: 'var(--text-secondary)' }}>Edge: </span><span style={{ color: edgeVal >= 0 ? 'var(--win)' : 'var(--loss)', fontWeight: 'bold' }}>{edgeVal >= 0 ? '+' : ''}{edgeVal.toFixed(1)}%</span></p>
                                                     <p><span style={{ color: 'var(--text-secondary)' }}>Predictions: </span><span style={{ color: 'var(--text-primary)' }}>{d.total_predictions}</span></p>
                                                 </div>
                                             );
                                         }} />
-                                        <ReferenceLine x={50} stroke="rgba(255,255,255,0.3)" />
-                                        <Bar dataKey="accuracy" radius={[0, 3, 3, 0]}>
-                                            {[...sourceBreakdown].sort((a, b) => b.accuracy - a.accuracy).map((entry, i) => (
-                                                <Cell key={i} fill={entry.accuracy >= 60 ? 'var(--win)' : entry.accuracy >= 50 ? 'var(--pending)' : 'var(--loss)'} fillOpacity={entry.total_predictions < MIN_SAMPLE_SIZE ? 0.25 : 0.8} />
-                                            ))}
+                                        <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
+                                        <Bar dataKey="edge" radius={[0, 3, 3, 0]}>
+                                            {[...sourceBreakdown].sort((a, b) => {
+                                                const edgeA = a.edge ?? (a.accuracy - (a.implied_win_rate ?? 50.0));
+                                                const edgeB = b.edge ?? (b.accuracy - (b.implied_win_rate ?? 50.0));
+                                                return edgeB - edgeA;
+                                            }).map((entry, i) => {
+                                                const edgeVal = entry.edge ?? (entry.accuracy - (entry.implied_win_rate ?? 50.0));
+                                                return (
+                                                    <Cell key={i} fill={edgeVal >= 0 ? 'var(--win)' : 'var(--loss)'} fillOpacity={entry.total_predictions < MIN_SAMPLE_SIZE ? 0.25 : 0.8} />
+                                                );
+                                            })}
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -531,7 +492,7 @@ export default function RetrospectionSection({
 
             {sourceMarketCorrelation && sourceMarketCorrelation.sources.length > 0 && sourceMarketCorrelation.markets.length > 0 && (
                 <CorrelationContainer
-                    title="Source x Market Type Correlation"
+                    title="Source x Market Correlation"
                     tip="Cross-tabulation of prediction accuracy across sources and market types."
                     rowLabel="Source"
                     colLabel="Market Type"
