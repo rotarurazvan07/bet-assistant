@@ -24,12 +24,20 @@ jobs:
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Fetch Dependabot metadata
         id: meta
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
+        continue-on-error: true
+
+      - name: Verify metadata fetch succeeded
+        if: steps.meta.outcome != 'success'
+        run: |
+          echo "::error::dependabot/fetch-metadata failed; cannot determine update type/group. Failing closed."
+          exit 1
 
       - name: Gate on update-type and group (fail closed)
         id: gate
@@ -41,8 +49,7 @@ jobs:
           echo "update-type=${UPDATE_TYPE:-<unset>}"
           echo "dependency-group=${DEPENDENCY_GROUP:-<unset>}"
           # AC-07: only the patches group, and only a semver patch bump, may proceed.
-          if [ "${UPDATE_TYPE:-}" = "version-update:semver-patch" ] \
-             && [ "${DEPENDENCY_GROUP:-}" = "patches" ]; then
+          if [ "${UPDATE_TYPE:-}" = "version-update:semver-patch" ] \n             && [ "${DEPENDENCY_GROUP:-}" = "patches" ]; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
             echo "Patch group confirmed eligible for auto-merge."
           else
@@ -50,14 +57,16 @@ jobs:
             echo "Not eligible (minor/major/ungrouped/ambiguous) - skipping without merge."
           fi
 
-      - name: Wait for required checks
+      - name: Wait for required checks (with timeout)
         if: steps.gate.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
+        timeout-minutes: 10
         run: |
           # Blocks until every check completes; non-zero if any required check fails.
-          gh pr checks "$PR" --watch --required --fail-fast=3 --interval 30
+          # --timeout=600 ensures we don't wait forever (10 min).
+          gh pr checks "$PR" --watch --required --fail-fast=3 --interval 30 --timeout=600
 
       - name: Re-confirm head commit unchanged
         if: steps.gate.outputs.eligible == 'true'
@@ -89,8 +98,4 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-          gh pr merge "$PR" \
-            --squash \
-            --match-head-commit "$SHA" \
-            --subject "${TITLE} (#${PR})" \
-            --body "Auto-merged by dependabot-auto-merge: patches group, all required checks green at ${SHA}."
+          gh pr merge "$PR" \n            --squash \n            --match-head-commit "$SHA" \n            --subject "${TITLE} (#${PR})" \n            --body "Auto-merged by dependabot-auto-merge: patches group, all required checks green at ${SHA}."
