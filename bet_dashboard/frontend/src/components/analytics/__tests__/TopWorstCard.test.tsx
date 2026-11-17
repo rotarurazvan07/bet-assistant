@@ -40,11 +40,11 @@ describe('TopWorstCard', () => {
             />
         );
 
-        expect(screen.getByText(`1. Market: ${key1}`)).toBeInTheDocument();
+        expect(screen.getByText(`Market: ${key1}`)).toBeInTheDocument();
         expect(screen.getByText('+8.5%')).toBeInTheDocument();
         expect(screen.getByText('(n=25)')).toBeInTheDocument();
 
-        expect(screen.getByText(`2. Market: ${key2}`)).toBeInTheDocument();
+        expect(screen.getByText(`Market: ${key2}`)).toBeInTheDocument();
         expect(screen.getByText('+4.2%')).toBeInTheDocument();
         expect(screen.getByText('(n=18)')).toBeInTheDocument();
 
@@ -66,7 +66,7 @@ describe('TopWorstCard', () => {
             />
         );
 
-        expect(screen.getByText('1. League A')).toBeInTheDocument();
+        expect(screen.getByText('League A')).toBeInTheDocument();
         expect(screen.getByText('No eligible worst items')).toBeInTheDocument();
     });
 });
