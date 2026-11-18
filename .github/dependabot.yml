@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # ---------------------------------------------------------------- GitHub Actions
+  # ----------------------------------------------------------- GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -9,31 +9,26 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Bucharest"
+
     open-pull-requests-limit: 10
 
     groups:
-      patches:
-        applies-to: version-updates
+      github-actions-non-major:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - patch
+          - "patch"
+          - "minor"
 
-      minors:
-        applies-to: version-updates
+      github-actions-majors:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - minor
+          - "major"
 
-      majors:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - major
-
-  # ------------------------------------------------------------------------- npm
+  # --------------------------------------------------------------------- npm
   - package-ecosystem: "npm"
     directory: "/bet_dashboard/frontend"
     schedule:
@@ -41,31 +36,77 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Bucharest"
+
     open-pull-requests-limit: 10
 
     groups:
-      patches:
-        applies-to: version-updates
+      # These packages frequently have interconnected peer-dependency
+      # constraints and should be resolved in the same update.
+      npm-typescript-tooling:
+        applies-to: "version-updates"
+        patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+          - "eslint"
+          - "@eslint/*"
+          - "openapi-typescript"
+          - "vite"
+          - "@vitejs/*"
+        update-types:
+          - "patch"
+          - "minor"
+          - "major"
+
+      npm-patches:
+        applies-to: "version-updates"
         patterns:
           - "*"
+        exclude-patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+          - "eslint"
+          - "@eslint/*"
+          - "openapi-typescript"
+          - "vite"
+          - "@vitejs/*"
         update-types:
-          - patch
+          - "patch"
 
-      minors:
-        applies-to: version-updates
+      npm-minors:
+        applies-to: "version-updates"
         patterns:
           - "*"
+        exclude-patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+          - "eslint"
+          - "@eslint/*"
+          - "openapi-typescript"
+          - "vite"
+          - "@vitejs/*"
         update-types:
-          - minor
+          - "minor"
 
-      majors:
-        applies-to: version-updates
+      npm-majors:
+        applies-to: "version-updates"
         patterns:
           - "*"
+        exclude-patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+          - "eslint"
+          - "@eslint/*"
+          - "openapi-typescript"
+          - "vite"
+          - "@vitejs/*"
         update-types:
-          - major
+          - "major"
 
-  # ------------------------------------------------------------------------- pip
+  # ------------------------------------------------------------- Backend pip
   - package-ecosystem: "pip"
     directory: "/bet_dashboard/backend"
     schedule:
@@ -73,30 +114,32 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Bucharest"
+
     open-pull-requests-limit: 10
 
     groups:
-      patches:
-        applies-to: version-updates
+      backend-pip-patches:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - patch
+          - "patch"
 
-      minors:
-        applies-to: version-updates
+      backend-pip-minors:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - minor
+          - "minor"
 
-      majors:
-        applies-to: version-updates
+      backend-pip-majors:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - major
+          - "major"
 
+  # --------------------------------------------------------------- Setup pip
   - package-ecosystem: "pip"
     directory: "/setup"
     schedule:
@@ -104,26 +147,21 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Europe/Bucharest"
+
     open-pull-requests-limit: 10
 
     groups:
-      patches:
-        applies-to: version-updates
+      setup-pip-non-major:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - patch
+          - "patch"
+          - "minor"
 
-      minors:
-        applies-to: version-updates
+      setup-pip-majors:
+        applies-to: "version-updates"
         patterns:
           - "*"
         update-types:
-          - minor
-
-      majors:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - major
+          - "major"
