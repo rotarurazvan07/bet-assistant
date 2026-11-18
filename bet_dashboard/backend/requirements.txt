@@ -2,7 +2,7 @@ fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 websockets>=12.0
 python-multipart>=0.0.9
-pydantic>=2.7.0
+pydantic>=2.14.3
 pandas
 git+https://github.com/rotarurazvan07/scrape-kit.git@v0.3.0
 beautifulsoup4
