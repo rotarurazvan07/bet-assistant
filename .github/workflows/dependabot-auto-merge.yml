@@ -66,18 +66,17 @@ jobs:
             echo "Not eligible (minor/major/ungrouped/ambiguous) - skipping without merge."
           fi
 
-      - name: Wait for required checks (with timeout)
+      - name: Wait for required checks
         if: steps.gate.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR: ${{ github.event.pull_request.number }}
         timeout-minutes: 10
         run: |
-          # Blocks until every check completes; non-zero if any required check fails.
           gh pr checks "$PR" \
             --watch \
             --required \
-            --fail-fast=3 \
+            --fail-fast \
             --interval 30
 
       - name: Re-confirm head commit unchanged
