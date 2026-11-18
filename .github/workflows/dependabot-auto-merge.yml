@@ -1,10 +1,14 @@
 # Auto-merge Dependabot PATCH updates only, once required CI checks pass.
-# Minors and majors never reach the merge step (AC-07 fail-closed guard).
+
 name: Dependabot auto-merge (patches)
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
 
 # Least privilege needed to merge a PR.
 permissions:
@@ -23,14 +27,16 @@ jobs:
       github.actor == 'dependabot[bot]' &&
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.head.repo.full_name == github.repository
+
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     steps:
       - name: Fetch Dependabot metadata
         id: meta
         uses: dependabot/fetch-metadata@v2
         with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
       - name: Verify metadata fetch succeeded
@@ -46,10 +52,13 @@ jobs:
           DEPENDENCY_GROUP: ${{ steps.meta.outputs.dependency-group }}
         run: |
           set -u
+
           echo "update-type=${UPDATE_TYPE:-<unset>}"
           echo "dependency-group=${DEPENDENCY_GROUP:-<unset>}"
+
           # AC-07: only the patches group, and only a semver patch bump, may proceed.
-          if [ "${UPDATE_TYPE:-}" = "version-update:semver-patch" ] \n             && [ "${DEPENDENCY_GROUP:-}" = "patches" ]; then
+          if [[ "${UPDATE_TYPE:-}" == "version-update:semver-patch" &&
+                "${DEPENDENCY_GROUP:-}" == "patches" ]]; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
             echo "Patch group confirmed eligible for auto-merge."
           else
@@ -65,8 +74,11 @@ jobs:
         timeout-minutes: 10
         run: |
           # Blocks until every check completes; non-zero if any required check fails.
-          # --timeout=600 ensures we don't wait forever (10 min).
-          gh pr checks "$PR" --watch --required --fail-fast=3 --interval 30 --timeout=600
+          gh pr checks "$PR" \
+            --watch \
+            --required \
+            --fail-fast=3 \
+            --interval 30
 
       - name: Re-confirm head commit unchanged
         if: steps.gate.outputs.eligible == 'true'
@@ -77,8 +89,11 @@ jobs:
           EVENT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -u
+
           CURRENT_SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+
           echo "event=$EVENT_SHA current=$CURRENT_SHA"
+
           if [ "$EVENT_SHA" = "$CURRENT_SHA" ]; then
             echo "sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
             echo "stable=true" >> "$GITHUB_OUTPUT"
@@ -98,4 +113,9 @@ jobs:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
-          gh pr merge "$PR" \n            --squash \n            --match-head-commit "$SHA" \n            --subject "${TITLE} (#${PR})" \n            --body "Auto-merged by dependabot-auto-merge: patches group, all required checks green at ${SHA}."
+
+          gh pr merge "$PR" \
+            --squash \
+            --match-head-commit "$SHA" \
+            --subject "${TITLE} (#${PR})" \
+            --body "Auto-merged by dependabot-auto-merge: patches group, all required checks green at ${SHA}."
