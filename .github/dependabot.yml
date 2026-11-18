@@ -1,7 +1,5 @@
-# Dependabot configuration — risk-based grouping
-# Groups: patches (auto-merge eligible) / minors (review only) / majors (manual)
-# See docs/development.md#dependabot for review expectations.
 version: 2
+
 updates:
   # ---------------------------------------------------------------- GitHub Actions
   - package-ecosystem: "github-actions"
@@ -12,29 +10,28 @@ updates:
       time: "07:00"
       timezone: "Europe/Bucharest"
     open-pull-requests-limit: 10
+
     groups:
       patches:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-patch"
+          - patch
+
       minors:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-minor"
-        labels:
-          - "dependabot-minor"
+          - minor
+
       majors:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-major"
-        labels:
-          - "dependabot-major"
+          - major
 
   # ------------------------------------------------------------------------- npm
   - package-ecosystem: "npm"
@@ -45,61 +42,88 @@ updates:
       time: "07:00"
       timezone: "Europe/Bucharest"
     open-pull-requests-limit: 10
+
     groups:
       patches:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-patch"
+          - patch
+
       minors:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-minor"
-        labels:
-          - "dependabot-minor"
+          - minor
+
       majors:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-major"
-        labels:
-          - "dependabot-major"
+          - major
 
   # ------------------------------------------------------------------------- pip
   - package-ecosystem: "pip"
-    directories:
-      - "/bet_dashboard/backend"
-      - "/setup"
+    directory: "/bet_dashboard/backend"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "07:00"
       timezone: "Europe/Bucharest"
     open-pull-requests-limit: 10
+
     groups:
       patches:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-patch"
+          - patch
+
       minors:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-minor"
-        labels:
-          - "dependabot-minor"
+          - minor
+
       majors:
         applies-to: version-updates
         patterns:
           - "*"
         update-types:
-          - "version-update:semver-major"
-        labels:
-          - "dependabot-major"
+          - major
+
+  - package-ecosystem: "pip"
+    directory: "/setup"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Europe/Bucharest"
+    open-pull-requests-limit: 10
+
+    groups:
+      patches:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - patch
+
+      minors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
