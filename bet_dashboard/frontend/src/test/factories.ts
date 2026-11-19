@@ -145,6 +145,7 @@ export function makeAnalyticsData(overrides: Partial<AnalyticsData> = {}): Analy
             day_of_week: [makeTimePatternItem()],
             hour: [makeTimePatternItem()],
         },
+        insights: [],
         ...overrides,
     };
 }

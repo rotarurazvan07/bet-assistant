@@ -296,7 +296,24 @@ export interface SourceBreakdown {
 export interface SourceMarketCorrelation {
     sources: string[];
     markets: string[];
-    matrix: Record<string, Record<string, { accuracy: number; total: number }>>;
+    matrix: Record<string, Record<string, { win_rate: number; edge: number; total: number }>>;
+}
+
+export interface AnalyticsInsight {
+    id: string;
+    priority: 'high' | 'medium' | 'watch';
+    confidence: 'high' | 'medium' | 'low';
+    direction: 'opportunity' | 'risk';
+    edge: number;
+    sample_size: number;
+    win_rate: number;
+    implied_win_rate: number;
+    target: {
+        section: 'market' | 'source' | 'league';
+        market?: string;
+        source?: string;
+        league?: string;
+    };
 }
 
 export interface RollingEdgePoint {
@@ -342,6 +359,7 @@ export interface AnalyticsData {
     };
     source_breakdown?: SourceBreakdown[];
     source_market_correlation?: SourceMarketCorrelation;
+    insights?: AnalyticsInsight[];
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

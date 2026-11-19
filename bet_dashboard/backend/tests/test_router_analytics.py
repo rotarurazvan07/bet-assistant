@@ -25,6 +25,7 @@ EXPECTED_KEYS = {
     "correlation_matrix",
     "source_breakdown",
     "source_market_correlation",
+    "insights",
 }
 
 

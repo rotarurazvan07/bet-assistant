@@ -7,7 +7,7 @@ import TopWorstCard from './TopWorstCard';
 import IntelligenceContainer, { type IntelligenceColumn } from './IntelligenceContainer';
 import CorrelationContainer, { type ViewOption } from './CorrelationContainer';
 import { Tooltip as HoverTooltip } from '../ui';
-import { marketLabel, marketTypeLabel } from '../../config/marketConfig';
+import { marketLabel } from '../../config/marketConfig';
 import {
     filterEligibleItems, rankTopWorst, MIN_SAMPLE_SIZE, type RankableItem,
     trustLevel, sortByTrust, type TrustLevel,
@@ -267,9 +267,21 @@ export default function RetrospectionSection({
 
     const sourceMarketViews: ViewOption[] = [
         {
-            key: 'accuracy',
-            label: 'Accuracy',
-            getValue: cell => cell.accuracy ?? 0,
+            key: 'edge',
+            label: 'Edge',
+            getValue: cell => cell.edge ?? 0,
+            formatValue: val => `${val > 0 ? '+' : ''}${val.toFixed(1)}%`,
+            getColor: val => {
+                if (val > 5) return { color: 'var(--win)', bg: 'rgba(0, 200, 100, 0.15)' };
+                if (val > 0) return { color: 'var(--win)', bg: 'rgba(0, 200, 100, 0.05)' };
+                if (val < -5) return { color: 'var(--loss)', bg: 'rgba(255, 80, 80, 0.15)' };
+                return { color: 'var(--loss)', bg: 'rgba(255, 80, 80, 0.05)' };
+            },
+        },
+        {
+            key: 'win_rate',
+            label: 'Win Rate',
+            getValue: cell => cell.win_rate ?? 0,
             formatValue: val => `${val.toFixed(1)}%`,
             getColor: val => {
                 if (val >= 60) return { color: 'var(--win)', bg: 'rgba(0, 200, 100, 0.15)' };
@@ -408,7 +420,7 @@ export default function RetrospectionSection({
                 </div>
             </div>
 
-            {/* 3. Source Intelligence (Table, Chart, Highlights) */}
+            {/* 3. Source Intelligence */}
             {sourceBreakdown.length > 0 && (
                 <div className="flex flex-col gap-4">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -493,12 +505,12 @@ export default function RetrospectionSection({
             {sourceMarketCorrelation && sourceMarketCorrelation.sources.length > 0 && sourceMarketCorrelation.markets.length > 0 && (
                 <CorrelationContainer
                     title="Source x Market Correlation"
-                    tip="Cross-tabulation of prediction accuracy across sources and market types."
+                    tip="Cross-tabulation of source win rate and edge across market selections."
                     rowLabel="Source"
-                    colLabel="Market Type"
+                    colLabel="Market"
                     rows={sourceMarketCorrelation.sources}
                     cols={sourceMarketCorrelation.markets}
-                    formatColumnLabel={marketTypeLabel}
+                    formatColumnLabel={marketLabel}
                     matrix={sourceMarketCorrelation.matrix}
                     views={sourceMarketViews}
                 />

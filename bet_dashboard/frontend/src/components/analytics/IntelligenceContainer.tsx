@@ -98,7 +98,7 @@ export default function IntelligenceContainer<T extends object>({
                 {tip && <TooltipIcon text={tip} align="right" />}
             </div>
 
-            <div className="flex-1 overflow-x-auto rounded-xl border border-[var(--border)] max-h-[500px]">
+            <div className="flex-1 overflow-x-auto rounded-xl border border-[var(--border)] max-h-[800px]">
                 {sortedData.length === 0 ? (
                     <div className="p-8 text-center text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>
                         {emptyText}
