@@ -43,6 +43,14 @@ function orderedProfileNames(profiles: ProfilesMap): string[] {
     });
 }
 
+// Mirrors the backend name rule (routers/profiles.py keeps alnum plus
+// '-'/'_' and lowercases) so a rename never round-trips through a name the
+// server would silently rewrite — including its handling of spaces, which
+// are dropped, not substituted.
+function sanitizeProfileName(raw: string): string {
+    return raw.replace(/[^A-Za-z0-9_-]/g, '').toLowerCase();
+}
+
 interface Props { refreshKey: number }
 
 // Units and Target Payout are mutually exclusive: the filled one drives the
@@ -441,6 +449,89 @@ export default function SmartBuilder({ refreshKey }: Props) {
         }
     }
 
+    // Inline rename: commit = POST the full existing profile under the new
+    // sanitized name, then DELETE the old key. The POST payload carries
+    // units/target_payout/order/scheduling fields explicitly because the
+    // backend only carries those over for a SAME-name save — a new-name save
+    // with omitted fields would reset them to defaults.
+    const [renamingName, setRenamingName] = useState<string | null>(null);
+    const [renameDraft, setRenameDraft] = useState('');
+    const [isRenamingBusy, setIsRenamingBusy] = useState(false);
+    const renameBusy = useRef(false);
+
+    function startRename(name: string) {
+        if (renameBusy.current) return;
+        setRenamingName(name);
+        setRenameDraft(name);
+    }
+
+    function cancelRename() {
+        setRenamingName(null);
+        setRenameDraft('');
+    }
+
+    async function handleRenameProfile(oldName: string, rawDraft: string) {
+        // Validate BEFORE cancelling the input so a bad draft stays editable.
+        const name = sanitizeProfileName(rawDraft);
+        if (!name) {
+            setStatus('Profile name must contain letters or digits');
+            return;
+        }
+        // No-op: case-only rename (e.g., 'Bold' → 'bold') is treated as cancel.
+        if (name === sanitizeProfileName(oldName)) {
+            cancelRename();
+            setStatus('');
+            return;
+        }
+        // Duplicate: use hasOwn to avoid prototype-key false positives.
+        if (Object.prototype.hasOwnProperty.call(profiles, name)) {
+            const detail = name !== rawDraft.trim() ? ` (from '${rawDraft.trim()}')` : '';
+            setStatus(`Profile '${name}' already exists${detail}`);
+            return;
+        }
+        const source = profiles[oldName];
+        if (!source) {
+            setStatus(`'${oldName}' is not a saved profile`);
+            return;
+        }
+        cancelRename();
+        if (renameBusy.current) return;
+        renameBusy.current = true;
+        setIsRenamingBusy(true);
+        // Suppress the 600ms debounced autosave while we move the profile key.
+        dirtyRef.current = false;
+        if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+        try {
+            // Full-object spread: scheduling/units keys live at the profile
+            // root on disk and must survive the key move verbatim.
+            const payload = { ...source, name } as Profile & { name: string };
+            await saveProfile(payload);
+            await deleteProfile(oldName);
+            const updated = await fetchProfiles();
+            // Guard against a null/undefined fetch response silently wiping the list.
+            if (updated) setProfiles(updated);
+            // Renaming the active profile keeps it active; the persist effect
+            // rewrites smart_builder_state.activeName from this state change.
+            if (activeName === oldName) setActiveName(name);
+            // Known LOW: the backend delete purges the profile's once-per-day
+            // run stamp, so a renamed profile re-arms for the current day.
+            setStatus(`Renamed '${oldName}' to '${name}'`);
+        } catch {
+            // Best-effort rollback if POST succeeded but DELETE failed:
+            // remove the just-created profile, then resync — a resync that
+            // also throws must not hide the failure status.
+            try { await deleteProfile(name); } catch { /* ignore */ }
+            try {
+                const resync = await fetchProfiles();
+                if (resync) setProfiles(resync);
+            } catch { /* keep the pre-rename list */ }
+            setStatus('⚠ Rename failed — check the server and retry');
+        } finally {
+            renameBusy.current = false;
+            setIsRenamingBusy(false);
+        }
+    }
+
     async function handleAddToSlips() {
         if (!preview?.legs.length) {
             setStatus('No legs in preview.'); return;
@@ -528,6 +619,7 @@ export default function SmartBuilder({ refreshKey }: Props) {
                         <div className="flex items-center gap-2 flex-wrap" data-testid="profile-cards">
                             {orderedProfileNames(profiles).map(name => {
                                 const active = activeName === name;
+                                const isRenaming = renamingName === name;
                                 return (
                                     <div key={name}
                                         data-profile-chip={name}
@@ -539,47 +631,88 @@ export default function SmartBuilder({ refreshKey }: Props) {
                                             border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
                                             boxShadow: active ? 'var(--shadow-md)' : 'none',
                                         }}>
-                                        {/* select the profile */}
-                                        <button
-                                            type="button"
-                                            aria-pressed={active}
-                                            onClick={() => loadProfile(name, profiles[name])}
-                                            className="px-3 py-2 text-sm font-sans font-semibold rounded-xl"
-                                            style={{
-                                                color: active ? 'var(--accent)' : 'var(--text-primary)',
-                                                cursor: 'pointer',
-                                                background: 'transparent',
-                                                border: 'none',
-                                            }}>
-                                            {name}
-                                        </button>
-                                        {/* per-card X: transparent until hover, then loss-red */}
-                                        <button
-                                            type="button"
-                                            className="w-6 h-6 mr-1 flex items-center justify-center rounded-lg transition-all duration-200"
-                                            style={{
-                                                color: 'var(--text-secondary)',
-                                                background: 'transparent',
-                                                border: '1px solid transparent',
-                                                opacity: 0.55,
-                                                cursor: 'pointer',
-                                            }}
-                                            title={`Delete profile '${name}'`}
-                                            aria-label={`Delete profile '${name}'`}
-                                            onMouseEnter={e => {
-                                                e.currentTarget.style.opacity = '1';
-                                                e.currentTarget.style.color = 'var(--loss)';
-                                                e.currentTarget.style.background = 'var(--loss-glow, rgba(239, 68, 68, 0.12))';
-                                                e.currentTarget.style.borderColor = 'var(--loss-border, rgba(239, 68, 68, 0.35))';
-                                            }}
-                                            onMouseLeave={e => {
-                                                e.currentTarget.style.opacity = '0.55';
-                                                e.currentTarget.style.color = 'var(--text-secondary)';
-                                                e.currentTarget.style.background = 'transparent';
-                                                e.currentTarget.style.borderColor = 'transparent';
-                                            }}
-                                            onClick={() => void handleDeleteProfile(name)}
-                                        >✕</button>
+                                        {/* rename mode: name becomes an inline text field;
+                                            Enter commits, Escape cancels. The bus icon
+                                            enters rename mode on the display row. */}
+                                        {isRenaming ? (
+                                            <input
+                                                autoFocus
+                                                disabled={isRenamingBusy}
+                                                aria-label={`Profile name for '${name}'`}
+                                                value={renameDraft}
+                                                onChange={e => setRenameDraft(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (isRenamingBusy) return;
+                                                    if (e.key === 'Enter') { e.preventDefault(); void handleRenameProfile(name, renameDraft); }
+                                                    else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+                                                }}
+                                                className="px-3 py-2 text-sm font-sans rounded-lg w-36"
+                                                style={{
+                                                    background: 'var(--bg-card)',
+                                                    border: '1px solid var(--accent)',
+                                                    color: isRenamingBusy ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                                    outline: 'none',
+                                                }}
+                                            />
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                aria-pressed={active}
+                                                onDoubleClick={() => startRename(name)}
+                                                onClick={() => loadProfile(name, profiles[name])}
+                                                className="px-3 py-2 text-sm font-sans font-semibold rounded-xl"
+                                                title={`Select profile '${name}' (double-click to rename)`}
+                                                style={{
+                                                    color: active ? 'var(--accent)' : 'var(--text-primary)',
+                                                    cursor: 'pointer',
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                }}>
+                                                {name}
+                                            </button>
+                                        )}
+                                        {!isRenaming && !isRenamingBusy && (
+                                            /* pencil: enters rename mode (hidden while any rename is in flight) */
+                                            <button
+                                                type="button"
+                                                className="w-6 h-6 mr-1 flex items-center justify-center rounded-lg transition-all duration-200"
+                                                style={{ color: 'var(--text-secondary)', background: 'transparent', border: '1px solid transparent', opacity: 0.55, cursor: 'pointer' }}
+                                                title={`Rename profile '${name}'`}
+                                                aria-label={`Rename profile '${name}'`}
+                                                onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--accent)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.opacity = '0.55'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                                                onClick={() => startRename(name)}
+                                            >✎</button>
+                                        )}
+                                        {!isRenaming && (
+                                            /* per-card X: transparent until hover, then loss-red */
+                                            <button
+                                                type="button"
+                                                className="w-6 h-6 mr-1 flex items-center justify-center rounded-lg transition-all duration-200"
+                                                style={{
+                                                    color: 'var(--text-secondary)',
+                                                    background: 'transparent',
+                                                    border: '1px solid transparent',
+                                                    opacity: 0.55,
+                                                    cursor: 'pointer',
+                                                }}
+                                                title={`Delete profile '${name}'`}
+                                                aria-label={`Delete profile '${name}'`}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.opacity = '1';
+                                                    e.currentTarget.style.color = 'var(--loss)';
+                                                    e.currentTarget.style.background = 'var(--loss-glow, rgba(239, 68, 68, 0.12))';
+                                                    e.currentTarget.style.borderColor = 'var(--loss-border, rgba(239, 68, 68, 0.35))';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.opacity = '0.55';
+                                                    e.currentTarget.style.color = 'var(--text-secondary)';
+                                                    e.currentTarget.style.background = 'transparent';
+                                                    e.currentTarget.style.borderColor = 'transparent';
+                                                }}
+                                                onClick={() => void handleDeleteProfile(name)}
+                                            >✕</button>
+                                        )}
                                     </div>
                                 );
                             })}
