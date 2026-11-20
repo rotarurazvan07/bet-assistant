@@ -114,4 +114,26 @@ describe('RetrospectionSection trust score', () => {
         expect(await screen.findByText(/Latest prediction: 2026-11-10/)).toBeInTheDocument();
         expect(await screen.findByText(/Trust score: 0\.700/)).toBeInTheDocument();
     });
+
+    it('shows source performance by market with edge and win-rate views', async () => {
+        const user = userEvent.setup();
+        render(
+            <RetrospectionSection
+                {...baseProps}
+                sourceMarketCorrelation={{
+                    sources: ['forebet'],
+                    markets: ['home'],
+                    matrix: { forebet: { home: { win_rate: 60, edge: 7.4, total: 12 } } },
+                }}
+            />
+        );
+
+        expect(screen.getByText('Source x Market Correlation')).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: /Source.*Market/ })).toBeInTheDocument();
+        expect(screen.getByText('1')).toBeInTheDocument();
+        expect(screen.getByText('+7.4%')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Win Rate' }));
+        expect(screen.getByText('60.0%')).toBeInTheDocument();
+    });
 });

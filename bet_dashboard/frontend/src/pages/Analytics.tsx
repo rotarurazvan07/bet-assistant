@@ -10,6 +10,7 @@ import { usePageDateRange } from '../hooks/usePageDateRange';
 import FinancialsSection from '../components/analytics/FinancialsSection';
 import StrategySection from '../components/analytics/StrategySection';
 import RetrospectionSection from '../components/analytics/RetrospectionSection';
+import InsightsSection from '../components/analytics/InsightsSection';
 import { computeFinancials } from '../utils/analyticsFinancials';
 import { computeStrategy } from '../utils/analyticsStrategy';
 import type { AnalyticsData } from '../types';
@@ -207,6 +208,7 @@ export default function Analytics({ refreshKey }: Props) {
     return (
         <div>
             {filterControls}
+            <InsightsSection insights={data.insights ?? []} />
 
             {/* ── 1. Financials: WHAT HAPPENED ───────────────────────────── */}
             <FinancialsSection

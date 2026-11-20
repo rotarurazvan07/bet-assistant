@@ -12,6 +12,7 @@ from core.analytics_utils import calculate_daily_summary
 from routers.analytics import (
     _correlation_matrix,
     _drawdown_data,
+    _generate_insights,
     _get_status_value,
     _league_breakdown,
     _market_breakdown,
@@ -47,6 +48,60 @@ class TestDrawdownData:
         assert out[1]["drawdown"] == 0.0
         assert out[2]["drawdown"] == -6.0
         assert out[2]["peak"] == 8.0
+
+
+class TestGenerateInsights:
+    def test_returns_market_source_and_league_actions(self) -> None:
+        slips = [
+            make_slip(
+                slip_id=index,
+                legs=[
+                    make_leg(
+                        result_url=f"https://example.com/{index}",
+                        predictions=[{"source": "forebet", "home": 2, "away": 1}],
+                    )
+                ],
+            )
+            for index in range(30)
+        ]
+
+        insights = _generate_insights(slips)
+
+        assert {(item["target"]["section"], item["direction"]) for item in insights} == {
+            ("market", "opportunity"),
+            ("source", "opportunity"),
+            ("league", "opportunity"),
+        }
+        assert all(item["priority"] == "high" for item in insights)
+        assert all(item["confidence"] == "high" for item in insights)
+        assert all(item["sample_size"] == 30 for item in insights)
+
+    def test_omits_results_below_the_minimum_sample_size(self) -> None:
+        slips = [make_slip(slip_id=index, legs=[make_leg(result_url=f"https://example.com/{index}")]) for index in range(9)]
+
+        assert _generate_insights(slips) == []
+
+    def test_returns_risk_actions_for_consistent_underperformance(self) -> None:
+        slips = [
+            make_slip(
+                slip_id=index,
+                slip_status="Lost",
+                legs=[
+                    make_leg(
+                        status="Lost",
+                        result_url=f"https://example.com/{index}",
+                        final_score="0:0",
+                        predictions=[{"source": "forebet", "home": 2, "away": 1}],
+                    )
+                ],
+            )
+            for index in range(30)
+        ]
+
+        insights = _generate_insights(slips)
+
+        assert len(insights) == 3
+        assert all(item["direction"] == "risk" for item in insights)
 
 
 class TestBankrollHistory:
@@ -192,12 +247,12 @@ class TestSourceMarketCorrelation:
         )
         return make_slip(legs=[leg])
 
-    def test_matrix_accuracy_computed(self) -> None:
+    def test_matrix_metrics_are_computed_per_market(self) -> None:
         out = _source_market_correlation([self._pred_slip()])
         assert out["sources"] == ["forebet", "xgscore"]
-        assert out["markets"] == ["result"]
-        assert out["matrix"]["forebet"]["result"] == {"accuracy": 100.0, "total": 1}
-        assert out["matrix"]["xgscore"]["result"] == {"accuracy": 0.0, "total": 1}
+        assert out["markets"] == ["1"]
+        assert out["matrix"]["forebet"]["1"] == {"win_rate": 100.0, "edge": 47.4, "total": 1}
+        assert out["matrix"]["xgscore"]["1"] == {"win_rate": 0.0, "edge": -52.6, "total": 1}
 
     def test_legs_without_predictions_skipped(self) -> None:
         slip = make_slip(legs=[make_leg(predictions=[], final_score="2:1")])

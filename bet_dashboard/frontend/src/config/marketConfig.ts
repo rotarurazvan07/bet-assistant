@@ -108,21 +108,3 @@ const LABEL_BY_KEY: Record<string, string> = Object.fromEntries(
 export function marketLabel(key: string): string {
     return LABEL_BY_KEY[key] ?? key;
 }
-
-// Canonical market type -> display label. Same style as market keys: human
-// text for presentation, keyed by the persisted wire value.
-const MARKET_TYPE_LABELS: Record<string, string> = {
-    result: 'Result (1X2)',
-    over_under_05: 'Over/Under 0.5',
-    over_under_15: 'Over/Under 1.5',
-    over_under_25: 'Over/Under 2.5',
-    over_under_35: 'Over/Under 3.5',
-    over_under_45: 'Over/Under 4.5',
-    btts: 'BTTS',
-    double_chance: 'Double Chance',
-};
-
-/** Display label for a canonical market type key; falls back to the raw key. */
-export function marketTypeLabel(key: string): string {
-    return MARKET_TYPE_LABELS[key] ?? key;
-}

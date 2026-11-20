@@ -16,6 +16,8 @@ from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
 
 WILSON_Z_90 = 1.645  # two-sided 90% Wilson interval
+INSIGHT_MIN_SAMPLE_SIZE = 10
+INSIGHT_MIN_EDGE = 2.0
 
 
 def _wilson_lower_bound(c: int, n: int) -> float:
@@ -286,7 +288,7 @@ def _predict_outcome_from_score(home_goals: int, away_goals: int, market_label: 
 
 def _source_market_correlation(slips) -> dict:
     """
-    Compute Source x Market correlation matrix showing prediction accuracy per source per market TYPE.
+    Compute Source x Market correlation matrix showing prediction performance per market.
 
     Returns:
         {
@@ -294,14 +296,14 @@ def _source_market_correlation(slips) -> dict:
             "markets": [...],
             "matrix": {
                 "source_name": {
-                    "market_type": { "accuracy": float, "total": int }
+                    "market": { "win_rate": float, "edge": float, "total": int }
                 }
             }
         }
     """
     source_data: dict[str, dict] = {}
     sources_set = set()
-    market_types_set = set()
+    markets_set = set()
 
     for slip in slips:
         s_status = _get_status_value(slip.slip_status)
@@ -330,8 +332,7 @@ def _source_market_correlation(slips) -> dict:
             market_type = str(leg.market_type)
             actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market_label, market_type)
 
-            market_type_display = market_type
-            market_types_set.add(market_type_display)
+            markets_set.add(market_label)
 
             for pred in predictions:
                 source = pred.get("source", "unknown")
@@ -342,33 +343,40 @@ def _source_market_correlation(slips) -> dict:
 
                 if source not in source_data:
                     source_data[source] = {}
-                if market_type_display not in source_data[source]:
-                    source_data[source][market_type_display] = {
+                if market_label not in source_data[source]:
+                    source_data[source][market_label] = {
                         "correct": 0,
                         "total": 0,
+                        "sum_implied": 0.0,
                     }
 
-                source_data[source][market_type_display]["total"] += 1
+                source_data[source][market_label]["total"] += 1
+                source_data[source][market_label]["sum_implied"] += (1.0 / leg.odds) if leg.odds > 0 else 0.0
 
                 predicted_outcome = _predict_outcome_from_score(pred_home, pred_away, market_label, market_type)
                 is_correct = predicted_outcome == actual_outcome
 
                 if is_correct:
-                    source_data[source][market_type_display]["correct"] += 1
+                    source_data[source][market_label]["correct"] += 1
 
     # Build matrix
     matrix = {}
     for source in sorted(sources_set):
         matrix[source] = {}
-        for market_type in sorted(market_types_set):
-            data = source_data.get(source, {}).get(market_type, {"correct": 0, "total": 0})
+        for market in sorted(markets_set):
+            data = source_data.get(source, {}).get(market, {"correct": 0, "total": 0, "sum_implied": 0.0})
             total = data["total"]
-            accuracy = round(data["correct"] / total * 100, 1) if total else 0.0
-            matrix[source][market_type] = {"accuracy": accuracy, "total": total}
+            win_rate = round(data["correct"] / total * 100, 1) if total else 0.0
+            implied_win_rate = round(data["sum_implied"] / total * 100, 1) if total else 0.0
+            matrix[source][market] = {
+                "win_rate": win_rate,
+                "edge": round(win_rate - implied_win_rate, 1),
+                "total": total,
+            }
 
     return {
         "sources": sorted(sources_set),
-        "markets": sorted(market_types_set),
+        "markets": sorted(markets_set),
         "matrix": matrix,
     }
 
@@ -515,6 +523,121 @@ def _source_breakdown(slips) -> list[dict]:
     return sorted(result, key=lambda x: x["accuracy"], reverse=True)
 
 
+def _add_insight_observation(data: dict, key: tuple, won: bool, odds: float) -> None:
+    """Accumulate an outcome and its market-implied probability for an insight candidate."""
+    if key not in data:
+        data[key] = {"won": 0, "total": 0, "sum_implied": 0.0, "sum_variance": 0.0}
+    probability = (1.0 / odds) if odds > 0 else 0.0
+    data[key]["won"] += int(won)
+    data[key]["total"] += 1
+    data[key]["sum_implied"] += probability
+    data[key]["sum_variance"] += probability * (1.0 - probability)
+
+
+def _insight_confidence(total: int, z_score: float) -> tuple[str, str] | None:
+    """Classify evidence strength for a sufficiently large, non-trivial result."""
+    absolute_z = abs(z_score)
+    if total >= 30 and absolute_z >= 1.96:
+        return "high", "high"
+    if total >= 20 and absolute_z >= 1.28:
+        return "medium", "medium"
+    if total >= INSIGHT_MIN_SAMPLE_SIZE and absolute_z >= 0.67:
+        return "watch", "low"
+    return None
+
+
+def _generate_insights(slips) -> list[dict]:
+    """Return evidence-backed market, source, and league actions from settled slips."""
+    market_data: dict[tuple, dict] = {}
+    source_data: dict[tuple, dict] = {}
+    league_data: dict[tuple, dict] = {}
+    processed_markets = set()
+
+    for slip in slips:
+        if _get_status_value(slip.slip_status) not in ("Won", "Lost"):
+            continue
+        for leg in slip.legs:
+            leg_status = _get_status_value(leg.status)
+            if leg_status not in ("Won", "Lost"):
+                continue
+
+            market = str(leg.market)
+            league = getattr(leg, "league", None) or "Unknown"
+            fingerprint = (getattr(leg, "result_url", None), market)
+            if fingerprint not in processed_markets:
+                processed_markets.add(fingerprint)
+                won = leg_status == "Won"
+                _add_insight_observation(market_data, ("market", market), won, leg.odds)
+                _add_insight_observation(league_data, ("league", league), won, leg.odds)
+
+            predictions = getattr(leg, "predictions", None)
+            final_score = getattr(leg, "final_score", None)
+            if not predictions or not final_score:
+                continue
+            try:
+                actual_home, actual_away = map(int, final_score.split(":"))
+            except (ValueError, AttributeError):
+                continue
+
+            market_type = str(leg.market_type)
+            actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market, market_type)
+            for prediction in predictions:
+                predicted_outcome = _predict_outcome_from_score(
+                    prediction.get("home", 0), prediction.get("away", 0), market, market_type
+                )
+                _add_insight_observation(
+                    source_data,
+                    ("source", prediction.get("source", "unknown")),
+                    predicted_outcome == actual_outcome,
+                    leg.odds,
+                )
+
+    insights = []
+    for kind, observations in (
+        ("market", market_data),
+        ("source", source_data),
+        ("league", league_data),
+    ):
+        for key, data in observations.items():
+            total = data["total"]
+            if total < INSIGHT_MIN_SAMPLE_SIZE:
+                continue
+            win_rate = data["won"] / total * 100
+            implied_win_rate = data["sum_implied"] / total * 100
+            edge = win_rate - implied_win_rate
+            if abs(edge) < INSIGHT_MIN_EDGE or data["sum_variance"] <= 0:
+                continue
+            z_score = (data["won"] - data["sum_implied"]) / math.sqrt(data["sum_variance"])
+            classification = _insight_confidence(total, z_score)
+            if classification is None:
+                continue
+            priority, confidence = classification
+            direction = "opportunity" if edge > 0 else "risk"
+            target = {"section": kind}
+            if kind == "market":
+                target["market"] = key[1]
+            elif kind == "source":
+                target["source"] = key[1]
+            else:
+                target["league"] = key[1]
+            insights.append(
+                {
+                    "id": ":".join(key),
+                    "priority": priority,
+                    "confidence": confidence,
+                    "direction": direction,
+                    "edge": round(edge, 1),
+                    "sample_size": total,
+                    "win_rate": round(win_rate, 1),
+                    "implied_win_rate": round(implied_win_rate, 1),
+                    "target": target,
+                }
+            )
+
+    priority_order = {"high": 0, "medium": 1, "watch": 2}
+    return sorted(insights, key=lambda item: (priority_order[item["priority"]], -abs(item["edge"]), -item["sample_size"]))
+
+
 # ── Existing helpers (unchanged) ───────────────────────────────────────────────
 
 
@@ -643,6 +766,7 @@ def get_analytics(
         # ── Source Reliability ─────────────────────────────────────────
         "source_breakdown": _source_breakdown(slips),
         "source_market_correlation": _source_market_correlation(slips),
+        "insights": _generate_insights(slips),
     }
     return sanitize_floats(response_data)
 
