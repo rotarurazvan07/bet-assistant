@@ -440,6 +440,28 @@ class TestAppLogicSlipOperations:
         assert app_env.app.generate_and_broadcast() == {}
         assert broadcast_capture[-1]["event"] == "slips_updated"
 
+    def test_generate_and_broadcast_zero_slips_does_not_stamp(self, tmp_path, monkeypatch) -> None:
+        """[P0] Manual generation returning 0 slips does not update profile_last_run."""
+        profiles = {
+            "p1": {
+                "target_odds": 2.0,
+                "target_legs": 1,
+                "auto_generate": True,
+            }
+        }
+        env = build_app(tmp_path, monkeypatch, profiles=profiles)
+        app = env.app
+        try:
+            monkeypatch.setattr(app, "generate_slips", lambda p: {"p1": []})
+            result = app.generate_and_broadcast()
+            assert result == {"p1": []}
+            runtime = app.settings.get("runtime_state") or {}
+            runs = runtime.get("profile_last_run") or {}
+            assert "p1" not in runs
+        finally:
+            app._assistant.conn.close()
+            app._matches_manager.close()
+
     # ── stats: all 25+ metrics ────────────────────────────────────────────
 
     @staticmethod

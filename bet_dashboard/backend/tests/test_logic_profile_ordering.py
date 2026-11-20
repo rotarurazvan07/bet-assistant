@@ -247,7 +247,7 @@ class TestDoGeneratePerProfile:
 
         def fake_generate(profiles):
             generated.extend(profiles)
-            return {}
+            return {name: ["slip_1"] for name in profiles}
 
         monkeypatch.setattr(env.app, "generate_slips", fake_generate)
         _freeze(monkeypatch, hour=9)
@@ -262,6 +262,30 @@ class TestDoGeneratePerProfile:
         for legacy in ("profile_last_generated", "profile_last_generated_at", "profile_run_status", "last_time_generated"):
             assert legacy not in runtime
         assert [event["event"] for event in broadcast_capture[-2:]] == ["slips_updated", "generation_updated"]
+
+    def test_due_profile_without_slips_does_not_stamp(self, env, monkeypatch, broadcast_capture) -> None:
+        """[P0] Profile generation producing 0 slips does not update last_generated timestamp."""
+        _save_profiles(
+            env.app,
+            {
+                "due": {
+                    **PROFILE,
+                    "auto_generate": True,
+                    "generate_hour": 8,
+                    "generate_minute": 0,
+                },
+            },
+        )
+
+        def fake_generate_empty(profiles):
+            return {"due": []}
+
+        monkeypatch.setattr(env.app, "generate_slips", fake_generate_empty)
+        _freeze(monkeypatch, hour=9)
+        env.app._do_generate()
+        runtime = env.app.settings.get("runtime_state") or {}
+        runs = runtime.get("profile_last_run") or {}
+        assert "due" not in runs
 
     def test_nothing_due_generates_nothing(self, env, monkeypatch, broadcast_capture) -> None:
         """[P0] When no profile is due nothing generates and no timestamps persist."""
@@ -492,7 +516,9 @@ class TestOrderingRobustness:
             env.app,
             {"due": {**PROFILE, "run_daily_count": 1, "generate_hour": 8, "generate_minute": 0}},
         )
-        monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {})
+        # Stamping is conditional on producing at least one slip — the
+        # profile must generate a slip to claim its run entry.
+        monkeypatch.setattr(env.app, "generate_slips", lambda profiles: {name: ["slip_1"] for name in profiles})
         _freeze(monkeypatch, hour=9)
         env.app._do_generate()
         runs = (env.app.settings.get("runtime_state") or {}).get("profile_last_run") or {}
