@@ -32,6 +32,7 @@ export const handlers = [
     http.get('/api/profiles', () => HttpResponse.json({ profiles: makeProfilesMap() })),
     http.post('/api/profiles', () => HttpResponse.json({ ok: true })),
     http.delete('/api/profiles/:name', () => HttpResponse.json({ ok: true })),
+    http.post('/api/profiles/rename', () => HttpResponse.json({ renamed: 'renamed', migrated_count: 1 })),
 
     // ── slips ───────────────────────────────────────────────────────────
     http.get('/api/slips', () => HttpResponse.json(makeSlipsPage())),

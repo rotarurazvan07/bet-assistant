@@ -33,6 +33,8 @@ let lastPreviewBody = '';
 let slipPosts = 0;
 let deleted: string[] = [];
 let savedPosts: Array<Record<string, unknown>> = [];
+let renameCalls: Array<{ old_name: string; new_name: string }> = [];
+let migratedCount = 1;
 let profileMap: Record<string, ReturnType<typeof makeProfile>> = { ...PROFILES };
 
 beforeEach(() => {
@@ -42,6 +44,8 @@ beforeEach(() => {
     slipPosts = 0;
     deleted = [];
     savedPosts = [];
+    renameCalls = [];
+    migratedCount = 1;
     profileMap = { ...PROFILES };
     server.use(
         http.post('/api/builder/preview', async ({ request }) => {
@@ -60,6 +64,14 @@ beforeEach(() => {
             deleted.push(String(params.name));
             delete profileMap[String(params.name)];
             return HttpResponse.json({ ok: true });
+        }),
+        http.post('/api/profiles/rename', async ({ request }) => {
+            const body = await request.json() as { old_name: string; new_name: string };
+            renameCalls.push(body);
+            // Mirror the backend: config preserved under the new key, old key gone.
+            profileMap[body.new_name] = { ...profileMap[body.old_name] };
+            delete profileMap[body.old_name];
+            return HttpResponse.json({ renamed: body.new_name, migrated_count: migratedCount });
         }),
         http.get('/api/builder/excluded/details', () => HttpResponse.json({ excluded: [] })),
         http.get('/api/builder/leagues', () => HttpResponse.json(['England', 'Spain'])),
@@ -183,64 +195,75 @@ describe('SmartBuilder page', () => {
         expect(await screen.findByText("Deleted 'cautious'", {}, { timeout: 3000 })).toBeInTheDocument();
     });
 
-    // ──inline rename: POST(new full payload) + DELETE(old) ───────────
+    // ──inline rename: single atomic POST /api/profiles/rename ─────────
 
-    it('renaming posts the full payload under the new name and deletes the old key', async () => {
+    it('renaming calls the atomic rename endpoint and reports migrated slips', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
+        migratedCount = 3;
         await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'backup{Enter}');
-        await waitFor(() => expect(deleted).toEqual(['bold']), { timeout: 3000 });
-        const posted = savedPosts.find(p => p.name === 'backup');
-        expect(posted).toBeDefined();
-        expect(posted!.units).toBe(3); // preserved: bold's Services-owned stake
-        expect(posted!.order).toBe(2); // preserved: ordering must survive the key move
-        expect(await screen.findByText("Renamed 'bold' to 'backup'", {}, { timeout: 3000 })).toBeInTheDocument();
+        // One request only — no separate save/delete pair, no orphan window.
+        await waitFor(() => expect(renameCalls).toEqual([{ old_name: 'bold', new_name: 'backup' }]), { timeout: 3000 });
+        expect(deleted).toEqual([]);
+        expect(savedPosts).toEqual([]);
+        // The migration count surfaces in the status toast.
+        expect(await screen.findByText("Renamed 'bold' to 'backup' — migrated 3 slips", {}, { timeout: 3000 })).toBeInTheDocument();
+        // The refetch shows the renamed card; the old key is gone.
         await waitFor(() => expect(screen.queryByRole('button', { name: 'bold' })).not.toBeInTheDocument(), { timeout: 3000 });
         expect(screen.getByRole('button', { name: 'backup' })).toBeInTheDocument();
+    });
+
+    it('renaming with zero migrated slips omits the count from the status', async () => {
+        const user = userEvent.setup();
+        await renderAndHydrate();
+        migratedCount = 0;
+        await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
+        const input = await screen.findByLabelText("Profile name for 'bold'");
+        await user.clear(input);
+        await user.type(input, 'noslips{Enter}');
+        expect(await screen.findByText("Renamed 'bold' to 'noslips'", {}, { timeout: 3000 })).toBeInTheDocument();
+        expect(screen.queryByText(/migrated/)).not.toBeInTheDocument();
     });
 
     it('renaming to an existing name makes no request and reports the conflict', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
-        const postsBefore = savedPosts.length;
         await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'cautious{Enter}');
         expect(await screen.findByText("Profile 'cautious' already exists")).toBeInTheDocument();
         await new Promise(r => setTimeout(r, 800));
-        expect(savedPosts.length).toBe(postsBefore);
+        expect(renameCalls).toEqual([]);
         expect(deleted).toEqual([]);
     });
 
     it('renaming to an empty/whitespace name makes no request', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
-        const postsBefore = savedPosts.length;
         await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, '   {Enter}');
         expect(await screen.findByText('Profile name must contain letters or digits')).toBeInTheDocument();
         await new Promise(r => setTimeout(r, 800));
-        expect(savedPosts.length).toBe(postsBefore);
+        expect(renameCalls).toEqual([]);
         expect(deleted).toEqual([]);
     });
 
     it('Escape cancels rename mode without a request', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
-        const postsBefore = savedPosts.length;
         await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'backup{Escape}');
         await waitFor(() => expect(screen.queryByLabelText("Profile name for 'bold'")).not.toBeInTheDocument());
         expect(screen.getByRole('button', { name: 'bold' })).toBeInTheDocument();
-        expect(savedPosts.length).toBe(postsBefore);
+        expect(renameCalls).toEqual([]);
         expect(deleted).toEqual([]);
     });
 
@@ -252,7 +275,7 @@ describe('SmartBuilder page', () => {
         const input = await screen.findByLabelText("Profile name for 'cautious'");
         await user.clear(input);
         await user.type(input, 'daily{Enter}');
-        await waitFor(() => expect(deleted).toEqual(['cautious']), { timeout: 3000 });
+        await waitFor(() => expect(renameCalls).toEqual([{ old_name: 'cautious', new_name: 'daily' }]), { timeout: 3000 });
         const renamedCard = await screen.findByRole('button', { name: 'daily' }, { timeout: 3000 });
         expect(renamedCard).toHaveAttribute('aria-pressed', 'true');
         const stored = JSON.parse(localStorage.getItem('smart_builder_state')!);
@@ -266,8 +289,7 @@ describe('SmartBuilder page', () => {
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'My Profile!{Enter}');
-        await waitFor(() => expect(deleted).toEqual(['bold']), { timeout: 3000 });
-        expect(savedPosts.some(p => p.name === 'myprofile')).toBe(true);
+        await waitFor(() => expect(renameCalls).toEqual([{ old_name: 'bold', new_name: 'myprofile' }]), { timeout: 3000 });
         await waitFor(
             () => expect(screen.getByRole('button', { name: 'myprofile' })).toBeInTheDocument(),
             { timeout: 3000 },
@@ -277,14 +299,13 @@ describe('SmartBuilder page', () => {
     it('a duplicate rename reports the sanitized target when the draft differs', async () => {
         const user = userEvent.setup();
         await renderAndHydrate();
-        const postsBefore = savedPosts.length;
         await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'Cautious!{Enter}');
         expect(await screen.findByText(/Profile 'cautious' already exists \(from 'Cautious!'\)/)).toBeInTheDocument();
         await new Promise(r => setTimeout(r, 600));
-        expect(savedPosts.length).toBe(postsBefore);
+        expect(renameCalls).toEqual([]);
         expect(deleted).toEqual([]);
     });
 
@@ -295,18 +316,17 @@ describe('SmartBuilder page', () => {
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'constructor{Enter}');
-        // Blind Hunter #2: 'constructor' in profiles is true via the prototype
-        // chain — the guard must be an own-property check.
-        await waitFor(() => expect(deleted).toEqual(['bold']), { timeout: 3000 });
-        expect(savedPosts.some(p => p.name === 'constructor')).toBe(true);
+        // 'constructor' in profiles is true via the prototype chain — the
+        // guard must be an own-property check.
+        await waitFor(() => expect(renameCalls).toEqual([{ old_name: 'bold', new_name: 'constructor' }]), { timeout: 3000 });
     });
 
-    it('a failing old-key delete rolls back the new profile and resyncs the list', async () => {
+    it('a failing rename reports the error and resyncs the list', async () => {
         const user = userEvent.setup();
-        // Blind Hunter #1 / Edge Hunter #1: POST succeeds but DELETE fails —
-        // the catch path must delete the just-created profile and refetch.
+        // The backend rolls everything back on failure — the UI only repaints
+        // the pre-rename list and never fires a compensating delete.
         server.use(
-            http.delete('/api/profiles/bold', () => HttpResponse.json({ detail: 'boom' }, { status: 500 })),
+            http.post('/api/profiles/rename', () => HttpResponse.json({ detail: 'boom' }, { status: 500 })),
         );
         await renderAndHydrate();
         await user.click(screen.getByRole('button', { name: /Rename profile 'bold'/ }));
@@ -314,15 +334,14 @@ describe('SmartBuilder page', () => {
         await user.clear(input);
         await user.type(input, 'renametarget{Enter}');
         expect(await screen.findByText(/Rename failed/)).toBeInTheDocument();
-        // rollback POST'd 'renametarget' then deleted 'renametarget' again
-        expect(deleted).toEqual(['renametarget']);
+        expect(deleted).toEqual([]);
         expect(screen.getByRole('button', { name: 'bold' })).toBeInTheDocument();
     });
 
     it('a null resync response does not wipe the profile list', async () => {
         const user = userEvent.setup();
-        // Blind Hunter #4: the resync fetch can resolve undefined — the list
-        // must survive instead of collapsing to zero cards.
+        // The resync fetch can resolve null/undefined — the list must survive
+        // instead of collapsing to zero cards.
         // Registered after hydration so only the post-rename refetch is broken.
         await renderAndHydrate();
         server.use(
@@ -332,10 +351,9 @@ describe('SmartBuilder page', () => {
         const input = await screen.findByLabelText("Profile name for 'bold'");
         await user.clear(input);
         await user.type(input, 'rolledback{Enter}');
-        // The rename completes (POST+DELETE succeed) but the refetch returns
-        // null; our guard keeps the current list instead of clearing it.
-        // The list still shows at least one profile card (not empty).
-        await waitFor(() => expect(deleted).toEqual(['bold']), { timeout: 3000 });
+        // The rename call succeeds but the refetch returns null; our guard
+        // keeps the current list instead of clearing it.
+        await waitFor(() => expect(renameCalls).toEqual([{ old_name: 'bold', new_name: 'rolledback' }]), { timeout: 3000 });
         expect(screen.getByRole('button', { name: 'cautious' })).toBeInTheDocument();
         // The old 'bold' card remains in the stale list; new name not shown.
         expect(screen.getByRole('button', { name: 'bold' })).toBeInTheDocument();
