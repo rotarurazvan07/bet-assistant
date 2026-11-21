@@ -324,8 +324,10 @@ class AppLogic:
             profiles = self._get_active_profiles()
             due = {name: tup for name, tup in profiles.items() if self._is_profile_due(name)}
             if due:
-                self.generate_slips(due)
-                self._claim_profile_runs(due, status="ok")
+                results = self.generate_slips(due)
+                successful = {name: due[name] for name, slips in results.items() if slips}
+                if successful:
+                    self._claim_profile_runs(successful, status="ok")
                 self._broadcast_slips_updated()
                 self._broadcast_generation_updated()
         except Exception as exc:
@@ -1147,7 +1149,8 @@ class AppLogic:
         """Generate slips for active profiles and broadcast over WS.
 
         This is the manual Generate button (POST /api/slips/generate) — it IS
-        a generation, so it claims the once-per-day guard like the ticker.
+        a generation, so it claims the once-per-day guard like the ticker for profiles
+        that produced at least 1 slip.
         Distinct from building a slip manually on the Build page
         (POST /api/slips -> save_slip_and_broadcast), which never touches
         generation state.
@@ -1157,7 +1160,9 @@ class AppLogic:
         try:
             if profiles:
                 result = self.generate_slips(profiles)
-                self._claim_profile_runs(profiles, status="ok")
+                successful = {name: profiles[name] for name, slips in result.items() if slips}
+                if successful:
+                    self._claim_profile_runs(successful, status="ok")
                 self._broadcast_generation_updated()
             self._broadcast_slips_updated()
             return result
