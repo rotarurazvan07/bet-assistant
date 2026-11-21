@@ -1,6 +1,6 @@
 """Pydantic request/response models for the API."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from bet_framework.markets.enums import MarketKey, MarketType
 
@@ -71,6 +71,19 @@ class PreviewOut(BaseModel):
 
 
 # ── Profiles ──────────────────────────────────────────────────────────────────
+
+
+class ProfileRenameIn(BaseModel):
+    """Payload for renaming a profile with slip migration."""
+
+    old_name: str
+    new_name: str
+
+    @field_validator("old_name", "new_name")
+    @classmethod
+    def sanitize(cls, v: str) -> str:
+        """Apply same sanitization as save_profile: alnum + _ - only, lowercase."""
+        return "".join(c for c in v if c.isalnum() or c in ("_", "-")).lower()
 
 
 class ProfileIn(BaseModel):

@@ -909,6 +909,46 @@
         }
       }
     },
+    "/api/profiles/rename": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Rename Profile",
+        "description": "Rename a profile and migrate its slips atomically.\n\nThe backend moves the profile YAML, its runtime_state stamp and every\nslip row carrying the old name in one coordinated operation; any failure\nleaves both stores untouched. Returns the migrated slip-row count (0 when\nthe profile had no slips).",
+        "operationId": "rename_profile_api_profiles_rename_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileRenameIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/profiles/{name}": {
       "delete": {
         "tags": [
@@ -2270,6 +2310,25 @@
         ],
         "title": "ProfileIn",
         "description": "Payload for saving a named builder profile."
+      },
+      "ProfileRenameIn": {
+        "properties": {
+          "old_name": {
+            "type": "string",
+            "title": "Old Name"
+          },
+          "new_name": {
+            "type": "string",
+            "title": "New Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_name",
+          "new_name"
+        ],
+        "title": "ProfileRenameIn",
+        "description": "Payload for renaming a profile with slip migration."
       },
       "ProfileScheduleIn": {
         "properties": {
