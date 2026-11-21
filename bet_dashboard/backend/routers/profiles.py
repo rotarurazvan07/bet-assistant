@@ -1,7 +1,7 @@
 """Profiles API: list, save and delete builder profiles."""
 
 from core.config_helpers import _RUNTIME_ONLY, _config_to_yaml_dict
-from core.schemas import ProfileIn
+from core.schemas import ProfileIn, ProfileRenameIn
 from fastapi import APIRouter, HTTPException, Request
 
 from bet_framework.core.Slip import BetSlipConfig
@@ -106,6 +106,28 @@ def save_profile(request: Request, body: ProfileIn):
         data.pop(k, None)
     app.settings.write(name, data, subpath="profiles")
     return {"name": name, "data": data}
+
+
+@router.post("/rename")
+def rename_profile(request: Request, body: ProfileRenameIn):
+    """Rename a profile and migrate its slips atomically.
+
+    The backend moves the profile YAML, its runtime_state stamp and every
+    slip row carrying the old name in one coordinated operation; any failure
+    leaves both stores untouched. Returns the migrated slip-row count (0 when
+    the profile had no slips).
+    """
+    if not body.new_name:
+        raise HTTPException(400, "Invalid profile name")
+    try:
+        migrated = _get(request).rename_profile(body.old_name, body.new_name)
+    except KeyError:
+        raise HTTPException(404, f"Profile '{body.old_name}' not found") from None
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from None
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from None
+    return {"renamed": body.new_name, "migrated_count": migrated}
 
 
 @router.delete("/{name}")

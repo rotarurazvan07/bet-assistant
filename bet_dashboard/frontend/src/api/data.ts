@@ -65,6 +65,17 @@ export async function deleteProfile(name: string): Promise<void> {
     await client.delete(`/profiles/${name}`);
 }
 
+export async function renameProfile(
+    oldName: string,
+    newName: string,
+): Promise<{ renamed: string; migrated_count: number }> {
+    const res = await client.post<{ renamed: string; migrated_count: number }>(
+        '/profiles/rename',
+        { old_name: oldName, new_name: newName },
+    );
+    return res.data;
+}
+
 // ── Slips ────────────────────────────────────────────────────────────────────
 
 export async function fetchSlips(params: {

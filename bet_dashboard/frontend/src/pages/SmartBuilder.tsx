@@ -8,7 +8,7 @@ import { markFirstSlip } from '../components/tourStorage';
 import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import DateRangeFields from '../components/DateRangeFields';
 import {
-    fetchPreview, fetchProfiles, saveProfile, deleteProfile,
+    fetchPreview, fetchProfiles, saveProfile, deleteProfile, renameProfile,
     fetchExcludedDetails, addExcluded, removeExcluded, clearExcluded, addSlip,
     fetchLeagues, fetchSourcesConfig,
     type ExcludedMatch
@@ -502,25 +502,25 @@ export default function SmartBuilder({ refreshKey }: Props) {
         dirtyRef.current = false;
         if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
         try {
-            // Full-object spread: scheduling/units keys live at the profile
-            // root on disk and must survive the key move verbatim.
-            const payload = { ...source, name } as Profile & { name: string };
-            await saveProfile(payload);
-            await deleteProfile(oldName);
+            // The backend moves the profile YAML, its run stamp and every slip
+            // row in one coordinated operation, so the UI issues a single call
+            // and the old profile key cannot survive as an orphan.
+            const result = await renameProfile(oldName, name);
             const updated = await fetchProfiles();
             // Guard against a null/undefined fetch response silently wiping the list.
             if (updated) setProfiles(updated);
             // Renaming the active profile keeps it active; the persist effect
             // rewrites smart_builder_state.activeName from this state change.
             if (activeName === oldName) setActiveName(name);
-            // Known LOW: the backend delete purges the profile's once-per-day
-            // run stamp, so a renamed profile re-arms for the current day.
-            setStatus(`Renamed '${oldName}' to '${name}'`);
+            const moved = result.migrated_count;
+            setStatus(
+                moved > 0
+                    ? `Renamed '${oldName}' to '${name}' — migrated ${moved} slip${moved === 1 ? '' : 's'}`
+                    : `Renamed '${oldName}' to '${name}'`,
+            );
         } catch {
-            // Best-effort rollback if POST succeeded but DELETE failed:
-            // remove the just-created profile, then resync — a resync that
-            // also throws must not hide the failure status.
-            try { await deleteProfile(name); } catch { /* ignore */ }
+            // The backend is atomic: nothing moved, so a resync only repaints
+            // the pre-rename list. It must not hide the failure status.
             try {
                 const resync = await fetchProfiles();
                 if (resync) setProfiles(resync);

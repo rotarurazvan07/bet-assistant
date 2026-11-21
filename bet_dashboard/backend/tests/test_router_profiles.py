@@ -191,3 +191,66 @@ class TestSaveProfileFillRatioAutoRoundTrip:
         assert r.status_code == 200
         written = fake_app.settings.write.call_args[0][1]
         assert written["min_legs_fill_ratio"] == 0.62
+
+
+class TestRenameProfile:
+    """[P0] Atomic rename with slip migration."""
+
+    def test_rename_happy_path_returns_migrated_count(self, client, fake_app) -> None:
+        """[P0] Rename succeeds and returns migrated slip count."""
+        fake_app.rename_profile.return_value = 3
+        r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "new"})
+        assert r.status_code == 200
+        assert r.json() == {"renamed": "new", "migrated_count": 3}
+        fake_app.rename_profile.assert_called_once_with("old", "new")
+
+    def test_rename_zero_migrated_succeeds(self, client, fake_app) -> None:
+        """[P0] Zero slips migrated is a valid success (profile had no slips)."""
+        fake_app.rename_profile.return_value = 0
+        r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "new"})
+        assert r.status_code == 200
+        assert r.json() == {"renamed": "new", "migrated_count": 0}
+
+    def test_rename_duplicate_name_returns_409(self, client, fake_app) -> None:
+        """[P0] Target name already exists → HTTP 409."""
+        fake_app.rename_profile.side_effect = ValueError("Profile 'existing' already exists")
+        r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "existing"})
+        assert r.status_code == 409
+        assert "already exists" in r.json()["detail"]
+
+    def test_rename_missing_old_returns_404(self, client, fake_app) -> None:
+        """[P0] Source profile does not exist → HTTP 404."""
+        fake_app.rename_profile.side_effect = KeyError("ghost")
+        r = client.post(f"{BASE}/rename", json={"old_name": "ghost", "new_name": "real"})
+        assert r.status_code == 404
+        assert "not found" in r.json()["detail"]
+
+    def test_rename_empty_new_name_returns_400(self, client, fake_app) -> None:
+        """[P0] Sanitized new_name empty → HTTP 400 before calling logic."""
+        r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "   "})
+        assert r.status_code == 400
+        assert r.json()["detail"] == "Invalid profile name"
+
+    def test_rename_sanitizes_like_save(self, client, fake_app) -> None:
+        """[P0] Backend sanitizes new_name same as save_profile (alnum + _ - → lowercase)."""
+        fake_app.rename_profile.return_value = 1
+        r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "My Profile!"})
+        assert r.status_code == 200
+        # The sanitized value passed to logic is 'myprofile'
+        fake_app.rename_profile.assert_called_once_with("old", "myprofile")
+
+    def test_rename_slip_failure_returns_500(self, client, fake_app) -> None:
+        """[P0] Slip UPDATE failure rolls back and returns HTTP 500."""
+        fake_app.rename_profile.side_effect = RuntimeError("Slip migration failed for 'old' -> 'new'")
+        r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "new"})
+        assert r.status_code == 500
+        assert "Slip migration failed" in r.json()["detail"]
+
+    def test_rename_same_name_is_a_noop(self, client, fake_app) -> None:
+        """[P0] Renaming to the sanitized same name must not rewrite-then-delete
+        the profile — the endpoint is public even though the UI guards it."""
+        fake_app.rename_profile.return_value = 0
+        r = client.post(f"{BASE}/rename", json={"old_name": "bold", "new_name": "bold"})
+        assert r.status_code == 200
+        assert r.json() == {"renamed": "bold", "migrated_count": 0}
+        fake_app.rename_profile.assert_called_once_with("bold", "bold")
