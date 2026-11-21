@@ -241,9 +241,7 @@ class TestRenameProfile:
 
     def test_rename_slip_failure_returns_500(self, client, fake_app) -> None:
         """[P0] Slip UPDATE failure rolls back and returns HTTP 500."""
-        fake_app.rename_profile.side_effect = RuntimeError(
-            "Slip migration failed for 'old' -> 'new'"
-        )
+        fake_app.rename_profile.side_effect = RuntimeError("Slip migration failed for 'old' -> 'new'")
         r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "new"})
         assert r.status_code == 500
         assert "Slip migration failed" in r.json()["detail"]

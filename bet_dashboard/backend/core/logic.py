@@ -514,9 +514,7 @@ class AppLogic:
                 self._settings.delete(new_name, subpath="profiles")
             except Exception:
                 pass  # the DB failure is the one worth reporting
-            raise RuntimeError(
-                f"Slip migration failed for '{old_name}' -> '{new_name}'"
-            ) from exc
+            raise RuntimeError(f"Slip migration failed for '{old_name}' -> '{new_name}'") from exc
 
         # Step 4: finish the stamp move, then drop the old profile YAML.
         if stamp_existed:
