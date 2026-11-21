@@ -147,6 +147,18 @@ export interface paths {
      */
     post: operations["save_profile_api_profiles_post"];
   };
+  "/api/profiles/rename": {
+    /**
+     * Rename Profile
+     * @description Rename a profile and migrate its slips atomically.
+     *
+     * The backend moves the profile YAML, its runtime_state stamp and every
+     * slip row carrying the old name in one coordinated operation; any failure
+     * leaves both stores untouched. Returns the migrated slip-row count (0 when
+     * the profile had no slips).
+     */
+    post: operations["rename_profile_api_profiles_rename_post"];
+  };
   "/api/profiles/{name}": {
     /**
      * Delete Profile
@@ -537,6 +549,16 @@ export interface components {
       odds_movement_weight?: number | null;
       /** Odds Movement Strength Min */
       odds_movement_strength_min?: number | null;
+    };
+    /**
+     * ProfileRenameIn
+     * @description Payload for renaming a profile with slip migration.
+     */
+    ProfileRenameIn: {
+      /** Old Name */
+      old_name: string;
+      /** New Name */
+      new_name: string;
     };
     /**
      * ProfileScheduleIn
@@ -1057,6 +1079,36 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["ProfileIn"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Rename Profile
+   * @description Rename a profile and migrate its slips atomically.
+   *
+   * The backend moves the profile YAML, its runtime_state stamp and every
+   * slip row carrying the old name in one coordinated operation; any failure
+   * leaves both stores untouched. Returns the migrated slip-row count (0 when
+   * the profile had no slips).
+   */
+  rename_profile_api_profiles_rename_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProfileRenameIn"];
       };
     };
     responses: {
