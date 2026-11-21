@@ -477,7 +477,11 @@ class AppLogic:
         profiles = self._settings.get("profiles") or {}
         if old_name not in profiles:
             raise KeyError(old_name)
-        if new_name != old_name and new_name in profiles:
+        # No-op rename: the frontend guards it, but the endpoint is public —
+        # proceeding would rewrite the YAML and then delete it.
+        if new_name == old_name:
+            return 0
+        if new_name in profiles:
             raise ValueError(f"Profile '{new_name}' already exists")
         data = profiles[old_name]
 
@@ -506,7 +510,10 @@ class AppLogic:
         except Exception as exc:
             # Compensate: remove the new YAML and restore the old stamp so
             # neither store has advanced. (Stamp still holds old_name here.)
-            self._settings.delete(new_name, subpath="profiles")
+            try:
+                self._settings.delete(new_name, subpath="profiles")
+            except Exception:
+                pass  # the DB failure is the one worth reporting
             raise RuntimeError(
                 f"Slip migration failed for '{old_name}' -> '{new_name}'"
             ) from exc

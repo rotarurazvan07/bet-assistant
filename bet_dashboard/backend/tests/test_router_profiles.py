@@ -247,3 +247,12 @@ class TestRenameProfile:
         r = client.post(f"{BASE}/rename", json={"old_name": "old", "new_name": "new"})
         assert r.status_code == 500
         assert "Slip migration failed" in r.json()["detail"]
+
+    def test_rename_same_name_is_a_noop(self, client, fake_app) -> None:
+        """[P0] Renaming to the sanitized same name must not rewrite-then-delete
+        the profile — the endpoint is public even though the UI guards it."""
+        fake_app.rename_profile.return_value = 0
+        r = client.post(f"{BASE}/rename", json={"old_name": "bold", "new_name": "bold"})
+        assert r.status_code == 200
+        assert r.json() == {"renamed": "bold", "migrated_count": 0}
+        fake_app.rename_profile.assert_called_once_with("bold", "bold")
