@@ -458,6 +458,73 @@ class AppLogic:
             runtime["profile_last_run"] = runs
             self._settings.write("runtime_state", runtime)
 
+    def rename_profile(self, old_name: str, new_name: str) -> int:
+        """Rename a profile and migrate its slips in one coordinated operation.
+
+        Writes the new profile YAML and moves the ``profile_last_run`` stamp
+        first, then runs the slip UPDATE inside the assistant's DB lock so a
+        failure rolls both stores back: the new YAML is removed and the stamp
+        restored before the error propagates. Returns the number of migrated
+        slip rows (0 is valid — the profile simply had no slips).
+
+        Raises:
+            KeyError: ``old_name`` does not exist.
+            ValueError: ``new_name`` already exists (case-sensitive key).
+            RuntimeError: the slip UPDATE failed; profile writes rolled back.
+        """
+        if not new_name:
+            raise ValueError("Invalid profile name")
+        profiles = self._settings.get("profiles") or {}
+        if old_name not in profiles:
+            raise KeyError(old_name)
+        # No-op rename: the frontend guards it, but the endpoint is public —
+        # proceeding would rewrite the YAML and then delete it.
+        if new_name == old_name:
+            return 0
+        if new_name in profiles:
+            raise ValueError(f"Profile '{new_name}' already exists")
+        data = profiles[old_name]
+
+        # Step 1: profile YAML — write new, remember old for rollback.
+        self._settings.write(new_name, data, subpath="profiles")
+
+        # Step 2: move the once-per-day stamp with the name.
+        runtime = self._settings.get("runtime_state") or {}
+        runs = runtime.get("profile_last_run") or {}
+        stamp = runs.pop(old_name, None)
+        stamp_existed = stamp is not None
+        if stamp_existed:
+            runs[old_name] = stamp  # keep old until the DB step succeeds
+            runtime["profile_last_run"] = runs
+            self._settings.write("runtime_state", runtime)
+
+        # Step 3: slip migration in one SQLite transaction under the DB lock.
+        try:
+            with self._assistant.db_lock:
+                cur = self._assistant.conn.execute(
+                    "UPDATE slips SET profile = ? WHERE profile = ?",
+                    (new_name, old_name),
+                )
+                migrated = cur.rowcount
+                self._assistant.conn.commit()
+        except Exception as exc:
+            # Compensate: remove the new YAML and restore the old stamp so
+            # neither store has advanced. (Stamp still holds old_name here.)
+            try:
+                self._settings.delete(new_name, subpath="profiles")
+            except Exception:
+                pass  # the DB failure is the one worth reporting
+            raise RuntimeError(f"Slip migration failed for '{old_name}' -> '{new_name}'") from exc
+
+        # Step 4: finish the stamp move, then drop the old profile YAML.
+        if stamp_existed:
+            runs.pop(old_name, None)
+            runs[new_name] = stamp
+            runtime["profile_last_run"] = runs
+            self._settings.write("runtime_state", runtime)
+        self._settings.delete(old_name, subpath="profiles")
+        return migrated
+
     def get_profile_schedules(self) -> list[dict]:
         """Profile schedule rows for the Services UI (every saved profile).
 
