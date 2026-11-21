@@ -113,6 +113,7 @@ def _leg_to_dict(leg) -> dict:
         "result_url": leg.result_url,
         "league": leg.league,
         "predictions": leg.predictions,
+        "odds_history": getattr(leg, "odds_history", []),
     }
 
 

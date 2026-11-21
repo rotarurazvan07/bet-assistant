@@ -7,6 +7,37 @@ from datetime import datetime, timedelta
 from typing import Any
 
 
+def calculate_leg_clv(selection_odds: float, market_key: str, odds_history: list[dict], match_datetime: Any = None) -> float | None:
+    """Closing Line Value in percentage points (positive = value captured).
+
+    Compares the implied probability at selection odds against the implied
+    probability of the closing snapshot — the last history entry whose
+    timestamp is before the match kickoff (or the last entry overall when
+    kickoff is unknown). Returns None when CLV cannot be computed.
+    """
+    if not odds_history or selection_odds <= 0:
+        return None
+
+    def _ts(entry: dict) -> str:
+        return str(entry.get("ts", ""))
+
+    closing = None
+    if match_datetime is not None:
+        kickoff = str(match_datetime)
+        valid = [h for h in odds_history if h.get("ts") and _ts(h) < kickoff]
+        closing = valid[-1] if valid else None
+    if closing is None and odds_history:
+        closing = odds_history[-1]
+
+    closing_odds = closing.get(market_key) if closing else None
+    if not closing_odds or closing_odds <= 0:
+        return None
+
+    implied_selection = 1.0 / selection_odds
+    implied_closing = 1.0 / closing_odds
+    return round((implied_selection - implied_closing) * 100, 2)
+
+
 def calculate_overall_edge(slips) -> float:
     """
     Calculate overall edge for slips.

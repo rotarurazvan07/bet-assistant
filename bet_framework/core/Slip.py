@@ -67,6 +67,7 @@ class CandidateLeg:
     score: float = 0.0  # UI only: quality score
     quality: float = 0.0  # UI only: quality component
     predictions: list[dict[str, Any]] = field(default_factory=list)  # Per-source predictions for this leg
+    odds_history: list[dict[str, Any]] = field(default_factory=list)  # Odds snapshots with timestamps
 
     def __post_init__(self) -> None:
         """Validate and clamp candidate-leg fields after construction."""
@@ -130,6 +131,7 @@ class BetLeg:
     league: str | None = None
     predictions: list[dict[str, Any]] = field(default_factory=list)  # Per-source predictions for this leg
     final_score: str | None = None  # Final match score (e.g., "2:1") for settled legs
+    odds_history: list[dict[str, Any]] = field(default_factory=list)  # Odds snapshots with timestamps
 
     def __post_init__(self) -> None:
         """Validate and clamp leg fields after construction."""

@@ -269,6 +269,8 @@ class BetAssistant(BaseStorageManager):
                 self.conn.execute("ALTER TABLE legs ADD COLUMN predictions TEXT")
             if "final_score" not in columns:
                 self.conn.execute("ALTER TABLE legs ADD COLUMN final_score TEXT")
+            if "odds_history" not in columns:
+                self.conn.execute("ALTER TABLE legs ADD COLUMN odds_history TEXT")
 
             self.conn.commit()
 
@@ -492,16 +494,17 @@ class BetAssistant(BaseStorageManager):
                     else None
                 )
 
-                # Serialize predictions to JSON
+                # Serialize predictions and odds history to JSON
                 import json
 
                 predictions_json = json.dumps(leg.predictions) if leg.predictions else None
+                odds_history_json = json.dumps(leg.odds_history) if leg.odds_history else None
 
                 self.conn.execute(
                     """INSERT INTO legs
                     (slip_id, match_name, match_datetime, market, market_type, odds,
-                     result_url, league, predictions, final_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                     result_url, league, predictions, final_score, odds_history)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         slip_id,
                         leg.match_name,
@@ -513,6 +516,7 @@ class BetAssistant(BaseStorageManager):
                         leg.league,
                         predictions_json,
                         None,  # final_score will be set when leg is settled
+                        odds_history_json,
                     ),
                 )
 
@@ -541,7 +545,7 @@ class BetAssistant(BaseStorageManager):
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
                 l.match_name, l.match_datetime, l.market, l.market_type, l.odds,
-                l.status, l.result_url, l.league, l.predictions, l.final_score
+                l.status, l.result_url, l.league, l.predictions, l.final_score, l.odds_history
             FROM slips s
             LEFT JOIN legs l ON s.slip_id = l.slip_id
         """
@@ -659,7 +663,7 @@ class BetAssistant(BaseStorageManager):
             SELECT
                 s.slip_id, s.date_generated, s.profile, s.total_odds, s.units,
                 l.match_name, l.match_datetime, l.market, l.market_type, l.odds,
-                l.status, l.result_url, l.league, l.predictions, l.final_score
+                l.status, l.result_url, l.league, l.predictions, l.final_score, l.odds_history
             FROM (
                 SELECT s.*
                 FROM slips s{where_sql}
@@ -1206,6 +1210,11 @@ class BetAssistant(BaseStorageManager):
         # Build per-source predictions for this leg's market
         leg_predictions = self._build_leg_predictions(filtered_scores, m_type)
 
+        # Build flat odds history: past snapshots keep their 'ts'; current
+        # top-level odds become the final snapshot stamped with 'now'.
+        now_iso = pd.Timestamp.now(tz=self._tz).isoformat()
+        odds_history = self.build_odds_history(row.get("odds"), now_iso)
+
         return CandidateLeg(
             match_name=match_name,
             datetime=row["datetime"],
@@ -1220,7 +1229,70 @@ class BetAssistant(BaseStorageManager):
             odds_movement_direction=mov_dir,
             odds_movement_strength=mov_str,
             predictions=leg_predictions,
+            odds_history=odds_history,
         )
+
+    @staticmethod
+    def build_odds_history(odds_dict: dict | None, now_iso: str) -> list[dict]:
+        """Build the flat odds-history list stored on slips.db legs.
+
+        Historical snapshots from ``odds_dict['history']`` keep their
+        original ``ts``; the current top-level odds are appended as the
+        final snapshot with ``ts`` set to ``now_iso``.
+        """
+        if not odds_dict:
+            return []
+        history = [dict(h) for h in odds_dict.get("history", []) if isinstance(h, dict)]
+        current = {k: v for k, v in odds_dict.items() if k != "history" and v is not None}
+        if current:
+            snapshot = {"ts": now_iso}
+            snapshot.update(current)
+            history.append(snapshot)
+        return history
+
+    def append_legs_odds_history(self, odds_by_url: dict[str, dict], now_iso: str) -> int:
+        """Append a fresh snapshot to every pending leg matched by result_url.
+
+        Called on each matches.db pull so the closing line survives in
+        slips.db even after the match leaves matches.db. Returns the number
+        of legs updated.
+        """
+        import json
+
+        updated = 0
+        with self.db_lock:
+            rows = self.fetch_rows(
+                "SELECT leg_id, result_url, odds_history FROM legs WHERE status IN ('Pending', 'Live')"
+            )
+            for leg_id, url, odds_history_json in rows:
+                odds_dict = odds_by_url.get(url)
+                if not odds_dict:
+                    continue
+                current = {k: v for k, v in odds_dict.items() if k != "history" and v is not None}
+                if not current:
+                    continue
+                snapshot = {"ts": now_iso}
+                snapshot.update(current)
+
+                try:
+                    history = json.loads(odds_history_json) if odds_history_json else []
+                except (json.JSONDecodeError, TypeError):
+                    history = []
+                if not isinstance(history, list):
+                    history = []
+
+                # Skip duplicate consecutive snapshots (same values)
+                if history and all(history[-1].get(k) == v for k, v in current.items()):
+                    continue
+
+                history.append(snapshot)
+                self.conn.execute(
+                    "UPDATE legs SET odds_history = ? WHERE leg_id = ?",
+                    (json.dumps(history), leg_id),
+                )
+                updated += 1
+            self.conn.commit()
+        return updated
 
     def _build_leg_predictions(self, filtered_scores: list[dict], market_type: MarketType) -> list[dict]:
         """
@@ -1365,6 +1437,7 @@ class BetAssistant(BaseStorageManager):
             league,
             predictions_json,
             final_score,
+            odds_history_json,
         ) in rows:
             if slip_id not in slips:
                 slips[slip_id] = BetSlip(
@@ -1394,6 +1467,13 @@ class BetAssistant(BaseStorageManager):
                     except (json.JSONDecodeError, TypeError):
                         predictions = []
 
+                odds_history = []
+                if odds_history_json:
+                    try:
+                        odds_history = json.loads(odds_history_json)
+                    except (json.JSONDecodeError, TypeError):
+                        odds_history = []
+
                 slips[slip_id].legs.append(
                     BetLeg(
                         match_name=match,
@@ -1406,6 +1486,7 @@ class BetAssistant(BaseStorageManager):
                         league=league,
                         predictions=predictions,
                         final_score=final_score,
+                        odds_history=odds_history,
                     )
                 )
 

@@ -754,6 +754,31 @@ class AppLogic:
         # 3. Merge and sort
         return sorted(set(framework_leagues) | set(db_leagues))
 
+    # ── Odds history sync ───────────────────────────────────────────────────
+
+    def _sync_legs_odds_history(self) -> None:
+        """Append a fresh odds snapshot to every pending leg's odds_history.
+
+        Captures the closing line before a match leaves matches.db: the
+        snapshot is written on every pull, so the last pre-kickoff snapshot
+        survives in slips.db for CLV calculation.
+        """
+        raw_df = self._matches_manager.fetch_matches()
+        if raw_df.empty:
+            return
+
+        by_url: dict[str, dict] = {}
+        for _, row in raw_df.iterrows():
+            url = row.get("result_url")
+            if url:
+                by_url[url] = row.get("odds") or {}
+
+        if not by_url:
+            return
+
+        now_iso = self._local_now().isoformat()
+        self._assistant.append_legs_odds_history(by_url, now_iso)
+
     # ── Match data ─────────────────────────────────────────────────────────[...]
 
     def refresh_data(self, excluded_sources: list[str] | None = None) -> pd.DataFrame:
@@ -804,16 +829,15 @@ class AppLogic:
 
         # Get config values for history preservation
         scraper_cfg = self._settings.get("scraper_config") or {}
-        max_history = int(scraper_cfg.get("num_days_ahead", 3))
         local_tz = scraper_cfg.get("local_timezone")
         if not local_tz:
             raise RuntimeError("scraper_config.local_timezone not configured")
 
-        # Merge with history preservation
+        # Merge with history preservation — full snapshot history (needed for CLV)
         try:
             self._matches_manager.merge_with_history_preservation(
                 fresh_db_path=temp_path,
-                max_history=max_history,
+                max_history=None,
                 local_tz=local_tz,
             )
         finally:
@@ -825,6 +849,10 @@ class AppLogic:
                 pass  # Windows file locking; OS temp cleanup will handle it
 
         self.refresh_data()
+
+        # Append a fresh snapshot to every pending leg's odds_history so the
+        # closing line is captured before the match leaves matches.db.
+        self._sync_legs_odds_history()
         return "Pull successful"
 
     # ── Slip building ────────────────────────────────────────────────────────[...]

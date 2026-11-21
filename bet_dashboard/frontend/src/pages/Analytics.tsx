@@ -229,6 +229,7 @@ export default function Analytics({ refreshKey }: Props) {
                 sourceBreakdown={data.source_breakdown ?? []}
                 correlationMatrix={data.correlation_matrix}
                 sourceMarketCorrelation={data.source_market_correlation}
+                clvDistribution={data.clv_distribution ?? []}
             />
         </div>
     );
