@@ -140,11 +140,44 @@ DEMO_MATCHES = [
     ),
 ]
 
-# (slip_id, date_generated, profile, total_odds, units, match_name, leg_status, result_url, final_score)
+# (slip_id, date_generated, profile, total_odds, units, match_name, leg_status, result_url, final_score, odds_history)
 DEMO_SLIPS = [
-    (1, "2026-10-07T08:30:00", "low", 1.9, 1.0, "Arsenal vs Chelsea", "Won", "https://example.com/match/1", "2:1"),
-    (2, "2026-10-08T08:30:00", "low", 2.0, 1.0, "Liverpool vs Man City", "Lost", "https://example.com/match/2", "1:2"),
-    (3, "2026-10-10T08:30:00", "low", 2.0, 1.0, "Barcelona vs Real Madrid", "Pending", "https://example.com/match/3", None),
+    (
+        1,
+        "2026-10-07T08:30:00",
+        "low",
+        1.9,
+        1.0,
+        "Arsenal vs Chelsea",
+        "Won",
+        "https://example.com/match/1",
+        "2:1",
+        '[{"ts": "2026-10-07T08:00:00", "home": 1.9}]',
+    ),
+    (
+        2,
+        "2026-10-08T08:30:00",
+        "low",
+        2.0,
+        1.0,
+        "Liverpool vs Man City",
+        "Lost",
+        "https://example.com/match/2",
+        "1:2",
+        '[{"ts": "2026-10-08T08:00:00", "home": 2.0}]',
+    ),
+    (
+        3,
+        "2026-10-10T08:30:00",
+        "low",
+        2.0,
+        1.0,
+        "Barcelona vs Real Madrid",
+        "Pending",
+        "https://example.com/match/3",
+        None,
+        "[]",
+    ),
 ]
 
 # All three daemons parked: puller would merge the upstream DB (evicting the
@@ -186,12 +219,7 @@ _PROFILE_SCHEDULES = [
     },
 ]
 
-_SERVICES_YAML = (
-    "toggles:\n"
-    "  puller: false\n"
-    "  generator: false\n"
-    "  verifier: false\n"
-)
+_SERVICES_YAML = "toggles:\n  puller: false\n  generator: false\n  verifier: false\n"
 
 _INSERT = (
     "INSERT INTO matches "
@@ -281,6 +309,7 @@ def main() -> None:
                 league TEXT,
                 predictions TEXT,
                 final_score TEXT,
+                odds_history TEXT,
                 FOREIGN KEY(slip_id) REFERENCES slips(slip_id)
             );
         """)
@@ -293,15 +322,36 @@ def main() -> None:
                 (slip_id, generated, profile, total_odds, units),
             )
         for row in DEMO_SLIPS:
-            slip_id, generated, profile, total_odds, units, match_name, status, url, final_score = row
+            (
+                slip_id,
+                generated,
+                profile,
+                total_odds,
+                units,
+                match_name,
+                status,
+                url,
+                final_score,
+                odds_history,
+            ) = row
             conn.execute(
                 """INSERT INTO legs
                     (slip_id, match_name, match_datetime, market, market_type, odds, result_url, status,
-                     league, predictions, final_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                     league, predictions, final_score, odds_history)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    slip_id, match_name, generated, "home", "result", total_odds, url, status,
-                    "England", "[]", final_score,
+                    slip_id,
+                    match_name,
+                    generated,
+                    "home",
+                    "result",
+                    total_odds,
+                    url,
+                    status,
+                    "England",
+                    "[]",
+                    final_score,
+                    odds_history,
                 ),
             )
         conn.commit()

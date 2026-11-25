@@ -3,8 +3,27 @@ Analytics utilities for calculating betting statistics and metrics.
 This module contains pure functions for analytics calculations.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+
+def _parse_iso_ts(value: Any) -> datetime | None:
+    """Parse an ISO timestamp into an aware datetime; None when it cannot be parsed."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    # DB snapshots are stored without an offset; the project treats them as UTC.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def calculate_leg_clv(
@@ -20,14 +39,19 @@ def calculate_leg_clv(
     if not odds_history or selection_odds <= 0:
         return None
 
-    def _ts(entry: dict) -> str:
-        return str(entry.get("ts", ""))
-
     closing = None
     if match_datetime is not None:
-        kickoff = str(match_datetime)
-        valid = [h for h in odds_history if h.get("ts") and _ts(h) < kickoff]
-        closing = valid[-1] if valid else None
+        kickoff = _parse_iso_ts(match_datetime)
+        if kickoff is not None:
+            # parse once per entry, skip unparsable (None) and post-kickoff stamps
+            valid = []
+            for h in odds_history:
+                ts_val = h.get("ts")
+                if ts_val:
+                    ts = _parse_iso_ts(ts_val)
+                    if ts is not None and ts < kickoff:
+                        valid.append(h)
+            closing = valid[-1] if valid else None
     if closing is None and odds_history:
         closing = odds_history[-1]
 
@@ -35,9 +59,7 @@ def calculate_leg_clv(
     if not closing_odds or closing_odds <= 0:
         return None
 
-    implied_selection = 1.0 / selection_odds
-    implied_closing = 1.0 / closing_odds
-    return round((implied_selection - implied_closing) * 100, 2)
+    return round((1.0 / selection_odds - 1.0 / closing_odds) * 100, 2)
 
 
 def calculate_overall_edge(slips) -> float:
