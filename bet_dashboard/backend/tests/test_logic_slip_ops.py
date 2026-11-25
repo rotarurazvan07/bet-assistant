@@ -143,6 +143,34 @@ class TestAppLogicSlipOperations:
         assert slips[0].legs[0].match_name == leg.match_name
         assert slips[0].slip_status == "Pending"
 
+    def test_save_slip_seeds_odds_history_for_manual_legs(self, app_env) -> None:
+        """[P0] Legs saved without odds_history get it seeded from matches.db by result_url."""
+        app = app_env.app
+        leg = make_candidate(i=0)  # result_url https://example.com/match/0, seeded odds have history
+        assert leg.odds_history == []
+        slip_id = app.save_slip("manual", [leg], units=1.0)
+        stored = app.get_slips()[0]
+        assert stored.slip_id == slip_id
+        history = stored.legs[0].odds_history
+        assert len(history) == 2  # seeded history entry + current snapshot stamped now
+        assert history[0]["ts"] == "2030-01-01T10:00:00"
+        assert history[-1]["home"] == 1.9  # current top-level odds appended last
+
+    def test_save_slip_keeps_existing_odds_history_untouched(self, app_env) -> None:
+        """[P1] Generated legs that already carry odds_history are not overwritten."""
+        app = app_env.app
+        existing = [{"ts": "2030-01-01T09:00:00", "home": 2.0}]
+        leg = make_candidate(i=0, odds_history=existing)
+        app.save_slip("gen", [leg], units=1.0)
+        assert app.get_slips()[0].legs[0].odds_history == existing
+
+    def test_save_slip_unknown_url_leaves_history_empty(self, app_env) -> None:
+        """[P1] A leg whose result_url is not in matches.db keeps an empty history (no crash)."""
+        app = app_env.app
+        leg = make_candidate(i=99)  # result_url https://example.com/match/99, not in matches.db
+        app.save_slip("manual", [leg], units=1.0)
+        assert app.get_slips()[0].legs[0].odds_history == []
+
     # ── generate_slips ──────────────────────────────────────────────────────
 
     def _active_profile_tuple(self, **overrides):

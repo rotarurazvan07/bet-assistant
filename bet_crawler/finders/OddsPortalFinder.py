@@ -661,7 +661,7 @@ class OddsPortalFinder(BaseMatchFinder):
     def _click_tab(self, session, tab_label: str, expected_headers=()):
         """Click a live li.tab-item and wait until the table is that market.
 
-        Live 2026-10-12 Coventry–Newcastle: tab chrome flips immediately but
+        Live 2026-10-12 Coventry-Newcastle: tab chrome flips immediately but
         table.w-full.table-fixed is empty at t+0 and fills ~1s later. Reading
         content() right after click copies the previous 1X2 cells (DC==1/X/2,
         BTTS==1/X). Wait until thead matches and the first row is not the

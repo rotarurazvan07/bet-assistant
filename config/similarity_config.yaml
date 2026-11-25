@@ -152,7 +152,7 @@ acronyms:
   # ── American leagues ───────────────────────────────────────────────────────
   "sporting ": ""
   " sporting": ""
-  # Note: do NOT strip "city" – it is discriminative (Man City ≠ Man United)
+  # Note: do NOT strip "city" - it is discriminative (Man City ≠ Man United)
 
 synonyms:
   # ── English clubs ──────────────────────────────────────────────────────────
@@ -339,7 +339,7 @@ weak_tokens:
   - al
 
   # Location words shared across multiple clubs in the same region
-  # These cannot discriminate on their own – the qualifier (city/united/…) does.
+  # These cannot discriminate on their own - the qualifier (city/united/…) does.
   - new
   - york
   - los
@@ -353,7 +353,7 @@ weak_tokens:
 
   # Franchise words that appear across many different clubs.
   # "manchester" is weak because both Man City and Man United carry it;
-  # "city" and "united" are NOT listed here – they ARE the discriminative part.
+  # "city" and "united" are NOT listed here - they ARE the discriminative part.
   - manchester
   - inter
   - dynamo
@@ -376,7 +376,7 @@ weak_tokens:
 #
 #   If you added "city" / "united" to weak_tokens BOTH names would have empty
 #   strong sets, enforcement would never fire, and the raw fuzzy scores (~63-70)
-#   might cross the threshold – exactly the bug you were hitting.
+#   might cross the threshold - exactly the bug you were hitting.
 
 weights:
   token: 0.40          # best of token_set_ratio / token_sort_ratio

@@ -198,32 +198,32 @@ class BetSlipConfig:
     │ excluded_urls              result_urls to skip entirely.                 │
     │ included_markets           None = all; or list of labels (1, X, 2, etc). │
     ├─ SHAPE ──────────────────────────────────────────────────────────────────┤
-    │ target_odds      [1.10–1000]  Desired cumulative odds.                   │
-    │ target_legs      [1–10]       Desired number of legs.                    │
-    │ max_legs_overflow[0–5]        Extra legs allowed beyond target.          │
+    │ target_odds      [1.10-1000]  Desired cumulative odds.                   │
+    │ target_legs      [1-10]       Desired number of legs.                    │
+    │ max_legs_overflow[0-5]        Extra legs allowed beyond target.          │
     ├─ QUALITY GATE ───────────────────────────────────────────────────────────┤
-    │ consensus_floor    [0–100]   Minimum source agreement percentage.        │
-    │ min_leg_odds       [1.01–10] Minimum odds for any single leg.             │
+    │ consensus_floor    [0-100]   Minimum source agreement percentage.        │
+    │ min_leg_odds       [1.01-10] Minimum odds for any single leg.             │
     ├─ ODDS TOLERANCE ─────────────────────────────────────────────────────────┤
-    │ tolerance_factor   [0.05–0.80] ±band around ideal per-leg odds.          │
+    │ tolerance_factor   [0.05-0.80] ±band around ideal per-leg odds.          │
     │                              None = auto-derived.                        │
     ├─ STOP CONDITION ─────────────────────────────────────────────────────────┤
-    │ stop_threshold     [0.50–1.00] Stop when odds ≥ target × this.          │
+    │ stop_threshold     [0.50-1.00] Stop when odds ≥ target × this.          │
     │                                None = auto-derived.                      │
-    │ min_legs_fill_ratio[0.50–1.00] Min fraction of legs before early stop.  │
+    │ min_legs_fill_ratio[0.50-1.00] Min fraction of legs before early stop.  │
     ├─ SCORING ────────────────────────────────────────────────────────────────┤
-    │ quality_vs_balance [0–1]  0 = balance only, 1 = quality only.           │
-    │ consensus_vs_sources [0–1]  Within quality: 0 = sources, 1 = consensus. │
+    │ quality_vs_balance [0-1]  0 = balance only, 1 = quality only.           │
+    │ consensus_vs_sources [0-1]  Within quality: 0 = sources, 1 = consensus. │
     ├─ ADVANCED ────────────────────────────────────────────────────────────────┤
-    │ consensus_shrinkage_k [1.0–10.0] Source-weighted consensus adjustment.    │
+    │ consensus_shrinkage_k [1.0-10.0] Source-weighted consensus adjustment.    │
     │                              None = auto (3.0).                          │
-    │ min_source_edge       [0.0–0.50] Minimum edge over implied probability.  │
-    │ max_leg_odds       [1.01–10] Maximum odds for any single leg.             │
-    │ tol_lower             [0.01–1.00] Lower tolerance band (below ideal).    │
-    │ tol_upper             [0.01–1.00] Upper tolerance band (above ideal).    │
+    │ min_source_edge       [0.0-0.50] Minimum edge over implied probability.  │
+    │ max_leg_odds       [1.01-10] Maximum odds for any single leg.             │
+    │ tol_lower             [0.01-1.00] Lower tolerance band (below ideal).    │
+    │ tol_upper             [0.01-1.00] Upper tolerance band (above ideal).    │
     │                              None = auto (tol_lower=tol, tol_upper=tol*0.6)│
     │ balance_decay         ["linear", "gaussian"] Decay function for balance. │
-    │ min_pick_quality      [0.0–1.00] Minimum quality score to accept a pick. │
+    │ min_pick_quality      [0.0-1.00] Minimum quality score to accept a pick. │
     │                              None = auto (0.20).                         │
     └──────────────────────────────────────────────────────────────────────────┘
     """
@@ -266,8 +266,8 @@ class BetSlipConfig:
     min_pick_quality: float | None = None
 
     # Odds movement scoring
-    odds_movement_weight: float | None = None  # 0.0–0.30, None = auto (0.05)
-    odds_movement_strength_min: float | None = None  # 0.05–0.20, None = auto (0.05)
+    odds_movement_weight: float | None = None  # 0.0-0.30, None = auto (0.05)
+    odds_movement_strength_min: float | None = None  # 0.05-0.20, None = auto (0.05)
 
     def __post_init__(self) -> None:
         """Validate and clamp builder-config fields after construction."""

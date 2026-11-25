@@ -247,7 +247,7 @@ export default function RetrospectionSection({
         {
             key: 'trust_score',
             label: 'Trust',
-            tip: 'Trust score: Wilson lower bound of accuracy × recency weight. High > 0.6, Medium 0.3–0.6, Low < 0.3',
+            tip: 'Trust score: Wilson lower bound of accuracy × recency weight. High > 0.6, Medium 0.3-0.6, Low < 0.3',
             sortAccessor: row => row.trust_score ?? 0,
             render: row => (
                 <HoverTooltip text={trustTooltip(row)} align="center">
@@ -532,7 +532,7 @@ export default function RetrospectionSection({
                         CLV Distribution
                     </span>
                     <div className="flex-1 min-h-[220px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height={220}>
                             <BarChart
                                 data={clvDistribution}
                                 margin={{ left: 0, right: 10, top: 5, bottom: 0 }}
@@ -543,7 +543,10 @@ export default function RetrospectionSection({
                                     tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
                                     tickLine={false}
                                     axisLine={{ stroke: 'var(--border)' }}
-                                    tickFormatter={v => `${v}%`}
+                                    tickFormatter={(v, i) => {
+                                        const item = clvDistribution[i];
+                                        return item ? `${item.bin_start}-${item.bin_end}%` : `${v}%`;
+                                    }}
                                 />
                                 <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                                 <Tooltip contentStyle={TT} content={({ active, payload }) => {
@@ -552,7 +555,7 @@ export default function RetrospectionSection({
                                     return (
                                         <div style={TT}>
                                             <p style={{ color: 'var(--text-bright)', fontWeight: 'bold', marginBottom: 4 }}>
-                                                CLV {d.bin_start}% – {d.bin_end}%
+                                                CLV {d.bin_start}% - {d.bin_end}%
                                             </p>
                                             <p><span style={{ color: 'var(--text-secondary)' }}>Legs: </span><span style={{ color: 'var(--text-primary)' }}>{d.count}</span></p>
                                         </div>

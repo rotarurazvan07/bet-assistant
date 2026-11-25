@@ -102,7 +102,7 @@ export default function Analytics({ refreshKey }: Props) {
         .filter(profile => data?.profiles.includes(profile));
 
     const dateSummary = dateFrom && dateTo
-        ? `${dateFrom} – ${dateTo}`
+        ? `${dateFrom} - ${dateTo}`
         : dateFrom
             ? `From ${dateFrom}`
             : dateTo

@@ -411,7 +411,7 @@ export default function BuilderPanel({ cfg, availableLeagues, availableSources, 
         <AccordionSection title="Bet Shape" icon="🎲" defaultOpen={true}>
             <Row label="Target Odds" tip="Desired cumulative odds for the entire slip."
                 num={{ value: cfg.target_odds, min: 1.1, max: 1000, step: 0.1, onChange: v => up('target_odds', v) }} />
-            <Row label="Target Legs" tip="Desired number of selections (1–100)."
+            <Row label="Target Legs" tip="Desired number of selections (1-100)."
                 num={{ value: cfg.target_legs, min: 1, max: 100, step: 1, onChange: v => up('target_legs', v) }} />
             <Row label="Min Leg Odds" tip="Minimum bookmaker odds for a single leg. Filters near-certain outcomes."
                 num={{ value: cfg.min_leg_odds, min: 1.01, max: 10, step: 0.01, onChange: v => up('min_leg_odds', v) }} />

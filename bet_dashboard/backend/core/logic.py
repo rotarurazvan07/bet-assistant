@@ -924,7 +924,27 @@ class AppLogic:
         legs: list[dict[str, Any]],
         units: float = 1.0,
     ) -> int:
-        """Persist a bet slip; return the new slip_id."""
+        """Persist a bet slip; return the new slip_id.
+
+        Legs without odds_history (manual Build-page legs) get it seeded from
+        the current matches.db row for their result_url, so the pull-time
+        sync and CLV have a baseline snapshot — same as generated legs.
+        """
+        if legs and all(not getattr(leg, "odds_history", None) for leg in legs):
+            raw_df = self._matches_manager.fetch_matches()
+            if not raw_df.empty:
+                by_url = {
+                    row.get("result_url"): row.get("odds")
+                    for _, row in raw_df.iterrows()
+                    if row.get("result_url")
+                }
+                now_iso = self._local_now().isoformat()
+                for leg in legs:
+                    odds_dict = by_url.get(getattr(leg, "result_url", None))
+                    if odds_dict:
+                        leg.odds_history = self._assistant.build_odds_history(
+                            odds_dict, now_iso
+                        )
         slip_id = self._assistant.save_slip(profile, legs, units)
         return slip_id
 
