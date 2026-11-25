@@ -766,7 +766,9 @@ class MatchesManager(BufferedStorageManager):
         fresh_manager._dirty = True
         return True
 
-    def merge_with_history_preservation(self, fresh_db_path: str, max_history: int | None = None, local_tz: str = "UTC") -> None:
+    def merge_with_history_preservation(
+        self, fresh_db_path: str, max_history: int | None = None, local_tz: str = "UTC"
+    ) -> None:
         """Merge fresh database while preserving odds history from current data.
 
         Flow:

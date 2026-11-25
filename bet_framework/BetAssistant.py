@@ -1261,9 +1261,7 @@ class BetAssistant(BaseStorageManager):
 
         updated = 0
         with self.db_lock:
-            rows = self.fetch_rows(
-                "SELECT leg_id, result_url, odds_history FROM legs WHERE status IN ('Pending', 'Live')"
-            )
+            rows = self.fetch_rows("SELECT leg_id, result_url, odds_history FROM legs WHERE status IN ('Pending', 'Live')")
             for leg_id, url, odds_history_json in rows:
                 odds_dict = odds_by_url.get(url)
                 if not odds_dict:

@@ -7,7 +7,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 
-def calculate_leg_clv(selection_odds: float, market_key: str, odds_history: list[dict], match_datetime: Any = None) -> float | None:
+def calculate_leg_clv(
+    selection_odds: float, market_key: str, odds_history: list[dict], match_datetime: Any = None
+) -> float | None:
     """Closing Line Value in percentage points (positive = value captured).
 
     Compares the implied probability at selection odds against the implied

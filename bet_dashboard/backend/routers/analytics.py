@@ -323,13 +323,21 @@ _PICKED_OUTCOME_BY_KEY = {
     "home": "HOME",
     "draw": "DRAW",
     "away": "AWAY",
-    "over_25": "OVER_25", "under_25": "UNDER_25",
-    "over_15": "OVER_15", "under_15": "UNDER_15",
-    "over_05": "OVER_05", "under_05": "UNDER_05",
-    "over_35": "OVER_35", "under_35": "UNDER_35",
-    "over_45": "OVER_45", "under_45": "UNDER_45",
-    "btts_yes": "BTTS_YES", "btts_no": "BTTS_NO",
-    "dc_1x": "DC_1X", "dc_12": "DC_12", "dc_x2": "DC_X2",
+    "over_25": "OVER_25",
+    "under_25": "UNDER_25",
+    "over_15": "OVER_15",
+    "under_15": "UNDER_15",
+    "over_05": "OVER_05",
+    "under_05": "UNDER_05",
+    "over_35": "OVER_35",
+    "under_35": "UNDER_35",
+    "over_45": "OVER_45",
+    "under_45": "UNDER_45",
+    "btts_yes": "BTTS_YES",
+    "btts_no": "BTTS_NO",
+    "dc_1x": "DC_1X",
+    "dc_12": "DC_12",
+    "dc_x2": "DC_X2",
 }
 
 
@@ -874,10 +882,7 @@ def _clv_distribution(slips) -> list[dict]:
         b = math.floor(v / 2) * 2
         bins[b] = bins.get(b, 0) + 1
     # Emit every 2pp bin in range, defaulting empty bins to 0
-    return [
-        {"bin_start": b, "bin_end": b + 2, "count": bins.get(b, 0)}
-        for b in range(int(start), int(end) + 2, 2)
-    ]
+    return [{"bin_start": b, "bin_end": b + 2, "count": bins.get(b, 0)} for b in range(int(start), int(end) + 2, 2)]
 
 
 def _correlation_matrix(slips) -> dict:
