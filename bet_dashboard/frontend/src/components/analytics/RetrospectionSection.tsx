@@ -14,7 +14,7 @@ import {
 } from '../../utils/analyticsRetrospection';
 import type {
     MarketBreakdown, LeagueBreakdown, SourceBreakdown,
-    AnalyticsData, SourceMarketCorrelation,
+    AnalyticsData, SourceMarketCorrelation, ClvBin,
 } from '../../types';
 
 const TRUST_BADGE_STYLE: Record<TrustLevel, { color: string; bg: string; label: string }> = {
@@ -66,6 +66,7 @@ interface RetrospectionSectionProps {
     sourceBreakdown?: SourceBreakdown[];
     correlationMatrix?: AnalyticsData['correlation_matrix'];
     sourceMarketCorrelation?: SourceMarketCorrelation;
+    clvDistribution?: ClvBin[];
     defaultExpanded?: boolean;
 }
 
@@ -75,6 +76,7 @@ export default function RetrospectionSection({
     sourceBreakdown = [],
     correlationMatrix,
     sourceMarketCorrelation,
+    clvDistribution = [],
     defaultExpanded = false,
 }: RetrospectionSectionProps) {
     // ── Quickview Top / Worst ranking ──────────────────────────────────────────
@@ -115,6 +117,23 @@ export default function RetrospectionSection({
     const eligibleSources = useMemo(() => filterEligibleItems(sourceRankables, MIN_SAMPLE_SIZE), [sourceRankables]);
     const { top: topSources, worst: worstSources } = useMemo(() => rankTopWorst(eligibleSources, 3), [eligibleSources]);
 
+    const clvColumn = {
+        key: 'clv_pct',
+        label: 'CLV',
+        tip: 'Closing Line Value: implied prob at pick vs closing line (positive = value)',
+        render: (row: { clv_pct: number | null }) => {
+            if (row.clv_pct === null || row.clv_pct === undefined) return <span style={{ color: 'var(--text-secondary)' }}>—</span>;
+            const clv = row.clv_pct;
+            const color = clv > 0 ? 'var(--win)' : clv < 0 ? 'var(--loss)' : 'var(--pending)';
+            const bg = clv > 0 ? 'var(--win-bg)' : clv < 0 ? 'var(--loss-bg)' : 'var(--pending-bg)';
+            return (
+                <span className="font-bold px-2 py-0.5 rounded" style={{ color, background: bg }}>
+                    {clv > 0 ? '+' : ''}{clv}%
+                </span>
+            );
+        },
+    };
+
     // ── Market Columns ─────────────────────────────────────────────────────────
     const marketColumns: IntelligenceColumn<MarketBreakdown>[] = [
         { key: 'legs', label: 'Legs', tip: 'Total settled legs', align: 'left' },
@@ -143,6 +162,7 @@ export default function RetrospectionSection({
                 );
             },
         },
+        clvColumn as IntelligenceColumn<MarketBreakdown>,
         { key: 'avg_odds', label: 'Avg Odds', tip: 'Average leg odds', render: row => `@${row.avg_odds}` },
     ];
 
@@ -174,12 +194,30 @@ export default function RetrospectionSection({
                 );
             },
         },
+        clvColumn as IntelligenceColumn<LeagueBreakdown>,
         { key: 'avg_odds', label: 'Avg Odds', tip: 'Average leg odds', render: row => `@${row.avg_odds}` },
     ];
 
     // ── Source Columns (Win %, Implied %, Edge, Avg Odds, Trust, Score MAE) ───────
     const sourceColumns: IntelligenceColumn<SourceBreakdown>[] = [
         { key: 'total_predictions', label: 'Predictions', tip: 'Total predictions made', align: 'left' },
+        {
+            key: 'clv_pct',
+            label: 'CLV',
+            tip: 'Average Closing Line Value on settled legs this source endorsed (predicted the picked side). Positive = the market later agreed with the pick.',
+            sortAccessor: row => row.clv_pct ?? 0,
+            render: row => {
+                if (row.clv_pct === null || row.clv_pct === undefined) return <span style={{ color: 'var(--text-secondary)' }}>—</span>;
+                const clv = row.clv_pct;
+                const color = clv > 0 ? 'var(--win)' : clv < 0 ? 'var(--loss)' : 'var(--pending)';
+                const bg = clv > 0 ? 'var(--win-bg)' : clv < 0 ? 'var(--loss-bg)' : 'var(--pending-bg)';
+                return (
+                    <span className="font-bold px-2 py-0.5 rounded" style={{ color, background: bg }}>
+                        {clv > 0 ? '+' : ''}{clv}%
+                    </span>
+                );
+            },
+        },
         {
             key: 'accuracy',
             label: 'Win %',
@@ -209,7 +247,7 @@ export default function RetrospectionSection({
         {
             key: 'trust_score',
             label: 'Trust',
-            tip: 'Trust score: Wilson lower bound of accuracy × recency weight. High > 0.6, Medium 0.3–0.6, Low < 0.3',
+            tip: 'Trust score: Wilson lower bound of accuracy × recency weight. High > 0.6, Medium 0.3-0.6, Low < 0.3',
             sortAccessor: row => row.trust_score ?? 0,
             render: row => (
                 <HoverTooltip text={trustTooltip(row)} align="center">
@@ -487,7 +525,55 @@ export default function RetrospectionSection({
                 </div>
             )}
 
-            {/* 4. Intersectional Correlation Matrices */}
+            {/* 4. CLV Distribution */}
+            {clvDistribution.length > 0 && (
+                <div className="card p-4 flex flex-col">
+                    <span className="font-mono text-[11px] tracking-widest uppercase mb-4 text-[var(--text-secondary)]">
+                        CLV Distribution
+                    </span>
+                    <div className="flex-1 min-h-[220px]">
+                        <ResponsiveContainer width="100%" height={220}>
+                            <BarChart
+                                data={clvDistribution}
+                                margin={{ left: 0, right: 10, top: 5, bottom: 0 }}
+                            >
+                                <CartesianGrid stroke="var(--border)" strokeDasharray="4 4" vertical={false} strokeOpacity={0.4} />
+                                <XAxis
+                                    dataKey="bin_start"
+                                    tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
+                                    tickLine={false}
+                                    axisLine={{ stroke: 'var(--border)' }}
+                                    tickFormatter={(v, i) => {
+                                        const item = clvDistribution[i];
+                                        return item ? `${item.bin_start}-${item.bin_end}%` : `${v}%`;
+                                    }}
+                                />
+                                <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+                                <Tooltip contentStyle={TT} content={({ active, payload }) => {
+                                    if (!active || !payload?.length) return null;
+                                    const d = payload[0]?.payload;
+                                    return (
+                                        <div style={TT}>
+                                            <p style={{ color: 'var(--text-bright)', fontWeight: 'bold', marginBottom: 4 }}>
+                                                CLV {d.bin_start}% - {d.bin_end}%
+                                            </p>
+                                            <p><span style={{ color: 'var(--text-secondary)' }}>Legs: </span><span style={{ color: 'var(--text-primary)' }}>{d.count}</span></p>
+                                        </div>
+                                    );
+                                }} />
+                                <ReferenceLine x={0} stroke="rgba(255,255,255,0.3)" />
+                                <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+                                    {clvDistribution.map((entry, i) => (
+                                        <Cell key={i} fill={entry.bin_start >= 0 ? 'var(--win)' : 'var(--loss)'} fillOpacity={0.8} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            )}
+
+            {/* 5. Intersectional Correlation Matrices */}
             {correlationMatrix && correlationMatrix.leagues.length > 0 && correlationMatrix.markets.length > 0 && (
                 <CorrelationContainer
                     title="League x Market Correlation"

@@ -8,7 +8,7 @@ Branch-level coverage of every private helper in routers/analytics.py.
 from datetime import datetime, timedelta, timezone
 
 from conftest import make_leg, make_slip
-from core.analytics_utils import calculate_daily_summary
+from core.analytics_utils import calculate_daily_summary, calculate_leg_clv
 from routers.analytics import (
     _correlation_matrix,
     _drawdown_data,
@@ -679,3 +679,68 @@ def test_pnl_by_market_reports_settled_rows() -> None:
     assert row["won"] == 1
     assert row["lost"] == 0
     assert row["net_profit"] == 1.0
+
+
+class TestCalculateLegClv:
+    """Snapshot cutoff is a datetime comparison, correct across mixed UTC offsets."""
+
+    def test_naive_history_selects_last_entry_before_kickoff(self) -> None:
+        history = [
+            {"ts": "2026-10-07T17:00:00", "1": 2.0},
+            {"ts": "2026-10-07T17:30:00", "1": 1.95},
+            {"ts": "2026-10-07T17:45:00", "1": 1.8},
+        ]
+        assert calculate_leg_clv(2.1, "1", history, "2026-10-07T18:00:00") == -7.94
+
+    def test_offset_aware_entry_before_naive_kickoff_is_selected(self) -> None:
+        # 20:30+03:00 is 17:30 UTC — before the 18:00 kickoff — but sorts after it as a string.
+        history = [
+            {"ts": "2026-10-07T17:30:00", "1": 2.0},
+            {"ts": "2026-10-07T20:30:00+03:00", "1": 1.8},
+        ]
+        assert calculate_leg_clv(2.1, "1", history, "2026-10-07T18:00:00") == -7.94
+
+    def test_aware_kickoff_excludes_naive_entry_past_kickoff(self) -> None:
+        # 09:00+09:00 is 00:00Z, so the 01:00Z naive snapshot is after kickoff despite sorting earlier.
+        history = [
+            {"ts": "2026-10-06T23:00:00", "1": 2.0},
+            {"ts": "2026-10-07T01:00:00", "1": 1.8},
+        ]
+        assert calculate_leg_clv(2.1, "1", history, "2026-10-07T09:00:00+09:00") == -2.38
+
+    def test_z_suffix_accepted_on_both_ends(self) -> None:
+        history = [{"ts": "2026-10-07T17:45:00Z", "1": 1.85}]
+        assert calculate_leg_clv(2.1, "1", history, "2026-10-07T18:00:00Z") == -6.44
+
+    def test_datetime_object_kickoff_ignores_post_kickoff_entry(self) -> None:
+        history = [
+            {"ts": "2030-01-03T19:30:00", "1": 1.8},
+            {"ts": "2030-01-03T21:00:00", "1": 2.5},
+        ]
+        assert calculate_leg_clv(2.1, "1", history, datetime(2030, 1, 3, 20, 0)) == -7.94
+
+    def test_malformed_ts_is_skipped_without_raising(self) -> None:
+        history = [
+            {"ts": "not-a-date", "1": 1.5},
+            {"ts": "2026-10-07T17:45:00", "1": 1.8},
+        ]
+        assert calculate_leg_clv(2.1, "1", history, "2026-10-07T18:00:00") == -7.94
+
+    def test_unknown_kickoff_uses_last_entry(self) -> None:
+        history = [{"ts": "2026-10-07T17:00:00", "1": 2.0}, {"ts": "2026-10-07T17:30:00", "1": 1.9}]
+        assert calculate_leg_clv(2.1, "1", history) == -5.01
+
+    def test_entry_without_ts_falls_back_to_last_entry(self) -> None:
+        assert calculate_leg_clv(2.1, "1", [{"1": 1.8}], "2026-10-07T18:00:00") == -7.94
+
+    def test_empty_history_returns_none(self) -> None:
+        assert calculate_leg_clv(2.1, "1", [], "2026-10-07T18:00:00") is None
+
+    def test_non_positive_selection_odds_returns_none(self) -> None:
+        history = [{"ts": "2026-10-07T17:00:00", "1": 2.0}]
+        assert calculate_leg_clv(0, "1", history, "2026-10-07T18:00:00") is None
+
+    def test_missing_or_non_positive_closing_odds_returns_none(self) -> None:
+        kickoff = "2026-10-07T18:00:00"
+        assert calculate_leg_clv(2.1, "1", [{"ts": "2026-10-07T17:00:00", "1": 0}], kickoff) is None
+        assert calculate_leg_clv(2.1, "1", [{"ts": "2026-10-07T17:00:00"}], kickoff) is None

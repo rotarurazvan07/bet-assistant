@@ -3,8 +3,63 @@ Analytics utilities for calculating betting statistics and metrics.
 This module contains pure functions for analytics calculations.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+
+def _parse_iso_ts(value: Any) -> datetime | None:
+    """Parse an ISO timestamp into an aware datetime; None when it cannot be parsed."""
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    # DB snapshots are stored without an offset; the project treats them as UTC.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def calculate_leg_clv(
+    selection_odds: float, market_key: str, odds_history: list[dict], match_datetime: Any = None
+) -> float | None:
+    """Closing Line Value in percentage points (positive = value captured).
+
+    Compares the implied probability at selection odds against the implied
+    probability of the closing snapshot — the last history entry whose
+    timestamp is before the match kickoff (or the last entry overall when
+    kickoff is unknown). Returns None when CLV cannot be computed.
+    """
+    if not odds_history or selection_odds <= 0:
+        return None
+
+    closing = None
+    if match_datetime is not None:
+        kickoff = _parse_iso_ts(match_datetime)
+        if kickoff is not None:
+            # parse once per entry, skip unparsable (None) and post-kickoff stamps
+            valid = []
+            for h in odds_history:
+                ts_val = h.get("ts")
+                if ts_val:
+                    ts = _parse_iso_ts(ts_val)
+                    if ts is not None and ts < kickoff:
+                        valid.append(h)
+            closing = valid[-1] if valid else None
+    if closing is None and odds_history:
+        closing = odds_history[-1]
+
+    closing_odds = closing.get(market_key) if closing else None
+    if not closing_odds or closing_odds <= 0:
+        return None
+
+    return round((1.0 / selection_odds - 1.0 / closing_odds) * 100, 2)
 
 
 def calculate_overall_edge(slips) -> float:

@@ -1,5 +1,5 @@
 // Visual baselines. Chromium-only, local-only.
-// Local Vite has no backend — installDemoApi serves 2–3 factory matches so
+// Local Vite has no backend — installDemoApi serves 2-3 factory matches so
 // the table + populated slip are in the shot. Skipped when E2E_BASE_URL (CI).
 import { test, expect, type Page } from '@playwright/test';
 import { installDemoApi, suppressTour } from './fixtures/mock-api';

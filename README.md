@@ -555,7 +555,7 @@ sqlite3 workspace/data/matches.db "SELECT COUNT(*) FROM matches;"
 
 ### Smart Builder returns "No matches meet the current criteria"
 
-1.  Lower **Consensus Floor** (try 40–50%)
+1.  Lower **Consensus Floor** (try 40-50%)
 2.  Lower **Min Odds** (try 1.01)
 3.  Check **Excluded Matches** section
 4.  Verify global date filters aren't too restrictive

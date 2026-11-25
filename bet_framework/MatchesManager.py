@@ -568,13 +568,13 @@ class MatchesManager(BufferedStorageManager):
         return {k: v for k, v in odds_dict.items() if k != "history" and v is not None}
 
     @staticmethod
-    def _append_to_history(current_odds: dict, new_snapshot: dict, max_entries: int) -> dict:
-        """Append a snapshot to history array, trim to max_entries, return updated odds dict.
+    def _append_to_history(current_odds: dict, new_snapshot: dict, max_entries: int | None = None) -> dict:
+        """Append a snapshot to history array, return updated odds dict.
 
         Args:
             current_odds: The current odds dict (may contain history)
             new_snapshot: Dict with timestamp 'ts' and market values
-            max_entries: Maximum number of history entries to keep
+            max_entries: Maximum number of history entries to keep (None = keep all)
         """
         if not new_snapshot or not any(v for k, v in new_snapshot.items() if k != "ts" and v is not None):
             return current_odds
@@ -582,8 +582,8 @@ class MatchesManager(BufferedStorageManager):
         history = list(current_odds.get("history", []))
         history.append(new_snapshot)
 
-        # Trim to max_entries (keep most recent)
-        if len(history) > max_entries:
+        # Trim to max_entries (keep most recent); None keeps the full history
+        if max_entries is not None and len(history) > max_entries:
             history = history[-max_entries:]
 
         result = {k: v for k, v in current_odds.items() if k != "history"}
@@ -766,7 +766,9 @@ class MatchesManager(BufferedStorageManager):
         fresh_manager._dirty = True
         return True
 
-    def merge_with_history_preservation(self, fresh_db_path: str, max_history: int = 3, local_tz: str = "UTC") -> None:
+    def merge_with_history_preservation(
+        self, fresh_db_path: str, max_history: int | None = None, local_tz: str = "UTC"
+    ) -> None:
         """Merge fresh database while preserving odds history from current data.
 
         Flow:
@@ -775,6 +777,8 @@ class MatchesManager(BufferedStorageManager):
         3. For each remaining current match, fuzzy-match to fresh DB
         4. On match: append current odds as history entry to fresh row
         5. Replace current buffer with merged fresh data
+
+        max_history=None keeps the full snapshot history (needed for CLV).
         """
         from zoneinfo import ZoneInfo
 

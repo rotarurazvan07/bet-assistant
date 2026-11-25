@@ -166,6 +166,11 @@ export interface ManualLegIn {
     predictions?: SourcePrediction[];  // Per-source predictions for source reliability tracking
 }
 
+export interface LegOddsSnapshot {
+    ts: string;
+    [market: string]: string | number;
+}
+
 export interface BetLeg {
     match_name: string; datetime: string | null;
     market: string; market_type: string | null;
@@ -173,6 +178,7 @@ export interface BetLeg {
     league: string | null;
     predictions: SourcePrediction[];
     final_score: string | null;
+    odds_history?: LegOddsSnapshot[];
 }
 
 export interface BetSlip {
@@ -263,12 +269,18 @@ export interface MarketBreakdown {
     market: string; legs: number; won: number; lost: number;
     win_rate: number; implied_win_rate: number; edge: number;
     avg_odds: number; net_profit: number;
+    clv_pct?: number | null;
 }
 
 export interface LeagueBreakdown {
     league: string; legs: number; won: number; lost: number;
     win_rate: number; implied_win_rate: number; edge: number;
     avg_odds: number; net_profit: number;
+    clv_pct?: number | null;
+}
+
+export interface ClvBin {
+    bin_start: number; bin_end: number; count: number;
 }
 
 export interface SourceBreakdownMarket {
@@ -290,6 +302,8 @@ export interface SourceBreakdown {
     trust_score?: number;
     recency_weight?: number;
     latest_prediction_date?: string | null;
+    clv_pct?: number | null;
+    clv_legs?: number;
     markets: SourceBreakdownMarket[];
 }
 
@@ -360,6 +374,7 @@ export interface AnalyticsData {
     source_breakdown?: SourceBreakdown[];
     source_market_correlation?: SourceMarketCorrelation;
     insights?: AnalyticsInsight[];
+    clv_distribution?: ClvBin[];
 }
 
 // ── Services ──────────────────────────────────────────────────────────────────

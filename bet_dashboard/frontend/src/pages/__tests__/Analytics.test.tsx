@@ -83,7 +83,7 @@ describe('Analytics page', () => {
         await screen.findByText('+2.8U');
         expect(await screen.findByText('1 profile showing: low')).toBeInTheDocument();
         expect(screen.queryByText('2 profiles showing: low, medium')).not.toBeInTheDocument();
-        expect(screen.getByText('2026-09-01 – 2026-09-20')).toBeInTheDocument();
+        expect(screen.getByText('2026-09-01 - 2026-09-20')).toBeInTheDocument();
     });
 
     it.each([

@@ -166,6 +166,7 @@ class BetLegOut(BaseModel):
     result_url: str | None = None
     league: str | None = None
     predictions: list[dict] = []
+    odds_history: list[dict] = []
 
 
 class BetSlipOut(BaseModel):

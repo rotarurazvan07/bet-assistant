@@ -471,7 +471,7 @@ class BetExplorerFinder(BaseMatchFinder):
     def _click_market(self, session, selector, expected_n, allow_same: bool = False):
         """Click a BetExplorer market tab and wait until its averages render.
 
-        Live 2026-10-12 Coventry–Newcastle: `#bettype_menu_best` click returns while
+        Live 2026-10-12 Coventry-Newcastle: `#bettype_menu_best` click returns while
         averages still show 1X2 (3.19/3.58/2.20). BTTS becomes 1.57/2.34 and DC
         1.67/1.30/1.36 only after ~1.5s. Reading immediately copies 1 and X.
         """

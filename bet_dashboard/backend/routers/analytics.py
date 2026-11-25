@@ -8,12 +8,15 @@ from core.analytics_utils import (
     _get_units,
     calculate_correlation_data,
     calculate_daily_summary,
+    calculate_leg_clv,
     calculate_market_accuracy,
     calculate_rolling_edge,
 )
 from fastapi import APIRouter, Request
 from utils.json_utils import sanitize_floats
 from utils.profile_utils import get_profile_params
+
+from bet_framework.markets.keys import stripped_key
 
 WILSON_Z_90 = 1.645  # two-sided 90% Wilson interval
 INSIGHT_MIN_SAMPLE_SIZE = 10
@@ -132,7 +135,19 @@ def _market_breakdown(slips) -> list[dict]:
                     "sum_odds": 0.0,
                     "sum_implied": 0.0,
                     "net_profit": 0.0,
+                    "clv_sum": 0.0,
+                    "clv_count": 0,
                 }
+
+            clv = calculate_leg_clv(
+                leg.odds,
+                stripped_key(str(leg.market)),
+                getattr(leg, "odds_history", None) or [],
+                getattr(leg, "datetime", None),
+            )
+            if clv is not None:
+                data[m]["clv_sum"] += clv
+                data[m]["clv_count"] += 1
 
             # Always aggregate profit (money is real even if leg is duplicated)
             if l_status == "Won":
@@ -168,6 +183,7 @@ def _market_breakdown(slips) -> list[dict]:
                 "edge": round(win_rate - implied, 1),
                 "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
                 "net_profit": round(d["net_profit"], 2),
+                "clv_pct": round(d["clv_sum"] / d["clv_count"], 2) if d["clv_count"] else None,
             }
         )
     return sorted(result, key=lambda x: x["edge"], reverse=True)
@@ -203,7 +219,19 @@ def _league_breakdown(slips) -> list[dict]:
                     "sum_odds": 0.0,
                     "sum_implied": 0.0,
                     "net_profit": 0.0,
+                    "clv_sum": 0.0,
+                    "clv_count": 0,
                 }
+
+            clv = calculate_leg_clv(
+                leg.odds,
+                stripped_key(str(leg.market)),
+                getattr(leg, "odds_history", None) or [],
+                getattr(leg, "datetime", None),
+            )
+            if clv is not None:
+                data[lg]["clv_sum"] += clv
+                data[lg]["clv_count"] += 1
 
             # Always aggregate profit
             if l_status == "Won":
@@ -239,6 +267,7 @@ def _league_breakdown(slips) -> list[dict]:
                 "edge": round(win_rate - implied, 1),
                 "avg_odds": round(d["sum_odds"] / total, 2) if total else 0.0,
                 "net_profit": round(d["net_profit"], 2),
+                "clv_pct": round(d["clv_sum"] / d["clv_count"], 2) if d["clv_count"] else None,
             }
         )
     return sorted(result, key=lambda x: x["edge"], reverse=True)
@@ -284,6 +313,37 @@ def _predict_outcome_from_score(home_goals: int, away_goals: int, market_label: 
 
     handler = handlers.get(market_type)
     return handler() if handler else "UNKNOWN"
+
+
+# Outcome string that a given canonical market key corresponds to — the side
+# that wins when the leg's market is settled. Used to tell whether a source
+# endorsed the picked side (for CLV attribution), independent of the actual
+# match result.
+_PICKED_OUTCOME_BY_KEY = {
+    "home": "HOME",
+    "draw": "DRAW",
+    "away": "AWAY",
+    "over_25": "OVER_25",
+    "under_25": "UNDER_25",
+    "over_15": "OVER_15",
+    "under_15": "UNDER_15",
+    "over_05": "OVER_05",
+    "under_05": "UNDER_05",
+    "over_35": "OVER_35",
+    "under_35": "UNDER_35",
+    "over_45": "OVER_45",
+    "under_45": "UNDER_45",
+    "btts_yes": "BTTS_YES",
+    "btts_no": "BTTS_NO",
+    "dc_1x": "DC_1X",
+    "dc_12": "DC_12",
+    "dc_x2": "DC_X2",
+}
+
+
+def _picked_outcome(market_label: str) -> str:
+    """Outcome string of the side the leg picked, from its canonical market key."""
+    return _PICKED_OUTCOME_BY_KEY.get(stripped_key(str(market_label)), "UNKNOWN")
 
 
 def _source_market_correlation(slips) -> dict:
@@ -424,6 +484,17 @@ def _source_breakdown(slips) -> list[dict]:
             market_label = str(leg.market)
             market_type = str(leg.market_type)
             actual_outcome = _predict_outcome_from_score(actual_home, actual_away, market_label, market_type)
+            # The side this leg bet on (from its market key) — CLV is credited
+            # to sources that endorsed THIS side, not the actual result.
+            picked_outcome = _picked_outcome(market_label)
+
+            # CLV of this leg, credited to sources that predicted the picked side
+            leg_clv = calculate_leg_clv(
+                leg.odds,
+                stripped_key(market_label),
+                getattr(leg, "odds_history", None) or [],
+                getattr(leg, "datetime", None),
+            )
 
             for pred in predictions:
                 source = pred.get("source", "unknown")
@@ -440,6 +511,8 @@ def _source_breakdown(slips) -> list[dict]:
                         "sum_implied": 0.0,
                         "sum_odds": 0.0,
                         "latest_date": None,
+                        "clv_sum": 0.0,
+                        "clv_count": 0,
                     }
 
                 # Track latest qualifying prediction date (from the slip's date_generated)
@@ -460,6 +533,12 @@ def _source_breakdown(slips) -> list[dict]:
 
                 if is_correct:
                     source_data[source]["correct_predictions"] += 1
+
+                # Source endorsed the picked side (not necessarily the actual
+                # result): credit it with the leg's CLV
+                if predicted_outcome == picked_outcome and leg_clv is not None:
+                    source_data[source]["clv_sum"] += leg_clv
+                    source_data[source]["clv_count"] += 1
 
                 # Track score MAE
                 source_data[source]["score_mae_sum"] += abs(pred_home - actual_home) + abs(pred_away - actual_away)
@@ -502,6 +581,7 @@ def _source_breakdown(slips) -> list[dict]:
         latest_date = data["latest_date"]
         # Expose date part only when present
         latest_prediction_date = latest_date[:10] if latest_date else None
+        clv_count = data["clv_count"]
 
         result.append(
             {
@@ -516,6 +596,8 @@ def _source_breakdown(slips) -> list[dict]:
                 "trust_score": trust_score,
                 "recency_weight": recency_weight,
                 "latest_prediction_date": latest_prediction_date,
+                "clv_pct": round(data["clv_sum"] / clv_count, 2) if clv_count else None,
+                "clv_legs": clv_count,
                 "markets": sorted(market_breakdown, key=lambda x: x["accuracy"], reverse=True),
             }
         )
@@ -767,8 +849,40 @@ def get_analytics(
         "source_breakdown": _source_breakdown(slips),
         "source_market_correlation": _source_market_correlation(slips),
         "insights": _generate_insights(slips),
+        "clv_distribution": _clv_distribution(slips),
     }
     return sanitize_floats(response_data)
+
+
+def _clv_distribution(slips) -> list[dict]:
+    """Histogram of per-leg CLV values for settled slips (2pp bins)."""
+    values: list[float] = []
+    for slip in slips:
+        if _get_status_value(slip.slip_status) not in ("Won", "Lost"):
+            continue
+        for leg in slip.legs:
+            if _get_status_value(leg.status) not in ("Won", "Lost"):
+                continue
+            clv = calculate_leg_clv(
+                leg.odds,
+                stripped_key(str(leg.market)),
+                getattr(leg, "odds_history", None) or [],
+                getattr(leg, "datetime", None),
+            )
+            if clv is not None:
+                values.append(clv)
+    if not values:
+        return []
+    lo = min(values)
+    hi = max(values)
+    start = math.floor(lo / 2) * 2
+    end = math.ceil(hi / 2) * 2
+    bins: dict[int, int] = {}
+    for v in values:
+        b = math.floor(v / 2) * 2
+        bins[b] = bins.get(b, 0) + 1
+    # Emit every 2pp bin in range, defaulting empty bins to 0
+    return [{"bin_start": b, "bin_end": b + 2, "count": bins.get(b, 0)} for b in range(int(start), int(end) + 2, 2)]
 
 
 def _correlation_matrix(slips) -> dict:

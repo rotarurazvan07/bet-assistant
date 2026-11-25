@@ -102,7 +102,7 @@ export default function Analytics({ refreshKey }: Props) {
         .filter(profile => data?.profiles.includes(profile));
 
     const dateSummary = dateFrom && dateTo
-        ? `${dateFrom} – ${dateTo}`
+        ? `${dateFrom} - ${dateTo}`
         : dateFrom
             ? `From ${dateFrom}`
             : dateTo
@@ -229,6 +229,7 @@ export default function Analytics({ refreshKey }: Props) {
                 sourceBreakdown={data.source_breakdown ?? []}
                 correlationMatrix={data.correlation_matrix}
                 sourceMarketCorrelation={data.source_market_correlation}
+                clvDistribution={data.clv_distribution ?? []}
             />
         </div>
     );
