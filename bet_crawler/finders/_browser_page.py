@@ -41,7 +41,5 @@ def wait_for_content(session, selector: str, timeout_ms: int) -> str:
     try:
         session.page.wait_for_selector(selector, state="attached", timeout=timeout_ms)
     except Exception as exc:
-        raise TimeoutError(
-            f"{describe_page(session)} | waiting for {selector!r}: {exc}"
-        ) from exc
+        raise TimeoutError(f"{describe_page(session)} | waiting for {selector!r}: {exc}") from exc
     return session.page.content()
