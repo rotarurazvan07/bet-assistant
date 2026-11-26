@@ -16,12 +16,6 @@ _CF_EXTRA_FLAGS = [
     "--disable-translate",
 ]
 
-# Playwright *context* options, not CLI flags (see __generate_options__).
-_CF_ADDITIONAL_ARGS = {
-    "hide_canvas": True,
-    "block_webrtc": True,
-}
-
 
 def cf_browser(
     *,
@@ -46,10 +40,7 @@ def cf_browser(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     )
     kwargs.setdefault("extra_flags", [])
-    kwargs.setdefault("additional_args", {})
     kwargs["extra_flags"] = kwargs["extra_flags"] + _CF_EXTRA_FLAGS
-    kwargs["additional_args"] = {**_CF_ADDITIONAL_ARGS, **kwargs["additional_args"]}
-
     return browser(
         headless=headless,
         solve_cloudflare=solve_cloudflare,

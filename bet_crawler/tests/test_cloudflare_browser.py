@@ -32,7 +32,7 @@ class TestCfBrowserHelper:
             def __enter__(self):
                 return self
 
-            def __exit__(self, *exc):
+            def __exit__(self, *exc) -> bool:
                 return False
 
         def fake_browser(**kwargs):
@@ -52,9 +52,10 @@ class TestCfBrowserHelper:
         assert seen["solve_cloudflare"] is True
         # Anti-detection flags must reach the session.
         assert "--disable-blink-features=AutomationControlled" in seen["extra_flags"]
-        assert seen["additional_args"]["hide_canvas"] is True
-        assert seen["additional_args"]["block_webrtc"] is True
         assert seen["useragent"].startswith("Mozilla/5.0")
+        assert (
+            "additional_args" not in seen
+        )  # hide_canvas/block_webrtc are not launch-time options
 
     def test_cf_browser_always_injects_antidetect(self, monkeypatch) -> None:
         """cf_browser always injects anti-detection flags regardless of domain;
@@ -68,7 +69,7 @@ class TestCfBrowserHelper:
             def __enter__(self):
                 return self
 
-            def __exit__(self, *exc):
+            def __exit__(self, *exc) -> bool:
                 return False
 
         def fake_browser(**kwargs):
@@ -82,9 +83,8 @@ class TestCfBrowserHelper:
         # cf_browser unconditionally injects flags; finders that don't want them
         # simply don't call cf_browser.
         assert "--disable-blink-features=AutomationControlled" in seen["extra_flags"]
-        assert seen["additional_args"]["hide_canvas"] is True
-        assert seen["additional_args"]["block_webrtc"] is True
         assert seen["useragent"].startswith("Mozilla/5.0")
+        assert "additional_args" not in seen
         assert seen["headless"] is True  # default preserved when caller passes True
 
 
