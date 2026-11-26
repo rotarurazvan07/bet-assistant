@@ -8,11 +8,12 @@ import re
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import fetch
 
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
+from ._cloudflare_browser import cf_browser
 from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
@@ -69,7 +70,14 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
             soup = BeautifulSoup(page, "html.parser")
 
             all_trs = soup.find("div", class_="widetable").find_all("tr")
-            start = next(i for i, r in enumerate(all_trs) if "Cup and International Leagues" in r.text) + 1
+            start = (
+                next(
+                    i
+                    for i, r in enumerate(all_trs)
+                    if "Cup and International Leagues" in r.text
+                )
+                + 1
+            )
             league_urls = []
             for tr in all_trs[start:]:
                 anchors = tr.find_all("a")
@@ -80,13 +88,27 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
             return league_urls
 
     def get_matches(self, urls) -> None:
-        """Scrape all windrawwin league URLs and emit matches via callback."""
-        scrape(
-            urls,
-            self._parse_page_with_log_context,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
+        """Scrape all windrawwin league URLs via headful browser, emit matches via callback."""
+        with cf_browser(
+            headless=False,
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+        ) as session:
+            for url in urls:
+                try:
+                    html = session.fetch(url, timeout=180000)
+                except Exception as e:
+                    exception_event(
+                        logger,
+                        event="source.fetch.retry",
+                        reason_code="fetch_retry_failed",
+                        message=f"WinDrawWin browser fetch failed for {url}: {e}",
+                        source_key=WINDRAWWIN_NAME,
+                        url=url,
+                    )
+                    continue
+                self._parse_page_with_log_context(url, html)
 
     def _parse_page(self, url, html) -> None:
         """Parse one windrawwin league page and emit matches via callback."""
@@ -102,11 +124,15 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
             for match_div in matches_div.contents[2:]:
                 try:
                     if match_div.has_attr("class") and "wttrdt" in match_div["class"]:
-                        date_str = re.sub(r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text())
-                        date_str = date_str.replace("Today, ", "").replace("Tomorrow, ", "")
-                        current_date = datetime.strptime(date_str, "%A, %B %d, %Y").replace(
-                            hour=0, minute=0, second=0, microsecond=0
+                        date_str = re.sub(
+                            r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text()
                         )
+                        date_str = date_str.replace("Today, ", "").replace(
+                            "Tomorrow, ", ""
+                        )
+                        current_date = datetime.strptime(
+                            date_str, "%A, %B %d, %Y"
+                        ).replace(hour=0, minute=0, second=0, microsecond=0)
                         continue
 
                     inner = match_div.contents[:-1]
@@ -132,7 +158,11 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         btts_no=bt_tag.contents[2].get_text() if bt_tag else None,
                     )
 
-                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                    league = (
+                        TOP_LEAGUES.get(url)
+                        if self.top_leagues_only and url in TOP_LEAGUES
+                        else None
+                    )
                     self.add_match(
                         Match(
                             home_team,

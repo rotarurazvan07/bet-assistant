@@ -8,11 +8,12 @@ import json
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import fetch
 
 from bet_framework.core.Match import *
 from bet_framework.markets.catalog import MARKET_BY_KEY
 
+from ._cloudflare_browser import cf_browser
 from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
@@ -33,7 +34,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        start = (
+            next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        )
         league_urls = []
         for tr in all_trs[start:]:
             anchors = tr.find_all("a")
@@ -54,13 +57,27 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         return matches_urls
 
     def get_matches(self, urls) -> None:
-        """Scrape all windrawwin match URLs and emit matches via callback."""
-        scrape(
-            urls,
-            self._parse_page_with_log_context,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
+        """Scrape all windrawwin match URLs via headful browser, emit matches via callback."""
+        with cf_browser(
+            headless=False,
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+        ) as session:
+            for url in urls:
+                try:
+                    html = session.fetch(url, timeout=180000)
+                except Exception as e:
+                    exception_event(
+                        logger,
+                        event="source.fetch.retry",
+                        reason_code="fetch_retry_failed",
+                        message=f"WinDrawWin browser fetch failed for {url}: {e}",
+                        source_key=WINDRAWWIN_NAME,
+                        url=url,
+                    )
+                    continue
+                self._parse_page_with_log_context(url, html)
 
     def _parse_page(self, url, html) -> None:
         """Parse one windrawwin match page and emit matches via callback."""
@@ -89,7 +106,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                 (
                     json.loads(s.string)["startDate"]
                     for s in soup.find_all("script", type="application/ld+json")
-                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                    if s.string
+                    and "SportsEvent" in s.string
+                    and "startDate" in s.string
                 ),
                 None,
             )

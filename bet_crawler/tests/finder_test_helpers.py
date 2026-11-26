@@ -69,7 +69,9 @@ def make_finder(
         top_leagues_only=top_leagues_only,
         num_days_ahead=num_days_ahead,
         local_timezone=local_timezone,
-        skip_patterns=skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS,
+        skip_patterns=skip_patterns
+        if skip_patterns is not None
+        else DEFAULT_SKIP_PATTERNS,
     )
     return finder, collector
 
@@ -193,3 +195,22 @@ def fake_browser(monkeypatch, finder_module, content_map, fetch_error_urls=()):
 
     monkeypatch.setattr(finder_module, "browser", fake_browser_ctx)
     return session
+
+
+def fake_cf_browser(monkeypatch, finder_module, content_map, fetch_error_urls=()):
+    """Patch cf_browser(...) instead of browser(...) — the Cloudflare-aware path.
+
+    Records the kwargs the finder passed (headless, solve_cloudflare, extra_flags, ...)
+    so tests can assert the finder really asked for a headful, anti-detect browser.
+    Returns (session, calls) where calls is the list of kwargs dicts.
+    """
+    session = FakeBrowserSession(content_map, fetch_error_urls)
+    calls = []
+
+    @contextmanager
+    def fake_cf_browser_ctx(**kwargs):
+        calls.append(kwargs)
+        yield session
+
+    monkeypatch.setattr(finder_module, "cf_browser", fake_cf_browser_ctx)
+    return session, calls
