@@ -13,6 +13,7 @@ from scrape_kit import browser, fetch
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
+from ._browser_page import wait_for_content
 from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
@@ -103,16 +104,17 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         timeout=self._BROWSER_TIMEOUT_MS,
                     )
                     # The tips table is rendered client-side.
-                    session.wait_for_selector(
-                        ".wdwtablest", timeout=self._BROWSER_TIMEOUT_MS
+                    html = wait_for_content(
+                        session,
+                        ".wdwtablest",
+                        self._BROWSER_TIMEOUT_MS,
                     )
-                    html = session.page.content()
                 except Exception as e:
                     exception_event(
                         logger,
                         event="source.fetch.retry",
                         reason_code="fetch_retry_failed",
-                        message=f"WinDrawWin browser fetch failed for {url}: {e}",
+                        message=f"Skipping windrawwin page {url}: content container never appeared. {e}",
                         source_key=WINDRAWWIN_NAME,
                         url=url,
                     )

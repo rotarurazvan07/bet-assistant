@@ -14,6 +14,7 @@ from scrape_kit import browser
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
+from ._browser_page import wait_for_content
 from .BaseMatchFinder import BaseMatchFinder
 
 FOREBET_URL = "https://www.forebet.com"
@@ -258,10 +259,11 @@ class ForebetFinder(BaseMatchFinder):
                     )
                     # The odds table is rendered client-side; a page that returns
                     # instantly has not finished running its scripts yet.
-                    session.wait_for_selector(
-                        "#body-main", timeout=self._BROWSER_TIMEOUT_MS
+                    html = wait_for_content(
+                        session,
+                        "#body-main",
+                        self._BROWSER_TIMEOUT_MS,
                     )
-                    html = session.page.content()
                 except Exception as e:
                     log_event(
                         logger,
@@ -269,7 +271,7 @@ class ForebetFinder(BaseMatchFinder):
                         outcome="error",
                         reason_code="fetch_retry_failed",
                         level=40,
-                        message=f"Forebet browser fetch failed for {url}: {e}",
+                        message=f"Skipping forebet page {url}: content container never appeared. {e}",
                         source_key=FOREBET_NAME,
                         url=url,
                         error_type=type(e).__name__,
