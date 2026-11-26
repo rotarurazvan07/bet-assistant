@@ -9,9 +9,7 @@ _CHALLENGE_MARKERS = (
 )
 
 
-def fetch_page(
-    session, url: str, wait_until: str = "domcontentloaded", timeout_ms: int = 60000
-) -> str:
+def fetch_page(session, url: str, wait_until: str = "domcontentloaded", timeout_ms: int = 60000) -> str:
     """Navigate with Cloudflare solving and return the page HTML.
 
     InteractiveSession.fetch() calls page.goto() directly, so a browser() opened
@@ -23,19 +21,13 @@ def fetch_page(
     Raises:
         RuntimeError: describing the served page when it is still a challenge.
     """
-    html = (
-        session.session.fetch(
-            url, wait_until=wait_until, timeout=timeout_ms
-        ).html_content
-        or ""
-    )
+    html = session.session.fetch(url, wait_until=wait_until, timeout=timeout_ms).html_content or ""
     marker = next((m for m in _CHALLENGE_MARKERS if m in html), None)
     if marker:
         import re
 
         title = re.search(r"<title>(.*?)</title>", html, re.S)
         raise RuntimeError(
-            f"len={len(html)}, title={title.group(1) if title else ''!r}, "
-            f"final_url={url!r}, blocked_marker={marker!r}"
+            f"len={len(html)}, title={title.group(1) if title else ''!r}, final_url={url!r}, blocked_marker={marker!r}"
         )
     return html
