@@ -219,6 +219,7 @@ jobs:
       - name: Run Scraper
         env:
           PYTHONPATH: /home/runner/work/bet-assistant/bet-assistant:/home/runner/.local/lib/python3.14/site-packages
+          CF_DIAGNOSTICS_DIR: cf-diagnostics
         run: |
           set -o pipefail
           python3 -m bet_crawler.crawl \
@@ -243,6 +244,7 @@ jobs:
           path: |
             job_log.txt
             crawler-events.jsonl
+            cf-diagnostics/
           if-no-files-found: ignore
           retention-days: 7
 
