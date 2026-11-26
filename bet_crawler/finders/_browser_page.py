@@ -115,8 +115,7 @@ def _markup_probe(html: str) -> dict:
             "notes": [n.get("class") for n in nodes[:3]],
         }
     iframes = [
-        {"src": (f.get("src") or "")[:120], "id": f.get("id"), "title": f.get("title")}
-        for f in soup.find_all("iframe")
+        {"src": (f.get("src") or "")[:120], "id": f.get("id"), "title": f.get("title")} for f in soup.find_all("iframe")
     ]
     probe["_challenge_iframes"] = iframes
     return probe
@@ -131,8 +130,7 @@ def describe_challenge(session, html: str) -> dict:
         "browser_fingerprint": _safe(lambda: live_page.evaluate(_FINGERPRINT_JS)),
         "wrapper_page_url": _safe(lambda: live_page.url),
         "cookies": _safe(lambda: [c["name"] for c in live_page.context.cookies()], []),
-        "cf_clearance_present": "cf_clearance"
-        in (_safe(lambda: [c["name"] for c in live_page.context.cookies()], []) or []),
+        "cf_clearance_present": "cf_clearance" in (_safe(lambda: [c["name"] for c in live_page.context.cookies()], []) or []),
     }
 
 
@@ -146,19 +144,13 @@ def _maybe_dump(details: dict, url: str, html: str) -> None:
         d.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         slug = re.sub(r"[^a-z0-9]+", "_", url.lower()).strip("_")[:60]
-        (d / f"cf_diag_{slug}_{stamp}.json").write_text(
-            json.dumps(details, indent=2, default=str), encoding="utf-8"
-        )
-        (d / f"cf_diag_{slug}_{stamp}.challenge.html").write_text(
-            html, encoding="utf-8"
-        )
+        (d / f"cf_diag_{slug}_{stamp}.json").write_text(json.dumps(details, indent=2, default=str), encoding="utf-8")
+        (d / f"cf_diag_{slug}_{stamp}.challenge.html").write_text(html, encoding="utf-8")
     except Exception:  # noqa: BLE001 - never fail the scrape over diagnostics
         pass
 
 
-def fetch_page(
-    session, url: str, wait_until: str = "domcontentloaded", timeout_ms: int = 60000
-) -> str:
+def fetch_page(session, url: str, wait_until: str = "domcontentloaded", timeout_ms: int = 60000) -> str:
     """Navigate with Cloudflare solving and return the page HTML.
 
     InteractiveSession.fetch() calls page.goto() directly, so a browser() opened
@@ -170,12 +162,7 @@ def fetch_page(
     Raises:
         RuntimeError: describing the served page when it is still a challenge.
     """
-    html = (
-        session.session.fetch(
-            url, wait_until=wait_until, timeout=timeout_ms
-        ).html_content
-        or ""
-    )
+    html = session.session.fetch(url, wait_until=wait_until, timeout=timeout_ms).html_content or ""
     marker = next((m for m in _CHALLENGE_MARKERS if m in html), None)
     if marker:
         details = describe_challenge(session, html)
