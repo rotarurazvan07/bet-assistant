@@ -13,7 +13,7 @@ from scrape_kit import browser, fetch
 from bet_framework.core.Match import *
 from bet_framework.markets.catalog import MARKET_BY_KEY
 
-from ._browser_page import wait_for_content
+from ._browser_page import fetch_page
 from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
@@ -33,7 +33,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        start = (
+            next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        )
         league_urls = []
         for tr in all_trs[start:]:
             anchors = tr.find_all("a")
@@ -65,15 +67,12 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         ) as session:
             for url in urls:
                 try:
-                    session.fetch(
-                        url,
-                        wait_until="domcontentloaded",
-                        timeout=self._BROWSER_TIMEOUT_MS,
-                    )
-                    # The prediction panel is rendered client-side.
-                    html = wait_for_content(
+                    # Navigating through the wrapped session is what runs the
+                    # Cloudflare solver; the prediction panel is client-rendered.
+                    html = fetch_page(
                         session,
-                        ".featurescore",
+                        url,
+                        "domcontentloaded",
                         self._BROWSER_TIMEOUT_MS,
                     )
                 except Exception as e:
@@ -81,7 +80,7 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                         logger,
                         event="source.fetch.retry",
                         reason_code="fetch_retry_failed",
-                        message=f"Skipping windrawwin page {url}: content container never appeared. {e}",
+                        message=f"Skipping windrawwin page {url}: still blocked after browser fetch: {e}",
                         source_key=WINDRAWWIN_NAME,
                         url=url,
                     )
@@ -115,7 +114,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                 (
                     json.loads(s.string)["startDate"]
                     for s in soup.find_all("script", type="application/ld+json")
-                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                    if s.string
+                    and "SportsEvent" in s.string
+                    and "startDate" in s.string
                 ),
                 None,
             )

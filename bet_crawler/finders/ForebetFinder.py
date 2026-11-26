@@ -14,7 +14,7 @@ from scrape_kit import browser
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
-from ._browser_page import wait_for_content
+from ._browser_page import fetch_page
 from .BaseMatchFinder import BaseMatchFinder
 
 FOREBET_URL = "https://www.forebet.com"
@@ -252,16 +252,12 @@ class ForebetFinder(BaseMatchFinder):
         ) as session:
             for url in urls:
                 try:
-                    session.fetch(
-                        url,
-                        wait_until="domcontentloaded",
-                        timeout=self._BROWSER_TIMEOUT_MS,
-                    )
-                    # The odds table is rendered client-side; a page that returns
-                    # instantly has not finished running its scripts yet.
-                    html = wait_for_content(
+                    # Navigating through the wrapped session is what runs the
+                    # Cloudflare solver; the odds table is then client-rendered.
+                    html = fetch_page(
                         session,
-                        "#body-main",
+                        url,
+                        "domcontentloaded",
                         self._BROWSER_TIMEOUT_MS,
                     )
                 except Exception as e:
@@ -271,7 +267,7 @@ class ForebetFinder(BaseMatchFinder):
                         outcome="error",
                         reason_code="fetch_retry_failed",
                         level=40,
-                        message=f"Skipping forebet page {url}: content container never appeared. {e}",
+                        message=f"Skipping forebet page {url}: still blocked after browser fetch: {e}",
                         source_key=FOREBET_NAME,
                         url=url,
                         error_type=type(e).__name__,
@@ -303,25 +299,48 @@ class ForebetFinder(BaseMatchFinder):
 
         for anchor in all_anchors:
             try:
-                home_team = anchor.find("div", class_="tnms").find("span", class_="homeTeam").get_text()
-                away_team = anchor.find("div", class_="tnms").find("span", class_="awayTeam").get_text()
+                home_team = (
+                    anchor.find("div", class_="tnms")
+                    .find("span", class_="homeTeam")
+                    .get_text()
+                )
+                away_team = (
+                    anchor.find("div", class_="tnms")
+                    .find("span", class_="awayTeam")
+                    .get_text()
+                )
 
                 if anchor.find("div", class_="scoreLnk").get_text().strip() != "":
                     logger.info(f"SKIPPED [{home_team} vs {away_team}]: Match ongoing")
                     continue
 
-                match_date_str = anchor.find("span", class_="date_bah").get_text().strip()
+                match_date_str = (
+                    anchor.find("span", class_="date_bah").get_text().strip()
+                )
                 match_date = datetime.strptime(match_date_str, "%d/%m/%Y %H:%M")
 
-                home = float(anchor.find("div", class_="ex_sc").get_text().split("-")[0])
-                away = float(anchor.find("div", class_="ex_sc").get_text().split("-")[1])
+                home = float(
+                    anchor.find("div", class_="ex_sc").get_text().split("-")[0]
+                )
+                away = float(
+                    anchor.find("div", class_="ex_sc").get_text().split("-")[1]
+                )
                 predictions = [Score(FOREBET_NAME, home, away)]
 
-                odds_tags = [o.get_text() for o in anchor.find("div", class_="haodd").find_all("span")]
+                odds_tags = [
+                    o.get_text()
+                    for o in anchor.find("div", class_="haodd").find_all("span")
+                ]
                 odds = Odds(
-                    home=float(odds_tags[0]) if odds_tags[0] not in ("", " - ") else None,
-                    draw=float(odds_tags[1]) if odds_tags[1] not in ("", " - ") else None,
-                    away=float(odds_tags[2]) if odds_tags[2] not in ("", " - ") else None,
+                    home=float(odds_tags[0])
+                    if odds_tags[0] not in ("", " - ")
+                    else None,
+                    draw=float(odds_tags[1])
+                    if odds_tags[1] not in ("", " - ")
+                    else None,
+                    away=float(odds_tags[2])
+                    if odds_tags[2] not in ("", " - ")
+                    else None,
                 )
 
                 self.add_match(

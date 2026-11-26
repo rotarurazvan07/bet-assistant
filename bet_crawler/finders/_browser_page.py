@@ -1,45 +1,41 @@
-"""Shared helpers for browser-driven finders: wait for content, diagnose failures."""
+"""Shared helpers for browser-driven finders: navigate with Cloudflare solving."""
 
-from bet_crawler.crawler_logging import get_logger
-
-logger = get_logger(__name__)
-
-# Markers that identify a page Cloudflare served instead of the site's content.
-_CF_MARKERS = (
+# Genuine "Cloudflare is still holding the page" markers. Note that
+# 'challenge-platform' also appears in the beacon script Cloudflare injects
+# into normal pages, so it is deliberately NOT a block signal on its own.
+_CHALLENGE_MARKERS = (
     "Just a moment...",
     "Verifying you are human.",
-    "challenge-platform",
-    "cf-browser-verification",
-    "Access Denied",
-    "Attention Required",
 )
 
 
-def describe_page(session) -> str:
-    """Summarise what the browser is actually showing, for failure diagnostics."""
-    try:
-        html = session.page.content()
-    except Exception:  # noqa: BLE001 - diagnostics must never mask the original error
-        return "page content unavailable"
-    marker = next((m for m in _CF_MARKERS if m in html), None)
-    try:
-        title = session.page.title() or ""
-    except Exception:  # noqa: BLE001
-        title = ""
-    return (
-        f"len={len(html)}, title={title!r}, final_url={session.page.url!r}, "
-        f"blocked_marker={marker!r}, has_target={'#body-main' in html or 'wdwtablest' in html or 'featurescore' in html}"
-    )
+def fetch_page(
+    session, url: str, wait_until: str = "domcontentloaded", timeout_ms: int = 60000
+) -> str:
+    """Navigate with Cloudflare solving and return the page HTML.
 
-
-def wait_for_content(session, selector: str, timeout_ms: int) -> str:
-    """Wait for the client-rendered content container, then return the settled HTML.
+    InteractiveSession.fetch() calls page.goto() directly, so a browser() opened
+    with solve_cloudflare=True never engages scrapling's challenge solver, and
+    session.page stays on about:blank. The wrapped scrapling session does run the
+    solver, waits for page stability and network idle, and returns the settled
+    content, so navigate and read through it.
 
     Raises:
-        TimeoutError: with a description of what the page actually contained.
+        RuntimeError: describing the served page when it is still a challenge.
     """
-    try:
-        session.page.wait_for_selector(selector, state="attached", timeout=timeout_ms)
-    except Exception as exc:
-        raise TimeoutError(f"{describe_page(session)} | waiting for {selector!r}: {exc}") from exc
-    return session.page.content()
+    html = (
+        session.session.fetch(
+            url, wait_until=wait_until, timeout=timeout_ms
+        ).html_content
+        or ""
+    )
+    marker = next((m for m in _CHALLENGE_MARKERS if m in html), None)
+    if marker:
+        import re
+
+        title = re.search(r"<title>(.*?)</title>", html, re.S)
+        raise RuntimeError(
+            f"len={len(html)}, title={title.group(1) if title else ''!r}, "
+            f"final_url={url!r}, blocked_marker={marker!r}"
+        )
+    return html
