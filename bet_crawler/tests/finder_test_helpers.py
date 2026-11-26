@@ -193,4 +193,3 @@ def fake_browser(monkeypatch, finder_module, content_map, fetch_error_urls=()):
 
     monkeypatch.setattr(finder_module, "browser", fake_browser_ctx)
     return session
-

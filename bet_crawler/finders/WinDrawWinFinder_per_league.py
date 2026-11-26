@@ -68,7 +68,14 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
             soup = BeautifulSoup(page, "html.parser")
 
             all_trs = soup.find("div", class_="widetable").find_all("tr")
-            start = next(i for i, r in enumerate(all_trs) if "Cup and International Leagues" in r.text) + 1
+            start = (
+                next(
+                    i
+                    for i, r in enumerate(all_trs)
+                    if "Cup and International Leagues" in r.text
+                )
+                + 1
+            )
             league_urls = []
             for tr in all_trs[start:]:
                 anchors = tr.find_all("a")
@@ -77,6 +84,8 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
 
             logger.info(f"Found {len(league_urls)} leagues to scrape")
             return league_urls
+
+    _BROWSER_TIMEOUT_MS = 60_000
 
     def get_matches(self, urls) -> None:
         """Scrape all windrawwin league URLs and emit matches via callback."""
@@ -88,7 +97,16 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
         ) as session:
             for url in urls:
                 try:
-                    html = session.fetch(url)
+                    session.fetch(
+                        url,
+                        wait_until="domcontentloaded",
+                        timeout=self._BROWSER_TIMEOUT_MS,
+                    )
+                    # The tips table is rendered client-side.
+                    session.wait_for_selector(
+                        ".wdwtablest", timeout=self._BROWSER_TIMEOUT_MS
+                    )
+                    html = session.page.content()
                 except Exception as e:
                     exception_event(
                         logger,
@@ -115,11 +133,15 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
             for match_div in matches_div.contents[2:]:
                 try:
                     if match_div.has_attr("class") and "wttrdt" in match_div["class"]:
-                        date_str = re.sub(r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text())
-                        date_str = date_str.replace("Today, ", "").replace("Tomorrow, ", "")
-                        current_date = datetime.strptime(date_str, "%A, %B %d, %Y").replace(
-                            hour=0, minute=0, second=0, microsecond=0
+                        date_str = re.sub(
+                            r"(?<=\d)(st|nd|rd|th)", "", match_div.get_text()
                         )
+                        date_str = date_str.replace("Today, ", "").replace(
+                            "Tomorrow, ", ""
+                        )
+                        current_date = datetime.strptime(
+                            date_str, "%A, %B %d, %Y"
+                        ).replace(hour=0, minute=0, second=0, microsecond=0)
                         continue
 
                     inner = match_div.contents[:-1]
@@ -145,7 +167,11 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
                         btts_no=bt_tag.contents[2].get_text() if bt_tag else None,
                     )
 
-                    league = TOP_LEAGUES.get(url) if self.top_leagues_only and url in TOP_LEAGUES else None
+                    league = (
+                        TOP_LEAGUES.get(url)
+                        if self.top_leagues_only and url in TOP_LEAGUES
+                        else None
+                    )
                     self.add_match(
                         Match(
                             home_team,

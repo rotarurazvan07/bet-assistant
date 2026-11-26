@@ -32,7 +32,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         soup = BeautifulSoup(page, "html.parser")
 
         all_trs = soup.find("div", class_="widetable").find_all("tr")
-        start = next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        start = (
+            next(i for i, r in enumerate(all_trs) if "European Leagues" in r.text) + 1
+        )
         league_urls = []
         for tr in all_trs[start:]:
             anchors = tr.find_all("a")
@@ -52,6 +54,8 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         logger.info(f"Found {len(matches_urls)} matches to scrape")
         return matches_urls
 
+    _BROWSER_TIMEOUT_MS = 60_000
+
     def get_matches(self, urls) -> None:
         """Scrape all windrawwin match URLs and emit matches via callback."""
         with browser(
@@ -62,7 +66,16 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         ) as session:
             for url in urls:
                 try:
-                    html = session.fetch(url)
+                    session.fetch(
+                        url,
+                        wait_until="domcontentloaded",
+                        timeout=self._BROWSER_TIMEOUT_MS,
+                    )
+                    # The prediction panel is rendered client-side.
+                    session.wait_for_selector(
+                        ".featurescore", timeout=self._BROWSER_TIMEOUT_MS
+                    )
+                    html = session.page.content()
                 except Exception as e:
                     exception_event(
                         logger,
@@ -102,7 +115,9 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
                 (
                     json.loads(s.string)["startDate"]
                     for s in soup.find_all("script", type="application/ld+json")
-                    if s.string and "SportsEvent" in s.string and "startDate" in s.string
+                    if s.string
+                    and "SportsEvent" in s.string
+                    and "startDate" in s.string
                 ),
                 None,
             )
