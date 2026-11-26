@@ -8,17 +8,15 @@ import json
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import fetch
+from scrape_kit import browser, fetch
 
 from bet_framework.core.Match import *
 from bet_framework.markets.catalog import MARKET_BY_KEY
 
-from ._cloudflare_browser import cf_browser
 from .BaseMatchFinder import BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-MAX_CONCURRENCY = 1
 
 
 class WinDrawWinFinder_per_match(BaseMatchFinder):
@@ -55,16 +53,16 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
         return matches_urls
 
     def get_matches(self, urls) -> None:
-        """Scrape all windrawwin match URLs via headful browser, emit matches via callback."""
-        with cf_browser(
-            headless=False,
+        """Scrape all windrawwin match URLs and emit matches via callback."""
+        with browser(
             solve_cloudflare=True,
             interactive=True,
             disable_resources=False,
+            headless=True,
         ) as session:
             for url in urls:
                 try:
-                    html = session.fetch(url, timeout=180000)
+                    html = session.fetch(url)
                 except Exception as e:
                     exception_event(
                         logger,

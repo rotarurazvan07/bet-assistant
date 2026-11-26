@@ -9,17 +9,16 @@ logger = get_logger(__name__)
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+from scrape_kit import browser
 
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
-from ._cloudflare_browser import cf_browser
 from .BaseMatchFinder import BaseMatchFinder
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = {
     "https://www.forebet.com/en/predictions-europe/uefa-champions-league": CHAMPIONS_LEAGUE,
@@ -241,16 +240,16 @@ class ForebetFinder(BaseMatchFinder):
         return list(TOP_LEAGUES.keys()) if self.top_leagues_only else ALL_LINKS
 
     def get_matches(self, urls) -> None:
-        """Scrape all forebet URLs via headful browser, emit matches via callback."""
-        with cf_browser(
-            headless=False,
+        """Scrape all forebet URLs and emit matches via callback."""
+        with browser(
             solve_cloudflare=True,
             interactive=True,
             disable_resources=False,
+            headless=True,
         ) as session:
             for url in urls:
                 try:
-                    html = session.fetch(url, timeout=180000)
+                    html = session.fetch(url)
                 except Exception as e:
                     log_event(
                         logger,
