@@ -87,17 +87,17 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-        # ── Start Xvfb virtual display for headful Chromium ──────────────────
-        # DISPLAY=:99 with 1920x1080x24 matches scrapling's headless viewport
-        Xvfb :99 -screen 0 1920x1080x24 &
-        XVFB_PID=$!
-        export DISPLAY=:99
-        # Give Xvfb a moment to bind the display
-        sleep 2
-        trap 'kill ${XVFB_PID}' EXIT
+# ── Start Xvfb virtual display for headful Chromium ──────────────────
+# DISPLAY=:99 with 1920x1080x24 matches scrapling's headless viewport
+Xvfb :99 -screen 0 1920x1080x24 &
+XVFB_PID=$!
+export DISPLAY=:99
+# Give Xvfb a moment to bind the display
+sleep 2
+trap 'kill ${XVFB_PID}' EXIT
 
-        echo "==> Runner '${RUNNER_NAME}' ready."
-        ./run.sh
+echo "==> Runner '${RUNNER_NAME}' ready."
+./run.sh
 EOF
 
 # Ensure script is executable and normalized for Linux
