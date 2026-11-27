@@ -494,10 +494,71 @@ python -m pytest tests/ --cov=bet_framework --cov=bet_dashboard.backend --cov=be
 
 ### CI Pipeline (`.github/workflows/cicd.yml`)
 
-1. **Auto-fix**: autoflake, pyupgrade, autotyping, isort, ruff
-2. **Test**: pytest on Python 3.14
-3. **Audit**: mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate
-4. **Gate**: Consolidated report
+1. **Changes**: change-based scope selector (`scripts/select_changed_scopes.sh`)
+2. **Auto-fix**: autoflake, pyupgrade, autotyping, isort, ruff
+3. **Test**: pytest on Python 3.14
+4. **Audit**: mypy, bandit, semgrep, pip-audit, radon, vulture, interrogate + selector self-test
+5. **Frontend**: typecheck, lint, vitest, market-contract codegen drift check
+6. **E2E**: docker stack + Playwright (chromium, firefox, webkit)
+7. **Gate**: Consolidated verdict (rejects a failed run; accepts an intentional skip)
+
+### Change-Based Test Selection
+
+The first CI job (`Changes`) computes which parts of the repository a pull
+request actually affects and skips the suites that cannot be affected by it.
+A docs-only edit no longer installs Python, runs Playwright, or boots the
+docker stack.
+
+**How it works**
+
+- `scripts/select_changed_scopes.sh` diffs the branch against `origin/main`
+  (`git diff --name-only` — plain git, no third-party action) and emits one
+  `scope=true|false` line per suite family: `framework`, `crawler`, `backend`,
+  `frontend`, `markets`, `e2e`, `docs_only`, `github_infra`, `setup_infra`,
+  `config`, `gates`, `npm_deps`, `audit`.
+- Each suite job (`test`, `frontend-tests`, `e2e-tests`, `audit`) carries a
+  job-level `if:` that reads those outputs. Selection happens **inside** the
+  workflow — never through workflow-level `on.pull_request.paths` filters,
+  which prevent the workflow from running at all and leave a required status
+  check waiting forever.
+- The `CI Gate` job accepts an intentionally skipped suite as a passing
+  outcome; a suite that fails after running still blocks the merge.
+
+**Never narrow — these changes always run the full set**
+
+| Change | Always runs |
+|---|---|
+| `bet_framework/markets/**` | framework, backend, frontend (codegen/tsc/vitest), E2E |
+| `config/**` | crawler, framework, backend, E2E |
+| `setup/seed_e2e.py`, `bet_dashboard/frontend/e2e/**` | E2E |
+| any `requirements*.txt` or `package.json` / `package-lock.json` | every suite on that runtime side + pip-audit / codegen |
+| `docs/**` only | audit (the internal-reference hygiene gate scans `docs`) |
+| `AGENTS.md`, `README.md`, `.github/**`, `setup/**`, `scripts/**`, `config/**`, `.semgrep/**` | audit |
+| an unrecognised path | everything (fail-open) |
+
+**Failure behaviour**
+
+If the selector cannot resolve a diff (empty diff, unreachable base ref, an
+unexpected error), it emits **every scope true**: the pipeline runs
+everything. Selection may only ever be narrower than a full run by proving a
+suite is unaffected; it can never fail open to "skip".
+
+**Emergency bypass: run everything**
+
+Add the marker `[force-all]` anywhere in the PR title. The next CI run
+executes every suite and gate regardless of the diff. Remove the marker to
+return to normal selection. (For a forced local run, `FORCE_ALL=1` on the
+script has the same effect.)
+
+**Verifying the mapping locally**
+
+```bash
+# 26-row self-test: one assertion per change class in the trigger matrix
+bash scripts/ci-change-selection-selftest.sh
+
+# inspect what a hypothetical diff would select
+CHANGED_FILES=$'docs/development.md' bash scripts/select_changed_scopes.sh
+```
 
 ### Local Quality Checks
 
