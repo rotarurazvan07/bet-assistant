@@ -5,7 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ── 1. SYSTEM DEPENDENCIES ──────────────────────────────────────────────────
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl git jq sudo ca-certificates xvfb \
+        curl git jq sudo ca-certificates xvfb tzdata \
+        fontconfig fonts-liberation fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # ── 2. RUNNER USER CONFIGURATION ────────────────────────────────────────────

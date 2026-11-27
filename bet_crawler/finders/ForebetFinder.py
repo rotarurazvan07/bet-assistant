@@ -14,7 +14,7 @@ from scrape_kit import browser
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
-from ._browser_page import fetch_page
+from ._browser_page import fetch_page, resolve_headless
 from .BaseMatchFinder import BaseMatchFinder
 
 FOREBET_URL = "https://www.forebet.com"
@@ -248,7 +248,7 @@ class ForebetFinder(BaseMatchFinder):
             solve_cloudflare=True,
             interactive=True,
             disable_resources=False,
-            headless=True,
+            headless=resolve_headless(),
         ) as session:
             for url in urls:
                 try:

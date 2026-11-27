@@ -13,6 +13,7 @@ from scrape_kit import browser, fetch
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 from bet_framework.core.Match import Match, Odds
 
+from ._browser_page import resolve_headless
 from ._parallel import balanced_chunks
 from .BaseMatchFinder import BaseMatchFinder
 
@@ -582,7 +583,7 @@ class BetExplorerFinder(BaseMatchFinder):
             solve_cloudflare=True,
             interactive=True,
             disable_resources=False,
-            headless=True,
+            headless=resolve_headless(),
         ) as session:
             self._configure_page_timeouts(session)
             for url in urls:

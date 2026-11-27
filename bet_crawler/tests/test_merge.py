@@ -7,13 +7,21 @@ which is a backend-only path — see automation-summary divergence table).
 """
 
 import json
+import logging
 import os
 
 import pytest
 import yaml
 
 from bet_crawler.crawl_core.merge import merge
-from bet_crawler.crawler_logging import configure_event_logging, disable_event_logging
+from bet_crawler.crawler_logging import (
+    configure_event_logging,
+    disable_event_logging,
+    get_logger,
+    log_context,
+    log_event,
+    reset_event_totals,
+)
 from bet_framework.MatchesManager import MatchesManager
 
 from .conftest import make_chunk_db, make_match
@@ -137,7 +145,10 @@ class TestMergeSummaryP1:
             completed = [record for record in records if record["event"] == "stage.completed"][-1]
             assert completed["outcome"] == "partial"
             assert completed["severity"] == "WARNING"
+            # benign miss: no scrape failures recorded, so the reason stays crawler_sources_missing
+            assert completed["reason_code"] == "crawler_sources_missing"
             assert completed["counts"]["crawlers_missing"] == 1
+            assert completed["counts"]["crawlers_failed"] == 0
         finally:
             disable_event_logging()
 
@@ -154,6 +165,49 @@ class TestMergeSummaryP1:
             merge(str(final), str(chunks), SIM, {"ghost": {}, "a": {}}, {"actions": ["a"]})
         missing = [r.getMessage() for r in caplog.records if "MISSING" in r.getMessage()]
         assert any("ghost: 0 matches (MISSING)" in m for m in missing)
+        # benign miss keeps the baseline line and no failure annotation
+        assert not any("scrape recorded failures" in m for m in missing)
+
+    def test_missing_crawler_with_scrape_failures_is_reported_distinctly(self, tmp_path, monkeypatch, caplog) -> None:
+        """A missing crawler whose scrape chunk recorded failures is flagged as failed, not just MISSING."""
+        chunks = tmp_path / "chunks"
+        chunks.mkdir()
+        make_chunk_db(
+            chunks / "local-1.db",
+            [make_match(home="Alpha FC", url="https://a.com/1")],
+        )
+        final = tmp_path / "final.db"
+        event_path = tmp_path / "events.jsonl"
+        monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+        configure_event_logging(str(event_path))
+        try:
+            scrape_logger = get_logger("bet_crawler.tests.merge_failure")
+            with log_context(stage="scrape", chunk_id="local-1.db", source_key="ghost"):
+                reset_event_totals(stage="scrape", chunk_id="local-1.db")
+                log_event(
+                    scrape_logger,
+                    event="source.scrape.failed",
+                    outcome="error",
+                    reason_code="source_scrape_exception",
+                    level=logging.ERROR,
+                    message="group crashed",
+                    stage="scrape",
+                    chunk_id="local-1.db",
+                    source_key="ghost",
+                )
+            with caplog.at_level("WARNING", logger="bet_crawler.crawl_core.merge"):
+                merge(str(final), str(chunks), SIM, {"ghost": {}, "a": {}}, {"actions": ["a"]})
+            messages = [r.getMessage() for r in caplog.records if "MISSING" in r.getMessage()]
+            assert any("ghost: 0 matches (MISSING, scrape recorded failures)" in m for m in messages)
+            records = [json.loads(line) for line in event_path.read_text(encoding="utf-8").splitlines()]
+            completed = [record for record in records if record["event"] == "stage.completed"][-1]
+            assert completed["outcome"] == "partial"
+            assert completed["severity"] == "ERROR"
+            assert completed["reason_code"] == "crawler_sources_failed"
+            assert completed["counts"]["crawlers_missing"] == 1
+            assert completed["counts"]["crawlers_failed"] == 1
+        finally:
+            disable_event_logging()
 
     def test_missing_runner_set_logs_error(self, tmp_path, caplog) -> None:
         """Chunk file implies runner 'actions' but no actions crawler contributed."""

@@ -10,6 +10,7 @@ import pandas as pd
 
 from bet_crawler.crawler_logging import (
     get_event_totals,
+    get_failed_sources,
     get_logger,
     log_event,
     reset_event_totals,
@@ -42,7 +43,8 @@ def merge(
 
     try:
         matches_df = _perform_merge(db_path, chunks_dir, similarity_config)
-        _generate_merge_summary(matches_df, chunks_dir, db_path, crawler_keys, runner_sets)
+        failed_sources = _scrape_failure_sources()
+        _generate_merge_summary(matches_df, chunks_dir, db_path, crawler_keys, runner_sets, failed_sources)
     except Exception as exc:
         logger.exception(
             "Merge stage failed for chunks directory %s",
@@ -71,12 +73,23 @@ def _perform_merge(db_path: str, chunks_dir: str, similarity_config: dict | None
     return matches_df
 
 
+def _scrape_failure_sources() -> set[str]:
+    """Sources whose scrape-stage chunks recorded failures instead of empty results.
+
+    Reads the source keys the logging helpers already aggregate per stage and
+    chunk when error-level source.* events fire, so merge needs no extra
+    plumbing beyond the existing counters.
+    """
+    return get_failed_sources(stage="scrape")
+
+
 def _generate_merge_summary(
     matches_df: pd.DataFrame,
     chunks_dir: str,
     db_path: str,
     crawler_keys: dict,
     runner_sets: dict[str, list[str]],
+    failed_sources: set[str] | None = None,
 ) -> None:
     """Generate and log a summary of the merge operation."""
 
@@ -86,19 +99,27 @@ def _generate_merge_summary(
 
     _log_summary_header(matches_count, len(chunk_files))
     _log_source_details(source_to_matches)
-    missing_crawlers = _log_missing_crawlers(source_to_matches, crawler_keys)
+    missing_crawlers, failed_missing = _log_missing_crawlers(source_to_matches, crawler_keys, failed_sources or set())
     missing_runner_sets = _validate_runner_sets(source_to_matches, chunk_files, runner_sets)
     _log_footer(db_path)
     event_totals = get_event_totals(stage="merge")
     has_missing_data = bool(missing_crawlers or missing_runner_sets or event_totals["warnings"] or event_totals["errors"])
+    reason_code = (
+        "runner_set_missing_data"
+        if missing_runner_sets
+        else "crawler_sources_failed"
+        if failed_missing
+        else "crawler_sources_missing"
+        if missing_crawlers
+        else None
+    )
+    level = 40 if (missing_runner_sets or failed_missing or event_totals["errors"]) else 30 if has_missing_data else 20
     log_event(
         logger,
         event="stage.completed",
         outcome="partial" if has_missing_data else "success",
-        reason_code=(
-            "runner_set_missing_data" if missing_runner_sets else "crawler_sources_missing" if missing_crawlers else None
-        ),
-        level=40 if missing_runner_sets or event_totals["errors"] else 30 if has_missing_data else 20,
+        reason_code=reason_code,
+        level=level,
         message="Merge stage completed",
         stage="merge",
         counts={
@@ -106,6 +127,7 @@ def _generate_merge_summary(
             "chunks": len(chunk_files),
             "sources": len(source_to_matches),
             "crawlers_missing": len(missing_crawlers),
+            "crawlers_failed": len(failed_missing),
             "runner_sets_missing": len(missing_runner_sets),
             **event_totals,
         },
@@ -173,14 +195,29 @@ def _log_source_details(source_to_matches: dict[str, set]) -> None:
         logger.info(f"    - {k}: {v} matches")
 
 
-def _log_missing_crawlers(source_to_matches: dict[str, set], crawler_keys: dict) -> set[str]:
-    """Identify configured crawlers that did not contribute matches."""
+def _log_missing_crawlers(
+    source_to_matches: dict[str, set],
+    crawler_keys: dict,
+    failed_sources: set[str],
+) -> tuple[set[str], set[str]]:
+    """Identify configured crawlers that did not contribute matches.
+
+    Returns (missing, failed_missing): every configured crawler with zero
+    matches is missing, and the subset whose scrape chunk recorded failure
+    events is reported separately because "found nothing" and "crashed" need
+    different remediation.
+    """
     missing_crawlers = set()
+    failed_missing = set()
     for crawler in sorted(crawler_keys.keys()):
         if crawler not in source_to_matches:
             missing_crawlers.add(crawler)
-            logger.warning(f"    - {crawler}: 0 matches (MISSING)")
-    return missing_crawlers
+            if crawler in failed_sources:
+                failed_missing.add(crawler)
+                logger.error(f"    - {crawler}: 0 matches (MISSING, scrape recorded failures)")
+            else:
+                logger.warning(f"    - {crawler}: 0 matches (MISSING)")
+    return missing_crawlers, failed_missing
 
 
 def _validate_runner_sets(

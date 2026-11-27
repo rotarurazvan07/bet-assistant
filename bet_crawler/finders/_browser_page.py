@@ -7,6 +7,7 @@ log line or a JSON dump instead of guessed at.
 """
 
 import json
+import logging
 import os
 import re
 from datetime import datetime
@@ -22,6 +23,14 @@ _CHALLENGE_MARKERS = (
 
 # Set this env var on a run to dump full diagnostics for every failed solve.
 DIAG_DIR_ENV = "CF_DIAGNOSTICS_DIR"
+
+# Manual override for the browser headless decision; when unset, DISPLAY decides.
+HEADLESS_ENV = "CRAWLER_BROWSER_HEADLESS"
+
+_HEADLESS_TRUE = {"1", "true", "yes", "on"}
+_HEADLESS_FALSE = {"0", "false", "no", "off"}
+
+_browser_logger = logging.getLogger(__name__)
 
 # Selectors scrapling's solver can click, with the reason each matters.
 _CLICK_TARGETS = (
@@ -76,6 +85,29 @@ def _safe(fn, default=None):
         return fn()
     except Exception:  # noqa: BLE001 - diagnostics must never fail the run
         return default
+
+
+def resolve_headless() -> bool:
+    """Decide whether browser sessions run headless, from one place.
+
+    CRAWLER_BROWSER_HEADLESS wins when set (manual override for debugging).
+    Otherwise a non-empty DISPLAY means a display exists — the self-hosted
+    runner's documented configuration starts Xvfb and exports DISPLAY=:99 —
+    so the browser runs headful; cloud runners have no display and stay
+    headless. The decision is logged once per process so the reason for the
+    mode is visible in the job log.
+    """
+    override = os.environ.get(HEADLESS_ENV)
+    if override is not None and override.strip().lower() in _HEADLESS_TRUE | _HEADLESS_FALSE:
+        headless = override.strip().lower() in _HEADLESS_TRUE
+        source = f"{HEADLESS_ENV}={override!r}"
+    else:
+        headless = not os.environ.get("DISPLAY")
+        source = "DISPLAY set (headful)" if not headless else "no DISPLAY (headless)"
+    if not getattr(resolve_headless, "_logged", False):
+        _browser_logger.info("Browser headless=%s (decided by %s)", headless, source)
+        resolve_headless._logged = True
+    return headless
 
 
 def _details(html: str) -> dict:
