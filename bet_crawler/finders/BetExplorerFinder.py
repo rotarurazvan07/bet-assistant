@@ -14,7 +14,7 @@ from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 from bet_framework.core.Match import Match, Odds
 
 from ._parallel import balanced_chunks
-from .BaseMatchFinder import BaseMatchFinder, _BROWSER_TIMEOUT_MS
+from .BaseMatchFinder import _BROWSER_TIMEOUT_MS, BaseMatchFinder
 
 logger = get_logger(__name__)
 

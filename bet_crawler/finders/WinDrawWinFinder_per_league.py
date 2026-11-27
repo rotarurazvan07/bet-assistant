@@ -13,7 +13,7 @@ from scrape_kit import browser, fetch
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
-from .BaseMatchFinder import BaseMatchFinder, _BROWSER_TIMEOUT_MS
+from .BaseMatchFinder import _BROWSER_TIMEOUT_MS, BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
@@ -88,7 +88,10 @@ class WinDrawWinFinder_per_league(BaseMatchFinder):
         ) as session:
             for url in urls:
                 try:
-                    html = session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content or ""
+                    html = (
+                        session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content
+                        or ""
+                    )
                 except Exception as e:
                     exception_event(
                         logger,

@@ -14,7 +14,7 @@ from scrape_kit import browser
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
-from .BaseMatchFinder import BaseMatchFinder, _BROWSER_TIMEOUT_MS
+from .BaseMatchFinder import _BROWSER_TIMEOUT_MS, BaseMatchFinder
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
@@ -249,7 +249,10 @@ class ForebetFinder(BaseMatchFinder):
         ) as session:
             for url in urls:
                 try:
-                    html = session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content or ""
+                    html = (
+                        session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content
+                        or ""
+                    )
                 except Exception as e:
                     log_event(
                         logger,
