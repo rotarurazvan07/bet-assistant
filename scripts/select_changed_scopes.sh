@@ -229,6 +229,15 @@ while IFS= read -r file; do
     continue
   fi
   
+  # Row 18: .a0proj/** (internal BMAD output/artifacts)
+  if [[ "$file" =~ ^\.a0proj/ ]]; then
+    # Internal planning artifacts: no suite scope, but mark gates so the
+    # unclassified fail-open below does not force-run everything. No job reads
+    # the gates scope in an if:, so nothing extra runs.
+    SCOPE[gates]=true
+    continue
+  fi
+
   # Unrecognised path: will be caught by the fail-open check below
   
 done <<< "$CHANGED_FILES"

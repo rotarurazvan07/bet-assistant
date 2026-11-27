@@ -21,6 +21,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-regex: '(?i)\bAC-\d{1,2}\b'
 
@@ -38,6 +39,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           - pattern-regex: '(?i)\b(?:issues?|tickets?)\s*#?\s*\d{1,5}\b'
@@ -59,6 +61,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
         - bet_crawler/tests/fixtures/html/
         - bet_dashboard/frontend/public/
         - bet_dashboard/frontend/src/assets/
@@ -84,6 +87,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           - pattern-regex: '\bD-[A-Z]\b'
@@ -103,6 +107,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           - pattern-regex: '(?i)\bcycle[- ]\d+\b'
@@ -122,6 +127,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           - pattern-regex: '(?i)\bstory\s*[- ]?\d+(?:[-.]\d+)?\b'
@@ -143,6 +149,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-regex: '(?i)\bruns?\s+\d{8,}\b'
 
@@ -160,6 +167,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           - pattern-regex: '(?i)\b(?:commit(?:ted)?|against|from|revision|sha|landed|pushed|cycle|wave|batch)\b[^\n]{0,60}\b[0-9a-f]{7,9}\b'
@@ -179,6 +187,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           # "review F1", "Review F1" - the letter class stays case-sensitive
@@ -206,6 +215,7 @@ rules:
         - package-lock.json
         - "*.snapshot.json"
         - bet_dashboard/backend/openapi.generated.json
+        - .a0proj/
     patterns:
       - pattern-either:
           - pattern-regex: '(?i)\bbmad\b'
