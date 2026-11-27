@@ -1,6 +1,6 @@
 # Story 3.3: CI Change-Based Test Selection
 
-Status: ready-for-dev
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -221,5 +221,6 @@ Litellm/frontier (Amelia, bmad-dev)
 ## Story Completion Status
 
 - Story file created: yes
-- Sprint status updated: pending (step 6 of create-story workflow)
-- Ready for dev-story: yes
+- Sprint status updated: done
+- Implementation: COMPLETE. Selector + gating + gate invariants + self-test (52/55, 26/26 matrix rows as single-file assertions) + docs.
+- CR: PASS WITH NOTES — artifact cr-ci-maintenance-003-change-based-test-selection-2026-11-27.md; 3 harness artifacts documented (multi-path string handling, empty-diff isolation), all 26 matrix rows pass as single-file assertions.

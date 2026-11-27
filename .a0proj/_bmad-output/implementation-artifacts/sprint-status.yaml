@@ -97,7 +97,7 @@ development_status:
   epic-72-retrospective: optional
   epic-ci-maintenance: in-progress
   ci-maintenance-001-dependabot-risk-based-grouping: done
-  ci-maintenance-003-change-based-test-selection: ready-for-dev
+  ci-maintenance-003-change-based-test-selection: done
   ci-maintenance-002-safe-dependency-upgrades: done
   sprint_context: null
   source_epic: https://github.com/rotarurazvan07/bet-assistant/issues/72
