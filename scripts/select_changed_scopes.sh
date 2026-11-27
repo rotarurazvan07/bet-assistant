@@ -5,8 +5,9 @@
 # derived from the PR (or push) diff, ready to append to $GITHUB_OUTPUT.
 #
 # This implementation directly encodes the 26-row trigger matrix from
-# ci-test-trigger-matrix.md — each file maps to its row, scopes are OR-ed.
-# Derived implications (never-narrow classes) are applied as additive rules.
+# ci-test-trigger-matrix.md — each changed file is classified individually,
+# and the row scopes are OR-ed. Derived implications (never-narrow classes)
+# are applied as additive rules.
 #
 # Design contract (see docs/development.md "Change-based test selection"):
 #   * native git only — no third-party action runs in CI.
@@ -27,7 +28,7 @@
 set -euo pipefail
 
 # ── scope registry ────────────────────────────────────────────────────────
-SCOPES=(framework crawler backend frontend markets e2e docs_only github_infra setup_infra config gates npm_deps audit)
+SCOPES=(framework crawler backend frontend markets e2e docs_only github_infra setup_infra config semgrep_gates gates npm_deps audit python frontend_job)
 
 declare -A SCOPE
 for s in "${SCOPES[@]}"; do SCOPE[$s]=false; done
@@ -39,8 +40,6 @@ emit_all_true() {
     if [[ "$s" == "docs_only" ]]; then echo "docs_only=false"; else echo "${s}=true"; fi
   done
 }
-
-any_match() { grep -Eq -- "$1" <<< "$CHANGED_FILES"; }
 
 note() { echo "::notice::$*" >&2; }
 
@@ -73,136 +72,171 @@ if [[ -z "${CHANGED_FILES//[[:space:]]/}" ]]; then
   exit 0
 fi
 
-# ── per-file classification (matrix rows in priority order) ──────────────
-# Each block sets SCOPE[...]=true for that row's scopes.
-# Rows checked in priority order (most specific first).
-
-# Row 2: bet_framework/markets/**
-if any_match '^bet_framework/markets/'; then
-  SCOPE[framework]=true; SCOPE[backend]=true; SCOPE[frontend]=true
-  SCOPE[markets]=true; SCOPE[e2e]=true
-fi
-
-# Row 18: bet_dashboard/backend/openapi.generated.json
-if any_match '^bet_dashboard/backend/openapi\.generated\.json$'; then
-  SCOPE[backend]=true; SCOPE[frontend]=true; SCOPE[e2e]=true
-fi
-
-# Row 25: bet_framework/core/Slip.py
-if any_match '^bet_framework/core/Slip\.py$'; then
-  SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true; SCOPE[e2e]=true
-fi
-
-# Row 1: bet_framework/** (non-markets, non-tests)
-if any_match '^bet_framework/' && ! any_match '^bet_framework/markets/|^bet_framework/tests/'; then
-  SCOPE[framework]=true; SCOPE[backend]=true
-fi
-
-# Row 19: bet_framework/tests/**
-if any_match '^bet_framework/tests/'; then
-  SCOPE[framework]=true
-fi
-
-# Row 3: bet_crawler/** (non-finders-specific, non-tests)
-if any_match '^bet_crawler/' && ! any_match '^bet_crawler/tests/|^bet_crawler/finders/[^/]+\.py$'; then
-  SCOPE[crawler]=true
-fi
-
-# Row 20: bet_crawler/tests/**
-if any_match '^bet_crawler/tests/'; then
-  SCOPE[crawler]=true
-fi
-
-# Row 24: single finder file (bet_crawler/finders/XFinder.py)
-if any_match '^bet_crawler/finders/[^/]+\.py$'; then
-  SCOPE[crawler]=true
-fi
-
-# Row 4: bet_dashboard/backend/** (non-tests, non-openapi, non-requirements)
-if any_match '^bet_dashboard/backend/' && ! any_match '^bet_dashboard/backend/(tests/|openapi\.generated\.json$|requirements\.txt$)'; then
-  SCOPE[backend]=true; SCOPE[frontend]=true
-fi
-
-# Row 21: bet_dashboard/backend/tests/**
-if any_match '^bet_dashboard/backend/tests/'; then
-  SCOPE[backend]=true
-fi
-
-# Row 5: bet_dashboard/frontend/src/** (non-test, non-types)
-if any_match '^bet_dashboard/frontend/src/' && ! any_match '^bet_dashboard/frontend/src/(test|types)/'; then
-  SCOPE[frontend]=true; SCOPE[e2e]=true
-fi
-
-# Row 22: bet_dashboard/frontend/src/test/**
-if any_match '^bet_dashboard/frontend/src/test/'; then
-  SCOPE[frontend]=true
-fi
-
-# Row 23: bet_dashboard/frontend/src/types/**
-if any_match '^bet_dashboard/frontend/src/types/'; then
-  SCOPE[frontend]=true; SCOPE[e2e]=true
-fi
-
-# Row 6: bet_dashboard/frontend/e2e/**
-if any_match '^bet_dashboard/frontend/e2e/'; then
-  SCOPE[e2e]=true
-fi
-
-# Row 7: setup/seed_e2e.py
-if any_match '^setup/seed_e2e\.py$'; then
-  SCOPE[e2e]=true; SCOPE[setup_infra]=true
-fi
-
-# Row 9: setup/** (Dockerfile/compose/nginx/runner) - except seed_e2e.py handled above
-if any_match '^setup/' && ! any_match '^setup/seed_e2e\.py$|^setup/compose\.e2e\.yaml$'; then
-  SCOPE[setup_infra]=true; SCOPE[e2e]=true
-fi
-
-# Row 8: config/**
-if any_match '^config/'; then
-  SCOPE[config]=true; SCOPE[framework]=true; SCOPE[crawler]=true
-  SCOPE[backend]=true; SCOPE[e2e]=true
-fi
-
-# Row 10: bet_dashboard/backend/requirements.txt
-if any_match '^bet_dashboard/backend/requirements\.txt$'; then
-  SCOPE[framework]=true; SCOPE[crawler]=true
-  SCOPE[backend]=true; SCOPE[e2e]=true; SCOPE[gates]=true
-fi
-
-# Row 11: setup/requirements-scrape.txt
-if any_match '^setup/requirements-scrape\.txt$'; then
-  SCOPE[framework]=true; SCOPE[crawler]=true
-  SCOPE[backend]=true; SCOPE[e2e]=true; SCOPE[gates]=true; SCOPE[setup_infra]=true
-fi
-
-# Row 12/13: bet_dashboard/frontend/package.json / package-lock.json
-if any_match '^bet_dashboard/frontend/package(-lock)?\.json$'; then
-  SCOPE[npm_deps]=true; SCOPE[frontend]=true; SCOPE[e2e]=true
-fi
-
-# Row 14: .semgrep/**
-if any_match '^\.semgrep/'; then
-  SCOPE[gates]=true; SCOPE[framework]=true; SCOPE[crawler]=true
-  SCOPE[backend]=true; SCOPE[frontend]=true
-fi
-
-# Row 15: AGENTS.md, README.md
-if any_match '^AGENTS\.md$|^README\.md$'; then
-  SCOPE[gates]=true
-fi
-
-# Row 17: .github/workflows/**
-if any_match '^\.github/'; then
-  SCOPE[github_infra]=true; SCOPE[config]=true; SCOPE[gates]=true
-  SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true
-  SCOPE[frontend]=true; SCOPE[markets]=true; SCOPE[e2e]=true
-fi
+# ── per-file classification (loop over changed files) ────────────────────
+# Each file is classified to exactly one row, and the row's scopes are OR-ed.
+# Priority order: most specific first.
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
+  
+  # Row 2: bet_framework/markets/**
+  if [[ "$file" =~ ^bet_framework/markets/ ]]; then
+    SCOPE[framework]=true; SCOPE[backend]=true; SCOPE[frontend]=true
+    SCOPE[markets]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 18: bet_dashboard/backend/openapi.generated.json
+  if [[ "$file" == "bet_dashboard/backend/openapi.generated.json" ]]; then
+    SCOPE[backend]=true; SCOPE[frontend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 25: bet_framework/core/Slip.py
+  if [[ "$file" == "bet_framework/core/Slip.py" ]]; then
+    SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 1: bet_framework/** (non-markets, non-tests)
+  if [[ "$file" =~ ^bet_framework/ ]] && ! [[ "$file" =~ ^bet_framework/(markets/|tests/) ]]; then
+    SCOPE[framework]=true; SCOPE[backend]=true
+    continue
+  fi
+  
+  # Row 19: bet_framework/tests/**
+  if [[ "$file" =~ ^bet_framework/tests/ ]]; then
+    SCOPE[framework]=true
+    continue
+  fi
+  
+  # Row 24: single finder file (bet_crawler/finders/XFinder.py)
+  if [[ "$file" =~ ^bet_crawler/finders/[^/]+\.py$ ]]; then
+    SCOPE[crawler]=true
+    continue
+  fi
+  
+  # Row 3: bet_crawler/** (non-finders-specific, non-tests)
+  if [[ "$file" =~ ^bet_crawler/ ]] && ! [[ "$file" =~ ^bet_crawler/(tests/|finders/[^/]+\.py$) ]]; then
+    SCOPE[crawler]=true
+    continue
+  fi
+  
+  # Row 20: bet_crawler/tests/**
+  if [[ "$file" =~ ^bet_crawler/tests/ ]]; then
+    SCOPE[crawler]=true
+    continue
+  fi
+  
+  # Row 4: bet_dashboard/backend/** (non-tests, non-openapi-generated)
+  if [[ "$file" =~ ^bet_dashboard/backend/ ]] && ! [[ "$file" =~ ^bet_dashboard/backend/(tests/|openapi\.generated\.json$) ]]; then
+    SCOPE[backend]=true; SCOPE[frontend]=true
+    continue
+  fi
+  
+  # Row 21: bet_dashboard/backend/tests/**
+  if [[ "$file" =~ ^bet_dashboard/backend/tests/ ]]; then
+    SCOPE[backend]=true
+    continue
+  fi
+  
+  # Row 23: bet_dashboard/frontend/src/types/**
+  if [[ "$file" =~ ^bet_dashboard/frontend/src/types/ ]]; then
+    SCOPE[frontend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 22: bet_dashboard/frontend/src/test/**
+  if [[ "$file" =~ ^bet_dashboard/frontend/src/test/ ]]; then
+    SCOPE[frontend]=true
+    continue
+  fi
+  
+  # Row 5: bet_dashboard/frontend/src/** (non-test, non-types)
+  if [[ "$file" =~ ^bet_dashboard/frontend/src/ ]] && ! [[ "$file" =~ ^bet_dashboard/frontend/src/(test|types)/ ]]; then
+    SCOPE[frontend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 6: bet_dashboard/frontend/e2e/**
+  if [[ "$file" =~ ^bet_dashboard/frontend/e2e/ ]]; then
+    SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 7: setup/seed_e2e.py
+  if [[ "$file" == "setup/seed_e2e.py" ]]; then
+    SCOPE[e2e]=true; SCOPE[setup_infra]=true
+    continue
+  fi
+  
+  # Row 7b: setup/compose.e2e.yaml (E2E surface)
+  if [[ "$file" == "setup/compose.e2e.yaml" ]]; then
+    SCOPE[e2e]=true; SCOPE[setup_infra]=true
+    continue
+  fi
+  
+  # Row 9: setup/** (Dockerfile/compose/nginx/runner) - except E2E handled above
+  if [[ "$file" =~ ^setup/ ]] && ! [[ "$file" =~ ^setup/(seed_e2e\.py$|compose\.e2e\.yaml$) ]]; then
+    SCOPE[setup_infra]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 8: config/**
+  if [[ "$file" =~ ^config/ ]]; then
+    SCOPE[config]=true; SCOPE[framework]=true; SCOPE[crawler]=true
+    SCOPE[backend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 10: bet_dashboard/backend/requirements.txt
+  if [[ "$file" == "bet_dashboard/backend/requirements.txt" ]]; then
+    SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true
+    SCOPE[e2e]=true; SCOPE[gates]=true
+    continue
+  fi
+  
+  # Row 11: setup/requirements-scrape.txt
+  if [[ "$file" == "setup/requirements-scrape.txt" ]]; then
+    SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true
+    SCOPE[e2e]=true; SCOPE[gates]=true; SCOPE[setup_infra]=true
+    continue
+  fi
+  
+  # Row 12/13: bet_dashboard/frontend/package.json / package-lock.json
+  if [[ "$file" =~ ^bet_dashboard/frontend/package(-lock)?\.json$ ]]; then
+    SCOPE[npm_deps]=true; SCOPE[frontend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 14: .semgrep/**
+  if [[ "$file" =~ ^\.semgrep/ ]]; then
+    SCOPE[semgrep_gates]=true; SCOPE[gates]=true; SCOPE[framework]=true; SCOPE[crawler]=true
+    SCOPE[backend]=true; SCOPE[frontend]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Row 15: AGENTS.md, README.md
+  if [[ "$file" == "AGENTS.md" || "$file" == "README.md" ]]; then
+    SCOPE[gates]=true
+    continue
+  fi
+  
+  # Row 17: .github/workflows/**
+  if [[ "$file" =~ ^\.github/ ]]; then
+    SCOPE[github_infra]=true; SCOPE[config]=true; SCOPE[gates]=true
+    SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true
+    SCOPE[frontend]=true; SCOPE[markets]=true; SCOPE[e2e]=true
+    continue
+  fi
+  
+  # Unrecognised path: will be caught by the fail-open check below
+  
+done <<< "$CHANGED_FILES"
 
 # ── docs_only detection (Row 16): only docs/ and root .md (except AGENTS.md/README.md) ────────────────
 if ! grep -Ev '^docs/|^[^/]*\.md$' <<< "$CHANGED_FILES" | grep -q .; then
   # All files are docs/ or root .md — now check if any are the special gates files
-  if ! any_match '^AGENTS\.md$|^README\.md$'; then
+  if ! grep -Eq '^AGENTS\.md$|^README\.md$' <<< "$CHANGED_FILES"; then
     SCOPE[docs_only]=true
   fi
 fi
@@ -226,12 +260,11 @@ if [[ "${SCOPE[github_infra]}" == true ]]; then
   SCOPE[frontend]=true; SCOPE[markets]=true; SCOPE[e2e]=true
 fi
 
-# setup_infra scope → e2e only (plus audit which is always on)
-# (setup_infra does NOT cascade to code suites - setup/ changes only need E2E)
+# setup_infra scope → e2e only (setup/ changes only need E2E)
 
-# gates scope (.semgrep/) → framework, crawler, backend, frontend
-if [[ "${SCOPE[gates]}" == true ]] && any_match '^\.semgrep/'; then
-  SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true; SCOPE[frontend]=true
+# semgrep_gates scope → framework, crawler, backend, frontend, e2e
+if [[ "${SCOPE[semgrep_gates]}" == true ]]; then
+  SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true; SCOPE[frontend]=true; SCOPE[e2e]=true
 fi
 
 # npm_deps scope → frontend, e2e
@@ -240,19 +273,34 @@ if [[ "${SCOPE[npm_deps]}" == true ]]; then
 fi
 
 # requirements scope → framework, crawler, backend, e2e, gates (already set by row 10/11)
-if any_match '(^|/)requirements[^/]*\.txt$|^setup/requirements-scrape\.txt$|^bet_dashboard/backend/requirements\.txt$'; then
+if grep -Eq '(^|/)requirements[^/]*\.txt$|^setup/requirements-scrape\.txt$|^bet_dashboard/backend/requirements\.txt$' <<< "$CHANGED_FILES"; then
   SCOPE[framework]=true; SCOPE[crawler]=true; SCOPE[backend]=true; SCOPE[e2e]=true; SCOPE[gates]=true
+fi
+
+# ── derived job scopes (precise gating) ──────────────────────────────────
+# python: test job runs when any Python suite surface changed
+if [[ "${SCOPE[framework]}" == true || "${SCOPE[crawler]}" == true ||
+      "${SCOPE[backend]}" == true || "${SCOPE[config]}" == true ||
+      "${SCOPE[github_infra]}" == true || "${SCOPE[setup_infra]}" == true ]]; then
+  SCOPE[python]=true
+fi
+
+# frontend_job: frontend-tests runs when frontend-relevant surface changed
+if [[ "${SCOPE[frontend]}" == true || "${SCOPE[markets]}" == true ||
+      "${SCOPE[backend]}" == true || "${SCOPE[npm_deps]}" == true ||
+      "${SCOPE[semgrep_gates]}" == true ]]; then
+  SCOPE[frontend_job]=true
 fi
 
 # Unknown/unclassified paths: if docs_only=false and no recognised scope matched,
 # emit all true (fail-open).
 if [[ "${SCOPE[docs_only]}" == false ]]; then
-  if [[ "${SCOPE[framework]}" == false && "${SCOPE[crawler]}" == false && \
-        "${SCOPE[backend]}"   == false && "${SCOPE[frontend]}" == false && \
-        "${SCOPE[markets]}"   == false && "${SCOPE[e2e]}" == false && \
-        "${SCOPE[github_infra]}"     == false && "${SCOPE[setup_infra]}" == false && \
-        "${SCOPE[config]}"     == false && "${SCOPE[gates]}"     == false && \
-        "${SCOPE[npm_deps]}" == false ]]; then
+  if [[ "${SCOPE[framework]}" == false && "${SCOPE[crawler]}" == false &&
+        "${SCOPE[backend]}" == false && "${SCOPE[frontend]}" == false &&
+        "${SCOPE[markets]}" == false && "${SCOPE[e2e]}" == false &&
+        "${SCOPE[github_infra]}" == false && "${SCOPE[setup_infra]}" == false &&
+        "${SCOPE[config]}" == false && "${SCOPE[semgrep_gates]}" == false &&
+        "${SCOPE[gates]}" == false && "${SCOPE[npm_deps]}" == false ]]; then
     note "no recognised scope matched — unclassified change, emitting all scopes true"
     emit_all_true
     exit 0
