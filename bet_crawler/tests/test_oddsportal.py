@@ -207,7 +207,7 @@ class TestProcessUrlBatch:
 
     def test_stale_1x2_cells_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
         """Live palace dumps: tab headers flip, first-row cells stay 1X2."""
-        monkeypatch.setattr(OddsPortalFinder, "_BROWSER_TIMEOUT_MS", 0)
+        monkeypatch.setattr(op, "_BROWSER_TIMEOUT_MS", 0)
         x2 = load_fixture("oddsportal", "match_1x2.html")
         stale_btts = x2.replace(">1</th>", ">Yes</th>").replace(">X</th>", ">No</th>")
         stale_dc = x2.replace(">1</th>", ">1X</th>").replace(">X</th>", ">12</th>").replace(">2</th>", ">X2</th>")
@@ -358,7 +358,7 @@ class TestProcessUrlBatch:
 
     def test_missing_market_tab_still_adds_match(self, monkeypatch) -> None:
         """a market tab without its table leaves that market None."""
-        monkeypatch.setattr(OddsPortalFinder, "_BROWSER_TIMEOUT_MS", 0)
+        monkeypatch.setattr(op, "_BROWSER_TIMEOUT_MS", 0)
         session = self._session_map(monkeypatch)
         identity_only = load_fixture("oddsportal", "match_base.html")
         x2 = load_fixture("oddsportal", "match_1x2.html")

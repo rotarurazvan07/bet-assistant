@@ -67,11 +67,6 @@ class TestFootballBettingTips:
         ]
         content_map = {urls[0]: page, urls[1]: page}
         fake_browser(monkeypatch, fbt, content_map)
-
-        def fake_fetch_page(session, url, wait_until, timeout_ms):
-            return content_map[url]
-
-        monkeypatch.setattr(fbt, "fetch_page", fake_fetch_page)
         finder, collector = _finder(contributes_odds=True)
         finder.get_matches(urls)
         assert len(collector) == 4
@@ -82,14 +77,7 @@ class TestFootballBettingTips:
         good_url = "https://www.footballbettingtips.org/tips/2035-01-01.html"
         bad_url = "https://www.footballbettingtips.org/tips/2035-01-02.html"
         content_map = {good_url: page, bad_url: page}
-        fake_browser(monkeypatch, fbt, content_map)
-
-        def fake_fetch_page(session, url, wait_until, timeout_ms):
-            if url == bad_url:
-                raise RuntimeError("still blocked after browser fetch")
-            return content_map[url]
-
-        monkeypatch.setattr(fbt, "fetch_page", fake_fetch_page)
+        fake_browser(monkeypatch, fbt, content_map, fetch_error_urls=[bad_url])
         finder, collector = _finder()
         with caplog.at_level("INFO", logger="bet_crawler.finders.FootballBettingTipsFinder"):
             finder.get_matches([bad_url, good_url])

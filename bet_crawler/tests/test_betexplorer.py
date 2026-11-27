@@ -173,7 +173,7 @@ class TestProcessUrlBatch:
 
     def test_stale_1x2_averages_do_not_fill_dc_or_btts(self, monkeypatch) -> None:
         """Live t+0: BTTS/DC click still shows 1X2 averages."""
-        monkeypatch.setattr(BetExplorerFinder, "_BROWSER_TIMEOUT_MS", 0)
+        monkeypatch.setattr(be, "_BROWSER_TIMEOUT_MS", 0)
         base_html = load_fixture("betexplorer", "match_base.html")
         x2 = load_fixture("betexplorer", "match_1x2.html")
         ou = load_fixture("betexplorer", "match_ou.html")

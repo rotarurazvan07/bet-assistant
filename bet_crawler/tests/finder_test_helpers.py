@@ -112,11 +112,18 @@ def patch_scrape(monkeypatch, finder_module, pages) -> None:
     monkeypatch.setattr(finder_module, "scrape", fake_scrape)
 
 
+class FakeHtmlResponse(str):
+    @property
+    def html_content(self):
+        return str(self)
+
+
 class FakeBrowserSession:
     """Patch target for scrape_kit browser() sessions.
 
-    Supports the three usage patterns in the codebase:
+    Supports the usage patterns in the codebase:
     - session.fetch(url) -> str HTML             (WhoScored discovery; scrape-kit@v0.3.0)
+    - session.session.fetch(url).html_content    (FootballBettingTips, Forebet, WinDrawWin)
     - session.execute_script(...)                (xGScore discovery)
     - session.page.content() + session.click(sel, label) (OddsPortal/BetExplorer)
 
@@ -140,6 +147,7 @@ class FakeBrowserSession:
         self.navigation_timeout = None
         self._current_url = None
         self.page = self
+        self.session = self
 
     def fetch(self, url, **kwargs):
         self.fetched.append(url)
@@ -147,7 +155,7 @@ class FakeBrowserSession:
         if url in self.fetch_error_urls:
             raise RuntimeError("fetch failed")
         self._current_url = url
-        return self.html_content
+        return FakeHtmlResponse(self.html_content)
 
     def click(self, selector, label=None, **kwargs) -> bool:
         self.clicks.append(label if label is not None else selector)
