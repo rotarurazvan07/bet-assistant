@@ -27,6 +27,7 @@ _CONTEXT: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar
 _HANDLER_LOCK = threading.Lock()
 _EVENT_HANDLERS: dict[str, logging.Handler] = {}
 _EVENT_COUNTS: dict[tuple[str, str, str], dict[str, int]] = {}
+_EVENT_SOURCE_FAILURES: dict[tuple[str, str, str], set[str]] = {}
 
 
 class ExceptionContextFilter(logging.Filter):
@@ -96,6 +97,9 @@ class JsonEventFormatter(logging.Formatter):
                 totals["errors"] += 1
             elif record.levelno >= logging.WARNING:
                 totals["warnings"] += 1
+            failure_source = getattr(record, "source_key", None) or inferred_source_key
+            if failure_source and record.levelno >= logging.ERROR and str(event).startswith("source."):
+                _EVENT_SOURCE_FAILURES.setdefault(count_key, set()).add(str(failure_source))
             if event == "match.added" and payload["logger"] == "bet_crawler.finders.BaseMatchFinder":
                 totals["matches_added"] += 1
             elif (
@@ -287,6 +291,19 @@ def set_log_context(**fields: Any) -> None:
     )
 
 
+def get_failed_sources(*, stage: str, chunk_id: str | None = None) -> set[str]:
+    """Return source keys that emitted error-level source.* events for a stage/chunk."""
+    run_id = _CONTEXT.get()
+    run_id = (run_id or {}).get("run_id", _LOCAL_RUN_ID)
+    target_chunk = str(chunk_id or "")
+    result: set[str] = set()
+    with _HANDLER_LOCK:
+        for (event_run, event_stage, event_chunk), sources in _EVENT_SOURCE_FAILURES.items():
+            if event_run == str(run_id) and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
+                result |= sources
+    return result
+
+
 def get_event_totals(*, stage: str, chunk_id: str | None = None) -> dict[str, int]:
     """Return warning/error totals emitted so far for this process stage/chunk."""
     run_id = _CONTEXT.get()
@@ -313,6 +330,10 @@ def reset_event_totals(*, stage: str, chunk_id: str | None = None) -> None:
             event_run, event_stage, event_chunk = key
             if event_run == run_id and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
                 del _EVENT_COUNTS[key]
+        for key in tuple(_EVENT_SOURCE_FAILURES):
+            event_run, event_stage, event_chunk = key
+            if event_run == run_id and event_stage == stage and (chunk_id is None or event_chunk == target_chunk):
+                del _EVENT_SOURCE_FAILURES[key]
 
 
 def log_event(

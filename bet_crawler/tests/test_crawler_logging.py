@@ -6,9 +6,11 @@ import logging
 from bet_crawler.crawler_logging import (
     configure_event_logging,
     disable_event_logging,
+    get_failed_sources,
     get_logger,
     log_context,
     log_event,
+    reset_event_totals,
 )
 
 
@@ -67,6 +69,42 @@ def test_jsonl_event_schema_context_and_exception_details(tmp_path, monkeypatch)
         assert error["chunk_id"] == "actions-1.db"
         assert error["severity"] == "ERROR"
         assert "bad score payload" in error["exception"]
+    finally:
+        disable_event_logging()
+
+
+def test_get_failed_sources_tracks_error_level_source_events(tmp_path, monkeypatch) -> None:
+    """Error-level source.* events register their source_key for the stage/chunk."""
+    event_path = tmp_path / "failed-sources.jsonl"
+    monkeypatch.setenv("SCRAPE_EVENT_LOG_PATH", str(event_path))
+    configure_event_logging(str(event_path))
+    logger = get_logger("bet_crawler.tests.failed_sources")
+
+    try:
+        with log_context(stage="scrape", chunk_id="local-1.db", source_key="windrawwin"):
+            reset_event_totals(stage="scrape", chunk_id="local-1.db")
+            log_event(
+                logger,
+                event="source.fetch.retry",
+                outcome="error",
+                reason_code="fetch_retry_failed",
+                level=logging.ERROR,
+                message="still blocked",
+                source_key="windrawwin",
+            )
+            log_event(
+                logger,
+                event="match.skipped",
+                outcome="warning",
+                level=logging.WARNING,
+                message="benign skip",
+                source_key="windrawwin",
+            )
+        assert get_failed_sources(stage="scrape", chunk_id="local-1.db") == {"windrawwin"}
+        assert get_failed_sources(stage="scrape") == {"windrawwin"}
+        assert get_failed_sources(stage="merge") == set()
+        reset_event_totals(stage="scrape", chunk_id="local-1.db")
+        assert get_failed_sources(stage="scrape", chunk_id="local-1.db") == set()
     finally:
         disable_event_logging()
 

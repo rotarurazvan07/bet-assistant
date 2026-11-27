@@ -8,16 +8,15 @@ import json
 from datetime import datetime
 
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, fetch, scrape
+from scrape_kit import browser, fetch
 
 from bet_framework.core.Match import *
 from bet_framework.markets.catalog import MARKET_BY_KEY
 
-from .BaseMatchFinder import BaseMatchFinder
+from .BaseMatchFinder import _BROWSER_TIMEOUT_MS, BaseMatchFinder
 
 WINDRAWWIN_NAME = "windrawwin"
 WINDRAWWIN_URL = "https://www.windrawwin.com/predictions/"
-MAX_CONCURRENCY = 1
 
 
 class WinDrawWinFinder_per_match(BaseMatchFinder):
@@ -55,12 +54,29 @@ class WinDrawWinFinder_per_match(BaseMatchFinder):
 
     def get_matches(self, urls) -> None:
         """Scrape all windrawwin match URLs and emit matches via callback."""
-        scrape(
-            urls,
-            self._parse_page_with_log_context,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
+        with browser(
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+            headless=False,
+        ) as session:
+            for url in urls:
+                try:
+                    html = (
+                        session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content
+                        or ""
+                    )
+                except Exception as e:
+                    exception_event(
+                        logger,
+                        event="source.fetch.retry",
+                        reason_code="fetch_retry_failed",
+                        message=f"Skipping windrawwin page {url}: still blocked after browser fetch: {e}",
+                        source_key=WINDRAWWIN_NAME,
+                        url=url,
+                    )
+                    continue
+                self._parse_page_with_log_context(url, html)
 
     def _parse_page(self, url, html) -> None:
         """Parse one windrawwin match page and emit matches via callback."""

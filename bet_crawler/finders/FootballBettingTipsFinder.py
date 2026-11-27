@@ -7,15 +7,14 @@ import re
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
-from scrape_kit import ScrapeMode, scrape
+from scrape_kit import browser
 
 from bet_framework.core.Match import *
 
-from .BaseMatchFinder import BaseMatchFinder
+from .BaseMatchFinder import _BROWSER_TIMEOUT_MS, BaseMatchFinder
 
 FOOTBALLBETTINGTIPS_URL = "https://www.footballbettingtips.org/"
 FOOTBALLBETTINGTIPS_NAME = "footballbettingtips"
-MAX_CONCURRENCY = 1
 
 
 class FootballBettingTipsFinder(BaseMatchFinder):
@@ -37,12 +36,33 @@ class FootballBettingTipsFinder(BaseMatchFinder):
 
     def get_matches(self, urls) -> None:
         """Scrape all footballbettingtips URLs and emit matches via callback."""
-        scrape(
-            urls,
-            self._parse_page_with_log_context,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
+        with browser(
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+            headless=False,
+        ) as session:
+            for url in urls:
+                try:
+                    html = (
+                        session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content
+                        or ""
+                    )
+                except Exception as e:
+                    log_event(
+                        logger,
+                        event="source.fetch.retry",
+                        outcome="error",
+                        reason_code="fetch_retry_failed",
+                        level=40,
+                        message=f"Skipping footballbettingtips page {url}: still blocked after browser fetch: {e}",
+                        source_key=FOOTBALLBETTINGTIPS_NAME,
+                        url=url,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
+                    continue
+                self._parse_page_with_log_context(url, html)
 
     def _parse_page(self, url, html) -> None:
         """Parse one footballbettingtips page and emit matches via callback."""
