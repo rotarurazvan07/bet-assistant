@@ -1,0 +1,142 @@
+workflow: sprint-planning
+stepsCompleted:
+- step-01-discover-epics
+- step-02-build-status
+- step-03-generate-file
+- step-04-validate-report
+startedAt: '2026-10-03T02:56:06+03:00'
+lastUpdatedAt: '2026-10-08T19:27:00+03:00'
+---
+generated: 2026-10-03 02:56 EEST
+project: bet_assistant
+project_key: NOKEY
+tracking_system: file-system
+story_location: /a0/usr/projects/bet_assistant/.a0proj/_bmad-output/implementation-artifacts/
+development_status:
+  epic-72: in-progress
+  72-36-ux-group-tabs-core-insights-system:
+    issue: 36
+    title: '[UX] Group tabs by workflow: Core → Insights → System'
+    scope: 'Reorganize 6 flat tabs into workflow groups: Core (Discover [was Betting
+      Tips], Build [was Smart Builder], Track [was Slips]); Insights (Analytics);
+      System (Services, Odds Alert)'
+    acceptance_criteria:
+    - Tab order updated in Layout.tsx
+    - Labels renamed (Betting Tips → Discover, Smart Builder → Build, Slips → Track)
+    - Visual grouping (separators/spacing) in header
+    - Keyboard navigation respects new order
+    note: Issue's 'System' label contains a templating artifact — intent is config/utility
+      grouping
+  72-37-ux-discover-filters-drawer:
+    issue: 37
+    title: '[UX] Collapse Discover filters into progressive disclosure drawer'
+    scope: Replace 8 always-visible Discover controls with a single Filters button
+      opening a drawer
+    acceptance_criteria:
+    - Single Filters button opens drawer (replaces 8 always-visible controls)
+    - 'Basic section always shown: Search, Date range, Min Consensus, Min Odds'
+    - 'Advanced section expandable: Significant Movement, Sources filter, Column visibility,
+      Sort options'
+    - Reset-to-defaults button
+    - Filter state persists in localStorage
+    - Mobile = bottom sheet; desktop = right drawer
+    - Escape closes drawer; Tab navigates within
+  72-39-ux-floating-slip-builder-mobile-sheet:
+    issue: 39
+    title: '[UX] Floating slip builder: mobile bottom sheet + keyboard shortcut'
+    scope: Mobile-adaptive floating slip builder panel with keyboard shortcuts and
+      focus management
+    acceptance_criteria:
+    - 'Mobile <768px: bottom sheet (slide up, 50%/90% snap points, drag handle)'
+    - 'Desktop: keep floating panel bottom-right'
+    - Ctrl+Enter submits slip; Esc closes/minimizes
+    - Focus trap in panel when open; focus returns to triggering cell on close
+    - Panel position persists in localStorage
+    - Smooth transitions
+    note: Keyboard shortcuts user-confirmed — issue body lost literal key text
+  72-38-ux-leg-add-microanimation-toast:
+    issue: 38
+    title: '[UX] Micro-animation + toast when adding leg to slip'
+    scope: Feedback layer for adding a leg to the slip
+    acceptance_criteria:
+    - Cell pulse animation (scale + accent border flash) on add
+    - Slide-to-panel animation
+    - Toast 'Added [Market] @[Odds] to slip' auto-dismiss 2s
+    - Panel pulses once on new leg
+    - Animation completes <300ms
+    - Design-system colors; works on mobile
+  72-46-ux-actionable-empty-states-guided-ctas:
+    issue: 46
+    title: '[UX] Actionable empty states with guided CTAs on all tabs'
+    scope: Reusable EmptyState component (icon, title, numbered steps, primary/secondary
+      CTAs) applied to all 5 tabs; CTAs navigate to correct tab/section; SVG illustrations
+      per empty state
+    per_tab_flows:
+      Discover: Pull Update → Adjust Filters → Add to Slip
+      Build: Select Preset → Test Config → Add to Slips
+      Track: Go to Build → Generate Slips → Validate
+      Analytics: Generate slips in Track → Wait for settlement → Return
+      Services: Enable Generate Slips service → Set schedule → Save
+  72-50-ux-onboarding-tour-milestone:
+    issue: 50
+    title: '[UX] Interactive onboarding tour (3-step) + milestone celebration'
+    position: LAST — tours the final UI; depends on all previous stories
+    implementation: 'Custom MUI-native tour: MUI Backdrop + Paper + MobileStepper
+      spotlight — NO React Joyride, zero new dependencies'
+    tour_steps:
+      Discover: Find value bets — filters, cell click, floating panel
+      Build: Create your strategy — presets, test config, save profile
+      Track: Monitor performance — validate, generate, calendar
+    acceptance_criteria:
+    - Next/Back/Skip controls with progress dots
+    - Triggers on first visit (no localStorage flag); persists completion
+    - Restart Tour in Settings
+    - Milestone toast '🎉 First slip submitted! Check Track to monitor' on first slip
+      submit
+    - Keyboard navigable + screen-reader friendly
+  epic-72-retrospective: optional
+  epic-ci-maintenance: in-progress
+  ci-maintenance-001-dependabot-risk-based-grouping: done
+  ci-maintenance-003-change-based-test-selection: ready-for-dev
+  ci-maintenance-002-safe-dependency-upgrades: done
+  sprint_context: null
+  source_epic: https://github.com/rotarurazvan07/bet-assistant/issues/72
+  workstream: Workstream A — Discovery & Onboarding (UX)
+  execution_order: '#36 → #37 → #39 → #38 → #46 → #50 (locked; #50 runs LAST because
+    the tour walks the final UI)'
+  delivery_model:
+    branch: feature/ux-workstream-a
+    pr_strategy: 'single PR; one commit-set per issue; all 6 stories closed via ''Closes
+      #NN'' in PR description'
+    constraints: never push to main; PR only; 1 approval required; CI blocking (auto-fix
+      → tests py3.10-3.12 → audits → gate); blocking E2E on isolated docker stack;
+      eslint blocking at 0
+  locked_decisions:
+  - 'Single PR on branch feature/ux-workstream-a, one commit-set per issue, all 6
+    linked via Closes #NN'
+  - 'Keyboard shortcuts: Ctrl+Enter submits slip; Esc closes/minimizes panel'
+  - 'Onboarding tour: custom MUI-NATIVE implementation (Backdrop + Paper + MobileStepper
+    spotlight) — NO React Joyride; zero new dependencies'
+  - 'Frontend visual/E2E review MUST show populated demo data (e2e/fixtures/demo-data.ts
+    + installDemoApi). Commit + reuse — not one-off. Exception: stories that explicitly
+    test empty states (#46). Skip mocks when E2E_BASE_URL (CI docker). Expand fixtures
+    as new surfaces need data. Does not seed npm run dev / workspace DBs.'
+  stack:
+    frontend: React 19, TypeScript strict, MUI v9 + TailwindCSS, CSS variables (--bg-base,
+      --accent, --live)
+  testing_strategy:
+    component: Vitest + React Testing Library component tests per story
+    e2e: Playwright E2E extending the existing blocking CI gate
+    visual_regression: Playwright toHaveScreenshot baselines — desktop 1280x800 +
+      mobile 375x667 — per key state (each empty state, drawer open, tour steps, toast,
+      bottom sheet). Local visuals (no E2E_BASE_URL) MUST call installDemoApi from
+      e2e/fixtures/mock-api.ts so shots show matches/slips unless the story is explicitly
+      an empty-state story.
+    accessibility: axe-core + keyboard-only pass on tour / drawer / bottom sheet
+    regression: all existing suites stay green — 1,487+ tests across 4 coverage-gated
+      suites (backend, framework, crawler, frontend)
+  story_notes: null
+  epic-41-95: in-progress
+  41-96-smart-builder-profile-cards-add-modal: done
+  epic-115: in-progress
+  115-1-post-u1-market-label-cleanup: review
