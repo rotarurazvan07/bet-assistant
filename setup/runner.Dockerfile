@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ── 1. SYSTEM DEPENDENCIES ──────────────────────────────────────────────────
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        curl git jq sudo ca-certificates \
+        curl git jq sudo ca-certificates xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # ── 2. RUNNER USER CONFIGURATION ────────────────────────────────────────────
@@ -86,6 +86,15 @@ cleanup() {
     ./config.sh remove --unattended --token "${REG_TOKEN}" || true
 }
 trap cleanup EXIT INT TERM
+
+# ── Start Xvfb virtual display for headful Chromium ──────────────────
+# DISPLAY=:99 with 1920x1080x24 matches scrapling's headless viewport
+Xvfb :99 -screen 0 1920x1080x24 &
+XVFB_PID=$!
+export DISPLAY=:99
+# Give Xvfb a moment to bind the display
+sleep 2
+trap 'kill ${XVFB_PID}' EXIT
 
 echo "==> Runner '${RUNNER_NAME}' ready."
 ./run.sh
