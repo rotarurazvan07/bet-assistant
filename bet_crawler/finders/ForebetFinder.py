@@ -2,8 +2,6 @@
 
 import logging
 
-from scrape_kit import ScrapeMode, scrape
-
 from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 
 logger = get_logger(__name__)
@@ -11,16 +9,16 @@ logger = get_logger(__name__)
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+from scrape_kit import browser
 
 from bet_framework.core.leagues import *
 from bet_framework.core.Match import *
 
-from .BaseMatchFinder import BaseMatchFinder
+from .BaseMatchFinder import BaseMatchFinder, _BROWSER_TIMEOUT_MS
 
 FOREBET_URL = "https://www.forebet.com"
 FOREBET_ALL_PREDICTIONS_URL = "https://www.forebet.com/en/football-predictions"
 FOREBET_NAME = "forebet"
-MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = {
     "https://www.forebet.com/en/predictions-europe/uefa-champions-league": CHAMPIONS_LEAGUE,
@@ -243,12 +241,30 @@ class ForebetFinder(BaseMatchFinder):
 
     def get_matches(self, urls) -> None:
         """Scrape all forebet URLs and emit matches via callback."""
-        scrape(
-            urls,
-            self._parse_page_with_log_context,
-            mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
-        )
+        with browser(
+            solve_cloudflare=True,
+            interactive=True,
+            disable_resources=False,
+            headless=False,
+        ) as session:
+            for url in urls:
+                try:
+                    html = session.session.fetch(url, wait_until="domcontentloaded", timeout=_BROWSER_TIMEOUT_MS).html_content or ""
+                except Exception as e:
+                    log_event(
+                        logger,
+                        event="source.fetch.retry",
+                        outcome="error",
+                        reason_code="fetch_retry_failed",
+                        level=40,
+                        message=f"Skipping forebet page {url}: still blocked after browser fetch: {e}",
+                        source_key=FOREBET_NAME,
+                        url=url,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
+                    continue
+                self._parse_page_with_log_context(url, html)
 
     def _parse_page(self, url, html) -> None:
         """Parse one forebet league page and emit matches via callback."""

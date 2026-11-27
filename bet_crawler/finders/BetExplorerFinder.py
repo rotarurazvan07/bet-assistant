@@ -14,7 +14,7 @@ from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 from bet_framework.core.Match import Match, Odds
 
 from ._parallel import balanced_chunks
-from .BaseMatchFinder import BaseMatchFinder
+from .BaseMatchFinder import BaseMatchFinder, _BROWSER_TIMEOUT_MS
 
 logger = get_logger(__name__)
 
@@ -434,26 +434,25 @@ class BetExplorerFinder(BaseMatchFinder):
         logger.info("Total URLs found: %d", len(urls))
         return list(set(urls))
 
-    _BROWSER_TIMEOUT_MS = 60_000
     _DECIMAL = re.compile(r"^\d+(\.\d+)?$")
 
     def _configure_page_timeouts(self, session) -> None:
         """Make browser navigation and action defaults match the 60-second policy."""
-        session.page.set_default_timeout(self._BROWSER_TIMEOUT_MS)
-        session.page.set_default_navigation_timeout(self._BROWSER_TIMEOUT_MS)
+        session.page.set_default_timeout(_BROWSER_TIMEOUT_MS)
+        session.page.set_default_navigation_timeout(_BROWSER_TIMEOUT_MS)
 
     def _wait_for_selector(self, session, selector: str, *, state: str = "visible") -> None:
         """Wait for a DOM control/content node before reading or interacting with it."""
-        session.page.wait_for_selector(selector, state=state, timeout=self._BROWSER_TIMEOUT_MS)
+        session.page.wait_for_selector(selector, state=state, timeout=_BROWSER_TIMEOUT_MS)
 
     def _wait_for_function(self, session, expression: str) -> None:
         """Wait up to one minute for the live page's DOM/data condition."""
-        session.page.wait_for_function(expression, timeout=self._BROWSER_TIMEOUT_MS)
+        session.page.wait_for_function(expression, timeout=_BROWSER_TIMEOUT_MS)
 
     def _click_selector(self, session, selector: str) -> bool:
         """Wait for a click target, then let its DOM-settle wait run for up to one minute."""
         self._wait_for_selector(session, selector)
-        return session.click(selector, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
+        return session.click(selector, hard_cap_ms=_BROWSER_TIMEOUT_MS)
 
     def _average_decimals(self, soup):
         """Decimal strings from oddsComparisonAll__average_text (skip CTA labels)."""
@@ -478,7 +477,7 @@ class BetExplorerFinder(BaseMatchFinder):
         title = selector.split('title="', 1)[1].split('"', 1)[0]
         self._wait_for_selector(session, selector)
         before = self._average_decimals(BeautifulSoup(session.page.content(), "html.parser"))
-        assert session.click(selector, hard_cap_ms=self._BROWSER_TIMEOUT_MS), "Click failed"
+        assert session.click(selector, hard_cap_ms=_BROWSER_TIMEOUT_MS), "Click failed"
         condition = (
             "() => {"
             "const values = [...document.querySelectorAll('.oddsComparisonAll__average_text')]"
@@ -591,7 +590,7 @@ class BetExplorerFinder(BaseMatchFinder):
                         session.fetch(
                             url,
                             wait_until="domcontentloaded",
-                            timeout=self._BROWSER_TIMEOUT_MS,
+                            timeout=_BROWSER_TIMEOUT_MS,
                         )
                     except Exception as fetch_err:
                         log_event(
@@ -611,7 +610,7 @@ class BetExplorerFinder(BaseMatchFinder):
                         session.fetch(
                             url,
                             wait_until="domcontentloaded",
-                            timeout=self._BROWSER_TIMEOUT_MS,
+                            timeout=_BROWSER_TIMEOUT_MS,
                         )
 
                     try:

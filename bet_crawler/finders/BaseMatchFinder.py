@@ -13,6 +13,8 @@ from bet_crawler.crawler_logging import (
     source_key_for,
 )
 
+_BROWSER_TIMEOUT_MS = 60_000
+
 logger = get_logger(__name__)
 
 

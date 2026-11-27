@@ -14,7 +14,7 @@ from bet_crawler.crawler_logging import exception_event, get_logger, log_event
 from bet_framework.core.Match import Match, Odds
 
 from ._parallel import balanced_chunks
-from .BaseMatchFinder import BaseMatchFinder
+from .BaseMatchFinder import BaseMatchFinder, _BROWSER_TIMEOUT_MS
 
 logger = get_logger(__name__)
 
@@ -296,6 +296,18 @@ class OddsPortalFinder(BaseMatchFinder):
                     event_types = event_type if isinstance(event_type, list) else [event_type]
                     if "SportsEvent" not in event_types:
                         continue
+                    if "inplay-odds" in event.get("url"):
+                        log_event(
+                            logger,
+                            event="source.discovery.in_play",
+                            outcome="info",
+                            reason_code="in_play",
+                            level=30,
+                            message="Skipping ongoing match",
+                            source_key="oddsportal",
+                            url=event.get("url"),
+                        )
+                        continue
                     match_url = self._normalize_match_url(event.get("url"))
                     start_date_str = event.get("startDate")
                     if not match_url or not start_date_str:
@@ -387,14 +399,14 @@ class OddsPortalFinder(BaseMatchFinder):
                         session.fetch(
                             url,
                             wait_until="domcontentloaded",
-                            timeout=self._BROWSER_TIMEOUT_MS,
+                            timeout=_BROWSER_TIMEOUT_MS,
                         )
                     except Exception as e:
                         logger.warning("[%s] Fetch error (retrying): %s", thread_name, e)
                         session.fetch(
                             url,
                             wait_until="domcontentloaded",
-                            timeout=self._BROWSER_TIMEOUT_MS,
+                            timeout=_BROWSER_TIMEOUT_MS,
                         )
 
                     self._wait_for_selector(session, 'script[type="application/ld+json"]', state="attached")
@@ -402,7 +414,7 @@ class OddsPortalFinder(BaseMatchFinder):
                     identity = self._parse_identity(soup)
                     if identity is None:
                         # skip only when teams+date cannot be read
-                        logger.info(
+                        logger.warning(
                             "[%s] SKIPPED [%s]: missing SportsEvent identity",
                             thread_name,
                             url,
@@ -528,8 +540,6 @@ class OddsPortalFinder(BaseMatchFinder):
         if not isinstance(match_url, str) or not match_url.strip():
             return None
         url = match_url.strip()
-        if "inplay-odds" in url:
-            return None
         if url.startswith("#"):
             return None
         if url.startswith("//"):
@@ -588,25 +598,23 @@ class OddsPortalFinder(BaseMatchFinder):
             )
         return None
 
-    _BROWSER_TIMEOUT_MS = 60_000
-
     def _configure_page_timeouts(self, session) -> None:
         """Make browser navigation and action defaults match the 60-second policy."""
-        session.page.set_default_timeout(self._BROWSER_TIMEOUT_MS)
-        session.page.set_default_navigation_timeout(self._BROWSER_TIMEOUT_MS)
+        session.page.set_default_timeout(_BROWSER_TIMEOUT_MS)
+        session.page.set_default_navigation_timeout(_BROWSER_TIMEOUT_MS)
 
     def _wait_for_selector(self, session, selector: str, *, state: str = "visible") -> None:
         """Wait for a DOM control/content node before reading or interacting with it."""
-        session.page.wait_for_selector(selector, state=state, timeout=self._BROWSER_TIMEOUT_MS)
+        session.page.wait_for_selector(selector, state=state, timeout=_BROWSER_TIMEOUT_MS)
 
     def _wait_for_function(self, session, expression: str) -> None:
         """Wait up to one minute for the live page's DOM/data condition."""
-        session.page.wait_for_function(expression, timeout=self._BROWSER_TIMEOUT_MS)
+        session.page.wait_for_function(expression, timeout=_BROWSER_TIMEOUT_MS)
 
     def _click_selector(self, session, selector: str, text: str | None = None) -> bool:
         """Wait for a click target, then allow its DOM-settle wait up to one minute."""
         self._wait_for_selector(session, selector)
-        return session.click(selector, text, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
+        return session.click(selector, text, hard_cap_ms=_BROWSER_TIMEOUT_MS)
 
     def _first_row_odds(self, soup):
         """Extract first bookmaker row odds for fingerprinting (tab switch detection).
@@ -676,7 +684,7 @@ class OddsPortalFinder(BaseMatchFinder):
         before = self._table_fingerprint(BeautifulSoup(session.page.content(), "html.parser"))
         try:
             self._wait_for_selector(session, button_selector)
-            clicked = session.click("li.tab-item button", tab_label, hard_cap_ms=self._BROWSER_TIMEOUT_MS)
+            clicked = session.click("li.tab-item button", tab_label, hard_cap_ms=_BROWSER_TIMEOUT_MS)
         except Exception:
             clicked = False
         if not clicked:
