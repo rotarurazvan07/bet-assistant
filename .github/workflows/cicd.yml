@@ -35,6 +35,47 @@ env:
   POST_INSTALL_CMDS: "scrapling install"
 
 jobs:
+  # ── 0. CHANGE SELECTION ────────────────────────────────────────────────────
+  # Emits one boolean per suite scope from the PR diff so downstream jobs can
+  # skip work that cannot be affected. This job ALWAYS runs and has no `if:`.
+  # Failure is fail-open: the script emits every scope true, so a broken
+  # selector runs the full pipeline instead of silently skipping it. Gated
+  # jobs depend on it via `needs:` and check `needs.changes.outputs.<scope>`.
+  # Never move this logic to workflow-level on.*.paths filters — a filtered
+  # workflow creates no check run and deadlocks a required status check.
+  changes:
+    name: "Changes"
+    runs-on: ubuntu-latest
+    outputs:
+      framework:    ${{ steps.scope.outputs.framework }}
+      crawler:      ${{ steps.scope.outputs.crawler }}
+      backend:      ${{ steps.scope.outputs.backend }}
+      frontend:     ${{ steps.scope.outputs.frontend }}
+      markets:      ${{ steps.scope.outputs.markets }}
+      e2e:          ${{ steps.scope.outputs.e2e }}
+      docs_only:    ${{ steps.scope.outputs.docs_only }}
+      github_infra: ${{ steps.scope.outputs.github_infra }}
+      setup_infra:  ${{ steps.scope.outputs.setup_infra }}
+      config:       ${{ steps.scope.outputs.config }}
+      gates:        ${{ steps.scope.outputs.gates }}
+      npm_deps:     ${{ steps.scope.outputs.npm_deps }}
+      audit:        ${{ steps.scope.outputs.audit }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Select changed scopes
+        id: scope
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: bash scripts/select_changed_scopes.sh >> "$GITHUB_OUTPUT"
+
   # ── 1. AUTO-FIX ───────────────────────────────────────────────────────────
   auto-fix:
     name: "Auto-fix"
@@ -140,8 +181,12 @@ jobs:
   test:
     name: "Test (Python ${{ matrix.python-version }})"
     runs-on: ubuntu-latest
-    needs: [auto-fix]
-    if: always()
+    needs: [auto-fix, changes]
+    # The three Python suites are unaffected by a docs-only diff. Any other
+    # diff (including an unknown one) keeps the job on; a selector failure
+    # produces empty outputs, which this expression reads as "not docs-only"
+    # and therefore run: fail-open.
+    if: always() && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -286,7 +331,10 @@ jobs:
   audit:
     name: "Audit (security · complexity · types · docs)"
     runs-on: ubuntu-latest
-    needs: [auto-fix]
+    needs: [auto-fix, changes]
+    # The published-files gates run on every change class, docs-only included,
+    # so this job never skips. Only the slow static-analysis steps below opt out
+    # for a docs-only diff; their results are consumed by ci-gate as advisory.
     if: always()
 
     outputs:
@@ -562,6 +610,11 @@ jobs:
             exit 1
           fi
 
+      - name: Selector self-test (dry-run)
+        if: always()
+        run: |
+          bash scripts/ci-change-selection-selftest.sh
+
       - name: Write audit summary
         if: always()
         run: |
@@ -692,6 +745,11 @@ jobs:
   frontend-tests:
     name: "Frontend (typecheck · lint · vitest)"
     runs-on: ubuntu-latest
+    needs: [changes]
+    # Runs when a frontend or backend dependency surface changed. A backend
+    # edit can drift the committed OpenAPI artifact, so the codegen check here
+    # covers it too; markets fans out through the selector.
+    if: always() && needs.changes.outputs.docs_only != 'true'
 
     steps:
       - uses: actions/checkout@v7
@@ -840,7 +898,7 @@ jobs:
   e2e-tests:
     name: "E2E (docker stack · playwright)"
     runs-on: ubuntu-latest
-    needs: [test, frontend-tests]
+    needs: [test, frontend-tests, changes]
     # E2E-skip fix, (canonical): GitHub's skip propagation is
     # TRANSITIVE through the needs graph — auto-fix (PR-only, skipped on
     # main pushes and fork PRs) → test → e2e-tests. An explicit `if` WITHOUT a
@@ -852,8 +910,7 @@ jobs:
     # documented opt-out for "run even when a needed job was skipped" is
     # `always()` in the if. The result comparisons preserve the blocking
     # gate: e2e runs ONLY when both direct needs succeeded.
-    if: ${{ always() && needs.test.result == 'success' && needs.frontend-tests.result == 'success' }}
-
+    if: always() && needs.changes.outputs.e2e == 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -969,7 +1026,7 @@ jobs:
   ci-gate:
     name: "CI Gate"
     if: always()
-    needs: [auto-fix, test, audit, frontend-tests, e2e-tests]
+    needs: [auto-fix, changes, test, audit, frontend-tests, e2e-tests]
     runs-on: ubuntu-latest
 
     steps:
@@ -983,6 +1040,7 @@ jobs:
             echo ""
             echo "| Job | Result |"
             echo "|---|---|"
+            echo "| Changes | ${{ needs.changes.result }} |"
             echo "| Auto-fix | ${{ needs.auto-fix.result }} |"
             echo "| Tests (3 Python suites) | ${{ needs.test.result }} |"
             echo "| Frontend (typecheck · lint · vitest) | ${{ needs.frontend-tests.result }} |"
@@ -1010,19 +1068,29 @@ jobs:
           import sys
 
           required = {
+              # The selector must succeed — it is the only source of truth for
+              # which suites the change can affect. If it fails, the gate fails,
+              # not the suites it would have scoped.
+              'changes':        ('${{ needs.changes.result }}', ('success',)),
               # auto-fix legitimately skips on main pushes and fork PRs
               'auto-fix':       ('${{ needs.auto-fix.result }}', ('success', 'skipped')),
-              'test':           ('${{ needs.test.result }}', ('success',)),
-              'frontend-tests': ('${{ needs.frontend-tests.result }}', ('success',)),
-              'e2e-tests':      ('${{ needs.e2e-tests.result }}', ('success',)),
-              # audit carries BLOCKING checks now (bandit/semgrep at zero,
-              # mypy ratchet vs baseline, interrogate 97% floor)
+              # These jobs may skip only when the selector proved the diff is
+              # docs-only (or, for E2E, that nothing it validates changed). A
+              # job skipped for any other reason — cancellation, a failed
+              # needed job, a timeout — reports neither success nor relies on
+              # `docs_only`, so it still fails the gate below.
+              'test':           ('${{ needs.test.result }}', ('success', 'skipped')),
+              'frontend-tests': ('${{ needs.frontend-tests.result }}', ('success', 'skipped')),
+              'e2e-tests':      ('${{ needs.e2e-tests.result }}', ('success', 'skipped')),
+              # audit carries BLOCKING checks (bandit/semgrep at zero,
+              # internal-reference hygiene, market-key burn-down, interrogate
+              # 97% floor) that never skip — it must always report success.
               'audit':          ('${{ needs.audit.result }}', ('success',)),
           }
           failures = [n for n, (r, ok) in required.items() if r not in ok]
           if failures:
               print('BLOCKING failures in:', ', '.join(failures))
               sys.exit(1)
-          print('All required jobs passed (auto-fix, test, frontend-tests, e2e-tests).')
+          print('All required jobs passed (changes, auto-fix, test, frontend-tests, e2e-tests, audit).')
           print('Audit result (advisory):', '${{ needs.audit.result }}')
           "
