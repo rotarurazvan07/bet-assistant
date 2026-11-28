@@ -41,10 +41,11 @@ class OddsValidationIssue(NamedTuple):
     odds_values: dict[str, float]
 
 
-# Implied-probability thresholds (percent). A healthy complete market group
-# should sum to roughly 100-120% after converting decimal odds to probabilities.
-ODDS_VALID_LOW = 100.0
-ODDS_VALID_HIGH = 120.0
+# Implied-probability thresholds (percent). A healthy complete market group sums
+# to roughly 90-110% after converting decimal odds to probabilities: bookmaker
+# margin pushes above 100, while averaging bookmaker odds can push below 100.
+ODDS_VALID_LOW = 90.0
+ODDS_VALID_HIGH = 110.0
 _MARKET_GROUP_LABELS = {
     "result": "1X2",
     "btts": "BTTS",
@@ -83,7 +84,7 @@ def _check_market_group(
     Returns (is_valid, implied_prob_pct).
     If any selection is missing, returns (True, 0.0) — incomplete groups are allowed.
     ``implied_divisor`` normalizes overlapping selections before applying the
-    standard 100-120% range (Double Chance uses 2.0).
+    standard 90-110% range (Double Chance uses 2.0).
     """
     values: list[float] = []
     for field, _ in fields:
@@ -542,7 +543,8 @@ class MatchesManager(BufferedStorageManager):
             )
             return
         logger.warning("=== ODDS VALIDATION REPORT: %d problematic markets ===", len(issues))
-        for iss in sorted(issues, key=lambda x: abs(x.implied_prob_pct - 107.5), reverse=True):
+        midpoint = (ODDS_VALID_LOW + ODDS_VALID_HIGH) / 2
+        for iss in sorted(issues, key=lambda x: abs(x.implied_prob_pct - midpoint), reverse=True):
             odds_str = "  ".join(f"{k}={v:.2f}" for k, v in iss.odds_values.items())
             logger.warning(
                 "  %s vs %s | %s | implied=%.1f%% | %s",

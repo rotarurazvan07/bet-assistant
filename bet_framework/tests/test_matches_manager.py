@@ -42,7 +42,7 @@ def test_odds_validation_groups_match_canonical_catalog() -> None:
 
 @pytest.mark.parametrize(
     "price, expected_valid",
-    [(1.49, True), (1.25, True), (1.24, False), (1.51, False)],
+    [(1.49, True), (1.37, True), (1.36, False), (1.67, False)],
 )
 def test_double_chance_implied_probability_is_normalized_to_1x2_scale(price, expected_valid) -> None:
     fields = next(fields for _, label, fields in ODDS_MARKET_GROUPS if label == "Double Chance")
