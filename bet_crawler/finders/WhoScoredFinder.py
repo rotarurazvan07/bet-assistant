@@ -16,7 +16,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 WHOSCORED_URL = "https://www.whoscored.com/"
 WHOSCORED_NAME = "whoscored"
-MAX_CONCURRENCY = 3
 
 
 class WhoScoredFinder(BaseMatchFinder):
@@ -45,7 +44,7 @@ class WhoScoredFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

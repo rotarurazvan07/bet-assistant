@@ -30,16 +30,19 @@ CRAWLER_KEYS = {
         "class": "FakeFinderA",
         "contributes_odds": False,
         "top_leagues_only": True,
+        "max_concurrency": 3,
     },
     "beta": {
         "class": "FakeFinderB",
         "contributes_odds": True,
         "top_leagues_only": False,
+        "max_concurrency": 5,
     },
     "gamma": {
         "class": "FakeFinderA",
         "contributes_odds": False,
         "top_leagues_only": True,
+        "max_concurrency": 1,
     },
     "delta": {
         "class": "FakeFinderB",
@@ -68,6 +71,7 @@ def fake_finders(monkeypatch):
             on_match_callback,
             contributes_odds: bool = False,
             top_leagues_only: bool = False,
+            max_concurrency: int = 1,
             num_days_ahead=1,
             local_timezone="UTC",
             skip_patterns=(),
@@ -75,6 +79,7 @@ def fake_finders(monkeypatch):
             self.on_match_callback = on_match_callback
             self.contributes_odds = contributes_odds
             self.top_leagues_only = top_leagues_only
+            self.max_concurrency = max_concurrency
             self.num_days_ahead = num_days_ahead
             self.local_timezone = local_timezone
             self.skip_patterns = tuple(skip_patterns)
@@ -117,6 +122,7 @@ class TestCrawlerFactoryP1:
         assert inst.received_callback
         assert inst.contributes_odds is False
         assert inst.top_leagues_only is True
+        assert inst.max_concurrency == 3
         assert inst.num_days_ahead == 1
         assert inst.local_timezone == "Europe/Bucharest"
         assert inst.skip_patterns == ((r"\bU\d{2}s?\b", "Youth team"),)
@@ -126,7 +132,13 @@ class TestCrawlerFactoryP1:
         inst = f.create("beta")
         assert inst.contributes_odds is True
         assert inst.top_leagues_only is False
+        assert inst.max_concurrency == 5
         assert inst.received_callback is False
+
+    def test_create_defaults_max_concurrency_to_1_when_missing(self, fake_finders) -> None:
+        f = _factory()
+        inst = f.create("delta")
+        assert inst.max_concurrency == 1
 
     def test_create_for_url_resolves_and_creates(self, fake_finders) -> None:
         f = _factory()
@@ -141,7 +153,7 @@ class TestCrawlerFactoryP1:
 
 class TestLoadRuntimeP1:
     def test_load_runtime_on_tmp_config_dir(self, tmp_path) -> None:
-        scraper = {
+        crawlers = {
             "num_days_ahead": 2,
             "local_timezone": "Europe/Berlin",
             "SKIP_PATTERNS": [{"pattern": "\\bW\\b", "description": "Women's team"}],
@@ -149,8 +161,8 @@ class TestLoadRuntimeP1:
             "RUNNER_SETS": RUNNER_SETS,
             "MAX_CHUNK_SIZE": {"actions": 5, "test": 1},
         }
-        with open(tmp_path / "scraper_config.yaml", "w") as fh:
-            yaml.safe_dump(scraper, fh)
+        with open(tmp_path / "crawlers_config.yaml", "w") as fh:
+            yaml.safe_dump(crawlers, fh)
         with open(tmp_path / "similarity_config.yaml", "w") as fh:
             yaml.safe_dump(
                 {

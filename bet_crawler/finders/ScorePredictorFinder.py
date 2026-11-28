@@ -17,7 +17,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 SCOREPREDICTOR_URL = "https://scorepredictor.net/"
 SCOREPREDICTOR_NAME = "scorepredictor"
-MAX_CONCURRENCY = 3
 
 TOP_LEAGUES = {
     "https://scorepredictor.net/index.php?section=football&season=ChampionsLeague": CHAMPIONS_LEAGUE,
@@ -78,7 +77,7 @@ class ScorePredictorFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

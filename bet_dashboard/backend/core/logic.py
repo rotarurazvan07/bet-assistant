@@ -345,11 +345,11 @@ class AppLogic:
         return (self._settings.get("profiles") or {}).get(name) or {}
 
     def _local_tz(self) -> ZoneInfo:
-        """Configured crawler timezone (``scraper_config.local_timezone``)."""
-        scraper_cfg = self._settings.get("scraper_config") or {}
-        tz_name = scraper_cfg.get("local_timezone")
+        """Configured crawler timezone (``crawlers_config.local_timezone``)."""
+        crawlers_cfg = self._settings.get("crawlers_config") or {}
+        tz_name = crawlers_cfg.get("local_timezone")
         if not tz_name:
-            raise RuntimeError("scraper_config.local_timezone not configured")
+            raise RuntimeError("crawlers_config.local_timezone not configured")
         return ZoneInfo(tz_name)
 
     def _local_now(self) -> datetime:
@@ -828,10 +828,10 @@ class AppLogic:
             raise RuntimeError(f"Failed to download DB from Release: {e}") from e
 
         # Get config values for history preservation
-        scraper_cfg = self._settings.get("scraper_config") or {}
-        local_tz = scraper_cfg.get("local_timezone")
+        crawlers_cfg = self._settings.get("crawlers_config") or {}
+        local_tz = crawlers_cfg.get("local_timezone")
         if not local_tz:
-            raise RuntimeError("scraper_config.local_timezone not configured")
+            raise RuntimeError("crawlers_config.local_timezone not configured")
 
         # Merge with history preservation — full snapshot history (needed for CLV)
         try:

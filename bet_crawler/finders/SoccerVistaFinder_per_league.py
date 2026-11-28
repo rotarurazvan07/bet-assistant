@@ -16,7 +16,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
-MAX_CONCURRENCY = 10
 
 TOP_LEAGUES = {
     "https://www.soccervista.com/europe/champions-league/xGrwqq16/": CHAMPIONS_LEAGUE,
@@ -72,7 +71,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
                 for link in soup.find("h3", string=lambda t: t and "Top Leagues" in t).parent.find_all("a", href=True)
             ][:-2]
 
-            with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as ex:
+            with ThreadPoolExecutor(max_workers=self.max_concurrency) as ex:
                 results = list(
                     ex.map(
                         lambda l: (
@@ -99,7 +98,7 @@ class SoccerVistaFinder_per_league(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

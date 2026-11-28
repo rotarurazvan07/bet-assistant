@@ -97,6 +97,7 @@ The `workspace/` directory is created on first run:
 ```
 workspace/
 ├── config/          # Copied from /app/config/ on first launch
+│   ├── crawlers_config.yaml
 │   ├── scraper_config.yaml
 │   ├── similarity_config.yaml
 │   └── profiles/
@@ -387,6 +388,8 @@ persistence:
   size: 10Gi
 
 config:
+  crawlers_config: |-
+    # Your crawlers_config.yaml content
   scraper_config: |-
     # Your scraper_config.yaml content
   similarity_config: |-

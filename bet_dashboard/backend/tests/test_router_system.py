@@ -62,13 +62,13 @@ class TestGetSourcesConfig:
 
     def test_sources_empty_config(self, client_factory) -> None:
         logic = FakeDashboardLogic()
-        logic._settings["scraper_config"] = {}
+        logic._settings["crawlers_config"] = {}
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/config/sources").json() == {"sources": []}
 
     def test_sources_missing_runner_sets_key(self, client_factory) -> None:
         logic = FakeDashboardLogic()
-        logic._settings["scraper_config"] = {"other": 1}
+        logic._settings["crawlers_config"] = {"other": 1}
         client, _ = client_factory(logic=logic)
         assert client.get(f"{BASE}/config/sources").json() == {"sources": []}
 
@@ -113,7 +113,7 @@ class TestGetTimezoneConfig:
         from conftest import FakeDashboardLogic
 
         logic = FakeDashboardLogic()
-        logic._settings["scraper_config"] = {}
+        logic._settings["crawlers_config"] = {}
         client, _ = client_factory(logic=logic)
         r = client.get("/api/config/timezone")
         assert r.status_code == 500

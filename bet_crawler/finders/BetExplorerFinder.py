@@ -20,7 +20,6 @@ logger = get_logger(__name__)
 
 BETEXPLORER_URL = ""
 BETEXPLORER_NAME = "betexplorer"
-MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = [
     "https://www.betexplorer.com/football/europe/champions-league/",
@@ -763,11 +762,11 @@ class BetExplorerFinder(BaseMatchFinder):
         if not urls:
             return
 
-        if MAX_CONCURRENCY <= 1:
+        if self.max_concurrency <= 1:
             self._process_url_batch(urls)
             return
 
-        chunks = balanced_chunks(urls, MAX_CONCURRENCY)
+        chunks = balanced_chunks(urls, self.max_concurrency)
 
         logger.info(
             "Parallelizing %d URLs across %d workers (chunks: %s)",
@@ -776,7 +775,7 @@ class BetExplorerFinder(BaseMatchFinder):
             [len(c) for c in chunks],
         )
 
-        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="betexp") as executor:
+        with ThreadPoolExecutor(max_workers=self.max_concurrency, thread_name_prefix="betexp") as executor:
             futures = {
                 executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)
             }

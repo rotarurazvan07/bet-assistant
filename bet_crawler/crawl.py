@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class CrawlerRuntimeSettings:
-    """Runtime settings for the crawler loaded from scraper_config.yaml."""
+    """Runtime settings for the crawler loaded from crawlers_config.yaml."""
 
     num_days_ahead: int
     local_timezone: str
@@ -72,6 +72,7 @@ class CrawlerFactory:
             on_match_callback,
             contributes_odds=bool(crawler_config.get("contributes_odds")),
             top_leagues_only=bool(crawler_config.get("top_leagues_only", False)),
+            max_concurrency=int(crawler_config.get("max_concurrency", 1)),
             num_days_ahead=self.runtime_settings.num_days_ahead,
             local_timezone=self.runtime_settings.local_timezone,
             skip_patterns=self.runtime_settings.skip_patterns,
@@ -117,22 +118,22 @@ def load_runtime(config_dir: str):
     """Load runtime configuration from a config directory.
 
     Args:
-        config_dir: Path to the directory containing scraper_config.yaml and similarity_config.yaml.
+        config_dir: Path to the directory containing crawlers_config.yaml, scraper_config.yaml, and similarity_config.yaml.
 
     Returns:
         Dictionary with factory, max_chunk_size, and similarity_config.
     """
     configure(config_dir)
     settings = SettingsManager(config_dir)
-    scraper_config = settings.get("scraper_config")
+    crawlers_config = settings.get("crawlers_config")
 
-    crawler_keys = scraper_config.get("CRAWLER_KEYS")
-    runner_sets = scraper_config.get("RUNNER_SETS")
-    max_chunk_size = scraper_config.get("MAX_CHUNK_SIZE")
-    skip_patterns = tuple((item["pattern"], item["description"]) for item in scraper_config.get("SKIP_PATTERNS"))
+    crawler_keys = crawlers_config.get("CRAWLER_KEYS")
+    runner_sets = crawlers_config.get("RUNNER_SETS")
+    max_chunk_size = crawlers_config.get("MAX_CHUNK_SIZE")
+    skip_patterns = tuple((item["pattern"], item["description"]) for item in crawlers_config.get("SKIP_PATTERNS"))
     runtime_settings = CrawlerRuntimeSettings(
-        num_days_ahead=int(scraper_config.get("num_days_ahead")),
-        local_timezone=str(scraper_config.get("local_timezone")),
+        num_days_ahead=int(crawlers_config.get("num_days_ahead")),
+        local_timezone=str(crawlers_config.get("local_timezone")),
         skip_patterns=skip_patterns,
     )
 

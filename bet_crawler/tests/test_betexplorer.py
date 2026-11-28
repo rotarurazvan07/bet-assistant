@@ -1,7 +1,7 @@
 """
 
 Discovery patched at fetch; odds flow via FakeBrowserSession.
-MAX_CONCURRENCY patched to 1 for deterministic single-thread batch path.
+Finder max_concurrency set to 1 for deterministic single-thread batch path.
 """
 
 import datetime as dtmod
@@ -78,9 +78,8 @@ class TestGetMatches:
         def fake_batch(self, urls) -> None:
             seen.append(list(urls))
 
-        monkeypatch.setattr(be, "MAX_CONCURRENCY", 1)
         monkeypatch.setattr(BetExplorerFinder, "_process_url_batch", fake_batch)
-        finder, _ = _finder()
+        finder, _ = _finder(max_concurrency=1)
         finder.get_matches(["u1", "u2"])
         assert seen == [["u1", "u2"]]
 
@@ -90,9 +89,8 @@ class TestGetMatches:
         def fake_batch(self, urls) -> None:
             captured.setdefault("batches", []).append(list(urls))
 
-        monkeypatch.setattr(be, "MAX_CONCURRENCY", 10)
         monkeypatch.setattr(BetExplorerFinder, "_process_url_batch", fake_batch)
-        finder, _ = _finder()
+        finder, _ = _finder(max_concurrency=10)
         urls = [f"u{i:02d}" for i in range(39)]
 
         finder.get_matches(urls)

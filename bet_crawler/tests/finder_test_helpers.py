@@ -41,7 +41,7 @@ class MatchCollector:
 
 
 # Test-only fixture default. Production timezone always comes from
-# scraper_config.local_timezone — this constant exists so finder parse tests
+# crawlers_config.local_timezone — this constant exists so finder parse tests
 # have a working value while remaining free to inject any other zone
 # explicitly via the local_timezone argument.
 DEFAULT_TEST_TIMEZONE = "Europe/Bucharest"
@@ -52,6 +52,7 @@ def make_finder(
     collector=None,
     contributes_odds: bool = False,
     top_leagues_only: bool = True,
+    max_concurrency: int = 1,
     num_days_ahead=1,
     local_timezone: str = DEFAULT_TEST_TIMEZONE,
     skip_patterns=None,
@@ -67,6 +68,7 @@ def make_finder(
         collector,
         contributes_odds=contributes_odds,
         top_leagues_only=top_leagues_only,
+        max_concurrency=max_concurrency,
         num_days_ahead=num_days_ahead,
         local_timezone=local_timezone,
         skip_patterns=skip_patterns if skip_patterns is not None else DEFAULT_SKIP_PATTERNS,

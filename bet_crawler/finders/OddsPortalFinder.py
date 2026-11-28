@@ -19,7 +19,6 @@ from .BaseMatchFinder import _BROWSER_TIMEOUT_MS, BaseMatchFinder
 logger = get_logger(__name__)
 
 ODDSPORTAL_NAME = "oddsportal"
-MAX_CONCURRENCY = 5
 
 TOP_LEAGUES = [
     "https://www.oddsportal.com/football/europe/champions-league/",
@@ -556,6 +555,10 @@ class OddsPortalFinder(BaseMatchFinder):
     def _parse_identity(self, soup):
         """Read home/away/date from SportsEvent JSON-LD. None if identity missing."""
         for event in self._iter_ld_events(soup):
+            event_type = event.get("@type", [])
+            event_types = event_type if isinstance(event_type, list) else [event_type]
+            if "SportsEvent" not in event_types:
+                continue
             home = event.get("homeTeam")
             away = event.get("awayTeam")
             if isinstance(home, dict):
@@ -861,11 +864,11 @@ class OddsPortalFinder(BaseMatchFinder):
         if not urls:
             return
 
-        if MAX_CONCURRENCY <= 1:
+        if self.max_concurrency <= 1:
             self._process_url_batch(urls)
             return
 
-        chunks = balanced_chunks(urls, MAX_CONCURRENCY)
+        chunks = balanced_chunks(urls, self.max_concurrency)
 
         logger.info(
             "Parallelizing %d URLs across %d workers (chunks: %s)",
@@ -874,7 +877,7 @@ class OddsPortalFinder(BaseMatchFinder):
             [len(c) for c in chunks],
         )
 
-        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY, thread_name_prefix="oddsportal") as executor:
+        with ThreadPoolExecutor(max_workers=self.max_concurrency, thread_name_prefix="oddsportal") as executor:
             futures = {
                 executor.submit(copy_context().run, self._process_url_batch, chunk): i for i, chunk in enumerate(chunks)
             }

@@ -2,7 +2,7 @@
  * Timezone configuration hook and utilities
  *
  * Backend match datetimes are naive wall-clock strings expressed in the
- * configured match-data timezone (scraper_config.local_timezone).
+ * configured match-data timezone (crawlers_config.local_timezone).
  * These helpers ensure the browser renders/compares them in that same tz.
  */
 

@@ -13,7 +13,7 @@ The Bet Assistant backend is a **FastAPI** application providing REST API endpoi
 - Pandas (data processing)
 - SQLite (matches.db, slips.db)
 - scrape-kit + BeautifulSoup4 (result validation)
-- YAML configuration (scraper_config.yaml, similarity_config.yaml)
+- YAML configuration (crawlers_config.yaml, scraper_config.yaml, similarity_config.yaml)
 
 ---
 
@@ -670,16 +670,20 @@ CREATE TABLE legs (
 
 ## Configuration
 
-### scraper_config.yaml
+### crawlers_config.yaml
+
+Crawler domain settings (read by the dashboard for `local_timezone` and `RUNNER_SETS`):
 
 ```yaml
 CRAWLER_KEYS:
   whoscored:
     class: "WhoScoredFinder"
     contributes_odds: false
+    max_concurrency: 3
   forebet:
     class: "ForebetFinder"
     contributes_odds: true
+    max_concurrency: 1
   # ... 18+ finders
 
 RUNNER_SETS:

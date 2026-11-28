@@ -15,7 +15,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 BETCLAN_NAME = "betclan"
 BETCLAN_URL = "https://www.betclan.com/predictions/"
-MAX_CONCURRENCY = 3
 
 URLS = [
     "https://www.betclan.com/todays-football-predictions/",
@@ -51,7 +50,7 @@ class BetClanFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

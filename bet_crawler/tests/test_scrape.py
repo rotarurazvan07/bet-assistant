@@ -132,6 +132,7 @@ class TestScrapeP0:
                     callback,
                     contributes_odds=False,
                     top_leagues_only=True,
+                    max_concurrency=1,
                     num_days_ahead=1,
                     local_timezone="UTC",
                     skip_patterns=((r"\bU\d{2}\b", "Youth"),),

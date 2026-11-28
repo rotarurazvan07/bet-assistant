@@ -65,6 +65,7 @@ class TestCtor:
         assert finder.add_match_callback is collector
         assert finder.contributes_odds is True
         assert finder.top_leagues_only is False
+        assert finder.max_concurrency == 1
         assert finder.num_days_ahead == 3
         assert finder.local_timezone == "Europe/London"
         assert finder.skip_patterns == DEFAULT_SKIP_PATTERNS
@@ -83,6 +84,7 @@ class TestCtor:
             lambda m: None,
             contributes_odds=False,
             top_leagues_only=True,
+            max_concurrency=1,
             num_days_ahead=1,
             local_timezone="UTC",
             skip_patterns=(),
@@ -192,6 +194,7 @@ class TestAddMatchPipeline:
             bad_callback,
             contributes_odds=False,
             top_leagues_only=True,
+            max_concurrency=1,
             num_days_ahead=1,
             local_timezone="UTC",
             skip_patterns=(),

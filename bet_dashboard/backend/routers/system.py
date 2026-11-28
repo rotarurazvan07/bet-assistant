@@ -46,11 +46,11 @@ def get_status(request: Request):
 
 @router.get("/api/config/sources")
 def get_sources_config(request: Request):
-    """Get all unique sources from RUNNER_SETS in scraper_config.yaml"""
+    """Get all unique sources from RUNNER_SETS in crawlers_config.yaml"""
     app = _get(request)
     settings = app.logic.settings
-    scraper_cfg = settings.get("scraper_config") or {}
-    runner_sets = scraper_cfg.get("RUNNER_SETS", {})
+    crawlers_cfg = settings.get("crawlers_config") or {}
+    runner_sets = crawlers_cfg.get("RUNNER_SETS", {})
 
     # Get unique sources across all runner sets
     all_sources = set()
@@ -64,12 +64,12 @@ def get_sources_config(request: Request):
 def get_timezone_config(request: Request):
     """Get the configured match-data timezone (IANA identifier)."""
     app = _get(request)
-    scraper_cfg = app.logic.settings.get("scraper_config") or {}
-    tz_name = scraper_cfg.get("local_timezone")
+    crawlers_cfg = app.logic.settings.get("crawlers_config") or {}
+    tz_name = crawlers_cfg.get("local_timezone")
     if not tz_name:
         from fastapi import HTTPException
 
-        raise HTTPException(status_code=500, detail="scraper_config.local_timezone not configured")
+        raise HTTPException(status_code=500, detail="crawlers_config.local_timezone not configured")
     return {"timezone": tz_name}
 
 

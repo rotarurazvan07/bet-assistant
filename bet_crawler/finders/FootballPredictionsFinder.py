@@ -18,7 +18,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 FOOTBALLPREDICTIONS_URL = "https://footballpredictions.com/"
 FOOTBALLPREDICTIONS_NAME = "footballpredictions"
-MAX_CONCURRENCY = 1
 
 TOP_LEAGUES = {
     "https://footballpredictions.com/footballpredictions/championsleaguepredictions/": CHAMPIONS_LEAGUE,
@@ -60,7 +59,7 @@ class FootballPredictionsFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

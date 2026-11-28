@@ -155,6 +155,7 @@ class BaseMatchFinder:
         self.add_match_callback = add_match_callback
         self.contributes_odds = runtime_settings["contributes_odds"]
         self.top_leagues_only = runtime_settings["top_leagues_only"]
+        self.max_concurrency = runtime_settings["max_concurrency"]
         self.num_days_ahead = runtime_settings["num_days_ahead"]
         self.local_timezone = runtime_settings["local_timezone"]
         self.skip_patterns = runtime_settings["skip_patterns"]
@@ -216,16 +217,20 @@ Each finder implements the three abstract methods with source-specific parsing l
 
 ## Configuration
 
-### scraper_config.yaml
+### crawlers_config.yaml
+
+Crawler domain settings (finder registry, runner sets, match filtering, chunk sizes). Fetcher-level HTTP tuning lives in `scraper_config.yaml`.
 
 ```yaml
 CRAWLER_KEYS:
   whoscored:
     class: "WhoScoredFinder"
     contributes_odds: false
+    max_concurrency: 3
   forebet:
     class: "ForebetFinder"
     contributes_odds: true
+    max_concurrency: 1
   # ... 18+ finders
 
 RUNNER_SETS:
@@ -523,7 +528,7 @@ sqlite3 chunk-1.db "SELECT home_team_name, away_team_name, datetime, result_url 
 # Test finder directly
 python -c "
 from bet_crawler.finders.ForebetFinder import ForebetFinder
-f = ForebetFinder(print, contributes_odds=True, top_leagues_only=False, num_days_ahead=3, local_timezone='Europe/Bucharest', skip_patterns=[])
+f = ForebetFinder(print, contributes_odds=True, top_leagues_only=False, max_concurrency=1, num_days_ahead=3, local_timezone='Europe/Bucharest', skip_patterns=[])
 urls = f.get_matches_urls()
 print(f'Found {len(urls)} URLs')
 f.get_matches(urls[:2])
@@ -538,14 +543,12 @@ f.get_matches(urls[:2])
 
 - **Cloud sources** (`actions`): 100 URLs per chunk (fast, many sources)
 - **Local sources** (`local`): 1 URL per chunk (browser-based, slower)
-- **Adjust**: `MAX_CHUNK_SIZE` in `scraper_config.yaml`
+- **Adjust**: `MAX_CHUNK_SIZE` in `crawlers_config.yaml`
 
 ### Concurrency
 
-- **WhoScored**: 3 (Cloudflare)
-- **Forebet**: 10 (STEALTH mode)
-- **Others**: 5-10 depending on rate limits
-- **Configure**: `MAX_CONCURRENCY` in each finder
+- **Per-finder values** (WhoScored 3, SoccerVista per-league 10, OddsPortal/BetExplorer 5, ...)
+- **Configure**: `max_concurrency` per entry under `CRAWLER_KEYS` in `crawlers_config.yaml`
 
 ### Scraping Modes
 

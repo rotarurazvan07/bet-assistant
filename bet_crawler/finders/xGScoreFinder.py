@@ -21,7 +21,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 XGSCORE_URL = "https://xgscore.io/predictions/correct-score"
 XGSCORE_NAME = "xgscore"
-MAX_CONCURRENCY = 1
 
 
 class xGScoreFinder(BaseMatchFinder):
@@ -103,7 +102,7 @@ class xGScoreFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

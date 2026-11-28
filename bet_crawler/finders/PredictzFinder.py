@@ -17,7 +17,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 PREDICTZ_URL = "https://www.predictz.com/"
 PREDICTZ_NAME = "predictz"
-MAX_CONCURRENCY = 1
 
 TOP_LEAGUES = {
     "https://www.predictz.com/predictions/europe/champions-league/": CHAMPIONS_LEAGUE,
@@ -85,7 +84,7 @@ class PredictzFinder(BaseMatchFinder):
             self._parse_page(url, html)
 
         try:
-            scrape(urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=MAX_CONCURRENCY)
+            scrape(urls, _on_page, mode=ScrapeMode.FAST, max_concurrency=self.max_concurrency)
         except FetcherError as exc:  # sample 403s must not hard-fail the crawler
             remaining = [u for u in urls if u not in parsed]
             log_event(

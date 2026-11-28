@@ -21,7 +21,7 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 - Backend (8 routers): `bet_dashboard/backend/routers/` — `matches`, `builder`, `profiles`, `slips`, `analytics`, `services`, `odds_history`, `system`
 - Core logic: `bet_dashboard/backend/core/logic.py` — `AppLogic` (unified business logic + TickerService daemons)
 - Framework: `bet_framework/` — `BetAssistant` (slip build/validate), `MatchesManager` (buffered SQLite + fuzzy dedup), `consensus.py`, `scoring.py`
-- Config (source of truth): `config/` — `scraper_config.yaml` (crawler keys, runner sets, skip patterns), `similarity_config.yaml` (team matching), `profiles/*.yaml` (risk profiles)
+- Config (source of truth): `config/` — `crawlers_config.yaml` (crawler keys, runner sets, skip patterns, chunk sizes, timezone), `scraper_config.yaml` (scrape-kit fetcher retries/block indicators), `similarity_config.yaml` (team matching), `profiles/*.yaml` (risk profiles)
 - Docker stack: `setup/compose.yaml` — 3 services (bet-assistant, runner, bet-updater)
 - Tests: `bet_framework/tests/`, `bet_crawler/tests/`, `bet_dashboard/backend/tests/`, and frontend Vitest/Playwright suites
 
@@ -41,8 +41,8 @@ Automated betting intelligence platform: 18+ crawlers, consensus engine, slip bu
 
 - Python: line-length 127, target py314, isort `--profile black`, ruff `--select E,F,B,C,SIM,PERF --ignore UP`
 - TypeScript: React 19, strict mode, MUI v9 + TailwindCSS + CSS variables (`--bg-base`, `--accent`, `--live`)
-- Crawler timezone: `Europe/Bucharest` (from `scraper_config.yaml:local_timezone`)
-- Skip patterns: youth (`U\d{2}`), women (`\bW\b`), reserve (`II`, `2`, `III`, `B`, `C`, `Am`, `Res`) — defined in `scraper_config.yaml:SKIP_PATTERNS`
+- Crawler timezone: `Europe/Bucharest` (from `crawlers_config.yaml:local_timezone`)
+- Skip patterns: youth (`U\d{2}`), women (`\bW\b`), reserve (`II`, `2`, `III`, `B`, `C`, `Am`, `Res`) — defined in `crawlers_config.yaml:SKIP_PATTERNS`
 - Runner sets: `actions` (cloud CI), `local` (self-hosted), `test` — never mix in one run
 - Match fuzzy dedup: strong-token enforcement caps score at 35 when tokens disjoint (threshold 65) — `similarity_config.yaml:strong_mismatch_cap`
 - Consensus: Bayesian shrinkage `adjusted = 50 + (sources/(sources+k)) × (raw - 50)` — `bet_framework/core/consensus.py`

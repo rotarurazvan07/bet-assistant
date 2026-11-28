@@ -126,7 +126,7 @@ def tmp_cwd(tmp_path, monkeypatch):
 
 @pytest.fixture
 def runner_sets_config():
-    """Minimal runner-set + crawler-key config mirroring scraper_config.yaml shape."""
+    """Minimal runner-set + crawler-key config mirroring crawlers_config.yaml shape."""
     return {
         "actions": ["alpha", "beta"],
         "local": ["gamma"],

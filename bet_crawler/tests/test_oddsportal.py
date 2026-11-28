@@ -1,7 +1,7 @@
 """
 
 Discovery patched at fetch; odds flow via FakeBrowserSession.
-MAX_CONCURRENCY patched to 1 for deterministic single-thread batch path.
+Finder max_concurrency set to 1 for deterministic single-thread batch path.
 """
 
 import datetime as dtmod
@@ -99,9 +99,8 @@ class TestGetMatches:
         def fake_batch(self, urls) -> None:
             seen_batches.append(list(urls))
 
-        monkeypatch.setattr(op, "MAX_CONCURRENCY", 1)
         monkeypatch.setattr(OddsPortalFinder, "_process_url_batch", fake_batch)
-        finder, _ = _finder()
+        finder, _ = _finder(max_concurrency=1)
         finder.get_matches(["u1", "u2"])
         assert seen_batches == [["u1", "u2"]]
 
@@ -111,9 +110,8 @@ class TestGetMatches:
         def fake_batch(self, urls) -> None:
             captured.setdefault("batches", []).append(list(urls))
 
-        monkeypatch.setattr(op, "MAX_CONCURRENCY", 3)
         monkeypatch.setattr(OddsPortalFinder, "_process_url_batch", fake_batch)
-        finder, _ = _finder()
+        finder, _ = _finder(max_concurrency=3)
         finder.get_matches([f"u{i}" for i in range(9)])
         assert len(captured["batches"]) == 3
         assert sorted(sum(captured["batches"], [])) == [f"u{i}" for i in range(9)]
@@ -124,9 +122,8 @@ class TestGetMatches:
         def fake_batch(self, urls) -> None:
             captured.setdefault("batches", []).append(list(urls))
 
-        monkeypatch.setattr(op, "MAX_CONCURRENCY", 10)
         monkeypatch.setattr(OddsPortalFinder, "_process_url_batch", fake_batch)
-        finder, _ = _finder()
+        finder, _ = _finder(max_concurrency=10)
         urls = [f"u{i:02d}" for i in range(39)]
 
         finder.get_matches(urls)

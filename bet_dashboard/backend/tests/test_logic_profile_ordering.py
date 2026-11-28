@@ -178,7 +178,7 @@ class TestGeneratorPredicateTimezone:
         """Window 09:00 Europe/Bucharest (=06:00 UTC in summer). At 07:30 UTC
         (=10:30 local) the profile IS due — container-UTC comparison would say no."""
         _save_profiles(env.app, {"p": {**PROFILE, "auto_generate": True, "generate_hour": 9, "generate_minute": 0}})
-        env.app.settings.write("scraper_config", {"local_timezone": "Europe/Bucharest"})
+        env.app.settings.write("crawlers_config", {"local_timezone": "Europe/Bucharest"})
         self._freeze_utc(monkeypatch, utc_hour=7, utc_minute=30)
         assert env.app._is_generator_hour_met() is True
         assert env.app._profile_schedule_met("p") is True
@@ -186,7 +186,7 @@ class TestGeneratorPredicateTimezone:
     def test_window_not_yet_due_in_local_tz(self, env, monkeypatch) -> None:
         """At 05:30 UTC (=08:30 local) a 09:00 local window is NOT due yet."""
         _save_profiles(env.app, {"p": {**PROFILE, "auto_generate": True, "generate_hour": 9, "generate_minute": 0}})
-        env.app.settings.write("scraper_config", {"local_timezone": "Europe/Bucharest"})
+        env.app.settings.write("crawlers_config", {"local_timezone": "Europe/Bucharest"})
         self._freeze_utc(monkeypatch, utc_hour=5, utc_minute=30)
         assert env.app._is_generator_hour_met() is False
         assert env.app._profile_schedule_met("p") is False

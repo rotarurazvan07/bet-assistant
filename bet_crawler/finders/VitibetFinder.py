@@ -18,7 +18,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 VITIBET_URL = "https://www.vitibet.com/index.php?clanek=quicktips&sekce=fotbal&lang=en"
 VITIBET_NAME = "vitibet"
-MAX_CONCURRENCY = 3
 
 TOP_LEAGUES = {
     "https://www.vitibet.com/index.php?clanek=leagues&sekce=fotbal&liga=2&lang=en": CHAMPIONS_LEAGUE,
@@ -97,7 +96,7 @@ class VitibetFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.FAST,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:
@@ -129,7 +128,7 @@ class VitibetFinder(BaseMatchFinder):
                             outcome="info",
                             reason_code="score_unavailable",
                             level=30,
-                            message=f"Skipping Vitibet row with unavailable score: {url}",
+                            message=f"Skipping row with unavailable score: {url}",
                             source_key="vitibet",
                             url=url,
                         )

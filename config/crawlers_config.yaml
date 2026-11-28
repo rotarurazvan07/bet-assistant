@@ -1,0 +1,139 @@
+# Crawler domain settings: finder registry, runner sets, match filtering,
+# chunk sizing. Fetcher-level HTTP tuning lives in scraper_config.yaml.
+
+# Matches filtering settings
+num_days_ahead: 1
+local_timezone: "Europe/Bucharest"
+
+SKIP_PATTERNS:
+  - pattern: "\\bU\\d{2}s?\\b"
+    description: "Youth team"
+  - pattern: "\\bW\\b"
+    description: "Women's team"
+  - pattern: "\\bII\\b"
+    description: "Reserve team II"
+  - pattern: "\\b2\\b"
+    description: "Reserve team 2"
+  - pattern: "\\bIII\\b"
+    description: "Reserve team III"
+  - pattern: "\\bB\\b"
+    description: "B team"
+  - pattern: "\\bC\\b"
+    description: "C team"
+  - pattern: "\\b(Am)\\b"
+    description: "Amateur"
+  - pattern: "\\bRes\\b"
+    description: "Reserve team"
+
+# Crawler settings
+CRAWLER_KEYS:
+  scorepredictor:
+    class: "ScorePredictorFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 3
+  soccervista:
+    class: "SoccerVistaFinder_per_league"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 10
+  whoscored:
+    class: "WhoScoredFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 3
+  windrawwin:
+    class: "WinDrawWinFinder_per_league"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  forebet:
+    class: "ForebetFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  vitibet:
+    class: "VitibetFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 3
+  predictz:
+    class: "PredictzFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  # onemillionpredictions:
+  #   class: "OneMillionPredictionsFinder"
+  #   contributes_odds: false
+  #   top_leagues_only: true
+  #   max_concurrency: 1
+  footballbettingtips:
+    class: "FootballBettingTipsFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  xgscore:
+    class: "xGScoreFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  eaglepredict:
+    class: "EaglePredictFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  legitpredict:
+    class: "LegitPredictFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+  betclan:
+    class: "BetClanFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 3
+  oddsportal:
+    class: "OddsPortalFinder"
+    contributes_odds: true
+    top_leagues_only: true
+    max_concurrency: 5
+  betexplorer:
+    class: "BetExplorerFinder"
+    contributes_odds: true
+    top_leagues_only: true
+    max_concurrency: 5
+  footballpredictions:
+    class: "FootballPredictionsFinder"
+    contributes_odds: false
+    top_leagues_only: true
+    max_concurrency: 1
+
+RUNNER_SETS:
+  actions:
+    - vitibet
+    - scorepredictor
+    - soccervista
+    - eaglepredict
+    - legitpredict
+    - betclan
+    - footballpredictions
+    # - onemillionpredictions
+  local:
+    - whoscored
+    - footballbettingtips
+    - forebet
+    - betexplorer
+    - oddsportal
+    - windrawwin
+    - predictz
+    - xgscore
+  test:
+    - betexplorer
+
+#TEST
+
+MAX_CHUNK_SIZE:
+  actions: 100
+  local: 2
+  all: 1
+  test: 1

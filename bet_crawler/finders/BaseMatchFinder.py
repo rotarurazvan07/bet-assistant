@@ -56,6 +56,7 @@ class BaseMatchFinder:
         *,
         contributes_odds: bool,
         top_leagues_only: bool,
+        max_concurrency: int,
         num_days_ahead: int,
         local_timezone: str,
         skip_patterns: tuple[tuple[str, str], ...] | list[tuple[str, str]],
@@ -65,6 +66,7 @@ class BaseMatchFinder:
         self.add_match_callback = add_match_callback
         self.contributes_odds = contributes_odds
         self.top_leagues_only = top_leagues_only
+        self.max_concurrency = max_concurrency
         self.num_days_ahead = num_days_ahead
         self.local_timezone = local_timezone
         self.skip_patterns = tuple(skip_patterns)

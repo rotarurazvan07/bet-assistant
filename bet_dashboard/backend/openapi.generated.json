@@ -1381,7 +1381,7 @@
           "system"
         ],
         "summary": "Get Sources Config",
-        "description": "Get all unique sources from RUNNER_SETS in scraper_config.yaml",
+        "description": "Get all unique sources from RUNNER_SETS in crawlers_config.yaml",
         "operationId": "get_sources_config_api_config_sources_get",
         "responses": {
           "200": {

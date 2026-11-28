@@ -19,7 +19,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 SOCCERVISTA_URL = "https://www.soccervista.com"
 SOCCERVISTA_NAME = "soccervista"
-MAX_CONCURRENCY = 5
 
 
 class SoccerVistaFinder_per_match(BaseMatchFinder):
@@ -106,7 +105,7 @@ class SoccerVistaFinder_per_match(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

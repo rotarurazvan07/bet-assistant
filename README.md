@@ -466,7 +466,8 @@ bet-assistant/
 │       ├── utils.py          # URL validation, datetime coercion
 │       └── leagues.py        # League name constants
 ├── config/
-│   ├── scraper_config.yaml   # Crawler keys, runner sets, skip patterns
+│   ├── crawlers_config.yaml  # Crawler keys, runner sets, skip patterns, chunk sizes
+│   ├── scraper_config.yaml   # HTTP fetcher retries/block indicators (scrape-kit)
 │   ├── similarity_config.yaml # Team name fuzzy matching rules
 │   └── profiles/             # YAML profiles for Smart Builder
 ├── setup/
@@ -575,7 +576,7 @@ Common issues:
 
 1.  Test finder in isolation: `python -c "from bet_crawler.finders.X import X; f=X(print); print(f.get_matches_urls())"`
 2.  Check for Cloudflare blocks → some sources need `solve_cloudflare=True`
-3.  Review `scraper_config.yaml` for custom retry/block indicators
+3.  Review `scraper_config.yaml` for custom retry/block indicators (fetcher tuning); crawler registry lives in `crawlers_config.yaml`
 4.  Ensure finder is registered in `crawl.py` and enabled in Services
 
 ### Validation fails to update leg status

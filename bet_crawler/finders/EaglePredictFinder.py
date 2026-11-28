@@ -17,7 +17,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 EAGLEPREDICT_URL = "https://eaglepredict.com/predictions/correct-score/"
 EAGLEPREDICT_NAME = "eaglepredict"
-MAX_CONCURRENCY = 1
 
 
 class EaglePredictFinder(BaseMatchFinder):

@@ -204,7 +204,7 @@ class FakeDashboardLogic:
                     }
                 }
             },
-            "scraper_config": {
+            "crawlers_config": {
                 "RUNNER_SETS": {
                     "local": ["forebet", "xgscore"],
                     "actions": ["forebet", "predictz"],

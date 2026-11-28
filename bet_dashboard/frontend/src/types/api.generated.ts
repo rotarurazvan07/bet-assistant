@@ -246,7 +246,7 @@ export interface paths {
   "/api/config/sources": {
     /**
      * Get Sources Config
-     * @description Get all unique sources from RUNNER_SETS in scraper_config.yaml
+     * @description Get all unique sources from RUNNER_SETS in crawlers_config.yaml
      */
     get: operations["get_sources_config_api_config_sources_get"];
   };
@@ -1374,7 +1374,7 @@ export interface operations {
   };
   /**
    * Get Sources Config
-   * @description Get all unique sources from RUNNER_SETS in scraper_config.yaml
+   * @description Get all unique sources from RUNNER_SETS in crawlers_config.yaml
    */
   get_sources_config_api_config_sources_get: {
     responses: {

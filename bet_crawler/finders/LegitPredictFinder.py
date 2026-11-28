@@ -15,7 +15,6 @@ from .BaseMatchFinder import BaseMatchFinder
 
 LEGITPREDICT_URL = "https://legitpredict.com/correct-score?dt="
 LEGITPREDICT_NAME = "legitpredict"
-MAX_CONCURRENCY = 1
 
 
 class LegitPredictFinder(BaseMatchFinder):
@@ -40,7 +39,7 @@ class LegitPredictFinder(BaseMatchFinder):
             urls,
             self._parse_page_with_log_context,
             mode=ScrapeMode.STEALTH,
-            max_concurrency=MAX_CONCURRENCY,
+            max_concurrency=self.max_concurrency,
         )
 
     def _parse_page(self, url, html) -> None:

@@ -155,7 +155,7 @@ class MatchesManager(BufferedStorageManager):
 
             # Schema Migration: Add league column to matches if it doesn't exist
             cursor = self.conn.execute("PRAGMA table_info(matches)")
-            columns = [row[1] for row in cursor.fetchall()]
+            columns = [row[1] for row in cursor.fetchall() if len(row) > 1]
             if "league" not in columns:
                 self.conn.execute("ALTER TABLE matches ADD COLUMN league TEXT")
 
@@ -280,7 +280,7 @@ class MatchesManager(BufferedStorageManager):
             return idx
 
         except Exception as exc:
-            logger.error(f"add_match error: {exc}")
+            logger.error(f"add_match error: {exc}", exc_info=True)
             return None
 
     def _insert_new_match(self, match: Match) -> int:
@@ -314,6 +314,9 @@ class MatchesManager(BufferedStorageManager):
 
     def _update_existing_match(self, match: Match, found: dict, idx: int) -> bool:
         """Update an existing match in the buffer. Returns True if changes were made."""
+        if idx not in self._buffer.index:
+            logger.warning(f"Buffer index {idx} not found; skipping update for {match.home_team} vs {match.away_team}")
+            return False
         changed = False
 
         if not _is_empty(match.predictions):
@@ -556,9 +559,12 @@ class MatchesManager(BufferedStorageManager):
     @staticmethod
     def _extract_history_from_odds(odds_dict: dict | None) -> list[dict]:
         """Extract the history array from an odds dict, or return empty list."""
-        if not odds_dict:
+        if not isinstance(odds_dict, dict):
             return []
-        return odds_dict.get("history", [])
+        history = odds_dict.get("history")
+        if not isinstance(history, list):
+            return []
+        return [h for h in history if isinstance(h, dict)]
 
     @staticmethod
     def _get_current_odds_snapshot(odds_dict: dict | None) -> dict:

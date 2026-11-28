@@ -355,7 +355,8 @@ python -m bet_crawler.crawl --mode validate-slips --slips_db_path slips.db
 
 Key config files in `config/`:
 
-- `scraper_config.yaml`: Crawler keys, runner sets, skip patterns, chunk sizes
+- `crawlers_config.yaml`: Crawler keys, runner sets, skip patterns, chunk sizes, timezone
+- `scraper_config.yaml`: HTTP fetcher status retries and block indicators (scrape-kit)
 - `similarity_config.yaml`: Team name fuzzy matching rules
 - `profiles/*.yaml`: Smart Builder risk profiles
 
